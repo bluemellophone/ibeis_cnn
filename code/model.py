@@ -25,7 +25,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         num_filters=32,
         filter_size=(5, 5),
         nonlinearity=nonlinearities.rectify,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     ))
 
     l_pool1 = MaxPool2DLayer(
@@ -39,7 +39,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         num_filters=64,
         filter_size=(4, 4),
         nonlinearity=nonlinearities.rectify,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     ))
 
     l_pool2 = MaxPool2DLayer(
@@ -53,7 +53,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         num_filters=128,
         filter_size=(3, 3),
         nonlinearity=nonlinearities.rectify,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     )
 
     l_pool3 = MaxPool2DLayer(
@@ -66,7 +66,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         l_pool3,
         num_units=2048,
         nonlinearity=nonlinearities.rectify,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     )
 
     l_hidden1_maxout = layers.FeaturePoolLayer(
@@ -80,7 +80,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         l_hidden1_dropout,
         num_units=2048,
         nonlinearity=nonlinearities.rectify,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     ))
 
     l_hidden2_maxout = layers.FeaturePoolLayer(
@@ -94,7 +94,7 @@ def build_model(batch_size, input_width, input_height, output_dim):
         l_hidden2_dropout,
         num_units=output_dim,
         nonlinearity=nonlinearities.softmax,
-        W=init.Uniform(),
+        W=init.GlorotUniform(),
     )
 
     return l_out

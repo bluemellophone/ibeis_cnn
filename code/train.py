@@ -51,7 +51,7 @@ def create_iter_funcs(data, labels, learning_rate, momentum, output_layer, input
     objective = objectives.Objective(output_layer, loss_function=objectives.multinomial_nll)
 
     loss_train = objective.get_loss(X_batch, target=y_batch)
-    loss_eval = objective.get_loss(X_batch, target=y_batch)
+    loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
     predict_proba = output_layer.get_output(X_batch, deterministic=True)
     pred = T.argmax(predict_proba, axis=1)
 
