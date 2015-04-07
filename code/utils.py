@@ -2,10 +2,15 @@
 # provides utilities for learning a neural network model
 
 
+import time
 import numpy as np
 
 from sklearn.utils import shuffle
 from sklearn.cross_validation import StratifiedKFold
+
+
+def get_current_time():
+    return time.strftime('%Y-%m-%d_%H:%M:%S')
 
 
 # take the data and label arrays, split them preserving

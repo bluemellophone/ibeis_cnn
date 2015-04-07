@@ -95,7 +95,11 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
     return train_iter, valid_iter, predict_iter
 
 
-def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrained_weights_file=None):
+def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
+    current_time = utils.get_current_time()
+    if trained_weights_file is None:
+        trained_weights_file = '%s.pickle' % (current_time)
+
     learning_rate_schedule = {
         0: 0.03,
         25: 0.003,
@@ -132,50 +136,59 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
 
     best_weights = None
     best_train_loss, best_valid_loss = np.inf, np.inf
-    print('starting training...')
+    print('starting training at %s...' % (current_time))
     info.print_header_columns()
 
-    for epoch in itertools.count(1):
-        train_losses, valid_losses, valid_accuracies = [], [], []
+    try:
+        for epoch in itertools.count(1):
+            train_losses, valid_losses, valid_accuracies = [], [], []
 
-        t0 = time.time()
-        # compute the loss over all training batches
-        for Xb, yb in batch_iterator(X_train, y_train, batch_size):
-            # possible to insert a data augmentation transformation here
-            batch_train_loss = train_iter(Xb, yb)
-            train_losses.append(batch_train_loss)
+            t0 = time.time()
+            # compute the loss over all training batches
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size):
+                # possible to insert a data augmentation transformation here
+                batch_train_loss = train_iter(Xb, yb)
+                train_losses.append(batch_train_loss)
 
-        # compute the loss over all validation batches
-        for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
-            batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
-            valid_losses.append(batch_valid_loss)
-            valid_accuracies.append(batch_accuracy)
+            # compute the loss over all validation batches
+            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
+                batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
+                valid_losses.append(batch_valid_loss)
+                valid_accuracies.append(batch_accuracy)
 
-        # estimate the loss over all batches
-        avg_train_loss = np.mean(train_losses)
-        avg_valid_loss = np.mean(valid_losses)
-        avg_valid_accuracy = np.mean(valid_accuracies)
+            # estimate the loss over all batches
+            avg_train_loss = np.mean(train_losses)
+            avg_valid_loss = np.mean(valid_losses)
+            avg_valid_accuracy = np.mean(valid_accuracies)
 
-        if avg_train_loss < best_train_loss:
-            best_train_loss = avg_train_loss
-        if avg_valid_loss < best_valid_loss:
-            best_valid_loss = avg_valid_loss
-            best_weights = layers.get_all_param_values(output_layer)
+            if np.isnan(avg_train_loss):
+                print('training diverged')
+                break
 
-        info.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy, avg_train_loss, best_train_loss, epoch, time.time() - t0)
+            if avg_train_loss < best_train_loss:
+                best_train_loss = avg_train_loss
+            if avg_valid_loss < best_valid_loss:
+                best_valid_loss = avg_valid_loss
+                best_weights = layers.get_all_param_values(output_layer)
 
-        # check if it's time to update the LR
-        if epoch in learning_rate_schedule:
-            new_learning_rate = learning_rate_schedule[epoch]
-            learning_rate.set_value(new_learning_rate)
-            print('\nsetting learning rate to %.6f\n' % (new_learning_rate))
+            info.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy, avg_train_loss, best_train_loss, epoch, time.time() - t0)
 
-        if epoch > max_epochs:
-            print('\nmaximum number of epochs exceeded')
-            print('saving best weights to %s' % (weights_file))
-            with open(weights_file, 'wb') as pfile:
-                pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
-            break
+            # check if it's time to update the LR
+            if epoch in learning_rate_schedule:
+                new_learning_rate = learning_rate_schedule[epoch]
+                learning_rate.set_value(new_learning_rate)
+                print('\nsetting learning rate to %.6f\n' % (new_learning_rate))
+
+            if epoch > max_epochs:
+                print('\nmaximum number of epochs exceeded')
+                print('saving best weights to %s' % (weights_file))
+                with open(weights_file, 'wb') as pfile:
+                    pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+                break
+    except KeyboardInterrupt:
+        print('saving best weights to %s' % (weights_file))
+        with open(weights_file, 'wb') as pfile:
+            pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
