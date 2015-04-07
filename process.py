@@ -74,8 +74,8 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
     shape_y = shape_x[0:1]
 
     # Create numpy arrays
-    x = np.empty(shape_x, dtype=np.float32)
-    y = np.empty(shape_y, dtype=np.int32)
+    X = np.empty(shape_x, dtype=np.uint8)
+    y = np.empty(shape_y, dtype=np.uint8)
 
     # Process by loading images into the numpy array for saving
     for index, file_path in enumerate(direct.files()):
@@ -84,19 +84,43 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
         image = cv2.imread(file_path)
         try:
             label = label_dict[file_name]
-            x[index] = np.array(cv2.split(image))
+            X[index] = np.array(cv2.split(image))
             y[index] = label
         except KeyError:
             print('Cannot find label')
             raw_input()
 
     # Save numpy array
-    np.save(project_numpy_x_file_name, x)
+    np.save(project_numpy_x_file_name, X)
     np.save(project_numpy_y_file_name, y)
+
+
+def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name='y.npy'):
+    # Raw folders
+    numpy_path = abspath(join('data', 'numpy'))
+    # Project folders
+    project_numpy_path = join(numpy_path, project_name)
+    # Project files
+    project_numpy_x_file_name = join(project_numpy_path, numpy_x_file_name)
+    project_numpy_y_file_name = join(project_numpy_path, numpy_y_file_name)
+
+    X = np.load(project_numpy_x_file_name)
+    y = np.load(project_numpy_y_file_name)
+
+    print('  X.shape = %r' % (X.shape,))
+    print('  X.dtype = %r' % (X.dtype,))
+    print('  y.shape = %r' % (y.shape,))
+    print('  y.dtype = %r' % (y.dtype,))
+
+    image = X[0]
+    image = cv2.merge(image)
+    cv2.imshow('', image)
+    cv2.waitKey(0)
 
 
 if __name__ == '__main__':
     project_name = 'viewpoint'
     # size = (64, 64)
     # process_image_directory(project_name, size)
-    numpy_processed_directory(project_name)
+    # numpy_processed_directory(project_name)
+    view_numpy_data(project_name)

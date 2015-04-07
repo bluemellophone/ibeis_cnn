@@ -118,7 +118,9 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     data, labels = utils.load(data_file, labels_file)
     data = data.reshape(-1, input_channels, input_width, input_height)
     print('  X.shape = %r' % (data.shape,))
+    print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
+    print('  y.dtype = %r' % (labels.dtype,))
 
     image = data[0]
     c, h, w = image.shape

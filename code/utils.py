@@ -47,6 +47,7 @@ def train_test_split(X, y, eval_size, normalize=False):
 def load(data_file, labels_file=None, normalizer=255.0, random_state=None):
     # Load X matrix (data)
     data = np.load(data_file)
+    data = data.astype(np.float32)
     # Normalize all values, 0.0 <= X <= 1.0
     if normalizer is not None and normalizer > 0.0:
         data /= normalizer
@@ -54,6 +55,7 @@ def load(data_file, labels_file=None, normalizer=255.0, random_state=None):
     labels = None
     if labels_file is not None:
         labels = np.load(labels_file)
+        labels = labels.astype(np.int32)
     # Randomly shuffle data
     if labels is None:
         data = shuffle(data, random_state=random_state)
