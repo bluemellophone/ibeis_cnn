@@ -106,12 +106,12 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
     max_epochs = 75
     momentum = 0.9
     batch_size = 128
-    input_width, input_height = 64, 64
+    input_width, input_height, input_channels = 64, 64, 3
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
-    data = data.reshape(-1, 1, input_width, input_height)
+    data = data.reshape(-1, input_channels, input_width, input_height)
     print('  X.shape = %r' % (data.shape,))
     print('  y.shape = %r' % (labels.shape,))
 
