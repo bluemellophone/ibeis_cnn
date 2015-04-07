@@ -123,6 +123,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     image = data[0]
     c, h, w = image.shape
     print(c, h, w)
+    image = cv2.merge(image)
     cv2.imshow('', image)
     cv2.waitKey(0)
 
