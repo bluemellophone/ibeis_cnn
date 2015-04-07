@@ -17,7 +17,6 @@ import itertools
 import numpy as np
 import cPickle as pickle
 import lasagne
-import cv2
 
 from lasagne import layers
 from lasagne import objectives
@@ -121,18 +120,6 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
-
-    image = data[0]
-    c, h, w = image.shape
-    print(c, h, w)
-    image = cv2.merge(image)
-    image *= 255.0
-    image = image.astype(np.uint8)
-    print(image)
-    c, h, w = image.shape
-    print(c, h, w)
-    cv2.imshow('', image)
-    cv2.waitKey(0)
 
     print('building model...')
     output_layer = model.build_model(batch_size, input_width, input_height, output_dim)
