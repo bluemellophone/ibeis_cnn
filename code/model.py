@@ -5,14 +5,13 @@
 # for layers: Lasagne/lasagne/layers/
 
 from lasagne import layers
-from lasagne import cuda_convnet
 from lasagne import nonlinearities
 from lasagne import init
 
 # use cuda_convnet for a speed improvement
 # will not be available without a GPU
-Conv2DLayer = cuda_convnet.Conv2DCCLayer
-MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
+Conv2DLayer = layers.cuda_convnet.Conv2DCCLayer
+MaxPool2DLayer = layers.cuda_convnet.MaxPool2DCCLayer
 
 
 def build_model(batch_size, input_width, input_height, output_dim):
