@@ -124,6 +124,8 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     c, h, w = image.shape
     print(c, h, w)
     image = cv2.merge(image)
+    image *= 255.0
+    image = image.astype(np.uint8)
     cv2.imshow('', image)
     cv2.waitKey(0)
 
