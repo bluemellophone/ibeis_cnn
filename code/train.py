@@ -180,7 +180,7 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
 
 if __name__ == '__main__':
     project_name = 'viewpoint'
-    root = abspath('..', 'data')
+    root = abspath(join('..', 'data'))
     train_data_file = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file = join(root, 'numpy', project_name, 'y.npy')
     weights_file = join(root, 'nets', 'ibeis_cnn_weights.pickle')
