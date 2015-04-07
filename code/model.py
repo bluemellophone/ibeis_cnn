@@ -76,12 +76,12 @@ def build_model(batch_size, input_width, input_height, output_dim):
 
     l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
 
-    l_hidden2 = layers.batch_norm(layers.DenseLayer(
+    l_hidden2 = layers.DenseLayer(
         l_hidden1_dropout,
         num_units=1024,
         nonlinearity=nonlinearities.rectify,
         W=init.GlorotUniform(),
-    ))
+    )
 
     l_hidden2_maxout = layers.FeaturePoolLayer(
         l_hidden2,
