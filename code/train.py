@@ -22,7 +22,7 @@ from lasagne import layers
 from lasagne import objectives
 from lasagne import nonlinearities  # NOQA
 
-from os.path import join
+from os.path import join, abspath
 
 
 # divides X and y into batches of size bs for sending to the GPU
@@ -106,8 +106,8 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
     max_epochs = 75
     momentum = 0.9
     batch_size = 128
-    input_width, input_height = 48, 48
-    output_dim = 121    # the number of outputs from the softmax layer (# classes)
+    input_width, input_height = 64, 64
+    output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
@@ -179,9 +179,10 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
 
 
 if __name__ == '__main__':
-    root = '/home/hendrik/work/ibeis_cnn/data'
-    train_data_file = join(root, 'processed', 'train_data.npy')
-    train_labels_file = join(root, 'processed', 'train_labels.npy')
+    project_name = 'viewpoint'
+    root = abspath('..', 'data')
+    train_data_file = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_file = join(root, 'numpy', project_name, 'y.npy')
     weights_file = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')
     train(train_data_file, train_labels_file, weights_file)

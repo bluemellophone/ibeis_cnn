@@ -5,7 +5,7 @@
 import numpy as np
 
 from sklearn.utils import shuffle
-from sklearn.cross_validation import StratifiedKFold  # NOQA
+from sklearn.cross_validation import StratifiedKFold
 
 
 # take the data and label arrays, split them preserving
@@ -39,16 +39,20 @@ def train_test_split(X, y, eval_size, normalize=False):
 #  representing all the channels from a single
 #  image flattened and stacked.  This is necessary
 #  for pre-processing.
-def load(data_file, labels_file=None):
+def load(data_file, labels_file=None, normalizer=255.0, random_state=None):
+    # Load X matrix (data)
     data = np.load(data_file)
-
-    data = data.astype(np.float32) / 255.
-
+    # Normalize all values, 0.0 <= X <= 1.0
+    if normalizer is not None and normalizer > 0.0:
+        data /= normalizer
+    # Load y vector (labels)
+    labels = None
     if labels_file is not None:
         labels = np.load(labels_file)
-        data, labels = shuffle(data, labels, random_state=42)
-        labels = labels.flatten().astype(np.int32)
+    # Randomly shuffle data
+    if labels is None:
+        data = shuffle(data, random_state=random_state)
     else:
-        labels = None
-
+        data, labels = shuffle(data, labels, random_state=random_state)
+    # Return data
     return data, labels
