@@ -38,17 +38,21 @@ def batch_iterator(X, y, bs):
         yield Xb, yb
 
 
+def multinomial_nll(x, t):
+    return T.nnet.categorical_crossentropy(x, t)
+
+
 # build the Theano functions that will be used in the optimization
 # refer to this link for info on tensor types:
 # http://deeplearning.net/software/theano/library/tensor/basic.html
-def create_iter_funcs(data, labels, learning_rate, momentum, output_layer, input_type=T.tensor4, output_type=T.ivector):
+def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor4, output_type=T.ivector):
     X = input_type('x')
     y = output_type('y')
     X_batch = input_type('x_batch')
     y_batch = output_type('y_batch')
 
     # we are minimizing the multi-class negative log-likelihood
-    objective = objectives.Objective(output_layer, loss_function=objectives.multinomial_nll)
+    objective = objectives.Objective(output_layer, loss_function=multinomial_nll)
 
     loss_train = objective.get_loss(X_batch, target=y_batch)
     loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
@@ -122,7 +126,7 @@ def train(data_file, labels_file, trained_weights_file='weights.pickle', pretrai
             pretrained_weights = pickle.load(pfile)
             layers.set_all_param_values(output_layer, pretrained_weights)
 
-    train_iter, valid_iter, predict_iter = create_iter_funcs(data, labels, learning_rate, momentum, output_layer)
+    train_iter, valid_iter, predict_iter = create_iter_funcs(learning_rate, momentum, output_layer)
 
     X_train, y_train, X_valid, y_valid = utils.train_test_split(data, labels, eval_size=0.2, normalize=True)
 
