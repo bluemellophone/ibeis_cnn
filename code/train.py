@@ -54,7 +54,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
 
     # Training parameters
     learning_rate = 0.03
-    patience   = 10
+    patience   = 20
     max_epochs = 150
     momentum   = 0.9
     batch_size = 128
@@ -150,11 +150,11 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 if avg_train_loss < best_train_loss:
                     best_train_loss = avg_train_loss
                 if avg_valid_loss < best_valid_loss:
-                    best_epoch = epoch
                     best_valid_loss = avg_valid_loss
-                    best_weights = layers.get_all_param_values(output_layer)
                 if avg_valid_accuracy > best_valid_accuracy:
                     best_valid_accuracy = avg_valid_accuracy
+                    best_epoch = epoch
+                    best_weights = layers.get_all_param_values(output_layer)
 
                 # Learning rate schedule update
                 if epoch >= best_epoch + patience:
