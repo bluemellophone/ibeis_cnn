@@ -313,7 +313,8 @@ def save_best_model(best_weights, best_valid_accuracy, weights_file):
 def shock_network(output_layer, voltage=0.10):
     print('[model] shocking the network with voltage: %0.2f%%' % (voltage, ))
     current_weights = layers.get_all_param_values(output_layer)
-    print(current_weights.shape)
+    print(current_weights)
+    # print(current_weights.shape)
     shocked_weights = current_weights
     layers.set_all_param_values(output_layer, shocked_weights)
     print('[model] ...shocked\n')
