@@ -15,7 +15,7 @@ Conv2DLayer = cuda_convnet.Conv2DCCLayer
 MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
 
 
-def build_model(batch_size, input_width, input_height, input_channels, output_dim):
+def build_model(batch_size, input_width, input_height, input_channels, output_dims):
     l_in = layers.InputLayer(
         # variable batch size (None), channel, width, height
         shape=(None, input_channels, input_width, input_height)
@@ -93,7 +93,7 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
 
     l_out = layers.DenseLayer(
         l_hidden2_dropout,
-        num_units=output_dim,
+        num_units=output_dims,
         nonlinearity=nonlinearities.softmax,
         W=init.GlorotUniform(),
     )

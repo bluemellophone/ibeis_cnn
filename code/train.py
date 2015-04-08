@@ -53,14 +53,13 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         return min(learning_rate, x * 10.0)
 
     # Training parameters
+    center        = True
     learning_rate = 0.03
-    patience   = 20
-    max_epochs = 150
-    momentum   = 0.9
-    batch_size = 128
-    whiten     = True
-    normalizer = 255.0
-    output_dim = 16    # the number of outputs from the softmax layer (# classes)
+    momentum      = 0.9
+    batch_size    = 128
+    max_epochs    = 150
+    patience      = 20
+    output_dims   = 16    # the number of outputs from the softmax layer (# classes)
 
     ######################################################################################
 
@@ -82,20 +81,20 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     X_train, y_train, X_valid, y_valid = dataset
 
     # Center the data by subtracting the mean
-    if whiten:
+    if center:
         print('[data] applying data centering...')
-        whiten_mean = np.mean(X_train, axis=0)
-        # whiten_std  = np.std(X_train, axis=0)
-        whiten_std  = 1.0
+        center_mean = np.mean(X_train, axis=0)
+        # center_std  = np.std(X_train, axis=0)
+        center_std  = 255.0
     else:
-        whiten_mean = None  # 0.0
-        whiten_std  = None  # 1.0
+        center_mean = 0.0
+        center_std  = 255.0
 
     # Build and print the model
     print('\n[model] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
-                                     input_channels, output_dim)
+                                     input_channels, output_dims)
     utils.print_layer_info(output_layer)
 
     # Load the pretrained model if specified
@@ -124,14 +123,14 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 t0 = time.time()
                 # compute the loss over all training batches
                 for Xb, yb in utils.batch_iterator(X_train, y_train, batch_size,
-                                                   normalizer, whiten_mean, whiten_std,
+                                                   center_mean, center_std,
                                                    rand=True, augment=augmentation):
                     batch_train_loss = train_iter(Xb, yb)
                     train_losses.append(batch_train_loss)
 
                 # compute the loss over all validation batches
                 for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
-                                                   normalizer, whiten_mean, whiten_std):
+                                                   center_mean, center_std):
                     batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
                     valid_losses.append(batch_valid_loss)
                     valid_accuracies.append(batch_accuracy)

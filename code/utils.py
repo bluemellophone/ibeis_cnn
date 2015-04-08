@@ -42,8 +42,7 @@ def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-# take the data and label arrays, split them preserving
-# the class representations, and optionally normalize them
+# take the data and label arrays, split them preserving the class distributions
 def train_test_split(X, y, eval_size):
     kf = StratifiedKFold(y, round(1. / eval_size))
 
@@ -129,8 +128,7 @@ def float32(k):
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False,
-                   augment=None):
+def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None):
     # Randomly shuffle data
     if rand:
         if y is None:
@@ -151,10 +149,8 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False,
         # Whiten)
         if mean is not None:
             Xb_ -= mean
-        if std is not None:
+        if std is not None and std != 0.0:
             Xb_ /= std
-        if norm is not None and norm > 0.0:
-            Xb_ /= norm
         # Augment
         if augment is not None:
             Xb_, yb_ = augment(Xb_, yb_)
