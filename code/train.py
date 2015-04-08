@@ -62,20 +62,37 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
-    # Load the data abd Theano'ize the learning rate
-    print('\n[load] loading data...')
+    ######################################################################################
+
+    # Load the data
+    print('\n[data] loading data...')
     data, labels = utils.load(data_file, labels_file)
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
-    print('[load]     X.shape = %r' % (data.shape,))
-    print('[load]     X.dtype = %r' % (data.dtype,))
-    print('[load]     y.shape = %r' % (labels.shape,))
-    print('[load]     y.dtype = %r' % (labels.dtype,))
+    print('[data]     X.shape = %r' % (data.shape,))
+    print('[data]     X.dtype = %r' % (data.dtype,))
+    print('[data]     y.shape = %r' % (labels.shape,))
+    print('[data]     y.dtype = %r' % (labels.dtype,))
 
     # utils.show_image_from_data(data)
 
+    # Split the dataset into training and validation
+    print('[data] creating train, validation datasaets...')
+    dataset = utils.train_test_split(data, labels, eval_size=0.2)
+    X_train, y_train, X_valid, y_valid = dataset
+
+    # Center the data by subtracting the mean
+    if whiten:
+        print('[data] applying data centering...')
+        whiten_mean = np.mean(X_train, axis=0)
+        # whiten_std  = np.std(X_train, axis=0)
+        whiten_std  = 1.0
+    else:
+        whiten_mean = None  # 0.0
+        whiten_std  = None  # 1.0
+
     # Build and print the model
-    print('\n[build] building model...')
+    print('\n[model] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
                                      input_channels, output_dim)
@@ -89,25 +106,10 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
             layers.set_all_param_values(output_layer, pretrained_weights)
 
     # Create the Theano primitives
-    print('[data] creating train, validation datasaets...')
+    print('[model] creating Theano primitives...')
     learning_rate_ = theano.shared(utils.float32(learning_rate))
     all_iters = utils.create_iter_funcs(learning_rate_, momentum, output_layer)
     train_iter, valid_iter, predict_iter = all_iters
-
-    # Split the dataset into training and validation
-    print('[data] creating train, validation datasaets...')
-    dataset = utils.train_test_split(data, labels, eval_size=0.2)
-    X_train, y_train, X_valid, y_valid = dataset
-
-    # Center the data by subtracting the mean
-    print('[data] calculating whitening...')
-    if whiten:
-        whiten_mean = np.mean(X_train, axis=0)
-        # whiten_std  = np.std(X_train, axis=0)
-        whiten_std  = 1.0
-    else:
-        whiten_mean = None  # 0.0
-        whiten_std  = None  # 1.0
 
     # Begin training the neural network
     print('[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
