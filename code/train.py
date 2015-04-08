@@ -110,25 +110,32 @@ def show_image_from_data(data):
     zero = np.zeros((h, w), dtype=np.uint8)
     print(zero.shape)
     print(zero.dtype)
-    b = cv2.merge([b, zero, zero])
-    g = cv2.merge([zero, g, zero])
-    r = cv2.merge([zero, zero, r])
+    b_ = cv2.merge([b, zero, zero])
+    g_ = cv2.merge([zero, g, zero])
+    r_ = cv2.merge([zero, zero, r])
     image = cv2.merge(image)
+    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
 
-    sobelx = cv2.Sobel(image, -1, 1, 0)
-    sobely = cv2.Sobel(image, -1, 0, 1)
+    sobelx = cv2.Sobel(grayscale, -1, 1, 0)
+    sobely = cv2.Sobel(grayscale, -1, 0, 1)
 
     print(sobelx.shape)
     print(sobely.shape)
 
-    add_to_template(template, 0, 0, r)
-    add_to_template(template, 1, 0, g)
-    add_to_template(template, 2, 0, b)
+    sobelx_ = cv2.merge([sobelx, sobelx, sobelx])
+    sobely_ = cv2.merge([sobely, sobely, sobely])
+
+    print(sobelx_.shape)
+    print(sobely_.shape)
+
+    add_to_template(template, 0, 0, r_)
+    add_to_template(template, 1, 0, g_)
+    add_to_template(template, 2, 0, b_)
     add_to_template(template, 3, 0, image)
 
-    add_to_template(template, 0, 1, sobelx)
-    add_to_template(template, 1, 1, sobely)
+    add_to_template(template, 0, 1, sobelx_)
+    add_to_template(template, 1, 1, sobely_)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
