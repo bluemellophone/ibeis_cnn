@@ -112,8 +112,8 @@ def add_channels(data):
     data_channels[:, :channels, :, :] = data
     for index in range(points):
         image     = cv2.merge(data[index])
-        hsv       = cv2.cvtColor(image, cv2.COLOR_BGR2HSV) * 255.0
-        lab       = cv2.cvtColor(image, cv2.COLOR_BGR2Lab) * 255.0
+        hsv       = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lab       = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
         sobely    = cv2.Sobel(grayscale, -1, 0, 1)
@@ -134,17 +134,25 @@ def show_image_from_data(data):
     def add_to_template(template, x, y, image_):
         template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
 
-    template_w, template_h = (5, 2)
+    template_w, template_h = (5, 4)
     image = data[0]
     c, h, w = image.shape
-    b, g, r, x, y, xx, yy, xy = image
+    b, g, r, h, s, v, l, a, b2, x, y, xx, yy, xy = image
 
     # Create temporary copies for displaying
     zero   = np.zeros((h, w), dtype=np.uint8)
     b_     = cv2.merge((b, zero, zero))
     g_     = cv2.merge((zero, g, zero))
     r_     = cv2.merge((zero, zero, r))
-    image_ = cv2.merge((b, g, r))
+    bgr_   = cv2.merge((b, g, r))
+    h_     = cv2.merge((h, zero, zero))
+    s_     = cv2.merge((zero, s, zero))
+    v_     = cv2.merge((zero, zero, v))
+    hsv_   = cv2.merge((h, s, v))
+    l_     = cv2.merge((l, zero, zero))
+    a_     = cv2.merge((zero, a, zero))
+    b2_    = cv2.merge((zero, zero, b2))
+    lab_   = cv2.merge((l, a, b))
     x_     = cv2.merge((x, x, x))
     y_     = cv2.merge((y, y, y))
     xx_    = cv2.merge((xx, xx, xx))
@@ -155,13 +163,23 @@ def show_image_from_data(data):
     add_to_template(template, 0, 0, r_)
     add_to_template(template, 1, 0, g_)
     add_to_template(template, 2, 0, b_)
-    add_to_template(template, 3, 0, image_)
+    add_to_template(template, 3, 0, bgr_)
 
-    add_to_template(template, 0, 1, x_)
-    add_to_template(template, 1, 1, y_)
-    add_to_template(template, 2, 1, xx_)
-    add_to_template(template, 3, 1, yy_)
-    add_to_template(template, 4, 1, xy_)
+    add_to_template(template, 0, 1, h_)
+    add_to_template(template, 1, 1, s_)
+    add_to_template(template, 2, 1, v_)
+    add_to_template(template, 3, 1, hsv_)
+
+    add_to_template(template, 0, 1, l_)
+    add_to_template(template, 1, 1, a_)
+    add_to_template(template, 2, 1, b2_)
+    add_to_template(template, 3, 1, lab_)
+
+    add_to_template(template, 0, 3, x_)
+    add_to_template(template, 1, 3, y_)
+    add_to_template(template, 2, 3, xx_)
+    add_to_template(template, 3, 3, yy_)
+    add_to_template(template, 4, 3, xy_)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
@@ -196,7 +214,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
 
-    # show_image_from_data(data)
+    show_image_from_data(data)
 
     print('building model...')
     input_cases, input_channels, input_height, input_width = data.shape
