@@ -96,6 +96,29 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
     return train_iter, valid_iter, predict_iter
 
 
+def add_channels(data):
+    additional = 4
+    points, channels, height, width = data.shape
+    dtype = data.dtype
+    data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
+    data_channels[:, :channels, :, :] = data
+    data *= 255.0
+    data = data.astype(np.uint8)
+    for index in range(points):
+        print('Processing: %r' % (index, ))
+        image = data[index]
+        grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
+        sobelx = cv2.Sobel(grayscale, -1, 1, 0)
+        sobely = cv2.Sobel(grayscale, -1, 0, 1)
+        sobelxx = cv2.Sobel(sobelx, -1, 1, 0)
+        sobelyy = cv2.Sobel(sobely, -1, 0, 1)
+        data_channels[index, 3, :, :] = sobelx
+        data_channels[index, 4, :, :] = sobely
+        data_channels[index, 5, :, :] = sobelxx
+        data_channels[index, 6, :, :] = sobelyy
+    return data_channels
+
+
 def show_image_from_data(data):
     def add_to_template(template, x, y, image_):
         template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
@@ -104,23 +127,17 @@ def show_image_from_data(data):
     c, h, w = image.shape
     image *= 255.0
     image = image.astype(np.uint8)
-    b, g, r = image
-    image = cv2.merge(image)
-    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    sobelx = cv2.Sobel(grayscale, -1, 1, 0)
-    sobely = cv2.Sobel(grayscale, -1, 0, 1)
-    sobelxx = cv2.Sobel(sobelx, -1, 1, 0)
-    sobelyy = cv2.Sobel(sobely, -1, 0, 1)
+    b, g, r, x, y, xx, yy = image
 
     # Create temporary copies for displaying
     zero = np.zeros((h, w), dtype=np.uint8)
     b_ = cv2.merge([b, zero, zero])
     g_ = cv2.merge([zero, g, zero])
     r_ = cv2.merge([zero, zero, r])
-    sobelx_ = cv2.merge([sobelx, sobelx, sobelx])
-    sobely_ = cv2.merge([sobely, sobely, sobely])
-    sobelxx_ = cv2.merge([sobelxx, sobelxx, sobelxx])
-    sobelyy_ = cv2.merge([sobelyy, sobelyy, sobelyy])
+    x_ = cv2.merge([x, x, x])
+    y_ = cv2.merge([y, y, y])
+    xx_ = cv2.merge([xx, xx, xx])
+    yy_ = cv2.merge([yy, yy, yy])
 
     template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
@@ -128,10 +145,10 @@ def show_image_from_data(data):
     add_to_template(template, 2, 0, b_)
     add_to_template(template, 3, 0, image)
 
-    add_to_template(template, 0, 1, sobelx_)
-    add_to_template(template, 1, 1, sobely_)
-    add_to_template(template, 2, 1, sobelxx_)
-    add_to_template(template, 3, 1, sobelyy_)
+    add_to_template(template, 0, 1, x_)
+    add_to_template(template, 1, 1, y_)
+    add_to_template(template, 2, 1, xx_)
+    add_to_template(template, 3, 1, yy_)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
@@ -158,6 +175,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
     data = data.reshape(-1, input_channels, input_width, input_height)
+    data = add_channels(data)
     print('  X.shape = %r' % (data.shape,))
     print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
