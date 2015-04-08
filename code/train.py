@@ -106,8 +106,10 @@ def show_image_from_data(data):
     image = image.astype(np.uint8)
     b, g, r = image
     print(b.shape)
-    zero = np.zeros((h, w))
+    print(b.dtype)
+    zero = np.zeros((h, w), dtype=np.uint8)
     print(zero.shape)
+    print(zero.dtype)
     b = cv2.merge([b, zero, zero])
     g = cv2.merge([zero, g, zero])
     r = cv2.merge([zero, zero, r])
