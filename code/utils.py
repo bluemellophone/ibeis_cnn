@@ -98,7 +98,7 @@ def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
     best_valid    = valid_loss == best_valid_loss
     best_accuracy = valid_accuracy == best_valid_accuracy
     print(" {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  "
-          "|  {:>11.6f}  |  {}{:>9}}{}  |  {:>3.1f}s".format(
+          "|  {:>11.6f}  |  {}{:>9}{}  |  {:>3.1f}s".format(
               epoch,
               ANSI.BLUE if best_train else "",
               train_loss,
