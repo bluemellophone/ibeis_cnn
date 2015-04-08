@@ -245,7 +245,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
 
-    show_image_from_data(data)
+    # show_image_from_data(data)
 
     print('building model...')
     input_cases, input_channels, input_height, input_width = data.shape
