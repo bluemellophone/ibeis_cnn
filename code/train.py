@@ -175,7 +175,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     momentum = 0.9
     batch_size = 128
     normalizer = 255.0
-    input_width, input_height, input_channels = 64, 64, 3
+    input_width, input_height, input_channels = 64, 64, 7
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
     print('loading data...')
@@ -191,7 +191,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     show_image_from_data(data)
 
     print('building model...')
-    output_layer = model.build_model(batch_size, input_width, input_height, output_dim)
+    output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dim)
     info.print_layer_info(layers.get_all_layers(output_layer)[::-1])
     print('this model has %d learnable parameters' % (layers.count_params(output_layer)))
 
