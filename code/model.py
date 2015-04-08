@@ -17,7 +17,8 @@ MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
 
 def build_model(batch_size, input_width, input_height, input_channels, output_dim):
     l_in = layers.InputLayer(
-        shape=(None, input_channels, input_width, input_height)  # variable batch size, 1 channel, width, height
+        # variable batch size (None), channel, width, height
+        shape=(None, input_channels, input_width, input_height)
     )
 
     l_conv1 = Conv2DLayer(
