@@ -113,7 +113,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     # Begin training the neural network
     print('\n[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
     utils.print_header_columns()
-    epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, np.inf, np.inf, 0.0
+    epoch, best_weights, best_accuracy, best_epoch = 0, None, 0.0, 0
+    best_train_loss, best_valid_loss, best_valid_accuracy = np.inf, np.inf, 0.0
     try:
         while True:
             try:
@@ -150,10 +151,11 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     best_train_loss = avg_train_loss
                 if avg_valid_loss < best_valid_loss:
                     best_valid_loss = avg_valid_loss
-                if avg_valid_accuracy > best_valid_accuracy:
-                    best_valid_accuracy = avg_valid_accuracy
                     best_epoch = epoch
                     best_weights = layers.get_all_param_values(output_layer)
+                    best_accuracy = avg_valid_accuracy
+                if avg_valid_accuracy > best_valid_accuracy:
+                    best_valid_accuracy = avg_valid_accuracy
 
                 # Learning rate schedule update
                 if epoch >= best_epoch + patience:
@@ -189,7 +191,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     utils.set_learning_rate(learning_rate_, learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
-                    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
+                    utils.save_best_model(best_weights, best_accuracy, weights_file)
                 else:
                     # Terminate the network training
                     raise KeyboardInterrupt
@@ -197,7 +199,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         print('\n\n[train] ...stopping network training\n')
 
     # Save the best network
-    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
+    utils.save_best_model(best_weights, best_accuracy, weights_file)
 
 
 if __name__ == '__main__':
