@@ -105,7 +105,6 @@ def add_channels(data):
     data *= 255.0
     data = data.astype(np.uint8)
     for index in range(points):
-        print('Processing: %r' % (index, ))
         image = data[index]
         grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
         sobelx = cv2.Sobel(grayscale, -1, 1, 0)
@@ -128,6 +127,7 @@ def show_image_from_data(data):
     image *= 255.0
     image = image.astype(np.uint8)
     b, g, r, x, y, xx, yy = image
+    image = cv2.merge(b, g, r)
 
     # Create temporary copies for displaying
     zero = np.zeros((h, w), dtype=np.uint8)
@@ -175,6 +175,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
     data = data.reshape(-1, input_channels, input_width, input_height)
+    print('adding channels...')
     data = add_channels(data)
     print('  X.shape = %r' % (data.shape,))
     print('  X.dtype = %r' % (data.dtype,))
