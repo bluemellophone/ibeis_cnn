@@ -120,8 +120,8 @@ def add_channels(data):
         sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
         sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
         sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
-        data_channels[index, 3:5, :, :] = hsv
-        data_channels[index, 6:8, :, :] = lab
+        data_channels[index, 3:6, :, :] = hsv
+        data_channels[index, 6:9, :, :] = lab
         data_channels[index, 9, :, :] = sobelx
         data_channels[index, 10, :, :] = sobely
         data_channels[index, 11, :, :] = sobelxx
