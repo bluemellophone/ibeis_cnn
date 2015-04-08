@@ -39,14 +39,14 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
             yb = None
         # Get corret dtype
         Xb_ = Xb.astype(np.float32)
-        if norm is not None and norm > 0.0:
-            Xb_ /= norm
         yb_ = yb.astype(np.int32)
         # Whiten
         if mean is not None:
             Xb -= mean
         if std is not None:
             Xb /= std
+        if norm is not None and norm > 0.0:
+            Xb_ /= norm
         # Augment
         if augment is not None:
             Xb, yb = augment(Xb, yb)
