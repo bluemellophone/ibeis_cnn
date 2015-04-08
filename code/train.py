@@ -103,7 +103,7 @@ def add_channels(data):
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
     data_channels[:, :channels, :, :] = data
     for index in range(points):
-        image = data[index]
+        image     = data[index]
         grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
         sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
         sobely    = cv2.Sobel(grayscale, -1, 0, 1)
@@ -229,7 +229,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             # compute the loss over all validation batches
             for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
-                Xb_, yb_ = preprocess_dtype(Xb, yb)
+                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
                 batch_valid_loss, batch_accuracy = valid_iter(Xb_, yb_)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
