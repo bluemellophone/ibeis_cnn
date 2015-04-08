@@ -90,6 +90,7 @@ def print_layer_info(nn_layers):
             str(output_shape),
             str(functools.reduce(operator.mul, output_shape[1:])),
         ))
+    print('\n')
 
 
 def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,

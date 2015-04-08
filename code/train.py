@@ -113,6 +113,9 @@ def train(data_file, labels_file, trained_weights_file=None,
     best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
     try:
         for epoch in itertools.count(1):
+            if epoch > max_epochs:
+                print('\n[train] maximum number of epochs exceeded\n')
+                break
             train_losses, valid_losses, valid_accuracies = [], [], []
 
             t0 = time.time()
@@ -158,10 +161,6 @@ def train(data_file, labels_file, trained_weights_file=None,
                 learning_rate.set_value(utils.float32(new_learning_rate))
                 print('\n[train] setting learning rate to %.9f\n' % (new_learning_rate))
                 utils.print_header_columns()
-
-            if epoch > max_epochs:
-                print('\n[train] maximum number of epochs exceeded')
-                break
     except KeyboardInterrupt:
         print('[train] Caught CRTL+C, saving best network of accuracy: %r' % (best_valid_accuracy, ))
 
