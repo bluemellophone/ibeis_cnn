@@ -283,7 +283,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, augment=augmentation):
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, augment=None):
                 batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
