@@ -178,7 +178,7 @@ def train(data_file, labels_file, trained_weights_file=None,
                 else:
                     raise KeyboardInterrupt
     except KeyboardInterrupt:
-        print('\n[train] ...stopping network training')
+        print('\n\n[train] ...stopping network training\n')
 
     # Save the best network
     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
