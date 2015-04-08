@@ -114,7 +114,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     # Begin training the neural network
     print('[train] starting training at %s' % (utils.get_current_time()))
     utils.print_header_columns()
-    epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, np.inf, np.inf, 0.0
+    epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, 0, np.inf, np.inf, 0.0
     try:
         while True:
             try:
@@ -184,6 +184,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 if resolution == 1:
                     # Shock the weights of the network
                     utils.shock_network(output_layer)
+                    best_epoch = epoch
                     utils.set_learning_rate(learning_rate, learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
