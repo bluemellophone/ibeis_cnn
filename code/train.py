@@ -65,23 +65,23 @@ def train(data_file, labels_file, trained_weights_file=None,
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
-    print('loading data...')
+    print('[load] loading data...')
     data, labels = utils.load(data_file, labels_file)
-    # print('adding channels...')
+    # print('[load] adding channels...')
     # data = utils.add_channels(data)
-    print('  X.shape = %r' % (data.shape,))
-    print('  X.dtype = %r' % (data.dtype,))
-    print('  y.shape = %r' % (labels.shape,))
-    print('  y.dtype = %r' % (labels.dtype,))
+    print('[load]     X.shape = %r' % (data.shape,))
+    print('[load]     X.dtype = %r' % (data.dtype,))
+    print('[load]     y.shape = %r' % (labels.shape,))
+    print('[load]     y.dtype = %r' % (labels.dtype,))
 
     # utils.show_image_from_data(data)
 
-    print('building model...')
+    print('[build] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
                                      input_channels, output_dim)
     utils.print_layer_info(layers.get_all_layers(output_layer)[::-1])
-    print('this model has %d learnable parameters' % (layers.count_params(output_layer)))
+    print('[build] this model has %d learnable parameters' % (layers.count_params(output_layer)))
 
     if pretrained_weights_file is not None:
         print('loading pretrained weights from %s' % (pretrained_weights_file))
@@ -92,11 +92,11 @@ def train(data_file, labels_file, trained_weights_file=None,
     all_iters = utils.create_iter_funcs(learning_rate, momentum, output_layer)
     train_iter, valid_iter, predict_iter = all_iters
 
-    print('creating train, validation datasaets...')
+    print('[data] creating train, validation datasaets...')
     dataset = utils.train_test_split(data, labels, eval_size=0.2)
     X_train, y_train, X_valid, y_valid = dataset
 
-    print('calculating whitening...')
+    print('[data] calculating whitening...')
     if whiten:
         whiten_mean = np.mean(X_train, axis=0)
         # whiten_std  = np.std(X_train, axis=0)
@@ -107,7 +107,7 @@ def train(data_file, labels_file, trained_weights_file=None,
 
     best_weights = None
     best_train_loss, best_valid_loss, best_valid_accuracy = np.inf, np.inf, 0.0
-    print('starting training at %s...' % (current_time))
+    print('[train] starting training at %s...' % (current_time))
     utils.print_header_columns()
 
     best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
@@ -136,7 +136,7 @@ def train(data_file, labels_file, trained_weights_file=None,
             avg_valid_accuracy = np.mean(valid_accuracies)
 
             if np.isnan(avg_train_loss):
-                print('training diverged')
+                print('[train] training diverged')
                 break
 
             if avg_train_loss < best_train_loss:
@@ -156,18 +156,19 @@ def train(data_file, labels_file, trained_weights_file=None,
                 best_epoch = epoch
                 new_learning_rate = learning_rate_update(learning_rate.get_value())
                 learning_rate.set_value(utils.float32(new_learning_rate))
-                print('\nsetting learning rate to %.6f\n' % (new_learning_rate))
+                print('\n[train] setting learning rate to %.9f\n' % (new_learning_rate))
+                utils.print_header_columns()
 
             if epoch > max_epochs:
-                print('\nmaximum number of epochs exceeded')
-                print('saving best weights to %s' % (weights_file))
-                with open(weights_file, 'wb') as pfile:
-                    pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+                print('\n[train] maximum number of epochs exceeded')
                 break
     except KeyboardInterrupt:
-        print('saving best weights to %s' % (weights_file))
-        with open(weights_file, 'wb') as pfile:
-            pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+        print('[train] Caught CRTL+C, saving best network of accuracy: %r' % (best_valid_accuracy, ))
+
+    # Save the best network
+    print('[train] saving best weights to %s' % (weights_file))
+    with open(weights_file, 'wb') as pfile:
+        pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':

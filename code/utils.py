@@ -75,16 +75,17 @@ def load(data_file, labels_file=None, random_state=None):
 
 
 def print_header_columns():
-    print("""
- Epoch  |  Train Loss  |  Valid Loss  |  Train / Val  |  Valid Acc  |  Dur
---------|--------------|--------------|---------------|-------------|------\
-""")
+    print('''
+[info]   Epoch |  Train Loss  |  Valid Loss  |  Train / Val  |  Valid Acc  |  Dur
+[info] --------|--------------|--------------|---------------|-------------|------\
+''')
 
 
 def print_layer_info(nn_layers):
+    print('\n[info] Network Structure:')
     for layer in nn_layers:
         output_shape = layer.get_output_shape()
-        print("  {:<18}\t{:<20}\tproduces {:>7} outputs".format(
+        print('[info]     {:<18}\t{:<20}\tproduces {:>7} outputs'.format(
             layer.__class__.__name__,
             str(output_shape),
             str(functools.reduce(operator.mul, output_shape[1:])),
@@ -99,21 +100,21 @@ def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
     best_accuracy = valid_accuracy == best_valid_accuracy
     ratio         = train_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
-    print(" {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  "
-          "|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {:>3.1f}s".format(
+    print('[info] {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  '
+          '|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
               epoch,
-              ANSI.BLUE if best_train else "",
+              ANSI.BLUE if best_train else '',
               train_loss,
-              ANSI.RESET if best_train else "",
-              ANSI.GREEN if best_valid else "",
+              ANSI.RESET if best_train else '',
+              ANSI.GREEN if best_valid else '',
               valid_loss,
-              ANSI.RESET if best_valid else "",
-              ANSI.RED if unhealthy_ratio else "",
+              ANSI.RESET if best_valid else '',
+              ANSI.RED if unhealthy_ratio else '',
               ratio,
-              ANSI.RESET if unhealthy_ratio else "",
-              ANSI.MAGENTA if best_accuracy else "",
-              "{:.2f}%".format(valid_accuracy * 100),
-              ANSI.RESET if best_accuracy else "",
+              ANSI.RESET if unhealthy_ratio else '',
+              ANSI.MAGENTA if best_accuracy else '',
+              '{:.2f}%'.format(valid_accuracy * 100),
+              ANSI.RESET if best_accuracy else '',
               duration,
           ))
 
