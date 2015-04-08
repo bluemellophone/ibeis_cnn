@@ -32,6 +32,10 @@ RANDOM_SEED = None
 # RANDOM_SEED = 42
 
 
+def float32(k):
+    return np.cast['float32'](k)
+
+
 # divides X and y into batches of size bs for sending to the GPU
 def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False, augment=None):
     # Randomly shuffle data
@@ -228,18 +232,17 @@ def augmentation(Xb, yb):
     return Xb, yb
 
 
+def learning_rate_update(x):
+    return 0.1 * x
+
+
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
     current_time = utils.get_current_time()
     if trained_weights_file is None:
         trained_weights_file = '%s.pickle' % (current_time)
 
-    learning_rate_schedule = {
-        0: 0.03,
-        25: 0.003,
-        50: 0.0003,
-    }
-
-    learning_rate = theano.shared(np.cast['float32'](learning_rate_schedule[0]))
+    learning_rate = theano.shared(float32(0.03))
+    patience = 10
     max_epochs = 75
     momentum   = 0.9
     batch_size = 128
@@ -289,6 +292,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('starting training at %s...' % (current_time))
     info.print_header_columns()
 
+    best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
     try:
         for epoch in itertools.count(1):
             train_losses, valid_losses, valid_accuracies = [], [], []
@@ -317,15 +321,16 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
             if avg_train_loss < best_train_loss:
                 best_train_loss = avg_train_loss
             if avg_valid_loss < best_valid_loss:
+                best_epoch = epoch
                 best_valid_loss = avg_valid_loss
                 best_weights = layers.get_all_param_values(output_layer)
 
             info.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy, avg_train_loss, best_train_loss, epoch, time.time() - t0)
 
-            # check if it's time to update the LR
-            if epoch in learning_rate_schedule:
-                new_learning_rate = learning_rate_schedule[epoch]
-                learning_rate.set_value(new_learning_rate)
+            if epoch >= best_epoch + patience:
+                best_epoch = epoch
+                new_learning_rate = learning_rate_update(learning_rate.get_value())
+                learning_rate.set_value(float32(new_learning_rate))
                 print('\nsetting learning rate to %.6f\n' % (new_learning_rate))
 
             if epoch > max_epochs:
