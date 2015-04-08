@@ -37,11 +37,11 @@ def train_test_split(X, y, eval_size):
 #  for pre-processing.
 def load(data_file, labels_file=None, random_state=None):
     # Load X matrix (data)
-    data = np.load(data_file)
+    data = np.load(data_file, mmap_mode='r')
     # Load y vector (labels)
     labels = None
     if labels_file is not None:
-        labels = np.load(labels_file)
+        labels = np.load(labels_file, mmap_mode='r')
     # Randomly shuffle data
     if labels is None:
         data = shuffle(data, random_state=random_state)
