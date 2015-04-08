@@ -57,8 +57,9 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     learning_rate = 0.03
     momentum      = 0.9
     batch_size    = 128
-    max_epochs    = 150
-    patience      = 20
+    patience      = 15
+    # max_epochs    = 150
+    max_epochs    = patience * 10
     output_dims   = 16    # the number of outputs from the softmax layer (# classes)
 
     ######################################################################################
