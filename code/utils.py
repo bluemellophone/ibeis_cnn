@@ -89,7 +89,7 @@ def print_layer_info(output_layer):
         print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             layer.__class__.__name__,
             str(output_shape),
-            str(functools.reduce(operator.mul, output_shape[1:])),
+            int(str(functools.reduce(operator.mul, output_shape[1:]))),
         ))
     print('[info] ...this model has {:,} learnable parameters\n'.format(
         layers.count_params(output_layer)
