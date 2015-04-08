@@ -161,12 +161,14 @@ def train(data_file, labels_file, trained_weights_file=None,
                 print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
                 utils.print_header_columns()
     except KeyboardInterrupt:
-        print('[train] Caught CRTL+C, saving best network of accuracy: %r' % (best_valid_accuracy, ))
+        acc = 100.0 * best_valid_accuracy
+        print('[train] Caught CRTL+C, saving best network of accuracy: %02.2f' % (acc, ))
 
     # Save the best network
     print('[model] saving best weights to %s' % (weights_file))
     with open(weights_file, 'wb') as pfile:
         pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+    print('[model] ...saved\n')
 
 
 if __name__ == '__main__':
