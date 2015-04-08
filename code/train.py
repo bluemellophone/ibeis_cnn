@@ -134,52 +134,46 @@ def show_image_from_data(data):
     def add_to_template(template, x, y, image_):
         template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
 
-    template_w, template_h = (5, 4)
+    def replicate(channel, index=None):
+        temp = np.zeros((3, h, w), dtype=np.uint8)
+        if index is None:
+            temp[0] = channel
+            temp[1] = channel
+            temp[2] = channel
+        else:
+            temp[index] = channel
+        return cv2.merge(temp)
+
+    template_h, template_w = (4, 5)
     image = data[0]
     c, h, w = image.shape
-    b, g, r, h, s, v, l, a, b2, x, y, xx, yy, xy = image
 
     # Create temporary copies for displaying
-    zero   = np.zeros((h, w), dtype=np.uint8)
-    b_     = cv2.merge((b, zero, zero))
-    g_     = cv2.merge((zero, g, zero))
-    r_     = cv2.merge((zero, zero, r))
-    bgr_   = cv2.merge((b, g, r))
-    h_     = cv2.merge((h, zero, zero))
-    s_     = cv2.merge((zero, s, zero))
-    v_     = cv2.merge((zero, zero, v))
-    hsv_   = cv2.merge((h, s, v))
-    l_     = cv2.merge((l, zero, zero))
-    a_     = cv2.merge((zero, a, zero))
-    b2_    = cv2.merge((zero, zero, b2))
-    lab_   = cv2.merge((l, a, b))
-    x_     = cv2.merge((x, x, x))
-    y_     = cv2.merge((y, y, y))
-    xx_    = cv2.merge((xx, xx, xx))
-    yy_    = cv2.merge((yy, yy, yy))
-    xy_    = cv2.merge((xy, xy, xy))
+    bgr_   = cv2.merge(image[0:3])
+    hsv_   = cv2.merge(image[3:6])
+    lab_   = cv2.merge(image[6:9])
 
     template = np.zeros((template_h * h, template_w * w, 3), dtype=np.uint8)
-    add_to_template(template, 0, 0, r_)
-    add_to_template(template, 1, 0, g_)
-    add_to_template(template, 2, 0, b_)
+    add_to_template(template, 0, 0, replicate(image[0], 0))
+    add_to_template(template, 1, 0, replicate(image[1], 1))
+    add_to_template(template, 2, 0, replicate(image[2], 2))
     add_to_template(template, 3, 0, bgr_)
 
-    add_to_template(template, 0, 1, h_)
-    add_to_template(template, 1, 1, s_)
-    add_to_template(template, 2, 1, v_)
+    add_to_template(template, 0, 1, replicate(image[3], 0))
+    add_to_template(template, 1, 1, replicate(image[4], 1))
+    add_to_template(template, 2, 1, replicate(image[5], 2))
     add_to_template(template, 3, 1, hsv_)
 
-    add_to_template(template, 0, 1, l_)
-    add_to_template(template, 1, 1, a_)
-    add_to_template(template, 2, 1, b2_)
-    add_to_template(template, 3, 1, lab_)
+    add_to_template(template, 0, 2, replicate(image[6], 0))
+    add_to_template(template, 1, 2, replicate(image[7], 1))
+    add_to_template(template, 2, 2, replicate(image[8], 2))
+    add_to_template(template, 3, 2, lab_)
 
-    add_to_template(template, 0, 3, x_)
-    add_to_template(template, 1, 3, y_)
-    add_to_template(template, 2, 3, xx_)
-    add_to_template(template, 3, 3, yy_)
-    add_to_template(template, 4, 3, xy_)
+    add_to_template(template, 0, 3, replicate(image[9]))
+    add_to_template(template, 1, 3, replicate(image[10]))
+    add_to_template(template, 2, 3, replicate(image[11]))
+    add_to_template(template, 3, 3, replicate(image[12]))
+    add_to_template(template, 4, 3, replicate(image[13]))
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
