@@ -27,7 +27,7 @@ import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs):
+def batch_iterator(X, y, bs, norm):
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -36,7 +36,11 @@ def batch_iterator(X, y, bs):
             yb = y[sl]
         else:
             yb = None
-        yield Xb, yb
+        Xb_ = Xb.astype(np.float32)
+        if norm is not None and norm > 0.0:
+            Xb_ /= norm
+        yb_ = yb.astype(np.int32)
+        yield Xb_, yb_
 
 
 def multinomial_nll(x, t):
@@ -185,7 +189,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
     print('adding channels...')
-    data = add_channels(data)
+    # data = add_channels(data)
     print('  X.shape = %r' % (data.shape,))
     print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
@@ -220,17 +224,14 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size):
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer):
                 # possible to insert a data augmentation transformation here
-
-                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
-                batch_train_loss = train_iter(Xb_, yb_)
+                batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
             # compute the loss over all validation batches
-            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
-                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
-                batch_valid_loss, batch_accuracy = valid_iter(Xb_, yb_)
+            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size, normalizer):
+                batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
 
