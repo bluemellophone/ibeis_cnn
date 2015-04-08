@@ -5,7 +5,6 @@
 import time
 import numpy as np
 
-from sklearn.utils import shuffle
 from sklearn.cross_validation import StratifiedKFold
 
 
@@ -42,10 +41,5 @@ def load(data_file, labels_file=None, random_state=None):
     labels = None
     if labels_file is not None:
         labels = np.load(labels_file, mmap_mode='r')
-    # Randomly shuffle data
-    if labels is None:
-        data = shuffle(data, random_state=random_state)
-    else:
-        data, labels = shuffle(data, labels, random_state=random_state)
     # Return data
     return data, labels

@@ -23,12 +23,24 @@ from lasagne import objectives
 from lasagne import nonlinearities  # NOQA
 
 from os.path import join, abspath
+from sklearn.utils import shuffle
 import cv2
 import random
 
 
+RANDOM_SEED = None
+# RANDOM_SEED = 42
+
+
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
+def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False, augment=None):
+    # Randomly shuffle data
+    if rand:
+        print('Randmizing batch')
+        if y is None:
+            X = shuffle(X, random_state=RANDOM_SEED)
+        else:
+            X, y = shuffle(X, y, random_state=RANDOM_SEED)
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -284,7 +296,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, augment=None):
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, rand=True, augment=augmentation):
                 batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
