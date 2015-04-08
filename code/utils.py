@@ -39,7 +39,7 @@ RANDOM_SEED = None
 
 
 def get_current_time():
-    return time.strftime('%Y-%m-%d_%H:%M:%S')
+    return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
 # take the data and label arrays, split them preserving
