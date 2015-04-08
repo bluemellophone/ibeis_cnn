@@ -186,7 +186,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('loading data...')
     data, labels = utils.load(data_file, labels_file)
     print('adding channels...')
-    # data = add_channels(data)
+    data = add_channels(data)
     print('  X.shape = %r' % (data.shape,))
     print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
