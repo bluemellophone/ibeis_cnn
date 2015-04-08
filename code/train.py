@@ -242,8 +242,8 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
         trained_weights_file = '%s.pickle' % (current_time)
 
     learning_rate = theano.shared(float32(0.03))
-    patience = 10
-    max_epochs = 75
+    patience   = 10
+    max_epochs = 150
     momentum   = 0.9
     batch_size = 128
     whiten     = True
