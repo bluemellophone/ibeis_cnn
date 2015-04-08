@@ -24,6 +24,7 @@ from lasagne import nonlinearities  # NOQA
 
 from os.path import join, abspath
 import cv2
+import random
 
 
 # divides X and y into batches of size bs for sending to the GPU
@@ -151,7 +152,6 @@ def show_image_from_data(data):
 
     template_h, template_w = (5, 5)
     image = data[0]
-    image = image[:, :, ::-1]
     c, h, w = image.shape
 
     # Create temporary copies for displaying
@@ -190,8 +190,28 @@ def show_image_from_data(data):
 
 
 def augmentation(Xb, yb):
-    print(Xb.shape)
-    print(yb.shape)
+    # label_map = {
+    #     0:  4,
+    #     1:  5,
+    #     2:  6,
+    #     3:  7,
+    #     8:  12,
+    #     9:  13,
+    #     10: 14,
+    #     11: 15,
+    # }
+    label_map = { x: x + 4 for x in range(0, 4) + range(8, 12) }
+    # Apply inverse
+    for key in label_map.keys():
+        label = label_map[key]
+        label_map[label] = key
+    print(label_map)
+    # Map
+    points, channels, height, width = Xb.shape
+    for index in range(points):
+        if random.uniform(0.0, 1.0) <= 0.5:
+            Xb[index] = Xb[index, :, ::-1]
+            yb[index] = label_map[yb[index]]
     return Xb, yb
 
 
@@ -239,8 +259,10 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
     train_iter, valid_iter, predict_iter = create_iter_funcs(learning_rate, momentum, output_layer)
 
+    print('creating train, validation datasaets...')
     X_train, y_train, X_valid, y_valid = utils.train_test_split(data, labels, eval_size=0.2)
 
+    print('calculating whitening...')
     if whiten:
         whiten_mean = np.mean(X_train, axis=0)
         whiten_std  = np.std(X_train, axis=0)
