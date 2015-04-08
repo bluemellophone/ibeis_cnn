@@ -27,7 +27,7 @@ import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
+def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -44,6 +44,8 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
         if norm is not None and norm > 0.0:
             Xb_ /= norm
         yb_ = yb.astype(np.int32)
+        if augment is not None:
+            Xb_, yb_ = augment(Xb_, yb_)
         yield Xb_, yb_
 
 
@@ -186,6 +188,12 @@ def show_image_from_data(data):
     cv2.destroyAllWindows()
 
 
+def augmentation(Xb, yb):
+    print(Xb.shape)
+    print(yb.shape)
+    return Xb, yb
+
+
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
     current_time = utils.get_current_time()
     if trained_weights_file is None:
@@ -250,8 +258,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std):
-                # possible to insert a data augmentation transformation here
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, augment=augmentation):
                 batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
