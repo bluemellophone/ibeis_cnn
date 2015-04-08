@@ -151,6 +151,7 @@ def show_image_from_data(data):
 
     template_h, template_w = (5, 5)
     image = data[0]
+    image = image[:, :, ::-1]
     c, h, w = image.shape
 
     # Create temporary copies for displaying
