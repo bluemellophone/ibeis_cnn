@@ -27,7 +27,7 @@ import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm=None, whiten=False):
+def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -37,9 +37,10 @@ def batch_iterator(X, y, bs, norm=None, whiten=False):
         else:
             yb = None
         Xb_ = Xb.astype(np.float32)
-        if whiten:
-            Xb_ -= np.mean(Xb_, axis=0)
-            Xb_ -= np.std(Xb_, axis=0)
+        if mean is not None:
+            Xb_ -= mean
+        if std is not None:
+            Xb_ -= std
         if norm is not None and norm > 0.0:
             Xb_ /= norm
         yb_ = yb.astype(np.int32)
@@ -218,6 +219,8 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
     print('  X.mean  = %r' % (whiten_mean, ))
     print('  X.std   = %r' % (whiten_std, ))
+    print('  X.mean.shape  = %r' % (whiten_mean.shape, ))
+    print('  X.std.shape   = %r' % (whiten_std.shape, ))
 
     best_weights = None
     best_train_loss, best_valid_loss = np.inf, np.inf

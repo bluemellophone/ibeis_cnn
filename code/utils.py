@@ -15,24 +15,12 @@ def get_current_time():
 
 # take the data and label arrays, split them preserving
 # the class representations, and optionally normalize them
-def train_test_split(X, y, eval_size, normalize=True):
+def train_test_split(X, y, eval_size):
     kf = StratifiedKFold(y, round(1. / eval_size))
 
     train_indices, valid_indices = next(iter(kf))
     X_train, y_train = X[train_indices], y[train_indices]
     X_valid, y_valid = X[valid_indices], y[valid_indices]
-
-    if normalize:
-        mean = np.mean(X_train, axis=0)
-        print(mean)
-        X_train -= mean
-        X_valid -= mean
-
-        std = np.std(X_train, axis=0)
-        print(std)
-        X_train /= std
-        X_valid /= std
-    raw_input()
 
     return X_train, y_train, X_valid, y_valid
 
