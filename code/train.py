@@ -160,14 +160,6 @@ def show_image_from_data(data):
     cv2.destroyAllWindows()
 
 
-def preprocess_dtype(Xb, yb, normalizer=None):
-    Xb_ = Xb.astype(np.float32)
-    if normalizer is not None and normalizer > 0.0:
-        Xb_ /= normalizer
-    yb_ = yb.astype(np.int32)
-    return Xb_, yb_
-
-
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
     current_time = utils.get_current_time()
     if trained_weights_file is None:
@@ -195,7 +187,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
 
-    show_image_from_data(data)
+    # show_image_from_data(data)
 
     print('building model...')
     input_cases, input_channels, input_height, input_width = data.shape
