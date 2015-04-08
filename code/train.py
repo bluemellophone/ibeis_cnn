@@ -126,40 +126,31 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
 
 
 def add_channels(data):
-    # additional = 5 + 3 + 3 + 2
-    # points, channels, height, width = data.shape
-    # dtype = data.dtype
-    # data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
-    # data_channels[:, :channels, :, :] = data
-    # for index in range(points):
-    #     image     = cv2.merge(data[index])
-    #     hsv       = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    #     lab       = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    #     grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #     sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
-    #     sobely    = cv2.Sobel(grayscale, -1, 0, 1)
-    #     sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
-    #     sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
-    #     sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
-    #     data_channels[index, 3:6, :, :] = np.array(cv2.split(hsv))
-    #     data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
-    #     data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
-    #     data_channels[index, 9, :, :]   = grayscale
-    #     data_channels[index, 10, :, :]  = 255.0 - grayscale
-    #     data_channels[index, 11, :, :]  = sobelx
-    #     data_channels[index, 12, :, :]  = sobely
-    #     data_channels[index, 13, :, :]  = sobelxx
-    #     data_channels[index, 14, :, :]  = sobelyy
-    #     data_channels[index, 15, :, :]  = sobelxy
-    additional = 0
+    additional = 5 + 3 + 3 + 2
     points, channels, height, width = data.shape
     dtype = data.dtype
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
     data_channels[:, :channels, :, :] = data
     for index in range(points):
         image     = cv2.merge(data[index])
+        hsv       = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         lab       = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        data_channels[index, 0:3, :, :] = np.array(cv2.split(lab))
+        grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
+        sobely    = cv2.Sobel(grayscale, -1, 0, 1)
+        sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
+        sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
+        sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
+        data_channels[index, 3:6, :, :] = np.array(cv2.split(hsv))
+        data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
+        data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
+        data_channels[index, 9, :, :]   = grayscale
+        data_channels[index, 10, :, :]  = 255.0 - grayscale
+        data_channels[index, 11, :, :]  = sobelx
+        data_channels[index, 12, :, :]  = sobely
+        data_channels[index, 13, :, :]  = sobelxx
+        data_channels[index, 14, :, :]  = sobelyy
+        data_channels[index, 15, :, :]  = sobelxy
     return data_channels
 
 
@@ -183,8 +174,8 @@ def show_image_from_data(data):
 
     # Create temporary copies for displaying
     bgr_   = cv2.merge(image[0:3])
-    # hsv_   = cv2.merge(image[3:6])
-    # lab_   = cv2.merge(image[6:9])
+    hsv_   = cv2.merge(image[3:6])
+    lab_   = cv2.merge(image[6:9])
 
     template = np.zeros((template_h * h, template_w * w, 3), dtype=np.uint8)
     add_to_template(template, 0, 0, replicate(image[0]))
@@ -192,24 +183,24 @@ def show_image_from_data(data):
     add_to_template(template, 2, 0, replicate(image[2]))
     add_to_template(template, 3, 0, bgr_)
 
-    # add_to_template(template, 0, 1, replicate(image[3]))
-    # add_to_template(template, 1, 1, replicate(image[4]))
-    # add_to_template(template, 2, 1, replicate(image[5]))
-    # add_to_template(template, 3, 1, hsv_)
+    add_to_template(template, 0, 1, replicate(image[3]))
+    add_to_template(template, 1, 1, replicate(image[4]))
+    add_to_template(template, 2, 1, replicate(image[5]))
+    add_to_template(template, 3, 1, hsv_)
 
-    # add_to_template(template, 0, 2, replicate(image[6]))
-    # add_to_template(template, 1, 2, replicate(image[7]))
-    # add_to_template(template, 2, 2, replicate(image[8]))
-    # add_to_template(template, 3, 2, lab_)
+    add_to_template(template, 0, 2, replicate(image[6]))
+    add_to_template(template, 1, 2, replicate(image[7]))
+    add_to_template(template, 2, 2, replicate(image[8]))
+    add_to_template(template, 3, 2, lab_)
 
-    # add_to_template(template, 0, 3, replicate(image[9]))
-    # add_to_template(template, 1, 3, replicate(image[10]))
+    add_to_template(template, 0, 3, replicate(image[9]))
+    add_to_template(template, 1, 3, replicate(image[10]))
 
-    # add_to_template(template, 0, 4, replicate(image[11]))
-    # add_to_template(template, 1, 4, replicate(image[12]))
-    # add_to_template(template, 2, 4, replicate(image[13]))
-    # add_to_template(template, 3, 4, replicate(image[14]))
-    # add_to_template(template, 4, 4, replicate(image[15]))
+    add_to_template(template, 0, 4, replicate(image[11]))
+    add_to_template(template, 1, 4, replicate(image[12]))
+    add_to_template(template, 2, 4, replicate(image[13]))
+    add_to_template(template, 3, 4, replicate(image[14]))
+    add_to_template(template, 4, 4, replicate(image[15]))
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
