@@ -172,7 +172,7 @@ def train(data_file, labels_file, trained_weights_file=None,
                     resolution = raw_input('[train] Resolution: ')
                 resolution = int(resolution)
                 if resolution == 1:
-                    print('SHOCKING WEIGHTS AND CONTINUING')
+                    utils.shock_network(output_layer)
                 elif resolution == 2:
                     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
                 else:

@@ -308,3 +308,12 @@ def save_best_model(best_weights, best_valid_accuracy, weights_file):
     with open(weights_file, 'wb') as pfile:
         pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
     print('[model] ...saved\n')
+
+
+def shock_network(output_layer, voltage=0.10):
+    print('[model] shocking the network with voltage: %0.2f%%' % (voltage, ))
+    current_weights = layers.get_all_param_values(output_layer)
+    print(current_weights.shape)
+    shocked_weights = current_weights
+    layers.set_all_param_values(output_layer, shocked_weights)
+    print('[model] ...shocked\n')
