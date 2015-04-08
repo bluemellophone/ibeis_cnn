@@ -103,8 +103,7 @@ def add_channels(data):
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
     data_channels[:, :channels, :, :] = data
     for index in range(points):
-        image     = data[index] * 255.0
-        image     = image.astype(np.uint8)
+        image = data[index]
         grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
         sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
         sobely    = cv2.Sobel(grayscale, -1, 0, 1)
@@ -123,8 +122,6 @@ def show_image_from_data(data):
 
     image = data[0]
     c, h, w = image.shape
-    image *= 255.0
-    image = image.astype(np.uint8)
     b, g, r, x, y, xx, yy = image
 
     # Create temporary copies for displaying
@@ -154,6 +151,14 @@ def show_image_from_data(data):
     cv2.destroyAllWindows()
 
 
+def preprocess_dtype(Xb, yb, normalizer=None):
+    Xb_ = Xb.astype(np.float32)
+    if normalizer is not None and normalizer > 0.0:
+        Xb_ /= normalizer
+    yb_ = yb.astype(np.int32)
+    return Xb_, yb_
+
+
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
     current_time = utils.get_current_time()
     if trained_weights_file is None:
@@ -169,6 +174,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     max_epochs = 75
     momentum = 0.9
     batch_size = 128
+    normalizer = 255.0
     input_width, input_height, input_channels = 64, 64, 3
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
@@ -212,12 +218,15 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
             # compute the loss over all training batches
             for Xb, yb in batch_iterator(X_train, y_train, batch_size):
                 # possible to insert a data augmentation transformation here
-                batch_train_loss = train_iter(Xb, yb)
+
+                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
+                batch_train_loss = train_iter(Xb_, yb_)
                 train_losses.append(batch_train_loss)
 
             # compute the loss over all validation batches
             for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
-                batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
+                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
+                batch_valid_loss, batch_accuracy = valid_iter(Xb_, yb_)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
 
