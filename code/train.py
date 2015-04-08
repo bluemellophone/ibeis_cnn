@@ -105,7 +105,7 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
 
 
 def add_channels(data):
-    additional = 5 + 3 + 3
+    additional = 5 + 3 + 3 + 2
     points, channels, height, width = data.shape
     dtype = data.dtype
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
@@ -122,11 +122,14 @@ def add_channels(data):
         sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
         data_channels[index, 3:6, :, :] = np.array(cv2.split(hsv))
         data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
-        data_channels[index, 9, :, :] = sobelx
-        data_channels[index, 10, :, :] = sobely
-        data_channels[index, 11, :, :] = sobelxx
-        data_channels[index, 12, :, :] = sobelyy
-        data_channels[index, 13, :, :] = sobelxy
+        data_channels[index, 6:9, :, :] = np.array(cv2.split(lab))
+        data_channels[index, 9, :, :]   = grayscale
+        data_channels[index, 10, :, :]  = 255.0 - grayscale
+        data_channels[index, 11, :, :]  = sobelx
+        data_channels[index, 12, :, :]  = sobely
+        data_channels[index, 13, :, :]  = sobelxx
+        data_channels[index, 14, :, :]  = sobelyy
+        data_channels[index, 15, :, :]  = sobelxy
     return data_channels
 
 
@@ -144,7 +147,7 @@ def show_image_from_data(data):
             temp[index] = channel
         return cv2.merge(temp)
 
-    template_h, template_w = (4, 5)
+    template_h, template_w = (5, 5)
     image = data[0]
     c, h, w = image.shape
 
@@ -171,9 +174,12 @@ def show_image_from_data(data):
 
     add_to_template(template, 0, 3, replicate(image[9]))
     add_to_template(template, 1, 3, replicate(image[10]))
-    add_to_template(template, 2, 3, replicate(image[11]))
-    add_to_template(template, 3, 3, replicate(image[12]))
-    add_to_template(template, 4, 3, replicate(image[13]))
+
+    add_to_template(template, 0, 4, replicate(image[11]))
+    add_to_template(template, 1, 4, replicate(image[12]))
+    add_to_template(template, 2, 4, replicate(image[13]))
+    add_to_template(template, 3, 4, replicate(image[14]))
+    add_to_template(template, 4, 4, replicate(image[15]))
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
