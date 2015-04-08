@@ -81,7 +81,8 @@ def print_header_columns():
 ''')
 
 
-def print_layer_info(nn_layers):
+def print_layer_info(output_layer):
+    nn_layers = layers.get_all_layers(output_layer)[::-1]
     print('\n[info] Network Structure:')
     for layer in nn_layers:
         output_shape = layer.get_output_shape()
@@ -90,7 +91,7 @@ def print_layer_info(nn_layers):
             str(output_shape),
             str(functools.reduce(operator.mul, output_shape[1:])),
         ))
-    print('\n')
+    print('[build] this model has %d learnable parameters\n' % (layers.count_params(output_layer), ))
 
 
 def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,

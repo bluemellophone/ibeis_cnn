@@ -65,6 +65,7 @@ def train(data_file, labels_file, trained_weights_file=None,
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
+    print('\n')
     print('[load] loading data...')
     data, labels = utils.load(data_file, labels_file)
     # print('[load] adding channels...')
@@ -80,8 +81,7 @@ def train(data_file, labels_file, trained_weights_file=None,
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
                                      input_channels, output_dim)
-    utils.print_layer_info(layers.get_all_layers(output_layer)[::-1])
-    print('[build] this model has %d learnable parameters' % (layers.count_params(output_layer)))
+    utils.print_layer_info(output_layer)
 
     if pretrained_weights_file is not None:
         print('loading pretrained weights from %s' % (pretrained_weights_file))
