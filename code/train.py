@@ -11,7 +11,6 @@ import model
 # module imports
 import time
 import theano
-import itertools
 import numpy as np
 import cPickle as pickle
 
@@ -47,7 +46,11 @@ def augmentation(Xb, yb):
 
 
 def learning_rate_update(x):
-    return 0.1 * x
+    return x / 10.0
+
+
+def learning_rate_shock(x):
+    return x * 10.0
 
 
 def train(data_file, labels_file, trained_weights_file=None,
@@ -109,9 +112,10 @@ def train(data_file, labels_file, trained_weights_file=None,
     print('[train] starting training at %s' % (current_time))
     utils.print_header_columns()
 
+    epoch = 1
     best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
     try:
-        for epoch in itertools.count(1):
+        while True:
             try:
                 if epoch > max_epochs:
                     print('\n[train] maximum number of epochs exceeded\n')
@@ -161,6 +165,9 @@ def train(data_file, labels_file, trained_weights_file=None,
                     learning_rate.set_value(utils.float32(new_learning_rate))
                     print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
                     utils.print_header_columns()
+
+                # Increment the epoch
+                epoch += 1
             except KeyboardInterrupt:
                 print('\n[train] Caught CRTL+C')
                 resolution = ''
@@ -173,6 +180,8 @@ def train(data_file, labels_file, trained_weights_file=None,
                 resolution = int(resolution)
                 if resolution == 1:
                     utils.shock_network(output_layer)
+                    new_learning_rate = learning_rate_shock(learning_rate.get_value())
+                    learning_rate.set_value(utils.float32(new_learning_rate))
                 elif resolution == 2:
                     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
                 else:
