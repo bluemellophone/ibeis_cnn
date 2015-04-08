@@ -116,8 +116,8 @@ def show_image_from_data(data):
     image = cv2.merge(image)
     template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
 
-    sobelx = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
-    sobely = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)
+    sobelx = cv2.Sobel(image, -1, 1, 0)
+    sobely = cv2.Sobel(image, -1, 0, 1)
 
     print(sobelx.shape)
     print(sobely.shape)
