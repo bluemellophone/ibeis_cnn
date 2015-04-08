@@ -130,14 +130,14 @@ def show_image_from_data(data):
 
     # Create temporary copies for displaying
     zero   = np.zeros((h, w), dtype=np.uint8)
-    b_     = cv2.merge([b, zero, zero])
-    g_     = cv2.merge([zero, g, zero])
-    r_     = cv2.merge([zero, zero, r])
-    image_ = cv2.merge(np.array(b, g, r))
-    x_     = cv2.merge([x, x, x])
-    y_     = cv2.merge([y, y, y])
-    xx_    = cv2.merge([xx, xx, xx])
-    yy_    = cv2.merge([yy, yy, yy])
+    b_     = cv2.merge((b, zero, zero))
+    g_     = cv2.merge((zero, g, zero))
+    r_     = cv2.merge((zero, zero, r))
+    image_ = cv2.merge((b, g, r))
+    x_     = cv2.merge((x, x, x))
+    y_     = cv2.merge((y, y, y))
+    xx_    = cv2.merge((xx, xx, xx))
+    yy_    = cv2.merge((yy, yy, yy))
 
     template = np.zeros((2 * h, 4 * w, 3), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
