@@ -217,11 +217,6 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
         whiten_mean = None  # 0.0
         whiten_std  = None  # 1.0
 
-    print('  X.mean  = %r' % (whiten_mean, ))
-    print('  X.std   = %r' % (whiten_std, ))
-    print('  X.mean.shape  = %r' % (whiten_mean.shape, ))
-    print('  X.std.shape   = %r' % (whiten_std.shape, ))
-
     best_weights = None
     best_train_loss, best_valid_loss = np.inf, np.inf
     print('starting training at %s...' % (current_time))
