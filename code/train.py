@@ -20,40 +20,38 @@ from os.path import join, abspath
 import random
 
 
-def augmentation(Xb, yb):
-    # label_map = {
-    #     0:  4,
-    #     1:  5,
-    #     2:  6,
-    #     3:  7,
-    #     8:  12,
-    #     9:  13,
-    #     10: 14,
-    #     11: 15,
-    # }
-    label_map = { x: x + 4 for x in range(0, 4) + range(8, 12) }
-    # Apply inverse
-    for key in label_map.keys():
-        label = label_map[key]
-        label_map[label] = key
-    # Map
-    points, channels, height, width = Xb.shape
-    for index in range(points):
-        if random.uniform(0.0, 1.0) <= 0.5:
-            Xb[index] = Xb[index, :, ::-1]
-            yb[index] = label_map[yb[index]]
-    return Xb, yb
-
-
-def learning_rate_update(x):
-    return x / 10.0
-
-
-def learning_rate_shock(x):
-    return x * 10.0
-
-
 def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
+
+    def augmentation(Xb, yb):
+        # label_map = {
+        #     0:  4,
+        #     1:  5,
+        #     2:  6,
+        #     3:  7,
+        #     8:  12,
+        #     9:  13,
+        #     10: 14,
+        #     11: 15,
+        # }
+        label_map = { x: x + 4 for x in range(0, 4) + range(8, 12) }
+        # Apply inverse
+        for key in label_map.keys():
+            label = label_map[key]
+            label_map[label] = key
+        # Map
+        points, channels, height, width = Xb.shape
+        for index in range(points):
+            if random.uniform(0.0, 1.0) <= 0.5:
+                Xb[index] = Xb[index, :, ::-1]
+                yb[index] = label_map[yb[index]]
+        return Xb, yb
+
+    def learning_rate_update(x):
+        return x / 10.0
+
+    def learning_rate_shock(x):
+        return min(learning_rate, x * 10.0)
+
     # Training parameters
     learning_rate = 0.03
     patience   = 10
