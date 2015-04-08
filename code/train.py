@@ -27,7 +27,7 @@ import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm):
+def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -37,6 +37,10 @@ def batch_iterator(X, y, bs, norm):
         else:
             yb = None
         Xb_ = Xb.astype(np.float32)
+        if mean is not None:
+            Xb_ -= mean
+        if std is not None:
+            Xb_ -= std
         if norm is not None and norm > 0.0:
             Xb_ /= norm
         yb_ = yb.astype(np.int32)
@@ -173,8 +177,9 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
     learning_rate = theano.shared(np.cast['float32'](learning_rate_schedule[0]))
     max_epochs = 75
-    momentum = 0.9
+    momentum   = 0.9
     batch_size = 128
+    whiten     = True
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
@@ -205,6 +210,16 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
     X_train, y_train, X_valid, y_valid = utils.train_test_split(data, labels, eval_size=0.2, normalize=True)
 
+    if whiten:
+        whiten_mean = np.mean(X_train, axis=0)
+        whiten_std  = np.std(X_train, axis=0)
+    else:
+        whiten_mean = None  # 0.0
+        whiten_std  = None  # 1.0
+
+    print('  X.mean  = %r' % (whiten_mean, ))
+    print('  X.std   = %r' % (whiten_std, ))
+
     best_weights = None
     best_train_loss, best_valid_loss = np.inf, np.inf
     print('starting training at %s...' % (current_time))
@@ -216,13 +231,13 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer):
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std):
                 # possible to insert a data augmentation transformation here
                 batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
             # compute the loss over all validation batches
-            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size, normalizer):
+            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size, normalizer, whiten_mean, whiten_std):
                 batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
