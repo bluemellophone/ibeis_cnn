@@ -97,8 +97,10 @@ def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
     best_train    = train_loss == best_train_loss
     best_valid    = valid_loss == best_valid_loss
     best_accuracy = valid_accuracy == best_valid_accuracy
+    ratio         = train_loss / valid_loss
+    unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
     print(" {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  "
-          "|  {:>11.6f}  |  {}{:>9}{}  |  {:>3.1f}s".format(
+          "|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {:>3.1f}s".format(
               epoch,
               ANSI.BLUE if best_train else "",
               train_loss,
@@ -106,7 +108,9 @@ def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
               ANSI.GREEN if best_valid else "",
               valid_loss,
               ANSI.RESET if best_valid else "",
-              train_loss / valid_loss,
+              ANSI.RED if unhealthy_ratio else "",
+              ratio,
+              ANSI.RESET if unhealthy_ratio else "",
               ANSI.MAGENTA if best_accuracy else "",
               "{:.2f}%".format(valid_accuracy * 100),
               ANSI.RESET if best_accuracy else "",
