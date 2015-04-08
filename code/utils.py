@@ -17,6 +17,10 @@ from lasagne import nonlinearities  # NOQA
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.utils import shuffle
 import cv2
+import locale
+
+
+locale.setlocale(locale.LC_ALL, 'en_US')
 
 
 class ANSI:
@@ -89,9 +93,10 @@ def print_layer_info(output_layer):
         print('[info]     {:<18}\t{:<20}\tproduces {:>7} outputs'.format(
             layer.__class__.__name__,
             str(output_shape),
-            str(functools.reduce(operator.mul, output_shape[1:])),
+            locale.format("%d", functools.reduce(operator.mul, output_shape[1:]), grouping=True),
         ))
-    print('[info] ...this model has %d learnable parameters\n' % (layers.count_params(output_layer), ))
+    num_params = locale.format("%d", layers.count_params(output_layer), grouping=True)
+    print('[info] ...this model has %s learnable parameters\n' % (num_params, ))
 
 
 def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
