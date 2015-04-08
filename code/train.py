@@ -102,15 +102,14 @@ def add_channels(data):
     dtype = data.dtype
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
     data_channels[:, :channels, :, :] = data
-    data *= 255.0
-    data = data.astype(np.uint8)
     for index in range(points):
-        image = data[index]
+        image     = data[index] * 255.0
+        image     = image.astype(np.uint8)
         grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
-        sobelx = cv2.Sobel(grayscale, -1, 1, 0)
-        sobely = cv2.Sobel(grayscale, -1, 0, 1)
-        sobelxx = cv2.Sobel(sobelx, -1, 1, 0)
-        sobelyy = cv2.Sobel(sobely, -1, 0, 1)
+        sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
+        sobely    = cv2.Sobel(grayscale, -1, 0, 1)
+        sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
+        sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
         data_channels[index, 3, :, :] = sobelx
         data_channels[index, 4, :, :] = sobely
         data_channels[index, 5, :, :] = sobelxx
