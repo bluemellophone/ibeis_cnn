@@ -127,23 +127,23 @@ def show_image_from_data(data):
     image *= 255.0
     image = image.astype(np.uint8)
     b, g, r, x, y, xx, yy = image
-    image = cv2.merge(b, g, r)
 
     # Create temporary copies for displaying
-    zero = np.zeros((h, w), dtype=np.uint8)
-    b_ = cv2.merge([b, zero, zero])
-    g_ = cv2.merge([zero, g, zero])
-    r_ = cv2.merge([zero, zero, r])
-    x_ = cv2.merge([x, x, x])
-    y_ = cv2.merge([y, y, y])
-    xx_ = cv2.merge([xx, xx, xx])
-    yy_ = cv2.merge([yy, yy, yy])
+    zero   = np.zeros((h, w), dtype=np.uint8)
+    b_     = cv2.merge([b, zero, zero])
+    g_     = cv2.merge([zero, g, zero])
+    r_     = cv2.merge([zero, zero, r])
+    image_ = cv2.merge(np.array(b, g, r))
+    x_     = cv2.merge([x, x, x])
+    y_     = cv2.merge([y, y, y])
+    xx_    = cv2.merge([xx, xx, xx])
+    yy_    = cv2.merge([yy, yy, yy])
 
     template = np.zeros((2 * h, 4 * w, 3), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
     add_to_template(template, 1, 0, g_)
     add_to_template(template, 2, 0, b_)
-    add_to_template(template, 3, 0, image)
+    add_to_template(template, 3, 0, image_)
 
     add_to_template(template, 0, 1, x_)
     add_to_template(template, 1, 1, y_)
