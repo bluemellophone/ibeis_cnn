@@ -17,10 +17,6 @@ from lasagne import nonlinearities  # NOQA
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.utils import shuffle
 import cv2
-import locale
-
-
-locale.setlocale(locale.LC_ALL, 'en_US')
 
 
 class ANSI:
@@ -90,13 +86,14 @@ def print_layer_info(output_layer):
     print('\n[info] Network Structure:')
     for layer in nn_layers:
         output_shape = layer.get_output_shape()
-        print('[info]     {:<18}\t{:<20}\tproduces {:>7} outputs'.format(
+        print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             layer.__class__.__name__,
             str(output_shape),
-            locale.format("%d", functools.reduce(operator.mul, output_shape[1:]), grouping=True),
+            str(functools.reduce(operator.mul, output_shape[1:])),
         ))
-    num_params = locale.format("%d", layers.count_params(output_layer), grouping=True)
-    print('[info] ...this model has %s learnable parameters\n' % (num_params, ))
+    print('[info] ...this model has {:,} learnable parameters\n'.format(
+        layers.count_params(output_layer)
+    ))
 
 
 def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
