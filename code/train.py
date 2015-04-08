@@ -205,7 +205,6 @@ def augmentation(Xb, yb):
     for key in label_map.keys():
         label = label_map[key]
         label_map[label] = key
-    print(label_map)
     # Map
     points, channels, height, width = Xb.shape
     for index in range(points):
