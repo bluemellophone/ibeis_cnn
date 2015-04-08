@@ -92,8 +92,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
 
     # Create the Theano primitives
     print('[data] creating train, validation datasaets...')
-    learning_rate = theano.shared(utils.float32(learning_rate))
-    all_iters = utils.create_iter_funcs(learning_rate, momentum, output_layer)
+    learning_rate_ = theano.shared(utils.float32(learning_rate))
+    all_iters = utils.create_iter_funcs(learning_rate_, momentum, output_layer)
     train_iter, valid_iter, predict_iter = all_iters
 
     # Split the dataset into training and validation
@@ -112,7 +112,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         whiten_std  = None  # 1.0
 
     # Begin training the neural network
-    print('[train] starting training at %s' % (utils.get_current_time()))
+    print('[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
     utils.print_header_columns()
     epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, np.inf, np.inf, 0.0
     try:
@@ -162,7 +162,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 # Learning rate schedule update
                 if epoch >= best_epoch + patience:
                     best_epoch = epoch
-                    utils.set_learning_rate(learning_rate, learning_rate_update)
+                    utils.set_learning_rate(learning_rate_, learning_rate_update)
 
                 # Increment the epoch
                 epoch += 1
@@ -185,7 +185,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     # Shock the weights of the network
                     utils.shock_network(output_layer)
                     best_epoch = epoch
-                    utils.set_learning_rate(learning_rate, learning_rate_shock)
+                    utils.set_learning_rate(learning_rate_, learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
                     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
