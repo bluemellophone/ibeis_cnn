@@ -27,7 +27,7 @@ import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
-def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
+def batch_iterator(X, y, bs, norm=None, whiten=False):
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
@@ -37,10 +37,9 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None):
         else:
             yb = None
         Xb_ = Xb.astype(np.float32)
-        if mean is not None:
-            Xb_ -= mean
-        if std is not None:
-            Xb_ -= std
+        if whiten:
+            Xb_ -= np.mean(Xb_, axis=0)
+            Xb_ -= np.std(Xb_, axis=0)
         if norm is not None and norm > 0.0:
             Xb_ /= norm
         yb_ = yb.astype(np.int32)
