@@ -97,7 +97,7 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
 
 
 def add_channels(data):
-    additional = 4
+    additional = 5
     points, channels, height, width = data.shape
     dtype = data.dtype
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
@@ -109,10 +109,12 @@ def add_channels(data):
         sobely    = cv2.Sobel(grayscale, -1, 0, 1)
         sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
         sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
+        sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
         data_channels[index, 3, :, :] = sobelx
         data_channels[index, 4, :, :] = sobely
         data_channels[index, 5, :, :] = sobelxx
         data_channels[index, 6, :, :] = sobelyy
+        data_channels[index, 7, :, :] = sobelxy
     return data_channels
 
 
@@ -120,9 +122,10 @@ def show_image_from_data(data):
     def add_to_template(template, x, y, image_):
         template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
 
+    template_w, template_h = (5, 2)
     image = data[0]
     c, h, w = image.shape
-    b, g, r, x, y, xx, yy = image
+    b, g, r, x, y, xx, yy, xy = image
 
     # Create temporary copies for displaying
     zero   = np.zeros((h, w), dtype=np.uint8)
@@ -134,8 +137,9 @@ def show_image_from_data(data):
     y_     = cv2.merge((y, y, y))
     xx_    = cv2.merge((xx, xx, xx))
     yy_    = cv2.merge((yy, yy, yy))
+    xy_    = cv2.merge((xy, xy, xy))
 
-    template = np.zeros((2 * h, 4 * w, 3), dtype=np.uint8)
+    template = np.zeros((template_h * h, template_w * w, 3), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
     add_to_template(template, 1, 0, g_)
     add_to_template(template, 2, 0, b_)
@@ -145,6 +149,7 @@ def show_image_from_data(data):
     add_to_template(template, 1, 1, y_)
     add_to_template(template, 2, 1, xx_)
     add_to_template(template, 3, 1, yy_)
+    add_to_template(template, 4, 1, xy_)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
@@ -175,7 +180,6 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     momentum = 0.9
     batch_size = 128
     normalizer = 255.0
-    input_width, input_height, input_channels = 64, 64, 7
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
     print('loading data...')
@@ -190,6 +194,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     show_image_from_data(data)
 
     print('building model...')
+    input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dim)
     info.print_layer_info(layers.get_all_layers(output_layer)[::-1])
     print('this model has %d learnable parameters' % (layers.count_params(output_layer)))
