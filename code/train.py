@@ -116,9 +116,6 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     try:
         while True:
             try:
-                if epoch >= max_epochs:
-                    print('\n[train] maximum number of epochs exceeded\n')
-                    break
                 # Reset the loses for the batch
                 train_losses, valid_losses, valid_accuracies = [], [], []
 
@@ -167,6 +164,11 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
                                        best_valid_accuracy, avg_train_loss, best_train_loss,
                                        epoch, time.time() - t0)
+
+                # Break on max epochs
+                if epoch >= max_epochs:
+                    print('\n[train] maximum number of epochs reached\n')
+                    break
             except KeyboardInterrupt:
                 # We have caught the Keyboard Interrupt, figure out what resolution mode
                 print('\n[train] Caught CRTL+C')
