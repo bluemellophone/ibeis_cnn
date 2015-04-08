@@ -139,7 +139,7 @@ def show_image_from_data(data):
     xx_ = cv2.merge([xx, xx, xx])
     yy_ = cv2.merge([yy, yy, yy])
 
-    template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
+    template = np.zeros((2 * h, 4 * w, 3), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
     add_to_template(template, 1, 0, g_)
     add_to_template(template, 2, 0, b_)
