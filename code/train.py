@@ -229,7 +229,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             # compute the loss over all validation batches
             for Xb, yb in batch_iterator(X_valid, y_valid, batch_size):
-                Xb_, yb_ = preprocess_dtype(Xb, yb, normalizer=normalizer)
+                Xb_, yb_ = preprocess_dtype(Xb, yb)
                 batch_valid_loss, batch_accuracy = valid_iter(Xb_, yb_)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
