@@ -101,7 +101,7 @@ def show_image_from_data(data):
         template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
 
     image = data[0]
-    h, w, c = image.shape
+    c, h, w = image.shape
     image *= 255.0
     image = image.astype(np.uint8)
     b, g, r = image
