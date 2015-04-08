@@ -208,7 +208,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
     train_iter, valid_iter, predict_iter = create_iter_funcs(learning_rate, momentum, output_layer)
 
-    X_train, y_train, X_valid, y_valid = utils.train_test_split(data, labels, eval_size=0.2, normalize=True)
+    X_train, y_train, X_valid, y_valid = utils.train_test_split(data, labels, eval_size=0.2)
 
     if whiten:
         whiten_mean = np.mean(X_train, axis=0)
