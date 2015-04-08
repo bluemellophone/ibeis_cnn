@@ -17,6 +17,7 @@ from lasagne import nonlinearities  # NOQA
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.utils import shuffle
 import cv2
+import cPickle as pickle
 
 
 class ANSI:
@@ -298,3 +299,12 @@ def show_image_from_data(data):
     cv2.imshow('template', template)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+
+def save_best_model(best_weights, best_valid_accuracy, weights_file):
+    acc = 100.0 * best_valid_accuracy
+    print('[model] saving best network with accuracy: %02.2f%%' % (acc, ))
+    print('[model] saving best weights to %s' % (weights_file))
+    with open(weights_file, 'wb') as pfile:
+        pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+    print('[model] ...saved\n')

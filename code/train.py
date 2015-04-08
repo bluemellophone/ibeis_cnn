@@ -112,63 +112,76 @@ def train(data_file, labels_file, trained_weights_file=None,
     best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
     try:
         for epoch in itertools.count(1):
-            if epoch > max_epochs:
-                print('\n[train] maximum number of epochs exceeded\n')
-                break
-            train_losses, valid_losses, valid_accuracies = [], [], []
+            try:
+                if epoch > max_epochs:
+                    print('\n[train] maximum number of epochs exceeded\n')
+                    break
+                train_losses, valid_losses, valid_accuracies = [], [], []
 
-            t0 = time.time()
-            # compute the loss over all training batches
-            for Xb, yb in utils.batch_iterator(X_train, y_train, batch_size,
-                                               normalizer, whiten_mean, whiten_std,
-                                               rand=True, augment=augmentation):
-                batch_train_loss = train_iter(Xb, yb)
-                train_losses.append(batch_train_loss)
+                t0 = time.time()
+                # compute the loss over all training batches
+                for Xb, yb in utils.batch_iterator(X_train, y_train, batch_size,
+                                                   normalizer, whiten_mean, whiten_std,
+                                                   rand=True, augment=augmentation):
+                    batch_train_loss = train_iter(Xb, yb)
+                    train_losses.append(batch_train_loss)
 
-            # compute the loss over all validation batches
-            for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
-                                               normalizer, whiten_mean, whiten_std):
-                batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
-                valid_losses.append(batch_valid_loss)
-                valid_accuracies.append(batch_accuracy)
+                # compute the loss over all validation batches
+                for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
+                                                   normalizer, whiten_mean, whiten_std):
+                    batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
+                    valid_losses.append(batch_valid_loss)
+                    valid_accuracies.append(batch_accuracy)
 
-            # estimate the loss over all batches
-            avg_train_loss = np.mean(train_losses)
-            avg_valid_loss = np.mean(valid_losses)
-            avg_valid_accuracy = np.mean(valid_accuracies)
+                # estimate the loss over all batches
+                avg_train_loss = np.mean(train_losses)
+                avg_valid_loss = np.mean(valid_losses)
+                avg_valid_accuracy = np.mean(valid_accuracies)
 
-            if np.isnan(avg_train_loss):
-                print('\n[train] training diverged\n')
-                break
+                if np.isnan(avg_train_loss):
+                    print('\n[train] training diverged\n')
+                    break
 
-            if avg_train_loss < best_train_loss:
-                best_train_loss = avg_train_loss
-            if avg_valid_loss < best_valid_loss:
-                best_epoch = epoch
-                best_valid_loss = avg_valid_loss
-                best_weights = layers.get_all_param_values(output_layer)
-            if avg_valid_accuracy > best_valid_accuracy:
-                best_valid_accuracy = avg_valid_accuracy
+                if avg_train_loss < best_train_loss:
+                    best_train_loss = avg_train_loss
+                if avg_valid_loss < best_valid_loss:
+                    best_epoch = epoch
+                    best_valid_loss = avg_valid_loss
+                    best_weights = layers.get_all_param_values(output_layer)
+                if avg_valid_accuracy > best_valid_accuracy:
+                    best_valid_accuracy = avg_valid_accuracy
 
-            utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
-                                   best_valid_accuracy, avg_train_loss, best_train_loss,
-                                   epoch, time.time() - t0)
+                utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
+                                       best_valid_accuracy, avg_train_loss, best_train_loss,
+                                       epoch, time.time() - t0)
 
-            if epoch >= best_epoch + patience:
-                best_epoch = epoch
-                new_learning_rate = learning_rate_update(learning_rate.get_value())
-                learning_rate.set_value(utils.float32(new_learning_rate))
-                print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
-                utils.print_header_columns()
+                if epoch >= best_epoch + patience:
+                    best_epoch = epoch
+                    new_learning_rate = learning_rate_update(learning_rate.get_value())
+                    learning_rate.set_value(utils.float32(new_learning_rate))
+                    print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
+                    utils.print_header_columns()
+            except KeyboardInterrupt:
+                print('\n[train] Caught CRTL+C')
+                resolution = None
+                while not resolution.isdigit() and int(resolution) not in [1, 2, 3]:
+                    print('\n[train] What do you want to do?')
+                    print('[train]     1 - Shock weights')
+                    print('[train]     2 - Save best weights')
+                    print('[train]     3 - Stop network training')
+                    resolution = raw_input()
+                resolution = int(resolution)
+                if resolution == 1:
+                    print('SHOCK WEIGHTS')
+                elif resolution == 2:
+                    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
+                else:
+                    raise KeyboardInterrupt
     except KeyboardInterrupt:
-        acc = 100.0 * best_valid_accuracy
-        print('\n[train] Caught CRTL+C, saving best network with accuracy: %02.2f%%' % (acc, ))
+        print('\n[train] Caught CRTL+C (Again) ...stopping network training')
 
     # Save the best network
-    print('[model] saving best weights to %s' % (weights_file))
-    with open(weights_file, 'wb') as pfile:
-        pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
-    print('[model] ...saved\n')
+    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
 
 
 if __name__ == '__main__':
