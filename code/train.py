@@ -164,7 +164,7 @@ def train(data_file, labels_file, trained_weights_file=None,
             except KeyboardInterrupt:
                 print('\n[train] Caught CRTL+C')
                 resolution = ''
-                while not resolution.isdigit() and int(resolution) not in [1, 2, 3]:
+                while not (resolution.isdigit() and int(resolution) in [1, 2, 3]):
                     print('\n[train] What do you want to do?')
                     print('[train]     1 - Shock weights')
                     print('[train]     2 - Save best weights')
