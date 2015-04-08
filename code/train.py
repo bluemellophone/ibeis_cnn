@@ -40,7 +40,6 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False, augment
             X = shuffle(X, random_state=RANDOM_SEED)
         else:
             X, y = shuffle(X, y, random_state=RANDOM_SEED)
-        print('...randomized')
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
