@@ -105,30 +105,24 @@ def show_image_from_data(data):
     image *= 255.0
     image = image.astype(np.uint8)
     b, g, r = image
-    print(b.shape)
-    print(b.dtype)
+    image = cv2.merge(image)
+    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    sobelx = cv2.Sobel(grayscale, -1, 1, 0)
+    sobely = cv2.Sobel(grayscale, -1, 0, 1)
+    sobelxx = cv2.Sobel(sobelx, -1, 1, 0)
+    sobelyy = cv2.Sobel(sobely, -1, 0, 1)
+
+    # Create temporary copies for displaying
     zero = np.zeros((h, w), dtype=np.uint8)
-    print(zero.shape)
-    print(zero.dtype)
     b_ = cv2.merge([b, zero, zero])
     g_ = cv2.merge([zero, g, zero])
     r_ = cv2.merge([zero, zero, r])
-    image = cv2.merge(image)
-    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
-
-    sobelx = cv2.Sobel(grayscale, -1, 1, 0)
-    sobely = cv2.Sobel(grayscale, -1, 0, 1)
-
-    print(sobelx.shape)
-    print(sobely.shape)
-
     sobelx_ = cv2.merge([sobelx, sobelx, sobelx])
     sobely_ = cv2.merge([sobely, sobely, sobely])
+    sobelxx_ = cv2.merge([sobelxx, sobelxx, sobelxx])
+    sobelyy_ = cv2.merge([sobelyy, sobelyy, sobelyy])
 
-    print(sobelx_.shape)
-    print(sobely_.shape)
-
+    template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
     add_to_template(template, 0, 0, r_)
     add_to_template(template, 1, 0, g_)
     add_to_template(template, 2, 0, b_)
@@ -136,6 +130,8 @@ def show_image_from_data(data):
 
     add_to_template(template, 0, 1, sobelx_)
     add_to_template(template, 1, 1, sobely_)
+    add_to_template(template, 2, 1, sobelxx_)
+    add_to_template(template, 3, 1, sobelyy_)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
