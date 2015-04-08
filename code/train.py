@@ -169,7 +169,7 @@ def train(data_file, labels_file, trained_weights_file=None,
                     print('[train]     1 - Shock weights')
                     print('[train]     2 - Save best weights')
                     print('[train]     3 - Stop network training')
-                    resolution = raw_input()
+                    resolution = raw_input('[train] Resolution: ')
                 resolution = int(resolution)
                 if resolution == 1:
                     print('SHOCKING WEIGHTS AND CONTINUING')
@@ -178,7 +178,7 @@ def train(data_file, labels_file, trained_weights_file=None,
                 else:
                     raise KeyboardInterrupt
     except KeyboardInterrupt:
-        print('\n[train] Caught CRTL+C (Again) ...stopping network training')
+        print('\n[train] ...stopping network training')
 
     # Save the best network
     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
