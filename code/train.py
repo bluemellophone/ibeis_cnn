@@ -41,10 +41,16 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
         Xb_ = Xb.astype(np.float32)
         yb_ = yb.astype(np.int32)
         # Whiten
+        print(mean)
+        print(std)
+        print(norm)
+        print(augment)
         if mean is not None:
             Xb_ -= mean
         if std is not None:
             Xb_ /= std
+        if norm is not None and norm > 0.0:
+            Xb_ /= norm
         # Augment
         if augment is not None:
             Xb_, yb_ = augment(Xb_, yb_)
@@ -243,7 +249,7 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
 
-    # show_image_from_data(data)
+    show_image_from_data(data)
 
     print('building model...')
     input_cases, input_channels, input_height, input_width = data.shape
