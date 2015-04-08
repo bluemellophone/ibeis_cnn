@@ -65,7 +65,6 @@ def train(data_file, labels_file, trained_weights_file=None,
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
-    print('\n')
     print('[load] loading data...')
     data, labels = utils.load(data_file, labels_file)
     # print('[load] adding channels...')
@@ -77,14 +76,14 @@ def train(data_file, labels_file, trained_weights_file=None,
 
     # utils.show_image_from_data(data)
 
-    print('[build] building model...')
+    print('\n[build] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
                                      input_channels, output_dim)
     utils.print_layer_info(output_layer)
 
     if pretrained_weights_file is not None:
-        print('loading pretrained weights from %s' % (pretrained_weights_file))
+        print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
         with open(pretrained_weights_file, 'rb') as pfile:
             pretrained_weights = pickle.load(pfile)
             layers.set_all_param_values(output_layer, pretrained_weights)
@@ -107,7 +106,7 @@ def train(data_file, labels_file, trained_weights_file=None,
 
     best_weights = None
     best_train_loss, best_valid_loss, best_valid_accuracy = np.inf, np.inf, 0.0
-    print('[train] starting training at %s...' % (current_time))
+    print('[train] starting training at %s' % (current_time))
     utils.print_header_columns()
 
     best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
@@ -139,7 +138,7 @@ def train(data_file, labels_file, trained_weights_file=None,
             avg_valid_accuracy = np.mean(valid_accuracies)
 
             if np.isnan(avg_train_loss):
-                print('[train] training diverged')
+                print('\n[train] training diverged\n')
                 break
 
             if avg_train_loss < best_train_loss:
@@ -159,13 +158,13 @@ def train(data_file, labels_file, trained_weights_file=None,
                 best_epoch = epoch
                 new_learning_rate = learning_rate_update(learning_rate.get_value())
                 learning_rate.set_value(utils.float32(new_learning_rate))
-                print('\n[train] setting learning rate to %.9f\n' % (new_learning_rate))
+                print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
                 utils.print_header_columns()
     except KeyboardInterrupt:
         print('[train] Caught CRTL+C, saving best network of accuracy: %r' % (best_valid_accuracy, ))
 
     # Save the best network
-    print('[train] saving best weights to %s' % (weights_file))
+    print('[model] saving best weights to %s' % (weights_file))
     with open(weights_file, 'wb') as pfile:
         pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
 
