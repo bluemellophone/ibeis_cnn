@@ -162,14 +162,14 @@ def show_image_from_data(data):
     add_to_template(template, 2, 0, replicate(image[2], 2))
     add_to_template(template, 3, 0, bgr_)
 
-    add_to_template(template, 0, 1, replicate(image[3], 0))
-    add_to_template(template, 1, 1, replicate(image[4], 1))
-    add_to_template(template, 2, 1, replicate(image[5], 2))
+    add_to_template(template, 0, 1, replicate(image[3]))
+    add_to_template(template, 1, 1, replicate(image[4]))
+    add_to_template(template, 2, 1, replicate(image[5]))
     add_to_template(template, 3, 1, hsv_)
 
-    add_to_template(template, 0, 2, replicate(image[6], 0))
-    add_to_template(template, 1, 2, replicate(image[7], 1))
-    add_to_template(template, 2, 2, replicate(image[8], 2))
+    add_to_template(template, 0, 2, replicate(image[6]))
+    add_to_template(template, 1, 2, replicate(image[7]))
+    add_to_template(template, 2, 2, replicate(image[8]))
     add_to_template(template, 3, 2, lab_)
 
     add_to_template(template, 0, 3, replicate(image[9]))
