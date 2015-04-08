@@ -58,7 +58,6 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     momentum      = 0.9
     batch_size    = 128
     patience      = 15
-    # max_epochs    = 150
     max_epochs    = patience * 10
     output_dims   = 16    # the number of outputs from the softmax layer (# classes)
 
@@ -202,11 +201,12 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
 
 
 if __name__ == '__main__':
-    project_name = 'viewpoint'
-    root = abspath(join('..', 'data'))
-    train_data_file = join(root, 'numpy', project_name, 'X.npy')
-    train_labels_file = join(root, 'numpy', project_name, 'y.npy')
-    weights_file = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    project_name            = 'viewpoint'
+    root                    = abspath(join('..', 'data'))
+    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')
+
     train(train_data_file, train_labels_file, weights_file)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)

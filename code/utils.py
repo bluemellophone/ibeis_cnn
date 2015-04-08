@@ -42,8 +42,8 @@ def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-# take the data and label arrays, split them preserving the class distributions
 def train_test_split(X, y, eval_size):
+    # take the data and label arrays, split them preserving the class distributions
     kf = StratifiedKFold(y, round(1. / eval_size))
 
     train_indices, valid_indices = next(iter(kf))
@@ -53,16 +53,6 @@ def train_test_split(X, y, eval_size):
     return X_train, y_train, X_valid, y_valid
 
 
-# load the data and label arrays from disk,
-# and shuffles both
-# expects data to be in a numpy.ndarray of the form
-# [[x00, x01, ..., x0N]
-#  [x10, x11, ..., x1N]
-#  ...               ]]
-#  where each row is a 1D-array
-#  representing all the channels from a single
-#  image flattened and stacked.  This is necessary
-#  for pre-processing.
 def load(data_file, labels_file=None, random_state=None):
     # Load X matrix (data)
     data = np.load(data_file, mmap_mode='r')
@@ -99,10 +89,10 @@ def print_layer_info(output_layer):
 def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
                      best_valid_accuracy, train_loss, best_train_loss, epoch,
                      duration):
-    best_train    = train_loss == best_train_loss
-    best_valid    = valid_loss == best_valid_loss
-    best_accuracy = valid_accuracy == best_valid_accuracy
-    ratio         = train_loss / valid_loss
+    best_train      = train_loss == best_train_loss
+    best_valid      = valid_loss == best_valid_loss
+    best_accuracy   = valid_accuracy == best_valid_accuracy
+    ratio           = train_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
     print('[info]  {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  '
           '|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
@@ -127,8 +117,8 @@ def float32(k):
     return np.cast['float32'](k)
 
 
-# divides X and y into batches of size bs for sending to the GPU
 def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None):
+    # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
         if y is None:
@@ -161,11 +151,11 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-# build the Theano functions that will be used in the optimization
-# refer to this link for info on tensor types:
-# http://deeplearning.net/software/theano/library/tensor/basic.html
 def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor4,
                       output_type=T.ivector):
+    # build the Theano functions that will be used in the optimization
+    # refer to this link for info on tensor types:
+    # http://deeplearning.net/software/theano/library/tensor/basic.html
     X = input_type('x')
     y = output_type('y')
     X_batch = input_type('x_batch')
