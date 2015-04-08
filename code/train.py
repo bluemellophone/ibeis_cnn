@@ -178,9 +178,9 @@ def show_image_from_data(data):
     lab_   = cv2.merge(image[6:9])
 
     template = np.zeros((template_h * h, template_w * w, 3), dtype=np.uint8)
-    add_to_template(template, 0, 0, replicate(image[0], 0))
-    add_to_template(template, 1, 0, replicate(image[1], 1))
-    add_to_template(template, 2, 0, replicate(image[2], 2))
+    add_to_template(template, 0, 0, replicate(image[0]))
+    add_to_template(template, 1, 0, replicate(image[1]))
+    add_to_template(template, 2, 0, replicate(image[2]))
     add_to_template(template, 3, 0, bgr_)
 
     add_to_template(template, 0, 1, replicate(image[3]))
