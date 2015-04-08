@@ -37,6 +37,11 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
             yb = y[sl]
         else:
             yb = None
+        # Get corret dtype
+        Xb_ = Xb.astype(np.float32)
+        if norm is not None and norm > 0.0:
+            Xb_ /= norm
+        yb_ = yb.astype(np.int32)
         # Whiten
         if mean is not None:
             Xb -= mean
@@ -45,11 +50,6 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
         # Augment
         if augment is not None:
             Xb, yb = augment(Xb, yb)
-        # Get corret dtype
-        Xb_ = Xb.astype(np.float32)
-        if norm is not None and norm > 0.0:
-            Xb_ /= norm
-        yb_ = yb.astype(np.int32)
         yield Xb_, yb_
 
 
@@ -283,12 +283,12 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
 
             t0 = time.time()
             # compute the loss over all training batches
-            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, None, augment=None):
+            for Xb, yb in batch_iterator(X_train, y_train, batch_size, normalizer, whiten_mean, whiten_std, augment=augmentation):
                 batch_train_loss = train_iter(Xb, yb)
                 train_losses.append(batch_train_loss)
 
             # compute the loss over all validation batches
-            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size, normalizer, whiten_mean, None):
+            for Xb, yb in batch_iterator(X_valid, y_valid, batch_size, normalizer, whiten_mean, whiten_std):
                 batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
                 valid_losses.append(batch_valid_loss)
                 valid_accuracies.append(batch_accuracy)
