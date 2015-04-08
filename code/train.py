@@ -43,8 +43,8 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
         # Whiten)
         if mean is not None:
             Xb_ -= mean
-        # if std is not None:
-        #     Xb_ -= std
+        if std is not None:
+            Xb_ /= std
         if norm is not None and norm > 0.0:
             Xb_ /= norm
         # Augment
@@ -267,7 +267,8 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('calculating whitening...')
     if whiten:
         whiten_mean = np.mean(X_train, axis=0)
-        whiten_std  = np.std(X_train, axis=0)
+        # whiten_std  = np.std(X_train, axis=0)
+        whiten_std  = 1.0
     else:
         whiten_mean = None  # 0.0
         whiten_std  = None  # 1.0
