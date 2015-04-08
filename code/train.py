@@ -23,6 +23,7 @@ from lasagne import objectives
 from lasagne import nonlinearities  # NOQA
 
 from os.path import join, abspath
+import cv2
 
 
 # divides X and y into batches of size bs for sending to the GPU
@@ -95,6 +96,31 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
     return train_iter, valid_iter, predict_iter
 
 
+def show_image_from_data(data):
+    def add_to_template(template, x, y, image_):
+        template[y * h : (y + 1) * h, x * h : (x + 1) * w] = image_
+
+    image = data[0]
+    h, w, c = image.shape
+    image *= 255.0
+    image = image.astype(np.uint8)
+    b, g, r = image
+    zero = np.zeros((h, w))
+    b = cv2.merge([b, zero, zero])
+    g = cv2.merge([zero, g, zero])
+    r = cv2.merge([zero, zero, r])
+    image = cv2.merge(image)
+    template = np.ndarray((2 * h, 4 * w, c), dtype=np.uint8)
+
+    add_to_template(template, 0, 0, r)
+    add_to_template(template, 1, 0, g)
+    add_to_template(template, 2, 0, b)
+    add_to_template(template, 3, 0, image)
+
+    cv2.imshow('template', template)
+    cv2.waitKey(0)
+
+
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
     current_time = utils.get_current_time()
     if trained_weights_file is None:
@@ -120,6 +146,8 @@ def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_
     print('  X.dtype = %r' % (data.dtype,))
     print('  y.shape = %r' % (labels.shape,))
     print('  y.dtype = %r' % (labels.dtype,))
+
+    show_image_from_data(data)
 
     print('building model...')
     output_layer = model.build_model(batch_size, input_width, input_height, output_dim)
