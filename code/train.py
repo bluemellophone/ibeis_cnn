@@ -114,12 +114,21 @@ def show_image_from_data(data):
     g = cv2.merge([zero, g, zero])
     r = cv2.merge([zero, zero, r])
     image = cv2.merge(image)
-    template = np.ndarray((2 * h, 4 * w, c), dtype=np.uint8)
+    template = np.zeros((2 * h, 4 * w, c), dtype=np.uint8)
+
+    sobelx = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
+    sobely = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)
+
+    print(sobelx.shape)
+    print(sobely.shape)
 
     add_to_template(template, 0, 0, r)
     add_to_template(template, 1, 0, g)
     add_to_template(template, 2, 0, b)
     add_to_template(template, 3, 0, image)
+
+    add_to_template(template, 0, 1, sobelx)
+    add_to_template(template, 1, 1, sobely)
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
