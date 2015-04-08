@@ -36,11 +36,11 @@ RANDOM_SEED = None
 def batch_iterator(X, y, bs, norm=None, mean=None, std=None, rand=False, augment=None):
     # Randomly shuffle data
     if rand:
-        print('Randmizing batch')
         if y is None:
             X = shuffle(X, random_state=RANDOM_SEED)
         else:
             X, y = shuffle(X, y, random_state=RANDOM_SEED)
+        print('...randomized')
     N = X.shape[0]
     for i in range((N + bs - 1) // bs):
         sl = slice(i * bs, (i + 1) * bs)
