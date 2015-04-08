@@ -105,24 +105,28 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
 
 
 def add_channels(data):
-    additional = 5
+    additional = 5 + 3 + 3
     points, channels, height, width = data.shape
     dtype = data.dtype
     data_channels = np.empty((points, channels + additional, height, width), dtype=dtype)
     data_channels[:, :channels, :, :] = data
     for index in range(points):
-        image     = data[index]
-        grayscale = cv2.cvtColor(cv2.merge(image), cv2.COLOR_BGR2GRAY)
+        image     = cv2.merge(data[index])
+        hsv       = cv2.cvtColor(image, cv2.COLOR_BGR2HSV) * 255.0
+        lab       = cv2.cvtColor(image, cv2.COLOR_BGR2Lab) * 255.0
+        grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         sobelx    = cv2.Sobel(grayscale, -1, 1, 0)
         sobely    = cv2.Sobel(grayscale, -1, 0, 1)
         sobelxx   = cv2.Sobel(sobelx, -1, 1, 0)
         sobelyy   = cv2.Sobel(sobely, -1, 0, 1)
         sobelxy   = cv2.Sobel(sobelx, -1, 0, 1)
-        data_channels[index, 3, :, :] = sobelx
-        data_channels[index, 4, :, :] = sobely
-        data_channels[index, 5, :, :] = sobelxx
-        data_channels[index, 6, :, :] = sobelyy
-        data_channels[index, 7, :, :] = sobelxy
+        data_channels[index, 3:5, :, :] = hsv
+        data_channels[index, 6:8, :, :] = lab
+        data_channels[index, 9, :, :] = sobelx
+        data_channels[index, 10, :, :] = sobely
+        data_channels[index, 11, :, :] = sobelxx
+        data_channels[index, 12, :, :] = sobelyy
+        data_channels[index, 13, :, :] = sobelxy
     return data_channels
 
 
