@@ -63,7 +63,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
     # Load the data abd Theano'ize the learning rate
-    print('[load] loading data...')
+    print('\n[load] loading data...')
     data, labels = utils.load(data_file, labels_file)
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
