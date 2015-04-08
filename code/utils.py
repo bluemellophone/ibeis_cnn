@@ -321,3 +321,10 @@ def shock_network(output_layer, voltage=0.10):
         current_weights[index] += temp
     layers.set_all_param_values(output_layer, current_weights)
     print('[model] ...shocked\n')
+
+
+def set_learning_rate(learning_rate, update):
+    new_learning_rate = update(learning_rate.get_value())
+    learning_rate.set_value(float32(new_learning_rate))
+    print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
+    print_header_columns()

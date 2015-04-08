@@ -53,13 +53,9 @@ def learning_rate_shock(x):
     return x * 10.0
 
 
-def train(data_file, labels_file, trained_weights_file=None,
-          pretrained_weights_file=None):
-    current_time = utils.get_current_time()
-    if trained_weights_file is None:
-        trained_weights_file = '%s.pickle' % (current_time)
-
-    learning_rate = theano.shared(utils.float32(0.03))
+def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
+    # Training parameters
+    learning_rate = 0.03
     patience   = 10
     max_epochs = 150
     momentum   = 0.9
@@ -68,6 +64,7 @@ def train(data_file, labels_file, trained_weights_file=None,
     normalizer = 255.0
     output_dim = 16    # the number of outputs from the softmax layer (# classes)
 
+    # Load the data abd Theano'ize the learning rate
     print('[load] loading data...')
     data, labels = utils.load(data_file, labels_file)
     # print('[load] adding channels...')
@@ -79,25 +76,32 @@ def train(data_file, labels_file, trained_weights_file=None,
 
     # utils.show_image_from_data(data)
 
+    # Build and print the model
     print('\n[build] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
     output_layer = model.build_model(batch_size, input_width, input_height,
                                      input_channels, output_dim)
     utils.print_layer_info(output_layer)
 
+    # Load the pretrained model if specified
     if pretrained_weights_file is not None:
         print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
         with open(pretrained_weights_file, 'rb') as pfile:
             pretrained_weights = pickle.load(pfile)
             layers.set_all_param_values(output_layer, pretrained_weights)
 
+    # Create the Theano primitives
+    print('[data] creating train, validation datasaets...')
+    learning_rate = theano.shared(utils.float32(learning_rate))
     all_iters = utils.create_iter_funcs(learning_rate, momentum, output_layer)
     train_iter, valid_iter, predict_iter = all_iters
 
+    # Split the dataset into training and validation
     print('[data] creating train, validation datasaets...')
     dataset = utils.train_test_split(data, labels, eval_size=0.2)
     X_train, y_train, X_valid, y_valid = dataset
 
+    # Center the data by subtracting the mean
     print('[data] calculating whitening...')
     if whiten:
         whiten_mean = np.mean(X_train, axis=0)
@@ -107,19 +111,17 @@ def train(data_file, labels_file, trained_weights_file=None,
         whiten_mean = None  # 0.0
         whiten_std  = None  # 1.0
 
-    best_weights = None
-    best_train_loss, best_valid_loss, best_valid_accuracy = np.inf, np.inf, 0.0
-    print('[train] starting training at %s' % (current_time))
+    # Begin training the neural network
+    print('[train] starting training at %s' % (utils.get_current_time()))
     utils.print_header_columns()
-
-    epoch = 1
-    best_weights, best_epoch, best_train_loss, best_valid_loss = None, 0, np.inf, np.inf
+    epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, np.inf, np.inf, 0.0
     try:
         while True:
             try:
-                if epoch > max_epochs:
+                if epoch >= max_epochs:
                     print('\n[train] maximum number of epochs exceeded\n')
                     break
+                # Reset the loses for the batch
                 train_losses, valid_losses, valid_accuracies = [], [], []
 
                 t0 = time.time()
@@ -142,10 +144,12 @@ def train(data_file, labels_file, trained_weights_file=None,
                 avg_valid_loss = np.mean(valid_losses)
                 avg_valid_accuracy = np.mean(valid_accuracies)
 
+                # If the training loss is nan, the training has diverged
                 if np.isnan(avg_train_loss):
                     print('\n[train] training diverged\n')
                     break
 
+                # Running tab for what the best model
                 if avg_train_loss < best_train_loss:
                     best_train_loss = avg_train_loss
                 if avg_valid_loss < best_valid_loss:
@@ -155,20 +159,18 @@ def train(data_file, labels_file, trained_weights_file=None,
                 if avg_valid_accuracy > best_valid_accuracy:
                     best_valid_accuracy = avg_valid_accuracy
 
-                utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
-                                       best_valid_accuracy, avg_train_loss, best_train_loss,
-                                       epoch, time.time() - t0)
-
+                # Learning rate schedule update
                 if epoch >= best_epoch + patience:
                     best_epoch = epoch
-                    new_learning_rate = learning_rate_update(learning_rate.get_value())
-                    learning_rate.set_value(utils.float32(new_learning_rate))
-                    print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
-                    utils.print_header_columns()
+                    utils.set_learning_rate(learning_rate, learning_rate_update)
 
                 # Increment the epoch
                 epoch += 1
+                utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
+                                       best_valid_accuracy, avg_train_loss, best_train_loss,
+                                       epoch, time.time() - t0)
             except KeyboardInterrupt:
+                # We have caught the Keyboard Interrupt, figure out what resolution mode
                 print('\n[train] Caught CRTL+C')
                 resolution = ''
                 while not (resolution.isdigit() and int(resolution) in [1, 2, 3]):
@@ -178,13 +180,16 @@ def train(data_file, labels_file, trained_weights_file=None,
                     print('[train]     3 - Stop network training')
                     resolution = raw_input('[train] Resolution: ')
                 resolution = int(resolution)
+                # We have a resolution
                 if resolution == 1:
+                    # Shock the weights of the network
                     utils.shock_network(output_layer)
-                    new_learning_rate = learning_rate_shock(learning_rate.get_value())
-                    learning_rate.set_value(utils.float32(new_learning_rate))
+                    utils.set_learning_rate(learning_rate, learning_rate_shock)
                 elif resolution == 2:
+                    # Save the weights of the network
                     utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
                 else:
+                    # Terminate the network training
                     raise KeyboardInterrupt
     except KeyboardInterrupt:
         print('\n\n[train] ...stopping network training\n')
