@@ -162,7 +162,7 @@ def train(data_file, labels_file, trained_weights_file=None,
                 utils.print_header_columns()
     except KeyboardInterrupt:
         acc = 100.0 * best_valid_accuracy
-        print('[train] Caught CRTL+C, saving best network of accuracy: %02.2f' % (acc, ))
+        print('\n[train] Caught CRTL+C, saving best network with accuracy: %02.2f%%' % (acc, ))
 
     # Save the best network
     print('[model] saving best weights to %s' % (weights_file))
