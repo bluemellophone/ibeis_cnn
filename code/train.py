@@ -152,6 +152,7 @@ def show_image_from_data(data):
 
     cv2.imshow('template', template)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 def train(data_file, labels_file, trained_weights_file=None, pretrained_weights_file=None):
