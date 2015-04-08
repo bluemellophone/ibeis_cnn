@@ -112,7 +112,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     train_iter, valid_iter, predict_iter = all_iters
 
     # Begin training the neural network
-    print('[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
+    print('\n[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
     utils.print_header_columns()
     epoch, best_weights, best_epoch, best_train_loss, best_valid_loss, best_valid_accuracy = 0, None, 0, np.inf, np.inf, 0.0
     try:
