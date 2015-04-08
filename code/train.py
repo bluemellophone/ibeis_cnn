@@ -105,7 +105,9 @@ def show_image_from_data(data):
     image *= 255.0
     image = image.astype(np.uint8)
     b, g, r = image
+    print(b.shape)
     zero = np.zeros((h, w))
+    print(zero.shape)
     b = cv2.merge([b, zero, zero])
     g = cv2.merge([zero, g, zero])
     r = cv2.merge([zero, zero, r])
