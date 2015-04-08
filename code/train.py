@@ -45,8 +45,6 @@ def batch_iterator(X, y, bs, norm=None, mean=None, std=None, augment=None):
             Xb_ -= mean
         if std is not None:
             Xb_ /= std
-        if norm is not None and norm > 0.0:
-            Xb_ /= norm
         # Augment
         if augment is not None:
             Xb_, yb_ = augment(Xb_, yb_)
