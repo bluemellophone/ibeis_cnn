@@ -120,7 +120,7 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
 
 if __name__ == '__main__':
     project_name = 'viewpoint'
-    size = (128, 128)
+    size = (64, 64)
     process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
-    view_numpy_data(project_name)
+    # view_numpy_data(project_name)

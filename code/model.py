@@ -21,11 +21,16 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
         shape=(None, input_channels, input_width, input_height)
     )
 
-    l_conv1 = Conv2DLayer(
+    l_noise = layers.GaussianNoiseLayer(
         l_in,
+    )
+
+    l_conv1 = Conv2DLayer(
+        l_noise,
         num_filters=32,
         filter_size=(5, 5),
-        nonlinearity=nonlinearities.rectify,
+        # nonlinearity=nonlinearities.rectify,
+        nonlinearity=nonlinearities.LeakyRectify,
         W=init.GlorotUniform(),
     )
 
@@ -39,7 +44,8 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
         l_pool1,
         num_filters=64,
         filter_size=(3, 3),
-        nonlinearity=nonlinearities.rectify,
+        # nonlinearity=nonlinearities.rectify,
+        nonlinearity=nonlinearities.LeakyRectify,
         W=init.GlorotUniform(),
     )
 
@@ -53,7 +59,8 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
         l_pool2,
         num_filters=128,
         filter_size=(3, 3),
-        nonlinearity=nonlinearities.rectify,
+        # nonlinearity=nonlinearities.rectify,
+        nonlinearity=nonlinearities.LeakyRectify,
         W=init.GlorotUniform(),
     )
 
@@ -66,7 +73,8 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
     l_hidden1 = layers.DenseLayer(
         l_pool3,
         num_units=1024,
-        nonlinearity=nonlinearities.rectify,
+        # nonlinearity=nonlinearities.rectify,
+        nonlinearity=nonlinearities.LeakyRectify,
         W=init.GlorotUniform(),
     )
 
@@ -80,7 +88,8 @@ def build_model(batch_size, input_width, input_height, input_channels, output_di
     l_hidden2 = layers.DenseLayer(
         l_hidden1_dropout,
         num_units=1024,
-        nonlinearity=nonlinearities.rectify,
+        # nonlinearity=nonlinearities.rectify,
+        nonlinearity=nonlinearities.LeakyRectify,
         W=init.GlorotUniform(),
     )
 
