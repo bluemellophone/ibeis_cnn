@@ -152,7 +152,7 @@ def multinomial_nll(x, t):
 
 
 def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor4,
-                      output_type=T.ivector):
+                      output_type=T.ivector, regularization=None):
     # build the Theano functions that will be used in the optimization
     # refer to this link for info on tensor types:
     # http://deeplearning.net/software/theano/library/tensor/basic.html
@@ -165,6 +165,9 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
     objective = objectives.Objective(output_layer, loss_function=multinomial_nll)
 
     loss_train = objective.get_loss(X_batch, target=y_batch)
+    if regularization is not None:
+        L2 = lasagne.regularization.l2(output_layer)
+        loss_train += L2 * regularization
     loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
     predict_proba = output_layer.get_output(X_batch, deterministic=True)
     pred = T.argmax(predict_proba, axis=1)

@@ -53,13 +53,15 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         return min(learning_rate, x * 10.0)
 
     # Training parameters
-    center        = True
-    learning_rate = 0.03
-    momentum      = 0.9
-    batch_size    = 128
-    patience      = 15
-    max_epochs    = patience * 10
-    output_dims   = 16    # the number of outputs from the softmax layer (# classes)
+    center         = True
+    learning_rate  = 0.03
+    momentum       = 0.9
+    batch_size     = 128
+    patience       = 15
+    max_epochs     = patience * 10
+    # regularization = None
+    regularization = 0.0001
+    output_dims    = 16    # the number of outputs from the softmax layer (# classes)
 
     ######################################################################################
 
@@ -107,7 +109,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_ = theano.shared(utils.float32(learning_rate))
-    all_iters = utils.create_iter_funcs(learning_rate_, momentum, output_layer)
+    all_iters = utils.create_iter_funcs(learning_rate_, momentum, output_layer, regularization=regularization)
     train_iter, valid_iter, predict_iter = all_iters
 
     # Begin training the neural network
