@@ -145,15 +145,19 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 # compute the loss over all test batches
                 if epoch % test == 0:
                     show = True
+                    all_pred = []
                     for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
                                                        center_mean, center_std):
                         batch_predict_proba, batch_pred, batch_accuracy = predict_iter(Xb, yb)
                         test_accuracies.append(batch_accuracy)
+                        all_pred.append(batch_pred)
                         if show:
                             print('Predect: ', batch_pred)
                             print('Correct: ', yb)
                             print('--------------')
                             show = False
+                    all_pred = np.flatten(np.array(all_pred))
+                    utils.show_confusion_matrix(y_test, all_pred, range(16))
 
                 # estimate the loss over all batches
                 avg_train_loss = np.mean(train_losses)
