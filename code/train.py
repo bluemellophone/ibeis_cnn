@@ -156,7 +156,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                             print('Correct: ', yb)
                             print('--------------')
                             show = False
-                    all_pred = np.array(all_pred).flatten()
+                    all_pred = np.hstack(all_pred)
                     print(all_pred.shape)
                     utils.show_confusion_matrix(y_test, all_pred, range(16))
 
