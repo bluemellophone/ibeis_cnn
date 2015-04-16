@@ -146,8 +146,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 if epoch % test == 0:
                     show = True
                     for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
-                                                       center_mean, center_std,
-                                                       rand=True, augment=augmentation):
+                                                       center_mean, center_std):
                         batch_predict_proba, batch_pred, batch_accuracy = predict_iter(Xb, yb)
                         test_accuracies.append(batch_accuracy)
                         if show:
