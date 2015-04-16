@@ -9,10 +9,45 @@ from lasagne.layers import cuda_convnet
 from lasagne import nonlinearities
 from lasagne import init
 
+import random
+
 # use cuda_convnet for a speed improvement
 # will not be available without a GPU
 Conv2DLayer = cuda_convnet.Conv2DCCLayer
 MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
+
+
+def augmentation(Xb, yb):
+    # label_map = {
+    #     0:  4,
+    #     1:  5,
+    #     2:  6,
+    #     3:  7,
+    #     8:  12,
+    #     9:  13,
+    #     10: 14,
+    #     11: 15,
+    # }
+    label_map = { x: x + 4 for x in range(0, 4) + range(8, 12) }
+    # Apply inverse
+    for key in label_map.keys():
+        label = label_map[key]
+        label_map[label] = key
+    # Map
+    points, channels, height, width = Xb.shape
+    for index in range(points):
+        if random.uniform(0.0, 1.0) <= 0.5:
+            Xb[index] = Xb[index, :, ::-1]
+            yb[index] = label_map[yb[index]]
+    return Xb, yb
+
+
+def learning_rate_update(x):
+    return x / 10.0
+
+
+def learning_rate_shock(x):
+    return x * 10.0
 
 
 def build_model(batch_size, input_width, input_height, input_channels, output_dims):

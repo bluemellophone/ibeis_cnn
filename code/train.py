@@ -17,40 +17,9 @@ import cPickle as pickle
 from lasagne import layers
 
 from os.path import join, abspath
-import random
 
 
 def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **kwargs):
-
-    def augmentation(Xb, yb):
-        # label_map = {
-        #     0:  4,
-        #     1:  5,
-        #     2:  6,
-        #     3:  7,
-        #     8:  12,
-        #     9:  13,
-        #     10: 14,
-        #     11: 15,
-        # }
-        label_map = { x: x + 4 for x in range(0, 4) + range(8, 12) }
-        # Apply inverse
-        for key in label_map.keys():
-            label = label_map[key]
-            label_map[label] = key
-        # Map
-        points, channels, height, width = Xb.shape
-        for index in range(points):
-            if random.uniform(0.0, 1.0) <= 0.5:
-                Xb[index] = Xb[index, :, ::-1]
-                yb[index] = label_map[yb[index]]
-        return Xb, yb
-
-    def learning_rate_update(x):
-        return x / 10.0
-
-    def learning_rate_shock(x):
-        return min(kwargs.get('learning_rate'), x * 10.0)
 
     # Training parameters
     utils._update(kwargs, 'center',         True)
@@ -60,7 +29,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
     utils._update(kwargs, 'patience',       10)
     utils._update(kwargs, 'test',           5)  # Test every X epochs
     utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
-    utils._update(kwargs, 'regularization', None)
+    # utils._update(kwargs, 'regularization', None)
     utils._update(kwargs, 'regularization', 0.0001)
     utils._update(kwargs, 'output_dims',    16)  # outputs of the softmax layer (# classes)
 
@@ -136,8 +105,12 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
                 t0 = time.time()
 
                 # compute the loss over all training and validation batches
-                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, **kwargs)
-                avg_valid_loss, avg_valid_accuracy = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
+                avg_train_loss = utils.forward_train(X_train, y_train, train_iter,
+                                                     rand=True, augment=model.augment,
+                                                     **kwargs)
+                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
+                                                     augment=model.augment, **kwargs)
+                avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
                 if np.isnan(avg_train_loss):
@@ -171,7 +144,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
                 # Learning rate schedule update
                 if epoch >= epoch_marker + kwargs.get('patience'):
                     epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_theano, learning_rate_update)
+                    utils.set_learning_rate(learning_rate_theano, model.learning_rate_update)
 
                 # End timer
                 t1 = time.time()
@@ -202,7 +175,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
                     # Shock the weights of the network
                     utils.shock_network(output_layer)
                     epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_theano, learning_rate_shock)
+                    utils.set_learning_rate(learning_rate_theano, model.learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
                     utils.save_model(kwargs, weights_file)

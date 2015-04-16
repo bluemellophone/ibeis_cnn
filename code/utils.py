@@ -221,21 +221,21 @@ def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
     return train_iter, valid_iter, test_iter
 
 
-def forward_train(X_train, y_train, train_iter, **kwargs):
+def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwargs):
     # compute the loss over all training batches
     train_losses = []
-    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
+    for Xb, yb in batch_iterator(X_train, y_train, rand=rand, augment=augment, **kwargs):
         batch_train_loss = train_iter(Xb, yb)
         train_losses.append(batch_train_loss)
     avg_train_loss = np.mean(train_losses)
     return avg_train_loss
 
 
-def forward_valid(X_valid, y_valid, valid_iter, **kwargs):
+def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwargs):
     # compute the loss over all validation batches
     valid_losses = []
     valid_accuracies = []
-    for Xb, yb in batch_iterator(X_valid, y_valid, **kwargs):
+    for Xb, yb in batch_iterator(X_valid, y_valid, rand=rand, augment=augment, **kwargs):
         batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
         valid_losses.append(batch_valid_loss)
         valid_accuracies.append(batch_accuracy)
@@ -350,7 +350,6 @@ def save_model(kwargs, weights_file):
     acc = 100.0 * kwargs.get('best_valid_accuracy')
     print('[model] saving best network with accuracy: %02.2f%%' % (acc, ))
     print('[model] saving best weights to %s' % (weights_file))
-    print(kwargs)
     with open(weights_file, 'wb') as pfile:
         pickle.dump(kwargs, pfile, protocol=pickle.HIGHEST_PROTOCOL)
     print('[model] ...saved\n')
