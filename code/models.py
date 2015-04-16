@@ -18,7 +18,10 @@ MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
 
 
 class PZ_GIRM_Model:
-    def augment(Xb, yb):
+    def __init__(self):
+        return self
+
+    def augment(self, Xb, yb):
         # label_map = {
         #     0:  4,
         #     1:  5,
@@ -42,13 +45,13 @@ class PZ_GIRM_Model:
                 yb[index] = label_map[yb[index]]
         return Xb, yb
 
-    def learning_rate_update(x):
+    def learning_rate_update(self, x):
         return x / 10.0
 
-    def learning_rate_shock(x):
+    def learning_rate_shock(self, x):
         return x * 10.0
 
-    def build_model(batch_size, input_width, input_height, input_channels, output_dims):
+    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
             shape=(None, input_channels, input_width, input_height)
@@ -144,7 +147,10 @@ class PZ_GIRM_Model:
 
 
 class PZ_Model:
-    def augment(Xb, yb):
+    def __init__(self):
+        return self
+
+    def augment(self, Xb, yb):
         # label_map = {
         #     0:  4,
         #     1:  5,
@@ -164,13 +170,13 @@ class PZ_Model:
                 yb[index] = label_map[yb[index]]
         return Xb, yb
 
-    def learning_rate_update(x):
+    def learning_rate_update(self, x):
         return x / 10.0
 
-    def learning_rate_shock(x):
+    def learning_rate_shock(self, x):
         return x * 10.0
 
-    def build_model(batch_size, input_width, input_height, input_channels, output_dims):
+    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
             shape=(None, input_channels, input_width, input_height)

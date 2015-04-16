@@ -201,7 +201,7 @@ if __name__ == '__main__':
     # project_name            = 'viewpoint'
     # model                   = models.PZ_GIRM_Model
     project_name            = 'plains'
-    model                   = models.PZ_Model
+    model                   = models.PZ_Model()
     config                  = {}
 
     root                    = abspath(join('..', 'data'))
