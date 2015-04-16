@@ -116,8 +116,9 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
                 # compute the loss over all training and validation batches
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
                                                      augment=model.augment, **kwargs)
-                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
-                                                     augment=model.augment, **kwargs)
+                # avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
+                #                                      augment=model.augment, **kwargs)
+                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
