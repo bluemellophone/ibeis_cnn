@@ -19,7 +19,7 @@ MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
 
 class PZ_GIRM_Model:
     def __init__(self):
-        return self
+        pass
 
     def augment(self, Xb, yb):
         # label_map = {
@@ -148,7 +148,7 @@ class PZ_GIRM_Model:
 
 class PZ_Model:
     def __init__(self):
-        return self
+        pass
 
     def augment(self, Xb, yb):
         # label_map = {

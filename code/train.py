@@ -199,7 +199,7 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
 
 if __name__ == '__main__':
     # project_name            = 'viewpoint'
-    # model                   = models.PZ_GIRM_Model
+    # model                   = models.PZ_GIRM_Model()
     project_name            = 'plains'
     model                   = models.PZ_Model()
     config                  = {}
