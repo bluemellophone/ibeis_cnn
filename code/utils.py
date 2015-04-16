@@ -18,6 +18,7 @@ from sklearn.cross_validation import StratifiedKFold
 from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
+import matplotlib.pyplot as plt
 
 
 class ANSI:
@@ -199,7 +200,7 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
 
     predict_iter = theano.function(
         inputs=[theano.Param(X_batch)],
-        outputs=predict_proba,
+        outputs=[predict_proba, pred],
         givens={
             X: X_batch,
         },
@@ -317,3 +318,47 @@ def set_learning_rate(learning_rate, update):
     learning_rate.set_value(float32(new_learning_rate))
     print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
     print_header_columns()
+
+
+def show_confusion_matrix(correct_y, expert_y, category_list):
+    '''
+        Given the correct and expert labels, show the confusion matrix
+
+        Args:
+            correct_y (list of int): the list of correct labels
+            expert_y (list of int): the list of expert assigned labels
+            category_list (list of str): the category list of all categories
+
+        Displays:
+            matplotlib: graph of the confusion matrix
+
+        Returns:
+            None
+    '''
+    size = len(category_list)
+    confidences = np.zeros((size, size))
+    for correct, expert, in zip(correct_y, expert_y):
+        confidences[correct][expert] += 1
+
+    row_sums = np.sum(confidences, axis=1)
+    norm_conf = (confidences.T / row_sums).T
+
+    fig = plt.figure()
+    plt.clf()
+    ax = fig.add_subplot(111)
+    ax.set_aspect(1)
+    res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet,
+                    interpolation='nearest')
+
+    for x in xrange(size):
+        for y in xrange(size):
+            ax.annotate(str(confidences[x][y]), xy=(y, x),
+                        horizontalalignment='center',
+                        verticalalignment='center')
+
+    cb = fig.colorbar(res)  # NOQA
+    plt.xticks(range(size), category_list[:size])
+    plt.yticks(range(size), category_list[:size])
+    plt.xlabel('Predicted')
+    plt.ylabel('Correct')
+    plt.show()
