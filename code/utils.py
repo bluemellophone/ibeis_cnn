@@ -357,7 +357,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
 
     for x in xrange(size):
         for y in xrange(size):
-            ax.annotate(str(confidences[x][y]), xy=(y, x),
+            ax.annotate(str(int(confidences[x][y])), xy=(y, x),
                         horizontalalignment='center',
                         verticalalignment='center')
 
