@@ -144,7 +144,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
 
                 # compute the loss over all test batches
                 if epoch % test == 0:
-                    show = True
+                    show = False
                     all_pred = []
                     for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
                                                        center_mean, center_std):
@@ -157,8 +157,6 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                             print('--------------')
                             show = False
                     all_pred = np.hstack(all_pred)
-                    print(y_test.shape)
-                    print(all_pred.shape)
                     utils.show_confusion_matrix(y_test, all_pred, range(16))
 
                 # estimate the loss over all batches
