@@ -142,9 +142,10 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
                                                    center_mean, center_std):
                     batch_predict_proba, batch_pred = predict_iter(Xb)
-                    print(batch_pred)
-                    print(yb)
+                    print('Predect: ', batch_pred)
+                    print('Correct: ', yb)
                     print('--------------')
+                    continue
 
                 # estimate the loss over all batches
                 avg_train_loss = np.mean(train_losses)
