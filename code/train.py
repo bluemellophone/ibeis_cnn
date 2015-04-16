@@ -58,6 +58,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     momentum       = 0.9
     batch_size     = 128
     patience       = 10
+    test           = 10  # Test every 10 epochs
     max_epochs     = patience * 10
     # regularization = None
     regularization = 0.0001
@@ -142,15 +143,18 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     valid_accuracies.append(batch_accuracy)
 
                 # compute the loss over all test batches
-                for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
-                                                   center_mean, center_std,
-                                                   rand=True, augment=augmentation):
-                    batch_predict_proba, batch_pred, batch_accuracy = predict_iter(Xb, yb)
-                    test_accuracies.append(batch_accuracy)
-                    print('Predect: ', batch_pred)
-                    print('Correct: ', yb)
-                    print('--------------')
-                    break
+                if epoch % test == 0:
+                    show = True
+                    for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
+                                                       center_mean, center_std,
+                                                       rand=True, augment=augmentation):
+                        batch_predict_proba, batch_pred, batch_accuracy = predict_iter(Xb, yb)
+                        test_accuracies.append(batch_accuracy)
+                        if show:
+                            print('Predect: ', batch_pred)
+                            print('Correct: ', yb)
+                            print('--------------')
+                            show = False
 
                 # estimate the loss over all batches
                 avg_train_loss = np.mean(train_losses)
@@ -175,7 +179,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     best_weights = layers.get_all_param_values(output_layer)
                 if avg_valid_accuracy > best_valid_accuracy:
                     best_valid_accuracy = avg_valid_accuracy
-                if avg_test_accuracy > best_test_accuracy:
+                if avg_test_accuracy is not None and avg_test_accuracy > best_test_accuracy:
                     best_test_accuracy = avg_test_accuracy
 
                 # Learning rate schedule update
