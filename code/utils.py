@@ -347,8 +347,8 @@ def show_image_from_data(data):
 
 
 def save_model(kwargs, weights_file):
-    acc = 100.0 * kwargs.get('best_valid_accuracy')
-    print('[model] saving best network with accuracy: %02.2f%%' % (acc, ))
+    acc = 100.0 * kwargs.get('best_test_accuracy')
+    print('[model] saving best network with test accuracy: %02.2f%%' % (acc, ))
     print('[model] saving best weights to %s' % (weights_file))
     with open(weights_file, 'wb') as pfile:
         pickle.dump(kwargs, pfile, protocol=pickle.HIGHEST_PROTOCOL)
