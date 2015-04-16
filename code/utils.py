@@ -367,3 +367,5 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
     plt.show()
+    print('SHOWN')
+    raw_input()
