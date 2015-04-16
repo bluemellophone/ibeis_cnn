@@ -57,7 +57,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     learning_rate  = 0.03
     momentum       = 0.9
     batch_size     = 128
-    patience       = 15
+    patience       = 10
     max_epochs     = patience * 10
     # regularization = None
     regularization = 0.0001
@@ -117,13 +117,13 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     # Begin training the neural network
     print('\n[train] starting training at %s with learning rate %.9f' % (utils.get_current_time(), learning_rate, ))
     utils.print_header_columns()
-    epoch, best_weights, best_accuracy, best_epoch = 0, None, 0.0, 0
-    best_train_loss, best_valid_loss, best_valid_accuracy = np.inf, np.inf, 0.0
+    epoch, best_weights, best_valid_accuracy, best_test_accuracy, best_epoch = 0, None, 0.0, 0.0, 0
+    best_train_loss, best_valid_loss, best_valid_accuracy, best_test_accuracy = np.inf, np.inf, 0.0, 0.0
     try:
         while True:
             try:
                 # Reset the loses for the batch
-                train_losses, valid_losses, valid_accuracies = [], [], []
+                train_losses, valid_losses, valid_accuracies, test_accuracies = [], [], [], []
 
                 t0 = time.time()
                 # compute the loss over all training batches
@@ -145,7 +145,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
                                                    center_mean, center_std,
                                                    rand=True, augment=augmentation):
-                    batch_predict_proba, batch_pred = predict_iter(Xb)
+                    batch_predict_proba, batch_pred, batch_accuracy = predict_iter(Xb, yb)
+                    test_accuracies.append(batch_accuracy)
                     print('Predect: ', batch_pred)
                     print('Correct: ', yb)
                     print('--------------')
@@ -155,6 +156,10 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 avg_train_loss = np.mean(train_losses)
                 avg_valid_loss = np.mean(valid_losses)
                 avg_valid_accuracy = np.mean(valid_accuracies)
+                if len(test_accuracies) == 0:
+                    avg_test_accuracy = None
+                else:
+                    avg_test_accuracy = np.mean(test_accuracies)
 
                 # If the training loss is nan, the training has diverged
                 if np.isnan(avg_train_loss):
@@ -168,9 +173,10 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     best_valid_loss = avg_valid_loss
                     best_epoch = epoch
                     best_weights = layers.get_all_param_values(output_layer)
-                    best_accuracy = avg_valid_accuracy
                 if avg_valid_accuracy > best_valid_accuracy:
                     best_valid_accuracy = avg_valid_accuracy
+                if avg_test_accuracy > best_test_accuracy:
+                    best_test_accuracy = avg_test_accuracy
 
                 # Learning rate schedule update
                 if epoch >= best_epoch + patience:
@@ -180,7 +186,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 # Increment the epoch
                 epoch += 1
                 utils.print_epoch_info(avg_valid_loss, best_valid_loss, avg_valid_accuracy,
-                                       best_valid_accuracy, avg_train_loss, best_train_loss,
+                                       best_valid_accuracy, avg_test_accuracy, best_test_accuracy,
+                                       avg_train_loss, best_train_loss,
                                        epoch, time.time() - t0)
 
                 # Break on max epochs
@@ -206,7 +213,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     utils.set_learning_rate(learning_rate_, learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
-                    utils.save_best_model(best_weights, best_accuracy, weights_file)
+                    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
                 else:
                     # Terminate the network training
                     raise KeyboardInterrupt
@@ -214,7 +221,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         print('\n\n[train] ...stopping network training\n')
 
     # Save the best network
-    utils.save_best_model(best_weights, best_accuracy, weights_file)
+    utils.save_best_model(best_weights, best_valid_accuracy, weights_file)
 
 
 if __name__ == '__main__':

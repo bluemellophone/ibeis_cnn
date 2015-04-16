@@ -67,8 +67,8 @@ def load(data_file, labels_file=None, random_state=None):
 
 def print_header_columns():
     print('''
-[info]   Epoch |  Train Loss  |  Valid Loss  |  Train / Val  |  Valid Acc  |  Dur
-[info] --------|--------------|--------------|---------------|-------------|------\
+[info]   Epoch |  Train Loss  |  Valid Loss  |  Train / Val  |  Valid Acc  |  Test Acc  |  Dur
+[info] --------|--------------|--------------|---------------|-------------|-------------|------\
 ''')
 
 
@@ -87,16 +87,17 @@ def print_layer_info(output_layer):
     ))
 
 
-def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
-                     best_valid_accuracy, train_loss, best_train_loss, epoch,
-                     duration):
+def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy, best_valid_accuracy,
+                     test_accuracy, best_test_accuracy,
+                     train_loss, best_train_loss, epoch, duration):
     best_train      = train_loss == best_train_loss
     best_valid      = valid_loss == best_valid_loss
-    best_accuracy   = valid_accuracy == best_valid_accuracy
+    best_valid_accuracy = valid_accuracy == best_valid_accuracy
+    best_train_accuracy = test_accuracy == best_test_accuracy
     ratio           = train_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
     print('[info]  {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  '
-          '|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
+          '|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
               epoch,
               ANSI.BLUE if best_train else '',
               train_loss,
@@ -107,9 +108,12 @@ def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy,
               ANSI.RED if unhealthy_ratio else '',
               ratio,
               ANSI.RESET if unhealthy_ratio else '',
-              ANSI.MAGENTA if best_accuracy else '',
+              ANSI.MAGENTA if best_valid_accuracy else '',
               '{:.2f}%'.format(valid_accuracy * 100),
-              ANSI.RESET if best_accuracy else '',
+              ANSI.RESET if best_valid_accuracy else '',
+              ANSI.CYAN if best_train_accuracy else '',
+              '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
+              ANSI.RESET if best_train_accuracy else '',
               duration,
           ))
 
@@ -199,10 +203,11 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
     )
 
     predict_iter = theano.function(
-        inputs=[theano.Param(X_batch)],
-        outputs=[predict_proba, pred],
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[predict_proba, pred, accuracy],
         givens={
             X: X_batch,
+            y: y_batch,
         },
     )
 
