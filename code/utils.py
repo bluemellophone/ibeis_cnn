@@ -127,7 +127,8 @@ def float32(k):
     return np.cast['float32'](k)
 
 
-def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None, **kwargs):
+def batch_iterator(X, y, batch_size, rand=False, augment=None, center_mean=None,
+                   center_std=None, **kwargs):
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
@@ -136,8 +137,8 @@ def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None, **kw
         else:
             X, y = shuffle(X, y, random_state=RANDOM_SEED)
     N = X.shape[0]
-    for i in range((N + bs - 1) // bs):
-        sl = slice(i * bs, (i + 1) * bs)
+    for i in range((N + batch_size - 1) // batch_size):
+        sl = slice(i * batch_size, (i + 1) * batch_size)
         Xb = X[sl]
         if y is not None:
             yb = y[sl]
@@ -147,10 +148,10 @@ def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None, **kw
         Xb_ = Xb.astype(np.float32)
         yb_ = yb.astype(np.int32)
         # Whiten)
-        if mean is not None:
-            Xb_ -= mean
-        if std is not None and std != 0.0:
-            Xb_ /= std
+        if center_mean is not None:
+            Xb_ -= center_mean
+        if center_std is not None and center_std != 0.0:
+            Xb_ /= center_std
         # Augment
         if augment is not None:
             Xb_, yb_ = augment(Xb_, yb_)
@@ -223,7 +224,7 @@ def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
 def forward_train(X_train, y_train, train_iter, **kwargs):
     # compute the loss over all training batches
     train_losses = []
-    for Xb, yb in batch_iterator(X_train, y_train,  **kwargs):
+    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         batch_train_loss = train_iter(Xb, yb)
         train_losses.append(batch_train_loss)
     avg_train_loss = np.mean(train_losses)
