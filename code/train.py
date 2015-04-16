@@ -19,7 +19,8 @@ from lasagne import layers
 from os.path import join, abspath
 
 
-def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **kwargs):
+def train(data_file, labels_file, weights_file, pretrained_weights_file=None,
+          pretrained_kwargs=False, **kwargs):
 
     # Training parameters
     utils._update(kwargs, 'center',         True)
@@ -54,7 +55,30 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
     dataset = utils.train_test_split(X_train, y_train, eval_size=0.1)
     X_train, y_train, X_test, y_test = dataset
 
-    # Center the data by subtracting the mean
+    # Build and print the model
+    print('\n[model] building model...')
+    input_cases, input_channels, input_height, input_width = data.shape
+    output_layer = model.build_model(kwargs.get('batch_size'), input_width, input_height,
+                                     input_channels, kwargs.get('output_dims'))
+    utils.print_layer_info(output_layer)
+
+    # Create the Theano primitives
+    print('[model] creating Theano primitives...')
+    learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
+    all_iters = utils.create_iter_funcs(learning_rate_theano, output_layer, **kwargs)
+    train_iter, valid_iter, test_iter = all_iters
+
+    # Load the pretrained model if specified
+    if pretrained_weights_file is not None:
+        print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
+        with open(pretrained_weights_file, 'rb') as pfile:
+            kwargs_ = pickle.load(pfile)
+            pretrained_weights = kwargs_.get('best_weights', None)
+            layers.set_all_param_values(output_layer, pretrained_weights)
+            if pretrained_kwargs:
+                kwargs = kwargs_
+
+    # Center the data by subtracting the mean (AFTER KWARGS UPDATE)
     if kwargs.get('center'):
         print('[data] applying data centering...')
         utils._update(kwargs, 'center_mean', np.mean(X_train, axis=0))
@@ -63,26 +87,6 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
     else:
         utils._update(kwargs, 'center_mean', 0.0)
         utils._update(kwargs, 'center_std', 255.0)
-
-    # Build and print the model
-    print('\n[model] building model...')
-    input_cases, input_channels, input_height, input_width = data.shape
-    output_layer = model.build_model(kwargs.get('batch_size'), input_width, input_height,
-                                     input_channels, kwargs.get('output_dims'))
-    utils.print_layer_info(output_layer)
-
-    # Load the pretrained model if specified
-    if pretrained_weights_file is not None:
-        print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
-        with open(pretrained_weights_file, 'rb') as pfile:
-            pretrained_weights = pickle.load(pfile)
-            layers.set_all_param_values(output_layer, pretrained_weights)
-
-    # Create the Theano primitives
-    print('[model] creating Theano primitives...')
-    learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    all_iters = utils.create_iter_funcs(learning_rate_theano, output_layer, **kwargs)
-    train_iter, valid_iter, test_iter = all_iters
 
     # Begin training the neural network
     vals = (utils.get_current_time(), kwargs.get('learning_rate'), )
