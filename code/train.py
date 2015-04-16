@@ -6,7 +6,7 @@
 
 # our own imports
 import utils
-import model
+import models
 
 # module imports
 import time
@@ -19,7 +19,7 @@ from lasagne import layers
 from os.path import join, abspath
 
 
-def train(data_file, labels_file, weights_file, pretrained_weights_file=None,
+def train(data_file, labels_file, model, weights_file, pretrained_weights_file=None,
           pretrained_kwargs=False, **kwargs):
 
     # Training parameters
@@ -31,14 +31,19 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None,
     utils._update(kwargs, 'test',           5)  # Test every X epochs
     utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
     # utils._update(kwargs, 'regularization', None)
-    utils._update(kwargs, 'regularization', 0.0001)
-    utils._update(kwargs, 'output_dims',    16)  # outputs of the softmax layer (# classes)
+    utils._update(kwargs, 'regularization', 0.001)
+    utils._update(kwargs, 'output_dims',    None)
 
     ######################################################################################
 
     # Load the data
     print('\n[data] loading data...')
     data, labels = utils.load(data_file, labels_file)
+
+    # Automatically figure out how many classes
+    if kwargs.get('output_dims') is None:
+        kwargs['output_dims'] = len(list(np.unique(labels)))
+
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
     print('[data]     X.shape = %r' % (data.shape,))
@@ -110,9 +115,9 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None,
 
                 # compute the loss over all training and validation batches
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
-                                                     augment=model.augmentation, **kwargs)
+                                                     augment=model.augment, **kwargs)
                 avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
-                                                     augment=model.augmentation, **kwargs)
+                                                     augment=model.augment, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
@@ -193,12 +198,17 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None,
 
 
 if __name__ == '__main__':
-    project_name            = 'viewpoint'
+    # project_name            = 'viewpoint'
+    # model                   = models.PZ_GIRM_Model
+    project_name            = 'plains'
+    model                   = models.PZ_Model
+    config                  = {}
+
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')
 
-    train(train_data_file, train_labels_file, weights_file)
+    train(train_data_file, train_labels_file, model, weights_file, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
