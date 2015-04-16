@@ -141,7 +141,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                 # compute the loss over all validation batches
                 for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
                                                    center_mean, center_std):
-                    batch_predict_proba, batch_pred = predict_iter(Xb, yb)
+                    batch_predict_proba, batch_pred = predict_iter(Xb)
                     print(batch_pred)
                     print(yb)
                     print('--------------')
