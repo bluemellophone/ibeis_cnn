@@ -188,7 +188,7 @@ class PZ_Model:
 
         l_conv1 = Conv2DLayer(
             l_noise,
-            num_filters=32,
+            num_filters=64,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
@@ -203,7 +203,7 @@ class PZ_Model:
 
         l_conv2 = Conv2DLayer(
             l_pool1,
-            num_filters=64,
+            num_filters=128,
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
