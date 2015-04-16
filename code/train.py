@@ -156,7 +156,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                             print('Correct: ', yb)
                             print('--------------')
                             show = False
-                    all_pred = np.flatten(np.array(all_pred))
+                    all_pred = np.array(all_pred).flatten()
+                    print(all_pred.shape)
                     utils.show_confusion_matrix(y_test, all_pred, range(16))
 
                 # estimate the loss over all batches
