@@ -12,8 +12,8 @@ import numpy as np
 
 def process_image_directory(project_name, size, reset=True):
     # Raw folders
-    raw_path = abspath(join('data', 'raw'))
-    processed_path = abspath(join('data', 'processed'))
+    raw_path = abspath(join('..', 'data', 'raw'))
+    processed_path = abspath(join('..', 'data', 'processed'))
     # Project folders
     project_raw_path = join(raw_path, project_name)
     project_processed_path = join(processed_path, project_name)
@@ -40,9 +40,9 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
                               numpy_y_file_name='y.npy', labels_file_name='labels.csv',
                               reset=True):
     # Raw folders
-    processed_path = abspath(join('data', 'processed'))
-    labels_path = abspath(join('data', 'labels'))
-    numpy_path = abspath(join('data', 'numpy'))
+    processed_path = abspath(join('..', 'data', 'processed'))
+    labels_path = abspath(join('..', 'data', 'labels'))
+    numpy_path = abspath(join('..', 'data', 'numpy'))
     # Project folders
     project_processed_path = join(processed_path, project_name)
     project_labels_path = join(labels_path, project_name)
@@ -70,12 +70,14 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
     shape_x = list(cv2.imread(direct.files()[0]).shape)
     if len(shape_x) == 2:
         shape_x = shape_x + [1]
-    shape_x = tuple([len(direct.files())] + shape_x[::-1])
-    shape_y = shape_x[0:1]
+    shape_x = tuple([len(direct.files())] + shape_x[::-1])  # NOQA
+    shape_y = shape_x[0:1]  # NOQA
 
     # Create numpy arrays
-    X = np.empty(shape_x, dtype=np.uint8)
-    y = np.empty(shape_y, dtype=np.uint8)
+    # X = np.empty(shape_x, dtype=np.uint8)
+    # y = np.empty(shape_y, dtype=np.uint8)
+    X = []
+    y = []
 
     # Process by loading images into the numpy array for saving
     for index, file_path in enumerate(direct.files()):
@@ -84,20 +86,27 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
         image = cv2.imread(file_path)
         try:
             label = label_dict[file_name]
-            X[index] = np.array(cv2.split(image))
-            y[index] = label
+            # X[index] = np.array(cv2.split(image))
+            # y[index] = label
+            X.append(np.array(cv2.split(image)))
+            y.append(label)
         except KeyError:
-            print('Cannot find label')
-            raw_input()
+            print('Cannot find label...skipping')
+            # raw_input()
+
+    X = np.array(X, dtype=np.uint8)
+    y = np.array(y, dtype=np.uint8)
 
     # Save numpy array
+    print('X shape: %r' % (X.shape, ))
+    print('y shape: %r' % (y.shape, ))
     np.save(project_numpy_x_file_name, X)
     np.save(project_numpy_y_file_name, y)
 
 
 def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name='y.npy'):
     # Raw folders
-    numpy_path = abspath(join('data', 'numpy'))
+    numpy_path = abspath(join('..', 'data', 'numpy'))
     # Project folders
     project_numpy_path = join(numpy_path, project_name)
     # Project files
@@ -119,8 +128,13 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
 
 
 if __name__ == '__main__':
-    project_name = 'viewpoint'
+    # project_name = 'viewpoint'
+    # size = (64, 64)
+    # process_image_directory(project_name, size)
+    # numpy_processed_directory(project_name)
+
+    project_name = 'plains'
     size = (64, 64)
-    process_image_directory(project_name, size)
+    # process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
     # view_numpy_data(project_name)
