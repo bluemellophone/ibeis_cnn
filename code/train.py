@@ -124,6 +124,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
         while True:
             try:
                 # Reset the loses for the batch
+                found_best = False
                 train_losses, valid_losses, valid_accuracies, test_accuracies = [], [], [], []
 
                 t0 = time.time()
@@ -142,8 +143,29 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     valid_losses.append(batch_valid_loss)
                     valid_accuracies.append(batch_accuracy)
 
+                # estimate the loss over all batches
+                avg_train_loss = np.mean(train_losses)
+                avg_valid_loss = np.mean(valid_losses)
+                avg_valid_accuracy = np.mean(valid_accuracies)
+
+                # If the training loss is nan, the training has diverged
+                if np.isnan(avg_train_loss):
+                    print('\n[train] training diverged\n')
+                    break
+
+                # Running tab for what the best model
+                if avg_train_loss < best_train_loss:
+                    best_train_loss = avg_train_loss
+                if avg_valid_loss < best_valid_loss:
+                    best_valid_loss = avg_valid_loss
+                    best_epoch = epoch
+                    best_weights = layers.get_all_param_values(output_layer)
+                    found_best = True
+                if avg_valid_accuracy > best_valid_accuracy:
+                    best_valid_accuracy = avg_valid_accuracy
+
                 # compute the loss over all test batches
-                if epoch % test == 0:
+                if found_best or epoch % test == 0:
                     show = False
                     all_pred = []
                     for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
@@ -159,31 +181,12 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
                     all_pred = np.hstack(all_pred)
                     utils.show_confusion_matrix(y_test, all_pred, range(16))
 
-                # estimate the loss over all batches
-                avg_train_loss = np.mean(train_losses)
-                avg_valid_loss = np.mean(valid_losses)
-                avg_valid_accuracy = np.mean(valid_accuracies)
                 if len(test_accuracies) == 0:
                     avg_test_accuracy = None
                 else:
                     avg_test_accuracy = np.mean(test_accuracies)
-
-                # If the training loss is nan, the training has diverged
-                if np.isnan(avg_train_loss):
-                    print('\n[train] training diverged\n')
-                    break
-
-                # Running tab for what the best model
-                if avg_train_loss < best_train_loss:
-                    best_train_loss = avg_train_loss
-                if avg_valid_loss < best_valid_loss:
-                    best_valid_loss = avg_valid_loss
-                    best_epoch = epoch
-                    best_weights = layers.get_all_param_values(output_layer)
-                if avg_valid_accuracy > best_valid_accuracy:
-                    best_valid_accuracy = avg_valid_accuracy
-                if avg_test_accuracy is not None and avg_test_accuracy > best_test_accuracy:
-                    best_test_accuracy = avg_test_accuracy
+                    if avg_test_accuracy > best_test_accuracy:
+                        best_test_accuracy = avg_test_accuracy
 
                 # Learning rate schedule update
                 if epoch >= best_epoch + patience:
