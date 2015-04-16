@@ -39,6 +39,11 @@ RANDOM_SEED = None
 # RANDOM_SEED = 42
 
 
+def _update(kwargs, key, value):
+    if key not in kwargs.keys():
+        kwargs[key] = value
+
+
 def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -87,9 +92,9 @@ def print_layer_info(output_layer):
     ))
 
 
-def print_epoch_info(valid_loss, best_valid_loss, valid_accuracy, best_valid_accuracy,
-                     test_accuracy, best_test_accuracy,
-                     train_loss, best_train_loss, epoch, duration):
+def print_epoch_info(train_loss, valid_loss, valid_accuracy, test_accuracy,
+                     epoch, duration, best_train_loss, best_valid_loss,
+                     best_valid_accuracy, best_test_accuracy, **kwargs):
     best_train      = train_loss == best_train_loss
     best_valid      = valid_loss == best_valid_loss
     best_valid_accuracy = valid_accuracy == best_valid_accuracy
@@ -122,7 +127,7 @@ def float32(k):
     return np.cast['float32'](k)
 
 
-def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None):
+def batch_iterator(X, y, bs, mean=None, std=None, rand=False, augment=None, **kwargs):
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
@@ -156,8 +161,8 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor4,
-                      output_type=T.ivector, regularization=None):
+def create_iter_funcs(learning_rate, output_layer, momentum=0.9, input_type=T.tensor4,
+                      output_type=T.ivector, regularization=None, **kwargs):
     # build the Theano functions that will be used in the optimization
     # refer to this link for info on tensor types:
     # http://deeplearning.net/software/theano/library/tensor/basic.html
@@ -202,7 +207,7 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
         },
     )
 
-    predict_iter = theano.function(
+    test_iter = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=[predict_proba, pred, accuracy],
         givens={
@@ -211,7 +216,50 @@ def create_iter_funcs(learning_rate, momentum, output_layer, input_type=T.tensor
         },
     )
 
-    return train_iter, valid_iter, predict_iter
+    return train_iter, valid_iter, test_iter
+
+
+def forward_train(X_train, y_train, train_iter, **kwargs):
+    # compute the loss over all training batches
+    train_losses = []
+    for Xb, yb in batch_iterator(X_train, y_train,  **kwargs):
+        batch_train_loss = train_iter(Xb, yb)
+        train_losses.append(batch_train_loss)
+    avg_train_loss = np.mean(train_losses)
+    return avg_train_loss
+
+
+def forward_valid(X_valid, y_valid, valid_iter, **kwargs):
+    # compute the loss over all validation batches
+    valid_losses = []
+    valid_accuracies = []
+    for Xb, yb in batch_iterator(X_valid, y_valid, **kwargs):
+        batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
+        valid_losses.append(batch_valid_loss)
+        valid_accuracies.append(batch_accuracy)
+    avg_valid_loss = np.mean(valid_losses)
+    avg_valid_accuracy = np.mean(valid_accuracies)
+    return avg_valid_loss, avg_valid_accuracy
+
+
+def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
+    # compute the loss over all test batches
+    all_pred = []
+    test_accuracies = []
+    for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
+        batch_predict_proba, batch_pred, batch_accuracy = test_iter(Xb, yb)
+        test_accuracies.append(batch_accuracy)
+        all_pred.append(batch_pred)
+        if show:
+            print('Predect: ', batch_pred)
+            print('Correct: ', yb)
+            print('--------------')
+            show = False
+    avg_test_accuracy = np.mean(test_accuracies)
+    if confusion:
+        all_pred = np.hstack(all_pred)
+        show_confusion_matrix(y_test, all_pred, range(16))
+    return avg_test_accuracy
 
 
 def add_channels(data):
@@ -296,12 +344,13 @@ def show_image_from_data(data):
     cv2.destroyAllWindows()
 
 
-def save_best_model(best_weights, best_valid_accuracy, weights_file):
-    acc = 100.0 * best_valid_accuracy
+def save_model(kwargs, weights_file):
+    acc = 100.0 * kwargs.get('best_valid_accuracy')
     print('[model] saving best network with accuracy: %02.2f%%' % (acc, ))
     print('[model] saving best weights to %s' % (weights_file))
+    print(kwargs)
     with open(weights_file, 'wb') as pfile:
-        pickle.dump(best_weights, pfile, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(kwargs, pfile, protocol=pickle.HIGHEST_PROTOCOL)
     print('[model] ...saved\n')
 
 
