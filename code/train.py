@@ -81,6 +81,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
     print('[data] creating train, validation datasaets...')
     dataset = utils.train_test_split(data, labels, eval_size=0.2)
     X_train, y_train, X_valid, y_valid = dataset
+    dataset = utils.train_test_split(X_train, y_train, eval_size=0.1)
+    X_train, y_train, X_test, y_test = dataset
 
     # Center the data by subtracting the mean
     if center:
@@ -133,19 +135,21 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None):
 
                 # compute the loss over all validation batches
                 for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
-                                                   center_mean, center_std):
+                                                   center_mean, center_std,
+                                                   augment=augmentation):
                     batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
                     valid_losses.append(batch_valid_loss)
                     valid_accuracies.append(batch_accuracy)
 
-                # compute the loss over all validation batches
-                for Xb, yb in utils.batch_iterator(X_valid, y_valid, batch_size,
-                                                   center_mean, center_std):
+                # compute the loss over all test batches
+                for Xb, yb in utils.batch_iterator(X_test, y_test, batch_size,
+                                                   center_mean, center_std,
+                                                   rand=True, augment=augmentation):
                     batch_predict_proba, batch_pred = predict_iter(Xb)
                     print('Predect: ', batch_pred)
                     print('Correct: ', yb)
                     print('--------------')
-                    continue
+                    break
 
                 # estimate the loss over all batches
                 avg_train_loss = np.mean(train_losses)
