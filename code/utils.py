@@ -260,7 +260,7 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
     avg_test_accuracy = np.mean(test_accuracies)
     if confusion:
         all_pred = np.hstack(all_pred)
-        show_confusion_matrix(y_test, all_pred, range(16))
+        show_confusion_matrix(y_test, all_pred, range(kwargs.get('output_dims')))
     return avg_test_accuracy
 
 
