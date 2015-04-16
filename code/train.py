@@ -111,8 +111,8 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
-    learning_rate_ = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    all_iters = utils.create_iter_funcs(learning_rate_, output_layer, **kwargs)
+    learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
+    all_iters = utils.create_iter_funcs(learning_rate_theano, output_layer, **kwargs)
     train_iter, valid_iter, test_iter = all_iters
 
     # Begin training the neural network
@@ -171,7 +171,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
                 # Learning rate schedule update
                 if epoch >= epoch_marker + kwargs.get('patience'):
                     epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_, learning_rate_update)
+                    utils.set_learning_rate(learning_rate_theano, learning_rate_update)
 
                 # End timer
                 t1 = time.time()
@@ -202,7 +202,7 @@ def train(data_file, labels_file, weights_file, pretrained_weights_file=None, **
                     # Shock the weights of the network
                     utils.shock_network(output_layer)
                     epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_, learning_rate_shock)
+                    utils.set_learning_rate(learning_rate_theano, learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
                     utils.save_model(kwargs, weights_file)

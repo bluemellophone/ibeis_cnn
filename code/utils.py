@@ -161,8 +161,9 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_iter_funcs(learning_rate, output_layer, momentum=0.9, input_type=T.tensor4,
-                      output_type=T.ivector, regularization=None, **kwargs):
+def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
+                      input_type=T.tensor4, output_type=T.ivector,
+                      regularization=None, **kwargs):
     # build the Theano functions that will be used in the optimization
     # refer to this link for info on tensor types:
     # http://deeplearning.net/software/theano/library/tensor/basic.html
@@ -186,7 +187,7 @@ def create_iter_funcs(learning_rate, output_layer, momentum=0.9, input_type=T.te
 
     all_params = layers.get_all_params(output_layer)
     updates = lasagne.updates.nesterov_momentum(
-        loss_train, all_params, learning_rate, momentum)
+        loss_train, all_params, learning_rate_theano, momentum)
 
     train_iter = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
@@ -367,10 +368,10 @@ def shock_network(output_layer, voltage=0.10):
     print('[model] ...shocked')
 
 
-def set_learning_rate(learning_rate, update):
-    new_learning_rate = update(learning_rate.get_value())
-    learning_rate.set_value(float32(new_learning_rate))
-    print('\n[train] setting learning rate to %.9f' % (new_learning_rate))
+def set_learning_rate_theano(learning_rate_theano, update):
+    new_learning_rate_theano = update(learning_rate_theano.get_value())
+    learning_rate_theano.set_value(float32(new_learning_rate_theano))
+    print('\n[train] setting learning rate to %.9f' % (new_learning_rate_theano))
     print_header_columns()
 
 
