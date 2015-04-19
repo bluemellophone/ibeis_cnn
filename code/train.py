@@ -198,7 +198,7 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     utils.save_model(kwargs, weights_file)
 
 
-if __name__ == '__main__':
+def train_main():
     # project_name            = 'viewpoint'
     # model                   = models.PZ_GIRM_Model()
     project_name            = 'plains'
@@ -213,3 +213,24 @@ if __name__ == '__main__':
 
     train(train_data_file, train_labels_file, model, weights_file, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        cd %CODE_DIR%/ibies_cnn/code
+        cd $CODE_DIR/ibies_cnn/code
+        python train.py
+
+    PythonPrereqs:
+        pip install theano
+        pip install lesange
+        code
+        git clone https://github.com/Lasagne/Lasagne.git
+        cd Lesange
+        python setup.py develop
+        code
+        cd ibeis/code
+    """
+
+    train_main()
