@@ -14,6 +14,7 @@ import numpy as np
 import cPickle as pickle
 from lasagne import layers
 
+import utool as ut
 from os.path import join, abspath
 
 
@@ -49,18 +50,6 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
         >>> # verify results
         >>> print(result)
     """
-
-    # Training parameters
-    utils._update(kwargs, 'center',         True)
-    utils._update(kwargs, 'learning_rate',  0.03)
-    utils._update(kwargs, 'momentum',       0.9)
-    utils._update(kwargs, 'batch_size',     128)
-    utils._update(kwargs, 'patience',       10)
-    utils._update(kwargs, 'test',           5)  # Test every X epochs
-    utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
-    # utils._update(kwargs, 'regularization', None)
-    utils._update(kwargs, 'regularization', 0.001)
-    utils._update(kwargs, 'output_dims',    None)
 
     ######################################################################################
 
@@ -99,21 +88,40 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
         >>> # verify results
         >>> print(result)
     """
+    # Training parameters defaults
+    utils._update(kwargs, 'center',         True)
+    utils._update(kwargs, 'learning_rate',  0.0003)
+    utils._update(kwargs, 'momentum',       0.9)
+    utils._update(kwargs, 'batch_size',     128)
+    utils._update(kwargs, 'patience',       10)
+    utils._update(kwargs, 'test',           5)  # Test every X epochs
+    utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
+    # utils._update(kwargs, 'regularization', None)
+    utils._update(kwargs, 'regularization', 0.001)
+    utils._update(kwargs, 'output_dims',    None)
+
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
         kwargs['output_dims'] = len(list(np.unique(labels)))
 
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
-    print('[data]     X.shape = %r' % (data.shape,))
-    print('[data]     X.dtype = %r' % (data.dtype,))
-    print('[data]     y.shape = %r' % (labels.shape,))
-    print('[data]     y.dtype = %r' % (labels.dtype,))
+    print('[train]     data.shape = %r' % (data.shape,))
+    print('[train]     data.dtype = %r' % (data.dtype,))
+    print('[train]     labels.shape = %r' % (labels.shape,))
+    print('[train]     labels.dtype = %r' % (labels.dtype,))
+
+    import utool as ut
+    import six
+
+    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
+    print('label stats = \n' + ut.dict_str(labelhist))
+    print('train kwargs = \n' + (ut.dict_str(kwargs)))
 
     # utils.show_image_from_data(data)
 
     # Split the dataset into training and validation
-    print('[data] creating train, validation datasaets...')
+    print('[train] creating train, validation datasaets...')
     dataset = utils.train_test_split(data, labels, eval_size=0.2)
     X_train, y_train, X_valid, y_valid = dataset
     dataset = utils.train_test_split(X_train, y_train, eval_size=0.1)
@@ -145,7 +153,7 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
 
     # Center the data by subtracting the mean (AFTER KWARGS UPDATE)
     if kwargs.get('center'):
-        print('[data] applying data centering...')
+        print('[train] applying data centering...')
         utils._update(kwargs, 'center_mean', np.mean(X_train, axis=0))
         # utils._update(kwargs, 'center_std', np.std(X_train, axis=0))
         utils._update(kwargs, 'center_std', 255.0)
@@ -174,10 +182,9 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
                 t0 = time.time()
 
                 # compute the loss over all training and validation batches
+                augment_fn = getattr(model, 'augment', None)
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
-                                                     augment=model.augment, **kwargs)
-                # avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
-                #                                      augment=model.augment, **kwargs)
+                                                     augment=augment_fn, **kwargs)
                 avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
@@ -278,74 +285,92 @@ def get_identification_decision_training_data(ibs):
         >>> # verify results
         >>> print(result)
     """
+    print('get_identification_decision_training_data')
     # Grab marked hard cases
     #am_rowids = ibs._get_all_annotmatch_rowids()
     # The verified set
     #verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
     #verified_aid2_list = ibs.get_annotmatch_aid1(am_rowids)
     # The nonverified set
-    aid_list = ibs.get_valid_aids()[0:20]
-    import utool as ut
-    aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
-    qres_list = ibs.query_chips(aid_list, aid_list)
 
-    aid1_list = [qres.qaid for qres in qres_list]
-    aid2_list = [qres.get_top_aids()[0] for qres in qres_list]
-    nid1_list = ibs.get_annot_nids(aid1_list)
-    nid2_list = ibs.get_annot_nids(aid2_list)
+    def get_test_aid_pairs():
+        aid_list = ibs.get_valid_aids()
+        import utool as ut
+        aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
+        qres_list = ibs.query_chips(aid_list, aid_list)
 
-    nid1_list = np.array(nid1_list)
-    nid2_list = np.array(nid2_list)
-    truth_list = nid1_list == nid2_list
-    #ibs.get_annot_pair_truth(aid1_list, aid2_list)
-    chip1_list = ibs.get_annot_chips(aid1_list)
-    chip2_list = ibs.get_annot_chips(aid2_list)
-    import vtool as vt
-    sizes1 = np.array([vt.get_size(chip1) for chip1 in chip1_list])
-    sizes2 = np.array([vt.get_size(chip2) for chip2 in chip2_list])
-    ar1_list = sizes1.T[0] / sizes1.T[1]
-    ar2_list = sizes2.T[0] / sizes2.T[1]
-    ave_ar = np.hstack((ar1_list, ar2_list)).mean()
-    target_height = 400
-    target_size = (np.round(ave_ar * target_height), target_height)
-    #dsize =
-    thumb1_list = [vt.padded_resize(chip1, target_size)
-                    for chip1 in chip1_list]
-    thumb2_list = [vt.padded_resize(chip2, target_size)
-                    for chip2 in chip2_list]
+        num = 3
+        aid1_list = np.array(ut.flatten([[qres.qaid] * num for qres in qres_list]))
+        aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num] for qres in qres_list]))
 
-    # Stacking these might not be the exact correct thing to do.
-    img_list = [
-        np.hstack((thumb1, thumb2)) for thumb1, thumb2, in
-        zip(thumb1_list, thumb2_list)
-    ]
-    def convert_imagelist_to_data(img_list):
-        """
-        Args:
-            img_list (list of ndarrays): in the format [h, w, c]
+        nid1_list = ibs.get_annot_nids(aid1_list)
+        nid2_list = ibs.get_annot_nids(aid2_list)
 
-        Returns:
-            data: in the format [b, c, w, h]
-        """
-        #[img.shape for img in img_list]
-        theano_style_imgs = [np.transpose(img, (2, 1, 0))[None, :] for img in img_list]
-        data = np.vstack(theano_style_imgs)
+        nid1_list = np.array(nid1_list)
+        nid2_list = np.array(nid2_list)
+        truth_list = nid1_list == nid2_list
+        return aid1_list, aid2_list, truth_list
+
+    aid1_list, aid2_list, truth_list = get_test_aid_pairs()
+
+    def get_aidpair_training_data(aid1_list, aid2_list):
+        #ibs.get_annot_pair_truth(aid1_list, aid2_list)
+        chip1_list = ibs.get_annot_chips(aid1_list)
+        chip2_list = ibs.get_annot_chips(aid2_list)
+        import vtool as vt
+        sizes1 = np.array([vt.get_size(chip1) for chip1 in chip1_list])
+        sizes2 = np.array([vt.get_size(chip2) for chip2 in chip2_list])
+        ar1_list = sizes1.T[0] / sizes1.T[1]
+        ar2_list = sizes2.T[0] / sizes2.T[1]
+        ave_ar = np.hstack((ar1_list, ar2_list)).mean()
+        target_height = 64
+        target_size = (np.round(ave_ar * target_height), target_height)
+        target_size = (32, 32 * 2)
+        #np.round(ave_ar * target_height), target_height)
+        #dsize =
+        thumb1_list = [vt.padded_resize(chip1, target_size)
+                        for chip1 in chip1_list]
+        thumb2_list = [vt.padded_resize(chip2, target_size)
+                        for chip2 in chip2_list]
+
+        # Stacking these might not be the exact correct thing to do.
+        img_list = [
+            np.hstack((thumb1, thumb2)) for thumb1, thumb2, in
+            zip(thumb1_list, thumb2_list)
+        ]
+        def convert_imagelist_to_data(img_list):
+            """
+            Args:
+                img_list (list of ndarrays): in the format [h, w, c]
+
+            Returns:
+                data: in the format [b, c, h, w]
+            """
+            #[img.shape for img in img_list]
+            # format to [b, c, h, w]
+            theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
+            data = np.vstack(theano_style_imgs)
+            #data = np.vstack([img[None, :] for img in img_list])
+            return data
+
+        data = convert_imagelist_to_data(img_list)
         return data
 
-    data = convert_imagelist_to_data(img_list)
-
-    model                   = models.PZ_Model()
+    data = get_aidpair_training_data(aid1_list, aid2_list)
+    model                   = models.IdentificationModel()
     #config                  = {}
     #def train_from_files():
-    root                    = abspath(join('..', 'data'))
+    #root                    = abspath(join('..', 'data'))
+    root = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    ut.ensuredir(root)
     #train_data_file         = join(root, 'numpy', 'id', 'X.npy')
     #train_labels_file       = join(root, 'numpy', 'id', 'y.npy')
-    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    weights_file            = join(root, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root,  'pretrained_weights.pickle')  # NOQA
 
-
-    labels = truth_list
-    train_(data, labels, model, weights_file)
+    #labels_ = [1 if truth is True else (0 if truth is False else 2) for truth in truth_list]
+    labels = np.array(truth_list)
+    train_(data, labels, model, weights_file, batch_size=8)
     #X = k
 
 
@@ -385,6 +410,29 @@ if __name__ == '__main__':
         python -m ibeis_cnn.train
         python -m ibeis_cnn.train --allexamples
         python -m ibeis_cnn.train --allexamples --noface --nosrc
+
+    CommandLine:
+        cd %CODE_DIR%/ibies_cnn/code
+        cd $CODE_DIR/ibies_cnn/code
+        code
+        cd ibeis_cnn/code
+        python train.py
+
+    PythonPrereqs:
+        pip install theano
+        pip install git+https://github.com/Lasagne/Lasagne.git
+        pip install git+git://github.com/lisa-lab/pylearn2.git
+        #pip install lasagne
+        #pip install pylearn2
+        git clone git://github.com/lisa-lab/pylearn2.git
+        git clone https://github.com/Lasagne/Lasagne.git
+        cd pylearn2
+        python setup.py develop
+        cd ..
+        cd Lesagne
+        git checkout 8758ac1434175159e5c1f30123041799c2b6098a
+        python setup.py develop
+        """
     """
     import multiprocessing
     multiprocessing.freeze_support()  # for win32
@@ -392,27 +440,17 @@ if __name__ == '__main__':
     ut.doctest_funcs()
     #if __name__ == '__main__':
     #    """
-    #    CommandLine:
-    #        cd %CODE_DIR%/ibies_cnn/code
-    #        cd $CODE_DIR/ibies_cnn/code
-    #        code
-    #        cd ibeis_cnn/code
-    #        python train.py
-
-    #    PythonPrereqs:
-    #        pip install theano
-    #        pip install pylearn2
-    #        pip install lesange
-    #        code
-    #        git clone git://github.com/lisa-lab/pylearn2.git
-
-    #        git clone https://github.com/Lasagne/Lasagne.git
-    #        cd Lesange
-    #        python setup.py develop
-    #        cd pylearn2
-    #        python setup.py develop
-    #        code
-    #        cd ibeis_cnn/code
-    #    """
-
     #    train_pz()
+    pass
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.train
+        python -m ibeis_cnn.train --allexamples
+        python -m ibeis_cnn.train --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

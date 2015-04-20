@@ -13,7 +13,8 @@ from lasagne import objectives
 
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
-from sklearn.utils import shuffle
+import utool as ut
+#from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ from six.moves import range, zip
 
 
 # NOTE: can use pygments instead
-class ANSI:
+class ANSI(object):
     RED     = '\033[91m'
     GREEN   = '\033[92m'
     BLUE    = '\033[94m'
@@ -132,17 +133,23 @@ def batch_iterator(X, y, batch_size, rand=False, augment=None, center_mean=None,
                    center_std=None, **kwargs):
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
-    if rand:
-        if y is None:
-            X = shuffle(X, random_state=RANDOM_SEED)
-        else:
-            X, y = shuffle(X, y, random_state=RANDOM_SEED)
+    #ut.embed()
     N = X.shape[0]
-    for i in range((N + batch_size - 1) // batch_size):
-        sl = slice(i * batch_size, (i + 1) * batch_size)
-        Xb = X[sl]
+    domain = np.arange(N)
+    if rand:
+        np.random.shuffle(domain)
+        #if y is None:
+        #    print('X.shape = %r' % (X.shape,))
+        #    X = shuffle(X, random_state=RANDOM_SEED)
+        #else:
+        #    X, y = shuffle(X, y, random_state=RANDOM_SEED)
+    for chunk in ut.ichunks(domain, batch_size, bordermode='cycle'):
+        #print(chunk)
+        #for i in range((N + batch_size - 1) // batch_size):
+        #sl = slice(i * batch_size, (i + 1) * batch_size)
+        Xb = np.ascontiguousarray(X.take(chunk, axis=0))
         if y is not None:
-            yb = y[sl]
+            yb = np.ascontiguousarray(y.take(chunk, axis=0))
         else:
             yb = None
         # Get corret dtype
@@ -265,7 +272,7 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
     avg_test_accuracy = np.mean(test_accuracies)
     if confusion:
         all_pred = np.hstack(all_pred)
-        show_confusion_matrix(y_test, all_pred, range(kwargs.get('output_dims')))
+        show_confusion_matrix(y_test, all_pred, np.arange(kwargs.get('output_dims')))
     return avg_test_accuracy
 
 
@@ -415,8 +422,8 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
                         verticalalignment='center')
 
     cb = fig.colorbar(res)  # NOQA
-    plt.xticks(range(size), category_list[:size])
-    plt.yticks(range(size), category_list[:size])
+    plt.xticks(np.arange(size), category_list[0:size])
+    plt.yticks(np.arange(size), category_list[0:size])
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
     plt.savefig('confusion.png')
