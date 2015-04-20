@@ -415,6 +415,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
                         verticalalignment='center')
 
     cb = fig.colorbar(res)  # NOQA
+    print(category_list)
     plt.xticks(range(size), category_list[:size])
     plt.yticks(range(size), category_list[:size])
     plt.xlabel('Predicted')
