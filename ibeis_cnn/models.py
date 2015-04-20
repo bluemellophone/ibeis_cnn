@@ -308,12 +308,14 @@ class PZ_GIRM_Model(object):
             label = label.replace('^L^', 'RIGHT')
             return(label)
         # Map
-        points, channels, height, width = Xb.shape
+        Xb_ = np.copy(Xb)
+        yb_ = np.copy(yb)
+        points, channels, height, width = Xb_.shape
         for index in range(points):
             if random.uniform(0.0, 1.0) <= 0.5:
-                Xb[index] = Xb[index, :, ::-1]
-                yb[index] = _invert_label(yb[index])
-        return Xb, yb
+                Xb_[index] = Xb_[index, :, ::-1]
+                yb_[index] = _invert_label(yb_[index])
+        return Xb_, yb_
 
     def learning_rate_update(self, x):
         return x / 10.0
