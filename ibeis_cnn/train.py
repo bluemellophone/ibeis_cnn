@@ -1,19 +1,17 @@
 #!/usr/bin/env python
+"""
+train.py
+constructs the Theano optimization and trains a learning model,
+optionally by initializing the network with pre-trained weights.
+"""
+from __future__ import absolute_import, division, print_function
+from ibeis_cnn import utils
+from ibeis_cnn import models
 
-# train.py
-# constructs the Theano optimization and trains a learning model,
-# optionally by initializing the network with pre-trained weights.
-
-# our own imports
-import utils
-import models
-
-# module imports
 import time
 import theano
 import numpy as np
 import cPickle as pickle
-
 from lasagne import layers
 
 from os.path import join, abspath
@@ -21,6 +19,36 @@ from os.path import join, abspath
 
 def train(data_file, labels_file, model, weights_file, pretrained_weights_file=None,
           pretrained_kwargs=False, **kwargs):
+    """
+    Driver function
+
+    Args:
+        data_file (?):
+        labels_file (?):
+        model (?):
+        weights_file (?):
+        pretrained_weights_file (None):
+        pretrained_kwargs (bool):
+
+    CommandLine:
+        python -m ibeis_cnn.train --test-train
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> # build test data
+        >>> data_file = '?'
+        >>> labels_file = '?'
+        >>> model = '?'
+        >>> weights_file = '?'
+        >>> pretrained_weights_file = None
+        >>> pretrained_kwargs = False
+        >>> kwargs = {}
+        >>> # execute function
+        >>> result = train(data_file, labels_file, model, weights_file, pretrained_weights_file, pretrained_kwargs)
+        >>> # verify results
+        >>> print(result)
+    """
 
     # Training parameters
     utils._update(kwargs, 'center',         True)
@@ -39,7 +67,38 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     # Load the data
     print('\n[data] loading data...')
     data, labels = utils.load(data_file, labels_file)
+    train_(data, labels, model, weights_file, pretrained_weights_file=None, pretrained_kwargs=False, **kwargs)
 
+
+def train_(data, labels, model, weights_file, pretrained_weights_file=None, pretrained_kwargs=False, **kwargs):
+    r"""
+    Args:
+        data (?):
+        labels (?):
+        model (?):
+        weights_file (?):
+        pretrained_weights_file (None):
+        pretrained_kwargs (bool):
+
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> # build test data
+        >>> data = '?'
+        >>> labels = '?'
+        >>> model = '?'
+        >>> weights_file = '?'
+        >>> pretrained_weights_file = None
+        >>> pretrained_kwargs = False
+        >>> kwargs = {}
+        >>> # execute function
+        >>> result = train_(data, labels, model, weights_file, pretrained_weights_file, pretrained_kwargs)
+        >>> # verify results
+        >>> print(result)
+    """
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
         kwargs['output_dims'] = len(list(np.unique(labels)))
@@ -63,8 +122,9 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     # Build and print the model
     print('\n[model] building model...')
     input_cases, input_channels, input_height, input_width = data.shape
-    output_layer = model.build_model(kwargs.get('batch_size'), input_width, input_height,
-                                     input_channels, kwargs.get('output_dims'))
+    output_layer = model.build_model(
+        kwargs.get('batch_size'), input_width, input_height,
+        input_channels, kwargs.get('output_dims'))
     utils.print_layer_info(output_layer)
 
     # Create the Theano primitives
@@ -198,18 +258,122 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     utils.save_model(kwargs, weights_file)
 
 
-def train_main():
+#@ibeis.register_plugin()
+def get_identification_decision_training_data(ibs):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+
+    CommandLine:
+        python -m ibeis_cnn.train --test-get_identification_decision_training_data
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb('PZ_MTEST')
+        >>> # execute function
+        >>> result = get_identification_decision_training_data(ibs)
+        >>> # verify results
+        >>> print(result)
+    """
+    # Grab marked hard cases
+    #am_rowids = ibs._get_all_annotmatch_rowids()
+    # The verified set
+    #verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
+    #verified_aid2_list = ibs.get_annotmatch_aid1(am_rowids)
+    # The nonverified set
+    aid_list = ibs.get_valid_aids()[0:20]
+    import utool as ut
+    aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
+    qres_list = ibs.query_chips(aid_list, aid_list)
+
+    aid1_list = [qres.qaid for qres in qres_list]
+    aid2_list = [qres.get_top_aids()[0] for qres in qres_list]
+    nid1_list = ibs.get_annot_nids(aid1_list)
+    nid2_list = ibs.get_annot_nids(aid2_list)
+
+    nid1_list = np.array(nid1_list)
+    nid2_list = np.array(nid2_list)
+    truth_list = nid1_list == nid2_list
+    #ibs.get_annot_pair_truth(aid1_list, aid2_list)
+    chip1_list = ibs.get_annot_chips(aid1_list)
+    chip2_list = ibs.get_annot_chips(aid2_list)
+    import vtool as vt
+    sizes1 = np.array([vt.get_size(chip1) for chip1 in chip1_list])
+    sizes2 = np.array([vt.get_size(chip2) for chip2 in chip2_list])
+    ar1_list = sizes1.T[0] / sizes1.T[1]
+    ar2_list = sizes2.T[0] / sizes2.T[1]
+    ave_ar = np.hstack((ar1_list, ar2_list)).mean()
+    target_height = 400
+    target_size = (np.round(ave_ar * target_height), target_height)
+    #dsize =
+    thumb1_list = [vt.padded_resize(chip1, target_size)
+                    for chip1 in chip1_list]
+    thumb2_list = [vt.padded_resize(chip2, target_size)
+                    for chip2 in chip2_list]
+
+    # Stacking these might not be the exact correct thing to do.
+    img_list = [
+        np.hstack((thumb1, thumb2)) for thumb1, thumb2, in
+        zip(thumb1_list, thumb2_list)
+    ]
+    def convert_imagelist_to_data(img_list):
+        """
+        Args:
+            img_list (list of ndarrays): in the format [h, w, c]
+
+        Returns:
+            data: in the format [b, c, w, h]
+        """
+        #[img.shape for img in img_list]
+        theano_style_imgs = [np.transpose(img, (2, 1, 0))[None, :] for img in img_list]
+        data = np.vstack(theano_style_imgs)
+        return data
+
+    data = convert_imagelist_to_data(img_list)
+
+    model                   = models.PZ_Model()
+    #config                  = {}
+    #def train_from_files():
+    root                    = abspath(join('..', 'data'))
+    #train_data_file         = join(root, 'numpy', 'id', 'X.npy')
+    #train_labels_file       = join(root, 'numpy', 'id', 'y.npy')
+    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+
+
+    labels = truth_list
+    train_(data, labels, model, weights_file)
+    #X = k
+
+
+def train_pz():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> # build test data
+        >>> # execute function
+        >>> result = train_pz()
+        >>> # verify results
+        >>> print(result)
+    """
     # project_name            = 'viewpoint'
     # model                   = models.PZ_GIRM_Model()
     project_name            = 'plains'
     model                   = models.PZ_Model()
     config                  = {}
-
+    #def train_from_files():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
     train(train_data_file, train_labels_file, model, weights_file, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
@@ -218,19 +382,37 @@ def train_main():
 if __name__ == '__main__':
     """
     CommandLine:
-        cd %CODE_DIR%/ibies_cnn/code
-        cd $CODE_DIR/ibies_cnn/code
-        python train.py
-
-    PythonPrereqs:
-        pip install theano
-        pip install lesange
-        code
-        git clone https://github.com/Lasagne/Lasagne.git
-        cd Lesange
-        python setup.py develop
-        code
-        cd ibeis/code
+        python -m ibeis_cnn.train
+        python -m ibeis_cnn.train --allexamples
+        python -m ibeis_cnn.train --allexamples --noface --nosrc
     """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
+    #if __name__ == '__main__':
+    #    """
+    #    CommandLine:
+    #        cd %CODE_DIR%/ibies_cnn/code
+    #        cd $CODE_DIR/ibies_cnn/code
+    #        code
+    #        cd ibeis_cnn/code
+    #        python train.py
 
-    train_main()
+    #    PythonPrereqs:
+    #        pip install theano
+    #        pip install pylearn2
+    #        pip install lesange
+    #        code
+    #        git clone git://github.com/lisa-lab/pylearn2.git
+
+    #        git clone https://github.com/Lasagne/Lasagne.git
+    #        cd Lesange
+    #        python setup.py develop
+    #        cd pylearn2
+    #        python setup.py develop
+    #        code
+    #        cd ibeis_cnn/code
+    #    """
+
+    #    train_pz()

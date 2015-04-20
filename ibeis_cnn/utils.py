@@ -1,7 +1,6 @@
 # utils.py
 # provides utilities for learning a neural network model
-
-
+from __future__ import absolute_import, division, print_function
 import time
 import numpy as np
 import functools
@@ -13,14 +12,15 @@ import lasagne
 from lasagne import objectives
 
 from lasagne import layers
-from lasagne import nonlinearities  # NOQA
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
+from six.moves import range, zip
 
 
+# NOTE: can use pygments instead
 class ANSI:
     RED     = '\033[91m'
     GREEN   = '\033[92m'
@@ -40,7 +40,8 @@ RANDOM_SEED = None
 
 
 def _update(kwargs, key, value):
-    if key not in kwargs.keys():
+    #if key not in kwargs.keys():
+    if key not in kwargs:
         kwargs[key] = value
 
 
@@ -165,9 +166,13 @@ def multinomial_nll(x, t):
 def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
                       input_type=T.tensor4, output_type=T.ivector,
                       regularization=None, **kwargs):
-    # build the Theano functions that will be used in the optimization
-    # refer to this link for info on tensor types:
-    # http://deeplearning.net/software/theano/library/tensor/basic.html
+    """
+    build the Theano functions that will be used in the optimization
+    refer to this link for info on tensor types:
+
+    References:
+        http://deeplearning.net/software/theano/library/tensor/basic.html
+    """
     X = input_type('x')
     y = output_type('y')
     X_batch = input_type('x_batch')
@@ -222,7 +227,7 @@ def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
 
 
 def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwargs):
-    # compute the loss over all training batches
+    """ compute the loss over all training batches """
     train_losses = []
     for Xb, yb in batch_iterator(X_train, y_train, rand=rand, augment=augment, **kwargs):
         batch_train_loss = train_iter(Xb, yb)
@@ -232,7 +237,7 @@ def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwar
 
 
 def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwargs):
-    # compute the loss over all validation batches
+    """ compute the loss over all validation batches """
     valid_losses = []
     valid_accuracies = []
     for Xb, yb in batch_iterator(X_valid, y_valid, rand=rand, augment=augment, **kwargs):
@@ -245,7 +250,7 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
 
 
 def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
-    # compute the loss over all test batches
+    """ compute the loss over all test batches """
     all_pred = []
     test_accuracies = []
     for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
@@ -374,20 +379,20 @@ def set_learning_rate(learning_rate_theano, update):
 
 
 def show_confusion_matrix(correct_y, expert_y, category_list):
-    '''
-        Given the correct and expert labels, show the confusion matrix
+    """
+    Given the correct and expert labels, show the confusion matrix
 
-        Args:
-            correct_y (list of int): the list of correct labels
-            expert_y (list of int): the list of expert assigned labels
-            category_list (list of str): the category list of all categories
+    Args:
+        correct_y (list of int): the list of correct labels
+        expert_y (list of int): the list of expert assigned labels
+        category_list (list of str): the category list of all categories
 
-        Displays:
-            matplotlib: graph of the confusion matrix
+    Displays:
+        matplotlib: graph of the confusion matrix
 
-        Returns:
-            None
-    '''
+    Returns:
+        None
+    """
     size = len(category_list)
     confidences = np.zeros((size, size))
     for correct, expert, in zip(correct_y, expert_y):
@@ -403,8 +408,8 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet,
                     interpolation='nearest')
 
-    for x in xrange(size):
-        for y in xrange(size):
+    for x in range(size):
+        for y in range(size):
             ax.annotate(str(int(confidences[x][y])), xy=(y, x),
                         horizontalalignment='center',
                         verticalalignment='center')

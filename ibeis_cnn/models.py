@@ -1,20 +1,39 @@
-# file model.py
-# allows the definition of different models to be trained
-# for initialization: Lasagne/lasagne/init.py
-# for nonlinearities: Lasagne/lasagne/nonlinearities.py
-# for layers: Lasagne/lasagne/layers/
-
+"""
+file model.py
+allows the definition of different models to be trained
+for initialization: Lasagne/lasagne/init.py
+for nonlinearities: Lasagne/lasagne/nonlinearities.py
+for layers: Lasagne/lasagne/layers/
+"""
+from __future__ import absolute_import, division, print_function
 from lasagne import layers
-from lasagne.layers import cuda_convnet
 from lasagne import nonlinearities
 from lasagne import init
-
 import random
+FORCE_CPU = False  # ut.get_argflag('--force-cpu')
+try:
+    if FORCE_CPU:
+        raise ImportError('GPU is forced off')
+    import lasagne.layers.cuda_convnet as convnet
+    # use cuda_convnet for a speed improvement
+    # will not be available without a GPU
+    Conv2DLayer = convnet.Conv2DCCLayer
+    MaxPool2DLayer = convnet.MaxPool2DCCLayer
+    USING_GPU = True
+except ImportError as ex:
+    print('WARNING: NO GPU AVAILABLE')
+    #ut.printex(ex, 'WARNING: NO GPU AVAILABLE')
+    Conv2DLayer = layers.Conv2DLayer
+    MaxPool2DLayer = layers.MaxPool2DLayer
+    USING_GPU = False
 
-# use cuda_convnet for a speed improvement
-# will not be available without a GPU
-Conv2DLayer = cuda_convnet.Conv2DCCLayer
-MaxPool2DLayer = cuda_convnet.MaxPool2DCCLayer
+
+def MaxPool2DLayer_(*args, **kwargs):
+    """ wrapper for gpu / cpu compatibility """
+    if not USING_GPU and 'strides' in kwargs:
+        # cpu does not have stride kwarg. :(
+        del kwargs['strides']
+    return MaxPool2DLayer(*args, **kwargs)
 
 
 class PZ_GIRM_Model:
@@ -70,7 +89,7 @@ class PZ_GIRM_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool1 = MaxPool2DLayer(
+        l_pool1 = MaxPool2DLayer_(
             l_conv1,
             ds=(2, 2),
             strides=(2, 2),
@@ -85,7 +104,7 @@ class PZ_GIRM_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool2 = MaxPool2DLayer(
+        l_pool2 = MaxPool2DLayer_(
             l_conv2,
             ds=(2, 2),
             strides=(2, 2),
@@ -100,7 +119,7 @@ class PZ_GIRM_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool3 = MaxPool2DLayer(
+        l_pool3 = MaxPool2DLayer_(
             l_conv3,
             ds=(2, 2),
             strides=(2, 2),
@@ -195,7 +214,7 @@ class PZ_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool1 = MaxPool2DLayer(
+        l_pool1 = MaxPool2DLayer_(
             l_conv1,
             ds=(2, 2),
             strides=(2, 2),
@@ -210,7 +229,7 @@ class PZ_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool2 = MaxPool2DLayer(
+        l_pool2 = MaxPool2DLayer_(
             l_conv2,
             ds=(2, 2),
             strides=(2, 2),
@@ -225,7 +244,7 @@ class PZ_Model:
             W=init.GlorotUniform(),
         )
 
-        l_pool3 = MaxPool2DLayer(
+        l_pool3 = MaxPool2DLayer_(
             l_conv3,
             ds=(2, 2),
             strides=(2, 2),
@@ -269,3 +288,16 @@ class PZ_Model:
         )
 
         return l_out
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.models
+        python -m ibeis_cnn.models --allexamples
+        python -m ibeis_cnn.models --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
