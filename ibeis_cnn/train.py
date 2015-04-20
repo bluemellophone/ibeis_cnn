@@ -396,10 +396,10 @@ def train_pz():
         >>> # verify results
         >>> print(result)
     """
-    # project_name            = 'viewpoint'
-    # model                   = models.PZ_GIRM_Model()
-    project_name            = 'plains'
-    model                   = models.PZ_Model()
+    project_name            = 'viewpoint'
+    model                   = models.PZ_GIRM_Model()
+    # project_name            = 'plains'
+    # model                   = models.PZ_Model()
     config                  = {}
     #def train_from_files():
     root                    = abspath(join('..', 'data'))
