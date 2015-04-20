@@ -242,14 +242,11 @@ class PZ_Model(object):
     def augment(self, Xb, yb):
         # Invert label function
         def _invert_label(label):
-            print(label)
             label = label.replace('LEFT',  '^L^')
             label = label.replace('RIGHT', '^R^')
             label = label.replace('^R^', 'LEFT')
             label = label.replace('^L^', 'RIGHT')
-            print('---', label)
             return(label)
-
         # Map
         points, channels, height, width = Xb.shape
         for index in range(points):
