@@ -118,7 +118,6 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     if kwargs.get('encode', False):
         kwargs['encoder'] = preprocessing.LabelEncoder()
         kwargs['encoder'].fit(labels)
-    print(kwargs['encoder'])
 
     import utool as ut
     import six

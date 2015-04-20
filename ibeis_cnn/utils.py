@@ -164,11 +164,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         if augment is not None:
             Xb, yb = augment(Xb, yb)
         # Encode
-        print(encoder)
         if encoder is not None:
-            print(yb)
             yb = encoder.transform(yb)
-            print(yb)
         # Get corret dtype for y (after encoding)
         yb = yb.astype(np.int32)
         yield Xb, yb
@@ -264,8 +261,7 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     return avg_valid_loss, avg_valid_accuracy
 
 
-def forward_test(X_test, y_test, test_iter, show=False, confusion=True,
-                 encoder=None, **kwargs):
+def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
     """ compute the loss over all test batches """
     all_pred = []
     test_accuracies = []
@@ -282,6 +278,7 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True,
     if confusion:
         all_pred = np.hstack(all_pred)
         labels = list(range(kwargs.get('output_dims')))
+        encoder = kwargs.get('encoder', None)
         if encoder is None:
             labels = encoder.inverse_transform(labels)
         show_confusion_matrix(y_test, all_pred, labels)
