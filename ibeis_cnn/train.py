@@ -125,7 +125,6 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     if kwargs.get('encode', False):
         kwargs['encoder'] = preprocessing.LabelEncoder()
         kwargs['encoder'].fit(labels)
-        labels = kwargs['encoder'].transform(labels)
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
     print('label stats = \n' + ut.dict_str(labelhist))
