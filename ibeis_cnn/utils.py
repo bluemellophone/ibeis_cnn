@@ -82,7 +82,7 @@ def print_header_columns():
 def print_layer_info(output_layer):
     nn_layers = layers.get_all_layers(output_layer)[::-1]
     print('\n[info] Network Structure:')
-    for layer in nn_layers:
+    for layer in nn_layers[::-1]:
         output_shape = layer.get_output_shape()
         print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             layer.__class__.__name__,
