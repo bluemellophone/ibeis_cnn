@@ -95,7 +95,7 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     utils._update(kwargs, 'learning_rate',  0.03)
     utils._update(kwargs, 'momentum',       0.9)
     utils._update(kwargs, 'batch_size',     128)
-    utils._update(kwargs, 'patience',       10)
+    utils._update(kwargs, 'patience',       15)
     utils._update(kwargs, 'test',           5)  # Test every X epochs
     utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
     # utils._update(kwargs, 'regularization', None)
@@ -434,11 +434,14 @@ def train_pz():
         >>> result = train_pz()
         >>> print(result)
     """
-    # project_name            = 'viewpoint'
-    # model                   = models.PZ_GIRM_Model()
-    project_name            = 'plains'
-    model                   = models.PZ_Model()
-    config                  = {}
+    project_name            = 'viewpoint'
+    model                   = models.PZ_GIRM_Model()
+    # project_name            = 'plains'
+    # model                   = models.PZ_Model()
+    config                  = {
+        'patience':   15,
+        'max_epochs': 300,
+    }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
