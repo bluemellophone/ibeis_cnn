@@ -256,12 +256,14 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
 
 def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
     """ compute the loss over all test batches """
-    all_pred = []
+    all_correct = []
+    all_predict = []
     test_accuracies = []
     for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
         batch_predict_proba, batch_pred, batch_accuracy = test_iter(Xb, yb)
         test_accuracies.append(batch_accuracy)
-        all_pred.append(batch_pred)
+        all_correct.append(yb)
+        all_predict.append(batch_pred)
         if show:
             print('Predect: ', batch_pred)
             print('Correct: ', yb)
@@ -269,12 +271,13 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
             show = False
     avg_test_accuracy = np.mean(test_accuracies)
     if confusion:
-        all_pred = np.hstack(all_pred)
+        all_correct = np.hstack(all_correct)
+        all_predict = np.hstack(all_predict)
         labels = list(range(kwargs.get('output_dims')))
         encoder = kwargs.get('encoder', None)
         if encoder is None:
             labels = encoder.inverse_transform(labels)
-        show_confusion_matrix(y_test, all_pred, labels)
+        show_confusion_matrix(all_correct, all_predict, labels)
     return avg_test_accuracy
 
 
