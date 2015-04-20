@@ -211,7 +211,7 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
                 # compute the loss over all testing batches
                 request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 if best_found or request_test:
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter, **kwargs)
+                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter, show=True, **kwargs)
                 else:
                     avg_test_accuracy = None
 
