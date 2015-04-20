@@ -240,19 +240,23 @@ class PZ_Model(object):
         pass
 
     def augment(self, Xb, yb):
-        # Invert label function
-        def _invert_label(label):
-            label = label.replace('LEFT',  '^L^')
-            label = label.replace('RIGHT', '^R^')
-            label = label.replace('^R^', 'LEFT')
-            label = label.replace('^L^', 'RIGHT')
-            return(label)
+        # label_map = {
+        #     0:  4,
+        #     1:  5,
+        #     2:  6,
+        #     3:  7,
+        # }
+        label_map = { x: x + 4 for x in range(0, 4) }
+        # Apply inverse
+        for key in label_map.keys():
+            label = label_map[key]
+            label_map[label] = key
         # Map
         points, channels, height, width = Xb.shape
         for index in range(points):
             if random.uniform(0.0, 1.0) <= 0.5:
                 Xb[index] = Xb[index, :, ::-1]
-                yb[index] = _invert_label(yb[index])
+                yb[index] = label_map[yb[index]]
         return Xb, yb
 
     def learning_rate_update(self, x):

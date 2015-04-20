@@ -113,14 +113,19 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     print('[train]     labels.shape = %r' % (labels.shape,))
     print('[train]     labels.dtype = %r' % (labels.dtype,))
 
+    import utool as ut
+    import six
+
+    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
+    print('label stats = \n' + ut.dict_str(labelhist))
+    print('train kwargs = \n' + (ut.dict_str(kwargs)))
+
     # Encoding labels
     kwargs['encoder'] = None
     if kwargs.get('encode', False):
         kwargs['encoder'] = preprocessing.LabelEncoder()
         kwargs['encoder'].fit(labels)
-
-    import utool as ut
-    import six
+        labels = kwargs['encoder'].transform(labels)
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
     print('label stats = \n' + ut.dict_str(labelhist))
