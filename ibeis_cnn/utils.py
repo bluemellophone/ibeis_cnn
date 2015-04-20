@@ -18,6 +18,7 @@ import utool as ut
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
+from os.path import join
 from six.moves import range, zip
 
 
@@ -82,7 +83,7 @@ def print_header_columns():
 def print_layer_info(output_layer):
     nn_layers = layers.get_all_layers(output_layer)[::-1]
     print('\n[info] Network Structure:')
-    for layer in nn_layers:
+    for layer in nn_layers[::-1]:
         output_shape = layer.get_output_shape()
         print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             layer.__class__.__name__,
@@ -272,7 +273,8 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
     avg_test_accuracy = np.mean(test_accuracies)
     if confusion:
         all_pred = np.hstack(all_pred)
-        show_confusion_matrix(y_test, all_pred, np.arange(kwargs.get('output_dims')))
+        labels = list(range(kwargs.get('output_dims')))
+        show_confusion_matrix(y_test, all_pred, labels)
     return avg_test_accuracy
 
 
@@ -426,4 +428,4 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     plt.yticks(np.arange(size), category_list[0:size])
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
-    plt.savefig('confusion.png')
+    plt.savefig(join('..', 'confusion.png'))
