@@ -13,8 +13,8 @@ from lasagne import objectives
 
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
-# import utool as ut
-from sklearn.utils import shuffle
+import utool as ut
+#from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
@@ -134,17 +134,23 @@ def batch_iterator(X, y, batch_size, rand=False, augment=None, center_mean=None,
                    center_std=None, **kwargs):
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
-    if rand:
-        if y is None:
-            X = shuffle(X, random_state=RANDOM_SEED)
-        else:
-            X, y = shuffle(X, y, random_state=RANDOM_SEED)
+    #ut.embed()
     N = X.shape[0]
-    for i in range((N + batch_size - 1) // batch_size):
-        sl = slice(i * batch_size, (i + 1) * batch_size)
-        Xb = X[sl]
+    domain = np.arange(N)
+    if rand:
+        np.random.shuffle(domain)
+        #if y is None:
+        #    print('X.shape = %r' % (X.shape,))
+        #    X = shuffle(X, random_state=RANDOM_SEED)
+        #else:
+        #    X, y = shuffle(X, y, random_state=RANDOM_SEED)
+    for chunk in ut.ichunks(domain, batch_size, bordermode='cycle'):
+        #print(chunk)
+        #for i in range((N + batch_size - 1) // batch_size):
+        #sl = slice(i * batch_size, (i + 1) * batch_size)
+        Xb = X.take(chunk, axis=0)
         if y is not None:
-            yb = y[sl]
+            yb = y.take(chunk, axis=0)
         else:
             yb = None
         # Get corret dtype
