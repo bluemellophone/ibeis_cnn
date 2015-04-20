@@ -13,6 +13,7 @@ import theano
 import numpy as np
 import cPickle as pickle
 from lasagne import layers
+from sklearn import preprocessing
 
 import utool as ut
 from os.path import join, abspath
@@ -90,6 +91,7 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     """
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
+    utils._update(kwargs, 'encode',         True)
     utils._update(kwargs, 'learning_rate',  0.0003)
     utils._update(kwargs, 'momentum',       0.9)
     utils._update(kwargs, 'batch_size',     128)
@@ -110,6 +112,12 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     print('[train]     data.dtype = %r' % (data.dtype,))
     print('[train]     labels.shape = %r' % (labels.shape,))
     print('[train]     labels.dtype = %r' % (labels.dtype,))
+
+    # Encoding labels
+    kwargs['encoder'] = None
+    if kwargs.get('encode', False):
+        kwargs['encoder'] = preprocessing.LabelEncoder()
+        kwargs['encoder'].fit(labels)
 
     import utool as ut
     import six

@@ -130,8 +130,8 @@ def float32(k):
     return np.cast['float32'](k)
 
 
-def batch_iterator(X, y, batch_size, rand=False, augment=None, center_mean=None,
-                   center_std=None, **kwargs):
+def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
+                   center_mean=None, center_std=None, **kwargs):
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     #ut.embed()
@@ -153,18 +153,22 @@ def batch_iterator(X, y, batch_size, rand=False, augment=None, center_mean=None,
             yb = np.ascontiguousarray(y.take(chunk, axis=0))
         else:
             yb = None
-        # Get corret dtype
-        Xb_ = Xb.astype(np.float32)
-        yb_ = yb.astype(np.int32)
+        # Get corret dtype for X
+        Xb = Xb.astype(np.float32)
         # Whiten)
         if center_mean is not None:
-            Xb_ -= center_mean
+            Xb -= center_mean
         if center_std is not None and center_std != 0.0:
-            Xb_ /= center_std
+            Xb /= center_std
         # Augment
         if augment is not None:
-            Xb_, yb_ = augment(Xb_, yb_)
-        yield Xb_, yb_
+            Xb, yb = augment(Xb, yb)
+        # Encode
+        if encoder is not None:
+            yb = encoder.transform(yb)
+        # Get corret dtype for y (after encoding)
+        yb = yb.astype(np.int32)
+        yield Xb, yb
 
 
 def multinomial_nll(x, t):
@@ -257,7 +261,8 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     return avg_valid_loss, avg_valid_accuracy
 
 
-def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
+def forward_test(X_test, y_test, test_iter, show=False, confusion=True,
+                 encoder=None, **kwargs):
     """ compute the loss over all test batches """
     all_pred = []
     test_accuracies = []
@@ -274,6 +279,8 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
     if confusion:
         all_pred = np.hstack(all_pred)
         labels = list(range(kwargs.get('output_dims')))
+        if encoder is None:
+            labels = encoder.inverse_transform(labels)
         show_confusion_matrix(y_test, all_pred, labels)
     return avg_test_accuracy
 
