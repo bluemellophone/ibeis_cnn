@@ -98,8 +98,8 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     utils._update(kwargs, 'patience',       15)
     utils._update(kwargs, 'test',           5)  # Test every X epochs
     utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
-    # utils._update(kwargs, 'regularization', None)
-    utils._update(kwargs, 'regularization', 0.001)
+    utils._update(kwargs, 'regularization', None)
+    utils._update(kwargs, 'test_time_augmentation',  False)
     utils._update(kwargs, 'output_dims',    None)
 
     # Automatically figure out how many classes
@@ -193,7 +193,11 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
                 augment_fn = getattr(model, 'augment', None)
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
                                                      augment=augment_fn, **kwargs)
-                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
+                if kwargs.get('test_time_augmentation', False):
+                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
+                                                         augment=augment_fn, **kwargs)
+                else:
+                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
@@ -441,6 +445,8 @@ def train_pz():
     config                  = {
         'patience':   15,
         'max_epochs': 300,
+        'test_time_augmentation': True,
+        'regularization': 0.001,
     }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
