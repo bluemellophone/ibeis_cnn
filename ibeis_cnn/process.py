@@ -95,11 +95,14 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
             # raw_input()
 
     X = np.array(X, dtype=np.uint8)
-    y = np.array(y, dtype=np.uint8)
+    # y = np.array(y, dtype=np.uint8)
+    y = np.array(y)
 
     # Save numpy array
-    print('X shape: %r' % (X.shape, ))
-    print('y shape: %r' % (y.shape, ))
+    print('  X.shape = %r' % (X.shape,))
+    print('  X.dtype = %r' % (X.dtype,))
+    print('  y.shape = %r' % (y.shape,))
+    print('  y.dtype = %r' % (y.dtype,))
     np.save(project_numpy_x_file_name, X)
     np.save(project_numpy_y_file_name, y)
 
@@ -134,7 +137,7 @@ if __name__ == '__main__':
     # numpy_processed_directory(project_name)
 
     project_name = 'plains'
-    size = (64, 64)
+    # size = (64, 64)
     # process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
     # view_numpy_data(project_name)
