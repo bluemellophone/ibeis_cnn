@@ -265,7 +265,8 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
     avg_test_accuracy = np.mean(test_accuracies)
     if confusion:
         all_pred = np.hstack(all_pred)
-        show_confusion_matrix(y_test, all_pred, range(kwargs.get('output_dims')))
+        labels = list(range(kwargs.get('output_dims')))
+        show_confusion_matrix(y_test, all_pred, labels)
     return avg_test_accuracy
 
 
@@ -415,7 +416,6 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
                         verticalalignment='center')
 
     cb = fig.colorbar(res)  # NOQA
-    print(category_list)
     plt.xticks(range(size), category_list[:size])
     plt.yticks(range(size), category_list[:size])
     plt.xlabel('Predicted')
