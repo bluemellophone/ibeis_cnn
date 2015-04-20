@@ -275,7 +275,7 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
         all_predict = np.hstack(all_predict)
         labels = list(range(kwargs.get('output_dims')))
         encoder = kwargs.get('encoder', None)
-        if encoder is None:
+        if encoder is not None:
             labels = encoder.inverse_transform(labels)
         show_confusion_matrix(all_correct, all_predict, labels)
     return avg_test_accuracy

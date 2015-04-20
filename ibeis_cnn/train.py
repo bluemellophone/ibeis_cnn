@@ -126,10 +126,6 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
         kwargs['encoder'] = preprocessing.LabelEncoder()
         kwargs['encoder'].fit(labels)
 
-    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
-    print('label stats = \n' + ut.dict_str(labelhist))
-    print('train kwargs = \n' + (ut.dict_str(kwargs)))
-
     # utils.show_image_from_data(data)
 
     # Split the dataset into training and validation
