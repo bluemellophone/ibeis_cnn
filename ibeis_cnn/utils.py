@@ -18,7 +18,7 @@ import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
 from os.path import join
-from six.moves import range, zip
+#from six.moves import range, zip
 
 
 # NOTE: can use pygments instead

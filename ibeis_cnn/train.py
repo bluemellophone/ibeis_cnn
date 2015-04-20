@@ -63,8 +63,8 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
 def train_(data, labels, model, weights_file, pretrained_weights_file=None, pretrained_kwargs=False, **kwargs):
     r"""
     Args:
-        data (?):
-        labels (?):
+        data (ndarray):
+        labels (ndarray):
         model (?):
         weights_file (?):
         pretrained_weights_file (None):
@@ -92,7 +92,7 @@ def train_(data, labels, model, weights_file, pretrained_weights_file=None, pret
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
     utils._update(kwargs, 'encode',         True)
-    utils._update(kwargs, 'learning_rate',  0.0003)
+    utils._update(kwargs, 'learning_rate',  0.03)
     utils._update(kwargs, 'momentum',       0.9)
     utils._update(kwargs, 'batch_size',     128)
     utils._update(kwargs, 'patience',       10)
@@ -292,14 +292,39 @@ def get_identification_decision_training_data(ibs):
         >>> result = get_identification_decision_training_data(ibs)
         >>> # verify results
         >>> print(result)
+
+    Notes:
+        Blog post:
+        http://benanne.github.io/2015/03/17/plankton.html
+
+        Code:
+        https://github.com/benanne/kaggle-ndsb
+
+        You need to do something like this to pass two images through the network:
+        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L89
+
+        And then something like this to combine them again:
+        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L224
+
     """
     print('get_identification_decision_training_data')
-    # Grab marked hard cases
-    #am_rowids = ibs._get_all_annotmatch_rowids()
-    # The verified set
-    #verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
-    #verified_aid2_list = ibs.get_annotmatch_aid1(am_rowids)
-    # The nonverified set
+
+    def get_verified_aid_pairs():
+        """
+            >>> from ibeis_cnn.train import *  # NOQA
+            >>> import ibeis
+            >>> # build test data
+            >>> ibs = ibeis.opendb('NNP_Master3')
+        """
+        # Grab marked hard cases
+        am_rowids = ibs._get_all_annotmatch_rowids()
+        remove_photobombs = True
+        if remove_photobombs:
+            flags = ibs.get_annotmatch_is_photobomb(am_rowids)
+            am_rowids = ut.filterfalse_items(am_rowids, flags)
+        verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
+        verified_aid2_list = ibs.get_annotmatch_aid1(am_rowids)
+        return verified_aid1_list, verified_aid2_list
 
     def get_test_aid_pairs():
         aid_list = ibs.get_valid_aids()
@@ -307,35 +332,43 @@ def get_identification_decision_training_data(ibs):
         aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
         qres_list = ibs.query_chips(aid_list, aid_list)
 
-        num = 3
-        aid1_list = np.array(ut.flatten([[qres.qaid] * num for qres in qres_list]))
-        aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num] for qres in qres_list]))
+        num_top = 3
+        aid1_list = np.array(ut.flatten([[qres.qaid] * num_top for qres in qres_list]))
+        aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num_top] for qres in qres_list]))
+        return aid1_list, aid2_list
 
-        nid1_list = ibs.get_annot_nids(aid1_list)
-        nid2_list = ibs.get_annot_nids(aid2_list)
+    def convert_imagelist_to_data(img_list):
+        """
+        Args:
+            img_list (list of ndarrays): in the format [h, w, c]
 
-        nid1_list = np.array(nid1_list)
-        nid2_list = np.array(nid2_list)
-        truth_list = nid1_list == nid2_list
-        return aid1_list, aid2_list, truth_list
-
-    aid1_list, aid2_list, truth_list = get_test_aid_pairs()
+        Returns:
+            data: in the format [b, c, h, w]
+        """
+        #[img.shape for img in img_list]
+        # format to [b, c, h, w]
+        theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
+        data = np.vstack(theano_style_imgs)
+        #data = np.vstack([img[None, :] for img in img_list])
+        return data
 
     def get_aidpair_training_data(aid1_list, aid2_list):
         #ibs.get_annot_pair_truth(aid1_list, aid2_list)
         chip1_list = ibs.get_annot_chips(aid1_list)
         chip2_list = ibs.get_annot_chips(aid2_list)
         import vtool as vt
-        sizes1 = np.array([vt.get_size(chip1) for chip1 in chip1_list])
-        sizes2 = np.array([vt.get_size(chip2) for chip2 in chip2_list])
-        ar1_list = sizes1.T[0] / sizes1.T[1]
-        ar2_list = sizes2.T[0] / sizes2.T[1]
-        ave_ar = np.hstack((ar1_list, ar2_list)).mean()
-        target_height = 64
-        target_size = (np.round(ave_ar * target_height), target_height)
-        target_size = (32, 32 * 2)
-        #np.round(ave_ar * target_height), target_height)
-        #dsize =
+        AUTO_SIZE = False
+        if AUTO_SIZE:
+            # Find average aspect ratio
+            sizes1 = np.array([vt.get_size(chip1) for chip1 in chip1_list])
+            sizes2 = np.array([vt.get_size(chip2) for chip2 in chip2_list])
+            ar1_list = sizes1.T[0] / sizes1.T[1]
+            ar2_list = sizes2.T[0] / sizes2.T[1]
+            ave_ar = np.hstack((ar1_list, ar2_list)).mean()
+            target_height = 64
+            target_size = (np.round(ave_ar * target_height), target_height)
+        else:
+            target_size = (32, 32 * 2)
         thumb1_list = [vt.padded_resize(chip1, target_size)
                         for chip1 in chip1_list]
         thumb2_list = [vt.padded_resize(chip2, target_size)
@@ -346,38 +379,46 @@ def get_identification_decision_training_data(ibs):
             np.hstack((thumb1, thumb2)) for thumb1, thumb2, in
             zip(thumb1_list, thumb2_list)
         ]
-        def convert_imagelist_to_data(img_list):
-            """
-            Args:
-                img_list (list of ndarrays): in the format [h, w, c]
-
-            Returns:
-                data: in the format [b, c, h, w]
-            """
-            #[img.shape for img in img_list]
-            # format to [b, c, h, w]
-            theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
-            data = np.vstack(theano_style_imgs)
-            #data = np.vstack([img[None, :] for img in img_list])
-            return data
 
         data = convert_imagelist_to_data(img_list)
         return data
 
+    def get_aidpair_trainig_labels(aid1_list, aid2_list):
+        nid1_list = ibs.get_annot_nids(aid1_list)
+        nid2_list = ibs.get_annot_nids(aid2_list)
+
+        nid1_list = np.array(nid1_list)
+        nid2_list = np.array(nid2_list)
+        truth_list = nid1_list == nid2_list
+        labels = truth_list
+        return labels
+
+    def filter_aid_pairs(aid1_list, aid2_list):
+        """
+        TODO: move to results_organizer
+        """
+        np.vstack((aid1_list, aid2_list)).T
+        import vtool as vt
+        index_list = vt.find_best_undirected_edge_indexes(np.vstack((aid1_list, aid2_list)).T)
+        aid1_list = ut.list_take(aid1_list, index_list)
+        aid2_list = ut.list_take(aid2_list, index_list)
+        return aid1_list, aid2_list
+
+    verified_aid1_list, verified_aid2_list = get_verified_aid_pairs()
+    if len(verified_aid1_list) > 100:
+        aid1_list = verified_aid1_list
+        aid2_list = verified_aid2_list
+    else:
+        aid1_list, aid2_list = get_test_aid_pairs()
+    aid1_list, aid2_list = filter_aid_pairs(aid1_list, aid2_list)
+
     data = get_aidpair_training_data(aid1_list, aid2_list)
+    labels = get_aidpair_trainig_labels(aid1_list, aid2_list)
     model                   = models.IdentificationModel()
     #config                  = {}
-    #def train_from_files():
-    #root                    = abspath(join('..', 'data'))
-    root = ut.unixjoin(ibs.get_cachedir(), 'nets')
-    ut.ensuredir(root)
-    #train_data_file         = join(root, 'numpy', 'id', 'X.npy')
-    #train_labels_file       = join(root, 'numpy', 'id', 'y.npy')
-    weights_file            = join(root, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root,  'pretrained_weights.pickle')  # NOQA
-
-    #labels_ = [1 if truth is True else (0 if truth is False else 2) for truth in truth_list]
-    labels = np.array(truth_list)
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    ut.ensuredir(nets_dir)
+    weights_file = join(nets_dir, 'ibeis_cnn_weights.pickle')
     train_(data, labels, model, weights_file, batch_size=8)
     #X = k
 
@@ -388,12 +429,9 @@ def train_pz():
         python -m ibeis_cnn.train --test-train_pz
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
-        >>> # build test data
-        >>> # execute function
         >>> result = train_pz()
-        >>> # verify results
         >>> print(result)
     """
     # project_name            = 'viewpoint'
@@ -401,7 +439,6 @@ def train_pz():
     project_name            = 'plains'
     model                   = models.PZ_Model()
     config                  = {}
-    #def train_from_files():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
@@ -440,24 +477,8 @@ if __name__ == '__main__':
         cd Lesagne
         git checkout 8758ac1434175159e5c1f30123041799c2b6098a
         python setup.py develop
-        """
     """
-    import multiprocessing
-    multiprocessing.freeze_support()  # for win32
-    import utool as ut  # NOQA
-    ut.doctest_funcs()
-    #if __name__ == '__main__':
-    #    """
-    #    train_pz()
-    pass
-
-if __name__ == '__main__':
-    """
-    CommandLine:
-        python -m ibeis_cnn.train
-        python -m ibeis_cnn.train --allexamples
-        python -m ibeis_cnn.train --allexamples --noface --nosrc
-    """
+    #train_pz()
     import multiprocessing
     multiprocessing.freeze_support()  # for win32
     import utool as ut  # NOQA
