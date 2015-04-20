@@ -17,6 +17,7 @@ from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
+from os.path import join
 from six.moves import range, zip
 
 
@@ -420,4 +421,4 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     plt.yticks(range(size), category_list[:size])
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
-    plt.savefig('confusion.png')
+    plt.savefig(join('..', 'confusion.png'))
