@@ -157,12 +157,10 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         if augment is not None:
             Xb, yb = augment(Xb, yb)
         # Encode
-        print(yb)
         if encoder is not None:
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
         yb = yb.astype(np.int32)
-        print(yb)
         yield Xb, yb
 
 
