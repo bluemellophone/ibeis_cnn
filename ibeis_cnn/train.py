@@ -337,7 +337,7 @@ def get_identification_decision_training_data(ibs):
     model                   = models.PZ_Model()
     #config                  = {}
     #def train_from_files():
-    root                    = abspath(join('data'))
+    root                    = abspath(join('..', 'data'))
     #train_data_file         = join(root, 'numpy', 'id', 'X.npy')
     #train_labels_file       = join(root, 'numpy', 'id', 'y.npy')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
@@ -368,7 +368,7 @@ def train_pz():
     model                   = models.PZ_Model()
     config                  = {}
     #def train_from_files():
-    root                    = abspath(join('data'))
+    root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
