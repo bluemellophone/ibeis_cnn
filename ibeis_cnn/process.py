@@ -142,8 +142,8 @@ if __name__ == '__main__':
     process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
 
-    # project_name = 'plains'
+    project_name = 'plains'
     # size = (64, 64)
     # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
-    # view_numpy_data(project_name)
+    numpy_processed_directory(project_name)
+    view_numpy_data(project_name)
