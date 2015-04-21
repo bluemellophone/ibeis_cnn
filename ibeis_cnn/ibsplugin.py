@@ -249,7 +249,7 @@ def get_identify_training_dname(ibs, aid1_list, aid2_list):
         aid2_list (list):
 
     Returns:
-        tuple: (datafile, labelsfile)
+        tuple: (data_fpath, labels_fpath)
 
     CommandLine:
         python -m ibeis_cnn.ibsplugin --test-get_identify_training_dname
@@ -285,11 +285,11 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=12
     training_dpath = join(nets_dir, training_dname)
     ut.ensuredir(nets_dir)
     ut.ensuredir(training_dpath)
-    datafile = join(training_dpath, 'data_%d.pkl' % (base_size,))
-    labelsfile = join(training_dpath, 'labels.pkl')
+    data_fpath = join(training_dpath, 'data_%d.pkl' % (base_size,))
+    labels_fpath = join(training_dpath, 'labels.pkl')
     nocache_train = ut.get_argflag('--nocache-train')
 
-    if nocache_train or not (ut.checkpath(datafile, verbose=True) and ut.checkpath(labelsfile, verbose=True)):
+    if nocache_train or not (ut.checkpath(data_fpath, verbose=True) and ut.checkpath(labels_fpath, verbose=True)):
         data = get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=base_size)
         labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
 
@@ -299,16 +299,16 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=12
         # to resize the images back to their 2D-structure:
         # X = images_array.reshape(-1, 3, 48, 48)
 
-        print('writing training data to %s...' % (datafile))
-        with open(datafile, 'wb') as ofile:
+        print('writing training data to %s...' % (data_fpath))
+        with open(data_fpath, 'wb') as ofile:
             np.save(ofile, data)
 
-        print('writing training labels to %s...' % (labelsfile))
-        with open(labelsfile, 'wb') as ofile:
+        print('writing training labels to %s...' % (labels_fpath))
+        with open(labels_fpath, 'wb') as ofile:
             np.save(ofile, labels)
     else:
         print('data and labels cache hit')
-    return datafile, labelsfile
+    return data_fpath, labels_fpath, training_dpath
 
 
 def view_training_data(ibs, base_size=64):
@@ -324,8 +324,8 @@ def view_training_data(ibs, base_size=64):
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> view_training_data(ibs)
     """
-    datafile, labelsfile = get_identify_training_fpaths(ibs, base_size=base_size)
-    data = np.load(datafile, mmap_mode='r')
+    data_fpath, labels_fpath = get_identify_training_fpaths(ibs, base_size=base_size)
+    data = np.load(data_fpath, mmap_mode='r')
     width = height = base_size * 2  # HACK FIXME
     channels = 3
     img_list = utils.convert_data_to_imglist(data, width, height, channels)
@@ -361,9 +361,9 @@ def get_identify_training_fpaths(ibs, base_size=128, max_examples=None):
         >>> # build test data
         >>> ibs = ibeis.opendb('testdb1')
         >>> # execute function
-        >>> (datafile, labelsfile) = get_identify_training_fpaths(ibs)
+        >>> (data_fpath, labels_fpath) = get_identify_training_fpaths(ibs)
         >>> # verify results
-        >>> result = str((datafile, labelsfile))
+        >>> result = str((data_fpath, labels_fpath))
         >>> print(result)
     """
     print('get_identify_training_fpaths')
@@ -371,8 +371,8 @@ def get_identify_training_fpaths(ibs, base_size=128, max_examples=None):
     if max_examples is not None:
         aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
         aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
-    datafile, labelsfile = cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=base_size)
-    return datafile, labelsfile
+    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=base_size)
+    return data_fpath, labels_fpath, training_dpath
 
 
 if __name__ == '__main__':

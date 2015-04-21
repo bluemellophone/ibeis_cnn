@@ -20,17 +20,17 @@ import six
 from os.path import join, abspath
 
 
-def train(data_file, labels_file, model, weights_file, results_path,
-          pretrained_weights_file=None, pretrained_kwargs=False, **kwargs):
+def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
+          pretrained_weights_fpath=None, pretrained_kwargs=False, **kwargs):
     """
     Driver function
 
     Args:
-        data_file (?):
-        labels_file (?):
+        data_fpath (?):
+        labels_fpath (?):
         model (?):
-        weights_file (?):
-        pretrained_weights_file (None):
+        weights_fpath (?):
+        pretrained_weights_fpath (None):
         pretrained_kwargs (bool):
     """
 
@@ -38,12 +38,12 @@ def train(data_file, labels_file, model, weights_file, results_path,
 
     # Load the data
     print('\n[data] loading data...')
-    print('data_file = %r' % (data_file,))
-    print('labels_file = %r' % (labels_file,))
-    data, labels = utils.load(data_file, labels_file)
+    print('data_fpath = %r' % (data_fpath,))
+    print('labels_fpath = %r' % (labels_fpath,))
+    data, labels = utils.load(data_fpath, labels_fpath)
 
     # Ensure results dir
-    ut.ensuredir(results_path)
+    ut.ensuredir(results_dpath)
 
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
@@ -103,9 +103,9 @@ def train(data_file, labels_file, model, weights_file, results_path,
     train_iter, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
-    if pretrained_weights_file is not None:
-        print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
-        with open(pretrained_weights_file, 'rb') as pfile:
+    if pretrained_weights_fpath is not None:
+        print('[model] loading pretrained weights from %s' % (pretrained_weights_fpath))
+        with open(pretrained_weights_fpath, 'rb') as pfile:
             kwargs_ = pickle.load(pfile)
             pretrained_weights = kwargs_.get('best_weights', None)
             layers.set_all_param_values(output_layer, pretrained_weights)
@@ -169,7 +169,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
                 request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 if best_found or request_test:
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
-                                                           results_path, **kwargs)
+                                                           results_dpath, **kwargs)
                 else:
                     avg_test_accuracy = None
 
@@ -220,7 +220,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
                     utils.set_learning_rate(learning_rate_theano, model.learning_rate_shock)
                 elif resolution == 2:
                     # Save the weights of the network
-                    utils.save_model(kwargs, weights_file)
+                    utils.save_model(kwargs, weights_fpath)
                 else:
                     # Terminate the network training
                     raise KeyboardInterrupt
@@ -228,7 +228,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
         print('\n\n[train] ...stopping network training\n')
 
     # Save the best network
-    utils.save_model(kwargs, weights_file)
+    utils.save_model(kwargs, weights_fpath)
 
 
 #@ibeis.register_plugin()
@@ -249,17 +249,17 @@ def train_identification_pz():
     base_size = 64
     #max_examples = 1001
     max_examples = None
-    data_file, labels_file = ibsplugin.get_identify_training_fpaths(ibs, base_size=base_size, max_examples=max_examples)
+    data_fpath, labels_fpath, training_dpath = ibsplugin.get_identify_training_fpaths(ibs, base_size=base_size, max_examples=max_examples)
 
     model = models.IdentificationModel()
     config = dict(
         batch_size=8,
-        learning_rate=.003,
+        learning_rate=.03,
     )
     nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
     ut.ensuredir(nets_dir)
-    weights_file = join(nets_dir, 'ibeis_cnn_weights.pickle')
-    train(data_file, labels_file, model, weights_file, **config)
+    weights_fpath = join(nets_dir, 'ibeis_cnn_weights.pickle')
+    train(data_fpath, labels_fpath, model, weights_fpath, training_dpath, **config)
     #X = k
 
 
@@ -282,15 +282,15 @@ def train_pz():
         'test_time_augmentation': True,
         # 'regularization': 0.001,
     }
-    root                    = abspath(join('..', 'data'))
-    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
-    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
-    results_path            = join(root, 'results')
-    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    root                     = abspath(join('..', 'data'))
+    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    results_dpath            = join(root, 'results')
+    weights_fpath            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
-    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
-    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
+    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+    #train(train_data_fpath, train_labels_fpath, weights_fpath, pretrained_weights_fpath)
 
 
 def train_pz_girm():
@@ -312,15 +312,15 @@ def train_pz_girm():
         'test_time_augmentation': True,
         # 'regularization': 0.001,
     }
-    root                    = abspath(join('..', 'data'))
-    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
-    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
-    results_path            = join(root, 'results')
-    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    root                     = abspath(join('..', 'data'))
+    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    results_dpath            = join(root, 'results')
+    weights_fpath            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
-    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
-    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
+    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+    #train(train_data_fpath, train_labels_fpath, weights_fpath, pretrained_weights_fpath)
 
 
 if __name__ == '__main__':

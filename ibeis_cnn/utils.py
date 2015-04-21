@@ -220,9 +220,9 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
                    center_mean=None, center_std=None, **kwargs):
     r"""
     Args:
-        X (?):
-        y (?):
-        batch_size (?):
+        X (ndarray):
+        y (ndarray):
+        batch_size (int):
         encoder (None):
         rand (bool):
         augment (None):

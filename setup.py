@@ -29,6 +29,7 @@ CLUTTER_DIRS = [
 ]
 
 INSTALL_REQUIRES = [
+    'scikit-learn >= 0.16.1',
     #'utool >= 1.0.0.dev1',
     #'vtool >= 1.0.0.dev1',
     ##'pyhesaff >= 1.0.0.dev1',
@@ -42,7 +43,6 @@ INSTALL_REQUIRES = [
     #'psutil',
     #'requests >= 0.8.2',
     #'setproctitle >= 1.1.8',
-    #'scikit-learn >= 0.15.2',
     ##'decorator',
     #'lockfile >= 0.10.2',
     #'apipkg',

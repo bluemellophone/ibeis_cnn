@@ -13,6 +13,8 @@ from lasagne import init
 import random
 import utool as ut
 import numpy as np
+import six
+
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
     if FORCE_CPU:
@@ -28,97 +30,6 @@ except ImportError as ex:
     Conv2DLayer = layers.Conv2DLayer
     MaxPool2DLayer = layers.MaxPool2DLayer
     USING_GPU = False
-
-
-def array_tf_0(arr):
-    return arr
-
-
-def array_tf_90(arr):
-    axes_order = range(arr.ndim - 2) + [arr.ndim - 1, arr.ndim - 2]
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None), slice(None, None, -1)]
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_180(arr):
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None, None, -1), slice(None, None, -1)]
-    return arr[tuple(slices)]
-
-
-def array_tf_270(arr):
-    axes_order = range(arr.ndim - 2) + [arr.ndim - 1, arr.ndim - 2]
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_0f(arr):  # horizontal flip
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None), slice(None, None, -1)]
-    return arr[tuple(slices)]
-
-
-def array_tf_90f(arr):
-    axes_order = range(arr.ndim - 2) + [arr.ndim - 1, arr.ndim - 2]
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None), slice(None)]
-    # slicing does nothing here, technically I could get rid of it.
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_180f(arr):
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)]
-
-
-def array_tf_270f(arr):
-    axes_order = range(arr.ndim - 2) + [arr.ndim - 1, arr.ndim - 2]
-    slices = [slice(None) for _ in range(arr.ndim - 2)] + [slice(None, None, -1), slice(None, None, -1)]
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-# c01b versions of the helper functions
-
-
-def array_tf_0_c01b(arr):
-    return arr
-
-
-def array_tf_90_c01b(arr):
-    axes_order = [0, 2, 1, 3]
-    slices = [slice(None), slice(None), slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_180_c01b(arr):
-    slices = [slice(None), slice(None, None, -1), slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)]
-
-
-def array_tf_270_c01b(arr):
-    axes_order = [0, 2, 1, 3]
-    slices = [slice(None), slice(None, None, -1), slice(None), slice(None)]
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_0f_c01b(arr):  # horizontal flip
-    slices = [slice(None), slice(None), slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)]
-
-
-def array_tf_90f_c01b(arr):
-    axes_order = [0, 2, 1, 3]
-    slices = [slice(None), slice(None), slice(None), slice(None)]
-    # slicing does nothing here, technically I could get rid of it.
-    return arr[tuple(slices)].transpose(axes_order)
-
-
-def array_tf_180f_c01b(arr):
-    slices = [slice(None), slice(None, None, -1), slice(None), slice(None)]
-    return arr[tuple(slices)]
-
-
-def array_tf_270f_c01b(arr):
-    axes_order = [0, 2, 1, 3]
-    slices = [slice(None), slice(None, None, -1), slice(None, None, -1), slice(None)]
-    return arr[tuple(slices)].transpose(axes_order)
 
 
 class MultiImageSliceLayer(lasagne.layers.Layer):
@@ -142,10 +53,10 @@ class MultiImageSliceLayer(lasagne.layers.Layer):
 
     def get_output_for(self, input_, *args, **kwargs):
         return lasagne.utils.concatenate([
-            array_tf_0(input_),
-            array_tf_90(input_),
-            array_tf_180(input_),
-            array_tf_270(input_),
+            #array_tf_0(input_),
+            #array_tf_90(input_),
+            #array_tf_180(input_),
+            #array_tf_270(input_),
         ], axis=0)
 
 
@@ -165,7 +76,7 @@ class MultiImageRollLayer(lasagne.layers.Layer):
     """
     def __init__(self, input_layer):
         super(MultiImageRollLayer, self).__init__(input_layer)
-        self.inv_tf_funcs = [array_tf_0, array_tf_270, array_tf_180, array_tf_90]
+        self.inv_tf_funcs = []  # array_tf_0, array_tf_270, array_tf_180, array_tf_90]
         self.compute_permutation_matrix()
 
     def compute_permutation_matrix(self):
@@ -249,21 +160,29 @@ class IdentificationModel(object):
             print('[model]   * output_dims    = %r' % (output_dims,))
 
         rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
+        # variable batch size (None), channel, width, height
+        input_shape = (None, input_channels, input_width, input_height)
 
-        network_layers = [
-            layers.GaussianNoiseLayer,
+        network_layers_def = [
+            _P(layers.InputLayer, shape=input_shape),
+
+            #layers.GaussianNoiseLayer,
 
             # Convolve + Max Pool 1
-            _P(Conv2DLayer, num_filters=16, filter_size=(5, 5), **rlu_glorot),
+            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), **rlu_glorot),
             _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2)),
 
-            ## Convolve + Max Pool 2
-            #_P(Conv2DLayer, num_filters=64, filter_size=(3, 3), **rlu_glorot),
-            #_P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            # Convolve + Max Pool 2
+            _P(Conv2DLayer, num_filters=64, filter_size=(4, 4), **rlu_glorot),
+            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
 
-            ## Convolve + Max Pool 3
-            #_P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_glorot),
-            #_P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            # Convolve + Max Pool 3
+            _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_glorot),
+            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+
+            # Convolve + Max Pool 4
+            _P(Conv2DLayer, num_filters=64, filter_size=(2, 2), **rlu_glorot),
+            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
 
             # Dense Layer + Feature Pool + Dropout 1
             _P(layers.DenseLayer, num_units=1024, **rlu_glorot),
@@ -281,16 +200,16 @@ class IdentificationModel(object):
                W=init.GlorotUniform(),),
         ]
 
-        input_layer = layers.InputLayer(
-            # variable batch size (None), channel, width, height
-            shape=(None, input_channels, input_width, input_height)
-        )
-
-        # connect layers
-        prev_layer = input_layer
-        for layer_fn in network_layers:
+        # connect and record layers
+        network_layers = []
+        layer_fn_iter = iter(network_layers_def)
+        prev_layer = six.next(layer_fn_iter)()
+        network_layers.append(prev_layer)
+        for layer_fn in layer_fn_iter:
             prev_layer = layer_fn(prev_layer)
+            network_layers.append(prev_layer)
 
+        self.network_layers = network_layers
         output_layer = prev_layer
         return output_layer
 
