@@ -51,18 +51,18 @@ def train(data_file, labels_file, model, weights_file, results_path,
         ut.ensuredir(pretrained_weights_path)
 
     # Training parameters defaults
-    utils._update(kwargs, 'center',         True)
-    utils._update(kwargs, 'encode',         True)
-    utils._update(kwargs, 'learning_rate',  0.01)
-    utils._update(kwargs, 'momentum',       0.9)
-    utils._update(kwargs, 'batch_size',     128)
-    utils._update(kwargs, 'patience',       10)
-    utils._update(kwargs, 'test',           5)  # Test every X epochs
-    utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
-    utils._update(kwargs, 'regularization', None)
+    utils._update(kwargs, 'center',                  True)
+    utils._update(kwargs, 'encode',                  True)
+    utils._update(kwargs, 'learning_rate',           0.01)
+    utils._update(kwargs, 'momentum',                0.9)
+    utils._update(kwargs, 'batch_size',              128)
+    utils._update(kwargs, 'patience',                10)
+    utils._update(kwargs, 'test',                    5)  # Test every X epochs
+    utils._update(kwargs, 'max_epochs',              kwargs.get('patience') * 10)
+    utils._update(kwargs, 'regularization',          None)
+    utils._update(kwargs, 'output_dims',             None)
+    utils._update(kwargs, 'show_features',           True)
     utils._update(kwargs, 'test_time_augmentation',  False)
-    utils._update(kwargs, 'output_dims',    None)
-    utils._update(kwargs, 'show_features',  True)
 
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
@@ -126,7 +126,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
         utils._update(kwargs, 'center_std', 255.0)
     else:
         utils._update(kwargs, 'center_mean', 0.0)
-        utils._update(kwargs, 'center_std', 255.0)
+        utils._update(kwargs, 'center_std', 1.0)
 
     # Begin training the neural network
     vals = (utils.get_current_time(), kwargs.get('learning_rate'), )
