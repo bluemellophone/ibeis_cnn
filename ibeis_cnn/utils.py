@@ -589,8 +589,10 @@ def show_convolutional_features(output_layer, results_path, target=None):
             grid[j].get_xaxis().set_visible(False)
             grid[j].get_yaxis().set_visible(False)
 
-        outfile = 'features_conv%d.png' % (index)
-        plt.savefig(join(results_path, outfile), bbox_inches='tight')
+        output_file = 'features_conv%d.png' % (index)
+        output_path = join(results_path, output_file)
+        print(output_path)
+        plt.savefig(output_path, bbox_inches='tight')
 
 
 if __name__ == '__main__':
