@@ -125,25 +125,25 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
     print('  y.shape = %r' % (y.shape,))
     print('  y.dtype = %r' % (y.dtype,))
 
-    image = X[0]
+    image = X[1]
     # image = cv2.merge(image)  # Lasagne format conversion
     cv2.imshow('', image)
     cv2.waitKey(0)
 
 
 if __name__ == '__main__':
-    # project_name = 'viewpoint_large'
-    # size = (96, 96)
-    # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
+    project_name = 'viewpoint_large'
+    size = (96, 96)
+    process_image_directory(project_name, size)
+    numpy_processed_directory(project_name)
 
-    # project_name = 'viewpoint'
-    # size = (64, 64)
-    # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
+    project_name = 'viewpoint'
+    size = (64, 64)
+    process_image_directory(project_name, size)
+    numpy_processed_directory(project_name)
 
     project_name = 'plains'
     # size = (64, 64)
     # process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
-    view_numpy_data(project_name)
+    # view_numpy_data(project_name)
