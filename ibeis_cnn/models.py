@@ -239,7 +239,7 @@ class IdentificationModel(object):
 
     def build_model(self, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=ut.VERBOSE):
-        from functools import partial as _P
+        from functools import partial as _P  # NOQA
         if verbose:
             print('[model] Build model')
             print('[model]   * batch_size     = %r' % (batch_size,))
@@ -247,6 +247,8 @@ class IdentificationModel(object):
             print('[model]   * input_height   = %r' % (input_height,))
             print('[model]   * input_channels = %r' % (input_channels,))
             print('[model]   * output_dims    = %r' % (output_dims,))
+
+        # JON, ADD THIS INSTEAD W=init.Orthogonal  -- Jason
 
         rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
 
@@ -337,7 +339,7 @@ class PZ_GIRM_Model(object):
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool1 = MaxPool2DLayer_(
@@ -352,7 +354,7 @@ class PZ_GIRM_Model(object):
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool2 = MaxPool2DLayer_(
@@ -367,7 +369,7 @@ class PZ_GIRM_Model(object):
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool3 = MaxPool2DLayer_(
@@ -381,7 +383,7 @@ class PZ_GIRM_Model(object):
             num_units=1024,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
@@ -396,7 +398,7 @@ class PZ_GIRM_Model(object):
             num_units=1024,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
@@ -410,7 +412,7 @@ class PZ_GIRM_Model(object):
             l_hidden2_dropout,
             num_units=output_dims,
             nonlinearity=nonlinearities.softmax,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         return l_out
@@ -458,7 +460,7 @@ class PZ_Model(object):
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool1 = MaxPool2DLayer_(
@@ -473,7 +475,7 @@ class PZ_Model(object):
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool2 = MaxPool2DLayer_(
@@ -488,7 +490,7 @@ class PZ_Model(object):
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_pool3 = MaxPool2DLayer_(
@@ -502,7 +504,7 @@ class PZ_Model(object):
             num_units=1024,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
@@ -517,7 +519,7 @@ class PZ_Model(object):
             num_units=1024,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
@@ -531,7 +533,7 @@ class PZ_Model(object):
             l_hidden2_dropout,
             num_units=output_dims,
             nonlinearity=nonlinearities.softmax,
-            W=init.GlorotUniform(),
+            W=init.Orthogonal(),
         )
 
         return l_out
