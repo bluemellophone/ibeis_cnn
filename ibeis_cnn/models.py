@@ -333,8 +333,10 @@ class PZ_GIRM_Model(object):
             l_in,
         )
 
+        l_conv1_dropout = layers.DropoutLayer(l_noise, p=0.90)
+
         l_conv1 = Conv2DLayer(
-            l_noise,
+            l_conv1_dropout,
             num_filters=32,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
@@ -348,8 +350,10 @@ class PZ_GIRM_Model(object):
             strides=(2, 2),
         )
 
+        l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.75)
+
         l_conv2 = Conv2DLayer(
-            l_pool1,
+            l_conv2_dropout,
             num_filters=64,
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
@@ -363,8 +367,10 @@ class PZ_GIRM_Model(object):
             strides=(2, 2),
         )
 
+        l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.75)
+
         l_conv3 = Conv2DLayer(
-            l_pool2,
+            l_conv3_dropout,
             num_filters=128,
             filter_size=(3, 3),
             nonlinearity=nonlinearities.rectify,
