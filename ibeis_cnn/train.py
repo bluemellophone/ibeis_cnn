@@ -17,7 +17,7 @@ from sklearn import preprocessing
 
 import utool as ut
 import six
-from os.path import join, abspath
+from os.path import join, abspath, dirname
 
 
 def train(data_file, labels_file, model, weights_file, results_path,
@@ -43,7 +43,12 @@ def train(data_file, labels_file, model, weights_file, results_path,
     data, labels = utils.load(data_file, labels_file)
 
     # Ensure results dir
+    weights_path = dirname(abspath(weights_file))
+    ut.ensuredir(weights_path)
     ut.ensuredir(results_path)
+    if pretrained_weights_file is not None:
+        pretrained_weights_path = dirname(abspath(pretrained_weights_file))
+        ut.ensuredir(pretrained_weights_path)
 
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
