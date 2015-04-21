@@ -173,7 +173,7 @@ def print_layer_info(output_layer):
     print('\n[info] Network Structure:')
     for index, layer in enumerate(nn_layers):
         output_shape = layer.get_output_shape()
-        print('[info]     {:>4}{:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
+        print('[info]  {:>3}  {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             index,
             layer.__class__.__name__,
             str(output_shape),
