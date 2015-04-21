@@ -62,6 +62,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
     utils._update(kwargs, 'regularization', None)
     utils._update(kwargs, 'test_time_augmentation',  False)
     utils._update(kwargs, 'output_dims',    None)
+    utils._update(kwargs, 'show_features',  True)
 
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
@@ -177,6 +178,10 @@ def train(data_file, labels_file, model, weights_file, results_path,
                                                            results_path, **kwargs)
                 else:
                     avg_test_accuracy = None
+
+                # Output the layer 1 features
+                if kwargs.get('show_features'):
+                    utils.show_convolutional_features(output_layer, results_path, target=1)
 
                 # Running tab for what the best model
                 if avg_train_loss < kwargs.get('best_train_loss'):

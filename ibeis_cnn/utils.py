@@ -169,9 +169,9 @@ def print_header_columns():
 
 
 def print_layer_info(output_layer):
-    nn_layers = layers.get_all_layers(output_layer)[::-1]
+    nn_layers = layers.get_all_layers(output_layer)
     print('\n[info] Network Structure:')
-    for layer in nn_layers[::-1]:
+    for layer in nn_layers:
         output_shape = layer.get_output_shape()
         print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             layer.__class__.__name__,
@@ -561,41 +561,36 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def visualize_features():
-    # import your network architecture here
-    from models import build_model
-    batch_size = 32
-    input_width, input_height = 95, 95
-    output_dim = 121
-    channels = 1
-    # build your network architecture
-    output_layer = build_model(batch_size, channels, input_width, input_height, output_dim)
-    all_layers = layers.get_all_layers(output_layer)
-    for i, layer in enumerate(all_layers):
-        if 'Conv2DCCLayer' in str(type(layer)):
-            # re-use the same figure to save memory
-            fig = plt.figure(1)
-            ax1 = plt.axes(frameon=False)
-            ax1.get_xaxis().set_visible(False)
-            ax1.get_yaxis().set_visible(False)
-            all_weights = layer.W.get_value()
+def show_convolutional_features(output_layer, results_path, target=None):
+    nn_layers = layers.get_all_layers(output_layer)
+    for index, layer in enumerate(nn_layers):
+        if 'Conv2DCCLayer' not in str(type(layer)):
+            continue
+        if target is not None and target != index:
+            continue
 
-            all_weights = all_weights.reshape(all_weights.shape[0] * all_weights.shape[1], all_weights.shape[2], all_weights.shape[3])
-            dim = int(np.round(np.sqrt(len(all_weights))))
-            grid = ImageGrid(fig, 111,
-                             nrows_ncols=(dim, dim))
-            # get all the weights and scale them to dimensions that can be shown
-            for j, filter in enumerate(all_weights):
-                fmax, fmin = np.max(filter), np.min(filter)
-                filter = (filter - fmin) * (255. / (fmax - fmin))
-                grid[j].imshow(filter, cmap=cm.Greys_r, interpolation='nearest')
-            for j in range(dim * dim):
-                grid[j].get_xaxis().set_visible(False)
-                grid[j].get_yaxis().set_visible(False)
+        # re-use the same figure to save memory
+        fig = plt.figure(1)
+        ax1 = plt.axes(frameon=False)
+        ax1.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
+        all_weights = layer.W.get_value()
 
-            outfile = 'l_conv%d.png' % (i)
-            print('saving to %s...' % (outfile))
-            plt.savefig(outfile, bbox_inches='tight')
+        all_weights = all_weights.reshape(all_weights.shape[0] * all_weights.shape[1], all_weights.shape[2], all_weights.shape[3])
+        dim = int(np.round(np.sqrt(len(all_weights))))
+        grid = ImageGrid(fig, 111,
+                         nrows_ncols=(dim, dim))
+        # get all the weights and scale them to dimensions that can be shown
+        for j, filter in enumerate(all_weights):
+            fmax, fmin = np.max(filter), np.min(filter)
+            filter = (filter - fmin) * (255. / (fmax - fmin))
+            grid[j].imshow(filter, cmap=cm.Greys_r, interpolation='nearest')
+        for j in range(dim * dim):
+            grid[j].get_xaxis().set_visible(False)
+            grid[j].get_yaxis().set_visible(False)
+
+        outfile = 'features_conv%d.png' % (index)
+        plt.savefig(join(results_path, outfile), bbox_inches='tight')
 
 
 if __name__ == '__main__':
