@@ -605,7 +605,7 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
                     channel = (channel - cmin) * (255. / (cmax - cmin))
                     feature[c] = channel
                 feature = cv2.merge(feature)
-                grid[f].imshow(feature, interpolation='nearest')
+                grid[f].imshow(feature, interpolation='bilinear')
         else:
             # get all the weights and scale them to dimensions that can be shown
             for f, feature in enumerate(all_weights):
