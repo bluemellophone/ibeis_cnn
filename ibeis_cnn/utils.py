@@ -596,7 +596,6 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
         dim = int(np.round(np.sqrt(num)))
         grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
 
-        print(num, channels, height, width)
         # Build grid
         if color:
             for f, feature in enumerate(all_weights):
