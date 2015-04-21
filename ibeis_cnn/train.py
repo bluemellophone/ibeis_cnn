@@ -56,7 +56,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
     utils._update(kwargs, 'learning_rate',  0.03)
     utils._update(kwargs, 'momentum',       0.9)
     utils._update(kwargs, 'batch_size',     128)
-    utils._update(kwargs, 'patience',       15)
+    utils._update(kwargs, 'patience',       10)
     utils._update(kwargs, 'test',           5)  # Test every X epochs
     utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
     utils._update(kwargs, 'regularization', None)
@@ -294,7 +294,7 @@ def train_pz():
     pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience':   15,
+        'patience':   5,
         'max_epochs': 300,
         'test_time_augmentation': True,
         # 'regularization': 0.001,
@@ -326,7 +326,7 @@ def train_pz_girm():
     pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience':   15,
+        'patience':   5,
         'max_epochs': 300,
         'test_time_augmentation': True,
         # 'regularization': 0.001,

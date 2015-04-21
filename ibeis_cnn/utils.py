@@ -538,7 +538,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     row_sums = np.sum(confidences, axis=1)
     norm_conf = (confidences.T / row_sums).T
 
-    fig = plt.figure()
+    fig = plt.figure(1)
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
