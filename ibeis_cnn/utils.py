@@ -564,11 +564,11 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
 def show_convolutional_features(output_layer, results_path, target=None):
     nn_layers = layers.get_all_layers(output_layer)
     for index, layer in enumerate(nn_layers):
-        if 'Conv2DCCLayer' not in str(type(layer)):
+        layer_type = str(type(layer))
+        if 'Conv2DCCLayer' not in layer_type:
             continue
-        if target is not None and target != index:
-            continue
-
+        # if target is not None and target != index:
+        #     continue
         # re-use the same figure to save memory
         fig = plt.figure(1)
         ax1 = plt.axes(frameon=False)
