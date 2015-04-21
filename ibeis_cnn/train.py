@@ -297,7 +297,7 @@ def train_pz():
         'patience':   15,
         'max_epochs': 100,
         'test_time_augmentation': True,
-        'regularization': 0.01,
+        # 'regularization': 0.001,
     }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
@@ -326,7 +326,7 @@ def train_pz_girm():
         'patience':   15,
         'max_epochs': 300,
         'test_time_augmentation': True,
-        'regularization': 0.01,
+        # 'regularization': 0.001,
     }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
