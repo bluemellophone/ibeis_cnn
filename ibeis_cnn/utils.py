@@ -551,6 +551,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     cb = fig.colorbar(res)  # NOQA
     plt.xticks(np.arange(size), category_list[0:size], rotation=90)
     plt.yticks(np.arange(size), category_list[0:size])
+    plt.subplots_adjust(left=1.0, right=1.0)
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
     plt.savefig(join(results_path, 'confusion.png'))
