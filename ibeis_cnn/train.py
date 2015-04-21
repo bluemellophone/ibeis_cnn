@@ -16,11 +16,12 @@ from lasagne import layers
 from sklearn import preprocessing
 
 import utool as ut
+import six
 from os.path import join, abspath
 
 
-def train(data_file, labels_file, model, weights_file, pretrained_weights_file=None,
-          pretrained_kwargs=False, **kwargs):
+def train(data_file, labels_file, model, weights_file, results_path,
+          pretrained_weights_file=None, pretrained_kwargs=False, **kwargs):
     """
     Driver function
 
@@ -40,6 +41,9 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     print('data_file = %r' % (data_file,))
     print('labels_file = %r' % (labels_file,))
     data, labels = utils.load(data_file, labels_file)
+
+    # Ensure results dir
+    ut.ensuredir(results_path)
 
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
@@ -64,9 +68,6 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     print('[train]     data.dtype = %r' % (data.dtype,))
     print('[train]     labels.shape = %r' % (labels.shape,))
     print('[train]     labels.dtype = %r' % (labels.dtype,))
-
-    import utool as ut
-    import six
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
     print('label stats = \n' + ut.dict_str(labelhist))
@@ -167,7 +168,8 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
                 # compute the loss over all testing batches
                 request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 if best_found or request_test:
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter, **kwargs)
+                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
+                                                           results_path, **kwargs)
                 else:
                     avg_test_accuracy = None
 
@@ -272,23 +274,52 @@ def train_pz():
         >>> result = train_pz()
         >>> print(result)
     """
-    project_name            = 'viewpoint'
-    model                   = models.PZ_GIRM_Model()
-    # project_name            = 'plains'
-    # model                   = models.PZ_Model()
+    project_name            = 'plains'
+    model                   = models.PZ_Model()
     config                  = {
         'patience':   15,
-        'max_epochs': 300,
+        'max_epochs': 100,
         'test_time_augmentation': True,
-        'regularization': 0.001,
+        # 'regularization': 0.001,
     }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    results_path            = join(root, 'results')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
-    train(train_data_file, train_labels_file, model, weights_file, **config)
+    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
+    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
+
+
+def train_pz_girm():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz_girm
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> result = train_pz_girm()
+        >>> print(result)
+    """
+    project_name            = 'viewpoint'
+    model                   = models.PZ_GIRM_Model()
+    config                  = {
+        'patience':   15,
+        'max_epochs': 300,
+        'test_time_augmentation': True,
+        # 'regularization': 0.001,
+    }
+    root                    = abspath(join('..', 'data'))
+    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    results_path            = join(root, 'results')
+    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+
+    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
 
 
