@@ -241,7 +241,9 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             Xb /= center_std
         # Augment
         if augment is not None:
-            Xb, yb = augment(Xb, yb)
+            Xb_ = np.copy(Xb)
+            yb_ = np.copy(yb)
+            Xb, yb = augment(Xb_, yb_)
         # Encode
         if encoder is not None:
             yb = encoder.transform(yb)
