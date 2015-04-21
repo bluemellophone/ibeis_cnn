@@ -599,23 +599,21 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
         print(num, channels, height, width)
         # Build grid
         if color:
-            for index, feature in enumerate(all_weights):
+            for f, feature in enumerate(all_weights):
                 for c in range(len(feature)):
                     channel = feature[c]
                     cmax, cmin = np.max(channel), np.min(channel)
                     channel = (channel - cmin) * (255. / (cmax - cmin))
                     feature[c] = channel
-                print(feature.shape)
                 feature = cv2.merge(feature)
-                print(feature.shape)
-                grid[index].imshow(feature, interpolation='nearest')
+                grid[f].imshow(feature, interpolation='nearest')
         else:
             # get all the weights and scale them to dimensions that can be shown
-            for index, feature in enumerate(all_weights):
+            for f, feature in enumerate(all_weights):
                 fmax, fmin = np.max(feature), np.min(feature)
                 domain = fmax - fmin
                 feature = (feature - fmin) * (255. / domain)
-                grid[index].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
 
         for j in range(dim * dim):
             grid[j].get_xaxis().set_visible(False)
