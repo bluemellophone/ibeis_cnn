@@ -327,12 +327,12 @@ class PZ_GIRM_Model(object):
             shape=(None, input_channels, input_width, input_height)
         )
 
-        l_noise = layers.GaussianNoiseLayer(
-            l_in,
-        )
+        # l_noise = layers.GaussianNoiseLayer(
+        #     l_in,
+        # )
 
         l_conv1 = Conv2DLayer(
-            l_noise,
+            l_in,
             num_filters=32,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
@@ -448,12 +448,12 @@ class PZ_Model(object):
             shape=(None, input_channels, input_width, input_height)
         )
 
-        l_noise = layers.GaussianNoiseLayer(
-            l_in,
-        )
+        # l_noise = layers.GaussianNoiseLayer(
+        #     l_in,
+        # )
 
         l_conv1 = Conv2DLayer(
-            l_noise,
+            l_in,
             num_filters=64,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
