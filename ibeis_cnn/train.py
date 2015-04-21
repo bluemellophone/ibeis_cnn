@@ -17,7 +17,7 @@ from sklearn import preprocessing
 
 import utool as ut
 import six
-from os.path import join, abspath, dirname
+from os.path import join, abspath, dirname, exists
 
 
 def train(data_file, labels_file, model, weights_file, results_path,
@@ -109,7 +109,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
     train_iter, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
-    if pretrained_weights_file is not None:
+    if pretrained_weights_file is not None and exists(pretrained_weights_file):
         print('[model] loading pretrained weights from %s' % (pretrained_weights_file))
         with open(pretrained_weights_file, 'rb') as pfile:
             kwargs_ = pickle.load(pfile)
