@@ -333,10 +333,8 @@ class PZ_GIRM_Model(object):
             l_in,
         )
 
-        l_conv1_dropout = layers.DropoutLayer(l_noise, p=0.10)
-
         l_conv1 = Conv2DLayer(
-            l_conv1_dropout,
+            l_noise,
             num_filters=32,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
@@ -350,7 +348,7 @@ class PZ_GIRM_Model(object):
             strides=(2, 2),
         )
 
-        l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.25)
+        l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.10)
 
         l_conv2 = Conv2DLayer(
             l_conv2_dropout,
@@ -367,7 +365,7 @@ class PZ_GIRM_Model(object):
             strides=(2, 2),
         )
 
-        l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.25)
+        l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.30)
 
         l_conv3 = Conv2DLayer(
             l_conv3_dropout,
@@ -386,7 +384,7 @@ class PZ_GIRM_Model(object):
 
         l_hidden1 = layers.DenseLayer(
             l_pool3,
-            num_units=1024,
+            num_units=512,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
             W=init.Orthogonal(),
@@ -401,7 +399,149 @@ class PZ_GIRM_Model(object):
 
         l_hidden2 = layers.DenseLayer(
             l_hidden1_dropout,
-            num_units=1024,
+            num_units=512,
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_hidden2_maxout = layers.FeaturePoolLayer(
+            l_hidden2,
+            ds=2,
+        )
+
+        l_hidden2_dropout = layers.DropoutLayer(l_hidden2_maxout, p=0.5)
+
+        l_out = layers.DenseLayer(
+            l_hidden2_dropout,
+            num_units=output_dims,
+            nonlinearity=nonlinearities.softmax,
+            W=init.Orthogonal(),
+        )
+
+        return l_out
+
+
+class PZ_GIRM_LARGE_Model(object):
+    def __init__(self):
+        pass
+
+    def augment(self, Xb, yb):
+        # Invert label function
+        def _invert_label(label):
+            label = label.replace('LEFT',  '^L^')
+            label = label.replace('RIGHT', '^R^')
+            label = label.replace('^R^', 'LEFT')
+            label = label.replace('^L^', 'RIGHT')
+            return(label)
+        # Map
+        points, channels, height, width = Xb.shape
+        for index in range(points):
+            if random.uniform(0.0, 1.0) <= 0.5:
+                Xb[index] = Xb[index, :, ::-1]
+                yb[index] = _invert_label(yb[index])
+        return Xb, yb
+
+    def learning_rate_update(self, x):
+        return x / 10.0
+
+    def learning_rate_shock(self, x):
+        return x * 10.0
+
+    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+        l_in = layers.InputLayer(
+            # variable batch size (None), channel, width, height
+            shape=(None, input_channels, input_width, input_height)
+        )
+
+        l_noise = layers.GaussianNoiseLayer(
+            l_in,
+        )
+
+        l_conv1 = Conv2DLayer(
+            l_noise,
+            num_filters=32,
+            filter_size=(5, 5),
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_pool1 = MaxPool2DLayer_(
+            l_conv1,
+            ds=(2, 2),
+            strides=(2, 2),
+        )
+
+        l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.10)
+
+        l_conv2 = Conv2DLayer(
+            l_conv2_dropout,
+            num_filters=64,
+            filter_size=(3, 3),
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_pool2 = MaxPool2DLayer_(
+            l_conv2,
+            ds=(2, 2),
+            strides=(2, 2),
+        )
+
+        l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.30)
+
+        l_conv3 = Conv2DLayer(
+            l_conv3_dropout,
+            num_filters=128,
+            filter_size=(3, 3),
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_pool3 = MaxPool2DLayer_(
+            l_conv3,
+            ds=(2, 2),
+            strides=(2, 2),
+        )
+
+        l_conv4_dropout = layers.DropoutLayer(l_pool3, p=0.30)
+
+        l_conv4 = Conv2DLayer(
+            l_conv4_dropout,
+            num_filters=128,
+            filter_size=(3, 3),
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_pool4 = MaxPool2DLayer_(
+            l_conv4,
+            ds=(2, 2),
+            strides=(2, 2),
+        )
+
+        l_hidden1 = layers.DenseLayer(
+            l_pool4,
+            num_units=512,
+            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.LeakyRectify,
+            W=init.Orthogonal(),
+        )
+
+        l_hidden1_maxout = layers.FeaturePoolLayer(
+            l_hidden1,
+            ds=2,
+        )
+
+        l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
+
+        l_hidden2 = layers.DenseLayer(
+            l_hidden1_dropout,
+            num_units=512,
             nonlinearity=nonlinearities.rectify,
             # nonlinearity=nonlinearities.LeakyRectify,
             W=init.Orthogonal(),

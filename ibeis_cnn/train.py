@@ -336,6 +336,38 @@ def train_pz_girm():
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
 
 
+def train_pz_girm_large():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz_girm_large
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> result = train_pz_girm_large()
+        >>> print(result)
+    """
+    project_name            = 'viewpoint_large'
+    model                   = models.PZ_GIRM_LARGE_Model()
+
+    root                    = abspath(join('..', 'data'))
+    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    results_path            = join(root, 'results', project_name)
+    weights_file            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'patience': 10,
+        'max_epochs': 100,
+        'regularization': 0.0001,
+        'test_time_augmentation': True,
+        'pretrained_weights_file': pretrained_weights_file,
+    }
+
+    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
+
+
 if __name__ == '__main__':
     """
     CommandLine:
