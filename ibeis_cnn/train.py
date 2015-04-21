@@ -294,10 +294,10 @@ def train_pz():
     pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience':   5,
+        'patience': 10,
         'max_epochs': 100,
-        'test_time_augmentation': True,
         'regularization': 0.0001,
+        'test_time_augmentation': True,
         'pretrained_weights_file': pretrained_weights_file,
     }
 
@@ -326,11 +326,11 @@ def train_pz_girm():
     pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience':   5,
+        'patience': 10,
         'max_epochs': 100,
-        'test_time_augmentation': True,
         'regularization': 0.0001,
-        # 'pretrained_weights_file': pretrained_weights_file,
+        'test_time_augmentation': True,
+        'pretrained_weights_file': pretrained_weights_file,
     }
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
