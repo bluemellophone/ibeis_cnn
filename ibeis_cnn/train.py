@@ -330,7 +330,7 @@ def train_pz_girm():
         'max_epochs': 300,
         'test_time_augmentation': True,
         # 'regularization': 0.001,
-        'pretrained_weights_file': pretrained_weights_file,
+        # 'pretrained_weights_file': pretrained_weights_file,
     }
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
