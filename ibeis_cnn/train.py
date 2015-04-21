@@ -178,7 +178,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
                                                            results_path, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
-                        utils.show_convolutional_features(output_layer, results_path, color=False, target=0)
+                        utils.show_convolutional_features(output_layer, results_path, color=True, target=0)
                 else:
                     avg_test_accuracy = None
 
