@@ -53,7 +53,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
     utils._update(kwargs, 'encode',         True)
-    utils._update(kwargs, 'learning_rate',  0.03)
+    utils._update(kwargs, 'learning_rate',  0.01)
     utils._update(kwargs, 'momentum',       0.9)
     utils._update(kwargs, 'batch_size',     128)
     utils._update(kwargs, 'patience',       10)
@@ -295,9 +295,9 @@ def train_pz():
 
     config                  = {
         'patience':   5,
-        'max_epochs': 300,
+        'max_epochs': 100,
         'test_time_augmentation': True,
-        # 'regularization': 0.001,
+        'regularization': 0.0001,
         'pretrained_weights_file': pretrained_weights_file,
     }
 
@@ -327,9 +327,9 @@ def train_pz_girm():
 
     config                  = {
         'patience':   5,
-        'max_epochs': 300,
+        'max_epochs': 100,
         'test_time_augmentation': True,
-        # 'regularization': 0.001,
+        'regularization': 0.0001,
         # 'pretrained_weights_file': pretrained_weights_file,
     }
 
