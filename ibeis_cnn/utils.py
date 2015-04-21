@@ -342,7 +342,7 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     return avg_valid_loss, avg_valid_accuracy
 
 
-def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs):
+def forward_test(X_test, y_test, test_iter, results_path, show=False, confusion=True, **kwargs):
     """ compute the loss over all test batches """
     all_correct = []
     all_predict = []
@@ -365,7 +365,7 @@ def forward_test(X_test, y_test, test_iter, show=False, confusion=True, **kwargs
         encoder = kwargs.get('encoder', None)
         if encoder is not None:
             labels = encoder.inverse_transform(labels)
-        show_confusion_matrix(all_correct, all_predict, labels)
+        show_confusion_matrix(all_correct, all_predict, labels, results_path)
     return avg_test_accuracy
 
 
@@ -478,7 +478,7 @@ def set_learning_rate(learning_rate_theano, update):
     print_header_columns()
 
 
-def show_confusion_matrix(correct_y, expert_y, category_list):
+def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     """
     Given the correct and expert labels, show the confusion matrix
 
@@ -519,7 +519,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     plt.yticks(np.arange(size), category_list[0:size])
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
-    plt.savefig(join('..', 'confusion.png'))
+    plt.savefig(join(results_path, 'confusion.png'))
 
 
 if __name__ == '__main__':

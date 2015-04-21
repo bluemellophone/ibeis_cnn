@@ -19,8 +19,8 @@ import utool as ut
 from os.path import join, abspath
 
 
-def train(data_file, labels_file, model, weights_file, pretrained_weights_file=None,
-          pretrained_kwargs=False, **kwargs):
+def train(data_file, labels_file, model, weights_file, results_path,
+          pretrained_weights_file=None, pretrained_kwargs=False, **kwargs):
     """
     Driver function
 
@@ -59,6 +59,9 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
     print('data_file = %r' % (data_file,))
     print('labels_file = %r' % (labels_file,))
     data, labels = utils.load(data_file, labels_file)
+
+    # Ensure results dir
+    ut.ensuredir(results_path)
 
     # Training parameters defaults
     utils._update(kwargs, 'center',         True)
@@ -186,7 +189,8 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
                 # compute the loss over all testing batches
                 request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 if best_found or request_test:
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter, **kwargs)
+                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
+                                                           results_path, **kwargs)
                 else:
                     avg_test_accuracy = None
 
@@ -302,10 +306,11 @@ def train_pz():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    results_path            = join(root, 'results')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
-    train(train_data_file, train_labels_file, model, weights_file, **config)
+    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
 
 
@@ -331,10 +336,11 @@ def train_pz_girm():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    results_path            = join(root, 'results')
     weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
     pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
 
-    train(train_data_file, train_labels_file, model, weights_file, **config)
+    train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
 
 
