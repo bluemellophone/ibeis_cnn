@@ -582,17 +582,20 @@ def show_convolutional_features(output_layer, results_path, color=False, target=
         ax1.get_yaxis().set_visible(False)
         all_weights = layer.W.get_value()
         if color:
-            all_weights = all_weights.transpose((0, 3, 2, 1))
+            all_weights = all_weights.transpose((0, 2, 3, 1))
         else:
             all_weights = all_weights.reshape(all_weights.shape[0] * all_weights.shape[1], all_weights.shape[2], all_weights.shape[3])
         dim = int(np.round(np.sqrt(len(all_weights))))
         grid = ImageGrid(fig, 111,
                          nrows_ncols=(dim, dim))
         # get all the weights and scale them to dimensions that can be shown
-        for j, filter in enumerate(all_weights):
-            fmax, fmin = np.max(filter), np.min(filter)
-            filter = (filter - fmin) * (255. / (fmax - fmin))
-            grid[j].imshow(filter, cmap=cm.Greys_r, interpolation='nearest')
+        for j, filter_ in enumerate(all_weights):
+            fmax, fmin = np.max(filter_), np.min(filter_)
+            filter_ = (filter_ - fmin) * (255. / (fmax - fmin))
+            if color:
+                grid[j].imshow(filter_, interpolation='nearest')
+            else:
+                grid[j].imshow(filter_, cmap=cm.Greys_r, interpolation='nearest')
         for j in range(dim * dim):
             grid[j].get_xaxis().set_visible(False)
             grid[j].get_yaxis().set_visible(False)

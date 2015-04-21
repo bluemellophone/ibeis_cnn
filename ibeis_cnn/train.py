@@ -285,21 +285,23 @@ def train_pz():
     """
     project_name            = 'plains'
     model                   = models.PZ_Model()
-    config                  = {
-        'patience':   15,
-        'max_epochs': 100,
-        'test_time_augmentation': True,
-        # 'regularization': 0.001,
-    }
+
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
     results_path            = join(root, 'results', project_name)
     weights_file            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', project_name, 'pretrained_weights.pickle')  # NOQA
+    pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'patience':   15,
+        'max_epochs': 300,
+        'test_time_augmentation': True,
+        # 'regularization': 0.001,
+        'pretrained_weights_file': pretrained_weights_file,
+    }
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
-    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
 
 
 def train_pz_girm():
@@ -315,21 +317,23 @@ def train_pz_girm():
     """
     project_name            = 'viewpoint'
     model                   = models.PZ_GIRM_Model()
-    config                  = {
-        'patience':   15,
-        'max_epochs': 300,
-        'test_time_augmentation': True,
-        # 'regularization': 0.001,
-    }
+
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
     results_path            = join(root, 'results', project_name)
     weights_file            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', project_name, 'pretrained_weights.pickle')  # NOQA
+    pretrained_weights_file = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'patience':   15,
+        'max_epochs': 300,
+        'test_time_augmentation': True,
+        # 'regularization': 0.001,
+        'pretrained_weights_file': pretrained_weights_file,
+    }
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
-    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
 
 
 if __name__ == '__main__':
