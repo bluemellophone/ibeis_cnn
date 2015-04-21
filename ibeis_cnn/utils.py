@@ -247,7 +247,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> # execute function
         >>> result = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
         >>> # verify results
-        >>> print(result)
+        >>> print(next(result))
     """
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
