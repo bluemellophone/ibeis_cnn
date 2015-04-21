@@ -16,6 +16,7 @@ from lasagne import layers
 from sklearn import preprocessing
 
 import utool as ut
+import six
 from os.path import join, abspath
 
 
@@ -86,9 +87,6 @@ def train(data_file, labels_file, model, weights_file, results_path,
     print('[train]     data.dtype = %r' % (data.dtype,))
     print('[train]     labels.shape = %r' % (labels.shape,))
     print('[train]     labels.dtype = %r' % (labels.dtype,))
-
-    import utool as ut
-    import six
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
     print('label stats = \n' + ut.dict_str(labelhist))
@@ -165,7 +163,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
 
                 # compute the loss over all training and validation batches
                 augment_fn = getattr(model, 'augment', None)
-                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=False,
+                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
                                                      augment=augment_fn, **kwargs)
                 if kwargs.get('test_time_augmentation', False):
                     avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
