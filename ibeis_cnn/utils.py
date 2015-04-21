@@ -252,8 +252,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
-        print('X.shape %r' % (X.shape, ))
-        print('y.shape %r' % (y.shape, ))
+        # print('X.shape %r' % (X.shape, ))
+        # print('y.shape %r' % (y.shape, ))
         if y is None:
             X = shuffle(X, random_state=RANDOM_SEED)
         else:
