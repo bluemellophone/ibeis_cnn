@@ -254,7 +254,7 @@ class IdentificationModel(object):
             layers.GaussianNoiseLayer,
 
             # Convolve + Max Pool 1
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), **rlu_glorot),
+            _P(Conv2DLayer, num_filters=16, filter_size=(5, 5), **rlu_glorot),
             _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2)),
 
             ## Convolve + Max Pool 2

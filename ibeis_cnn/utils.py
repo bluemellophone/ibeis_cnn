@@ -18,6 +18,7 @@ import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
 from os.path import join
+import utool as ut
 #from six.moves import range, zip
 
 
@@ -44,6 +45,91 @@ def _update(kwargs, key, value):
     #if key not in kwargs.keys():
     if key not in kwargs:
         kwargs[key] = value
+
+
+def testdata_imglist():
+    import vtool as vt
+    x = 32
+    width = 32
+    height = 32
+    channels = 3
+    img0 = np.arange(x ** 2 * 3, dtype=np.uint8).reshape(x, x, 3)
+    img1 = vt.imread(ut.grab_test_imgpath('jeff.png'))
+    img2 = vt.imread(ut.grab_test_imgpath('carl.jpg'))
+    img3 = vt.imread(ut.grab_test_imgpath('lena.png'))
+    img_list = [vt.padded_resize(img, (width, height)) for img in [img0, img1, img2, img3]]
+    return img_list, width, height, channels
+
+
+def convert_imagelist_to_data(img_list):
+    """
+    Converts a list of cv2-style images into a single numpy array of nonflat
+    theano-style images.
+
+    h=height, w=width, b=batchid, c=channel
+
+    Args:
+        img_list (list of ndarrays): a list of numpy arrays with shape [h, w, c]
+
+    Returns:
+        data: in the shape [b, (c x h x w)]
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-convert_imagelist_to_data
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> import vtool as vt
+        >>> # build test data
+        >>> # execute function
+        >>> img_list, width, height, channels = testdata_imglist()
+        >>> data = convert_imagelist_to_data(img_list)
+        >>> data[0].reshape(3, 32, 32)[:, 0:2, 0:2]
+        >>> subset = (data[0].reshape(3, 32, 32)[:, 0:2, 0:2])
+        >>> #result = str(np.transpose(subset, (1, 2, 0)))
+        >>> result = str(subset).replace('\n', '')
+        >>> print(result)
+        [[[  0   3]  [ 96  99]] [[  1   4]  [ 97 100]] [[  2   5]  [ 98 101]]]
+    """
+    #[img.shape for img in img_list]
+    # format to [b, c, h, w]
+    shape_list = [img.shape for img in img_list]
+    assert ut.list_allsame(shape_list)
+    theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
+    data = np.vstack(theano_style_imgs)
+    #data = np.vstack([img[None, :] for img in img_list])
+    return data
+
+
+def convert_data_to_imglist(data, width, height, channels):
+    r"""
+    Args:
+        data (ndarray): in the shape [b, (c x h x w)]
+        width (?):
+        height (?):
+        channels (?):
+
+    Returns:
+        img_list (list of ndarrays): a list of numpy arrays with shape [h, w, c]
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-convert_data_to_imglist
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> # build test data
+        >>> img_list, width, height, channels = testdata_imglist()
+        >>> data = convert_imagelist_to_data(img_list)
+        >>> img_list2 = convert_data_to_imglist(data, width, height, channels)
+        >>> assert np.all(img_list == img_list2)
+    """
+    #num_imgs = data.shape[0]
+    #newshape = (num_imgs, channels, width, height)
+    #data_ = data.reshape(newshape)
+    img_list = np.transpose(data, (0, 2, 3, 1))
+    return img_list
 
 
 def get_current_time():
@@ -432,3 +518,16 @@ def show_confusion_matrix(correct_y, expert_y, category_list):
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
     plt.savefig(join('..', 'confusion.png'))
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.utils
+        python -m ibeis_cnn.utils --allexamples
+        python -m ibeis_cnn.utils --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
