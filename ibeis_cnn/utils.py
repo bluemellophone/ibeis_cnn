@@ -17,6 +17,8 @@ from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import ImageGrid
+import matplotlib.cm as cm
 from os.path import join
 import utool as ut
 import six
@@ -167,11 +169,12 @@ def print_header_columns():
 
 
 def print_layer_info(output_layer):
-    nn_layers = layers.get_all_layers(output_layer)[::-1]
+    nn_layers = layers.get_all_layers(output_layer)
     print('\n[info] Network Structure:')
-    for layer in nn_layers[::-1]:
+    for index, layer in enumerate(nn_layers):
         output_shape = layer.get_output_shape()
-        print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
+        print('[info]  {:>3}  {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
+            index,
             layer.__class__.__name__,
             str(output_shape),
             int(str(functools.reduce(operator.mul, output_shape[1:]))),
@@ -252,8 +255,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
-        print('X.shape %r' % (X.shape, ))
-        print('y.shape %r' % (y.shape, ))
+        # print('X.shape %r' % (X.shape, ))
+        # print('y.shape %r' % (y.shape, ))
         if y is None:
             X = shuffle(X, random_state=RANDOM_SEED)
         else:
@@ -283,6 +286,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
         yb = yb.astype(np.int32)
+        # Convert cv2 format to Lasagne format for batching
+        Xb = Xb.transpose((0, 3, 1, 2))
         yield Xb, yb
 
 
@@ -535,7 +540,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     row_sums = np.sum(confidences, axis=1)
     norm_conf = (confidences.T / row_sums).T
 
-    fig = plt.figure()
+    fig = plt.figure(1)
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
@@ -551,9 +556,73 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     cb = fig.colorbar(res)  # NOQA
     plt.xticks(np.arange(size), category_list[0:size], rotation=90)
     plt.yticks(np.arange(size), category_list[0:size])
+    margin_small = 0.1
+    margin_large = 0.9
+    plt.subplots_adjust(left=margin_small, right=margin_large, bottom=margin_small, top=margin_large)
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
     plt.savefig(join(results_path, 'confusion.png'))
+
+
+def show_convolutional_features(output_layer, results_path, color=False, limit=150, target=None):
+    nn_layers = layers.get_all_layers(output_layer)
+    cnn_layers = []
+    for layer in nn_layers:
+        layer_type = str(type(layer))
+        # Only print convolutional layers
+        if 'Conv2DCCLayer' not in layer_type:
+            continue
+        cnn_layers.append(layer)
+
+    for index, layer in enumerate(cnn_layers):
+        if target is not None and target != index:
+            continue
+        # re-use the same figure to save memory
+        fig = plt.figure(1)
+        ax1 = plt.axes(frameon=False)
+        ax1.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
+        all_weights = layer.W.get_value()
+        # Get shape of weights
+        num, channels, height, width = all_weights.shape
+        # non-color features need to be flattened
+        if not color:
+            all_weights = all_weights.reshape(num * channels, height, width)
+            num, height, width = all_weights.shape
+            channels = 1
+        # Limit all_weights
+        if limit is not None and num > limit:
+            all_weights = all_weights[:limit]
+            num, channels, height, width = all_weights.shape
+        # Find how many features and build grid
+        dim = int(np.round(np.sqrt(num)))
+        grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+
+        # Build grid
+        if color:
+            for f, feature in enumerate(all_weights):
+                for c in range(len(feature)):
+                    channel = feature[c]
+                    cmax, cmin = np.max(channel), np.min(channel)
+                    channel = (channel - cmin) * (255. / (cmax - cmin))
+                    feature[c] = channel
+                feature = cv2.merge(feature)
+                grid[f].imshow(feature, interpolation='nearest')
+        else:
+            # get all the weights and scale them to dimensions that can be shown
+            for f, feature in enumerate(all_weights):
+                fmax, fmin = np.max(feature), np.min(feature)
+                domain = fmax - fmin
+                feature = (feature - fmin) * (255. / domain)
+                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+
+        for j in range(dim * dim):
+            grid[j].get_xaxis().set_visible(False)
+            grid[j].get_yaxis().set_visible(False)
+
+        output_file = 'features_conv%d.png' % (index)
+        output_path = join(results_path, output_file)
+        plt.savefig(output_path, bbox_inches='tight')
 
 
 if __name__ == '__main__':

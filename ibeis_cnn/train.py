@@ -17,7 +17,7 @@ from sklearn import preprocessing
 
 import utool as ut
 import six
-from os.path import join, abspath
+from os.path import join, abspath, dirname, exists
 
 
 def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
@@ -43,20 +43,26 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     data, labels = utils.load(data_fpath, labels_fpath)
 
     # Ensure results dir
+    weights_dpath = dirname(abspath(weights_fpath))
+    ut.ensuredir(weights_dpath)
     ut.ensuredir(results_dpath)
+    if pretrained_weights_fpath is not None:
+        pretrained_weights_dpath = dirname(abspath(pretrained_weights_fpath))
+        ut.ensuredir(pretrained_weights_dpath)
 
     # Training parameters defaults
-    utils._update(kwargs, 'center',         True)
-    utils._update(kwargs, 'encode',         True)
-    utils._update(kwargs, 'learning_rate',  0.03)
-    utils._update(kwargs, 'momentum',       0.9)
-    utils._update(kwargs, 'batch_size',     128)
-    utils._update(kwargs, 'patience',       15)
-    utils._update(kwargs, 'test',           5)  # Test every X epochs
-    utils._update(kwargs, 'max_epochs',     kwargs.get('patience') * 10)
-    utils._update(kwargs, 'regularization', None)
+    utils._update(kwargs, 'center',                  True)
+    utils._update(kwargs, 'encode',                  True)
+    utils._update(kwargs, 'learning_rate',           0.01)
+    utils._update(kwargs, 'momentum',                0.9)
+    utils._update(kwargs, 'batch_size',              128)
+    utils._update(kwargs, 'patience',                10)
+    utils._update(kwargs, 'test',                    5)  # Test every X epochs
+    utils._update(kwargs, 'max_epochs',              kwargs.get('patience') * 10)
+    utils._update(kwargs, 'regularization',          None)
+    utils._update(kwargs, 'output_dims',             None)
+    utils._update(kwargs, 'show_features',           True)
     utils._update(kwargs, 'test_time_augmentation',  False)
-    utils._update(kwargs, 'output_dims',    None)
 
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
@@ -90,7 +96,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # Build and print the model
     print('\n[model] building model...')
-    input_cases, input_channels, input_height, input_width = data.shape
+    input_cases, input_height, input_width, input_channels = data.shape
     output_layer = model.build_model(
         kwargs.get('batch_size'), input_width, input_height,
         input_channels, kwargs.get('output_dims'))
@@ -103,7 +109,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     train_iter, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
-    if pretrained_weights_fpath is not None:
+    if pretrained_weights_fpath is not None and exists(pretrained_weights_fpath):
         print('[model] loading pretrained weights from %s' % (pretrained_weights_fpath))
         with open(pretrained_weights_fpath, 'rb') as pfile:
             kwargs_ = pickle.load(pfile)
@@ -120,7 +126,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
         utils._update(kwargs, 'center_std', 255.0)
     else:
         utils._update(kwargs, 'center_mean', 0.0)
-        utils._update(kwargs, 'center_std', 255.0)
+        utils._update(kwargs, 'center_std', 1.0)
 
     # Begin training the neural network
     vals = (utils.get_current_time(), kwargs.get('learning_rate'), )
@@ -170,6 +176,9 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 if best_found or request_test:
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
                                                            results_dpath, **kwargs)
+                    # Output the layer 1 features
+                    if kwargs.get('show_features'):
+                        utils.show_convolutional_features(output_layer, results_dpath, color=True, target=0)
                 else:
                     avg_test_accuracy = None
 
@@ -271,26 +280,26 @@ def train_pz():
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
-        >>> result = train_pz()
-        >>> print(result)
+        >>> train_pz()
     """
     project_name            = 'plains'
     model                   = models.PZ_Model()
-    config                  = {
-        'patience':   15,
-        'max_epochs': 100,
-        'test_time_augmentation': True,
-        # 'regularization': 0.001,
-    }
-    root                     = abspath(join('..', 'data'))
+
+    root                    = abspath(join('..', 'data'))
     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath            = join(root, 'results')
-    weights_fpath            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    results_dpath            = join(root, 'results', project_name)
+    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
+    config                  = {
+        'patience': 10,
+        'max_epochs': 100,
+        'regularization': 0.0001,
+        'test_time_augmentation': True,
+        'pretrained_weights_fpath': pretrained_weights_fpath,
+    }
     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
-    #train(train_data_fpath, train_labels_fpath, weights_fpath, pretrained_weights_fpath)
 
 
 def train_pz_girm():
@@ -301,26 +310,58 @@ def train_pz_girm():
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
-        >>> result = train_pz_girm()
-        >>> print(result)
+        >>> train_pz_girm()
     """
     project_name            = 'viewpoint'
     model                   = models.PZ_GIRM_Model()
-    config                  = {
-        'patience':   15,
-        'max_epochs': 300,
-        'test_time_augmentation': True,
-        # 'regularization': 0.001,
-    }
-    root                     = abspath(join('..', 'data'))
+
+    root                    = abspath(join('..', 'data'))
     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath            = join(root, 'results')
-    weights_fpath            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    results_dpath            = join(root, 'results', project_name)
+    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'patience': 10,
+        'max_epochs': 100,
+        'regularization': 0.0001,
+        'test_time_augmentation': True,
+        # 'pretrained_weights_fpath': pretrained_weights_fpath,
+    }
 
     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
-    #train(train_data_fpath, train_labels_fpath, weights_fpath, pretrained_weights_fpath)
+
+
+def train_pz_girm_large():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz_girm_large
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> train_pz_girm_large()
+    """
+    project_name            = 'viewpoint_large'
+    model                   = models.PZ_GIRM_LARGE_Model()
+
+    root                    = abspath(join('..', 'data'))
+    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    results_dpath            = join(root, 'results', project_name)
+    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'patience': 10,
+        'max_epochs': 100,
+        'regularization': 0.0001,
+        'test_time_augmentation': True,
+        'pretrained_weights_fpath': pretrained_weights_fpath,
+    }
+
+    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
 
 
 if __name__ == '__main__':
