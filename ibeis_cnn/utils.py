@@ -171,9 +171,10 @@ def print_header_columns():
 def print_layer_info(output_layer):
     nn_layers = layers.get_all_layers(output_layer)
     print('\n[info] Network Structure:')
-    for layer in nn_layers:
+    for index, layer in enumerate(nn_layers):
         output_shape = layer.get_output_shape()
-        print('[info]     {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
+        print('[info]     {:<5}\t{:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
+            index,
             layer.__class__.__name__,
             str(output_shape),
             int(str(functools.reduce(operator.mul, output_shape[1:]))),
