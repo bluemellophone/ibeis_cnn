@@ -181,7 +181,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
 
                 # Output the layer 1 features
                 if kwargs.get('show_features'):
-                    utils.show_convolutional_features(output_layer, results_path, target=0)
+                    utils.show_convolutional_features(output_layer, results_path, color=True, target=0)
 
                 # Running tab for what the best model
                 if avg_train_loss < kwargs.get('best_train_loss'):
