@@ -96,7 +96,7 @@ def train(data_file, labels_file, model, weights_file, results_path,
 
     # Build and print the model
     print('\n[model] building model...')
-    input_cases, input_channels, input_height, input_width = data.shape
+    input_cases, input_height, input_width, input_channels = data.shape
     output_layer = model.build_model(
         kwargs.get('batch_size'), input_width, input_height,
         input_channels, kwargs.get('output_dims'))
