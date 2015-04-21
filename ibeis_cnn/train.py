@@ -291,15 +291,42 @@ def train_pz():
         >>> result = train_pz()
         >>> print(result)
     """
+    project_name            = 'plains'
+    model                   = models.PZ_Model()
+    config                  = {
+        'patience':   15,
+        'max_epochs': 100,
+        'test_time_augmentation': True,
+        'regularization': 0.01,
+    }
+    root                    = abspath(join('..', 'data'))
+    train_data_file         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
+    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+
+    train(train_data_file, train_labels_file, model, weights_file, **config)
+    #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
+
+
+def train_pz_girm():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz_girm
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> result = train_pz_girm()
+        >>> print(result)
+    """
     project_name            = 'viewpoint'
     model                   = models.PZ_GIRM_Model()
-    # project_name            = 'plains'
-    # model                   = models.PZ_Model()
     config                  = {
         'patience':   15,
         'max_epochs': 300,
         'test_time_augmentation': True,
-        'regularization': 0.001,
+        'regularization': 0.01,
     }
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
