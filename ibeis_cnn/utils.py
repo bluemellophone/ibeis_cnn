@@ -286,6 +286,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
         yb = yb.astype(np.int32)
+        # Convert cv2 format to Lasagne format for batching
+        Xb = Xb.transpose((0, 3, 1, 2))
         yield Xb, yb
 
 

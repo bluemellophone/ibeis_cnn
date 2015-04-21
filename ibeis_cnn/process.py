@@ -88,7 +88,8 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
             label = label_dict[file_name]
             # X[index] = np.array(cv2.split(image))
             # y[index] = label
-            X.append(np.array(cv2.split(image)))
+            # X.append(np.array(cv2.split(image)))  # Lasange format
+            X.append(image)  # cv2 format
             y.append(label)
         except KeyError:
             print('Cannot find label...skipping')
@@ -125,7 +126,7 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
     print('  y.dtype = %r' % (y.dtype,))
 
     image = X[0]
-    image = cv2.merge(image)
+    # image = cv2.merge(image)  # Lasagne format conversion
     cv2.imshow('', image)
     cv2.waitKey(0)
 
@@ -136,8 +137,13 @@ if __name__ == '__main__':
     process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
 
+    project_name = 'viewpoint'
+    size = (64, 64)
+    process_image_directory(project_name, size)
+    numpy_processed_directory(project_name)
+
     # project_name = 'plains'
-    # size = (96, 96)
+    # size = (64, 64)
     # process_image_directory(project_name, size)
     # numpy_processed_directory(project_name)
     # view_numpy_data(project_name)
