@@ -562,7 +562,7 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_features(output_layer, results_path, color=False, target=None):
+def show_convolutional_features(output_layer, results_path, color=False, limit=150, target=None):
     nn_layers = layers.get_all_layers(output_layer)
     cnn_layers = []
     for layer in nn_layers:
@@ -581,23 +581,42 @@ def show_convolutional_features(output_layer, results_path, color=False, target=
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
         all_weights = layer.W.get_value()
-        print(all_weights.shape)
+        # Get shape of weights
+        num, channels, height, width = all_weights.shape
+        # non-color features need to be flattened
+        if not color:
+            all_weights = all_weights.reshape(num * channels, height, width)
+            num, height, width = all_weights.shape
+            channels = 1
+        # Limit all_weights
+        if limit is not None and len(num) > limit:
+            all_weights = all_weights[:limit]
+            num, channels, height, width = all_weights.shape
+        # Find how many features and build grid
+        dim = int(np.round(np.sqrt(num)))
+        grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+
+        print(num, channels, height, width)
+        # Build grid
         if color:
-            all_weights = all_weights.transpose((0, 2, 3, 1))
+            for index, feature in enumerate(all_weights):
+                for c in range(len(feature)):
+                    channel = feature[c]
+                    cmax, cmin = np.max(channel), np.min(channel)
+                    channel = (channel - cmin) * (255. / (cmax - cmin))
+                    feature[c] = channel
+                print(feature.shape)
+                feature = cv2.merge(feature)
+                print(feature.shape)
+                grid[index].imshow(feature, interpolation='nearest')
         else:
-            all_weights = all_weights.reshape(all_weights.shape[0] * all_weights.shape[1], all_weights.shape[2], all_weights.shape[3])
-        print(all_weights.shape)
-        dim = int(np.round(np.sqrt(len(all_weights))))
-        grid = ImageGrid(fig, 111,
-                         nrows_ncols=(dim, dim))
-        # get all the weights and scale them to dimensions that can be shown
-        for j, filter_ in enumerate(all_weights):
-            fmax, fmin = np.max(filter_), np.min(filter_)
-            filter_ = (filter_ - fmin) * (255. / (fmax - fmin))
-            if color:
-                grid[j].imshow(filter_, interpolation='nearest')
-            else:
-                grid[j].imshow(filter_, cmap=cm.Greys_r, interpolation='nearest')
+            # get all the weights and scale them to dimensions that can be shown
+            for index, feature in enumerate(all_weights):
+                fmax, fmin = np.max(feature), np.min(feature)
+                domain = fmax - fmin
+                feature = (feature - fmin) * (255. / domain)
+                grid[index].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+
         for j in range(dim * dim):
             grid[j].get_xaxis().set_visible(False)
             grid[j].get_yaxis().set_visible(False)
