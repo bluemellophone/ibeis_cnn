@@ -285,9 +285,9 @@ def train_pz():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
-    results_path            = join(root, 'results')
-    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    results_path            = join(root, 'results', project_name)
+    weights_file            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', project_name, 'pretrained_weights.pickle')  # NOQA
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
@@ -315,9 +315,9 @@ def train_pz_girm():
     root                    = abspath(join('..', 'data'))
     train_data_file         = join(root, 'numpy', project_name, 'X.npy')
     train_labels_file       = join(root, 'numpy', project_name, 'y.npy')
-    results_path            = join(root, 'results')
-    weights_file            = join(root, 'nets', 'ibeis_cnn_weights.pickle')
-    pretrained_weights_file = join(root, 'nets', 'pretrained_weights.pickle')  # NOQA
+    results_path            = join(root, 'results', project_name)
+    weights_file            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_file = join(root, 'nets', project_name, 'pretrained_weights.pickle')  # NOQA
 
     train(train_data_file, train_labels_file, model, weights_file, results_path, **config)
     #train(train_data_file, train_labels_file, weights_file, pretrained_weights_file)
