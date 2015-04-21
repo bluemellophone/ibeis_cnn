@@ -589,7 +589,7 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
             num, height, width = all_weights.shape
             channels = 1
         # Limit all_weights
-        if limit is not None and len(num) > limit:
+        if limit is not None and num > limit:
             all_weights = all_weights[:limit]
             num, channels, height, width = all_weights.shape
         # Find how many features and build grid
