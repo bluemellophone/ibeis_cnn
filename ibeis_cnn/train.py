@@ -31,25 +31,6 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
         weights_file (?):
         pretrained_weights_file (None):
         pretrained_kwargs (bool):
-
-    CommandLine:
-        python -m ibeis_cnn.train --test-train
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> # build test data
-        >>> data_file = '?'
-        >>> labels_file = '?'
-        >>> model = '?'
-        >>> weights_file = '?'
-        >>> pretrained_weights_file = None
-        >>> pretrained_kwargs = False
-        >>> kwargs = {}
-        >>> # execute function
-        >>> result = train(data_file, labels_file, model, weights_file, pretrained_weights_file, pretrained_kwargs)
-        >>> # verify results
-        >>> print(result)
     """
 
     ######################################################################################
@@ -162,7 +143,7 @@ def train(data_file, labels_file, model, weights_file, pretrained_weights_file=N
 
                 # compute the loss over all training and validation batches
                 augment_fn = getattr(model, 'augment', None)
-                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=False,
+                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
                                                      augment=augment_fn, **kwargs)
                 if kwargs.get('test_time_augmentation', False):
                     avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,

@@ -19,6 +19,7 @@ import cPickle as pickle
 import matplotlib.pyplot as plt
 from os.path import join
 import utool as ut
+import six
 #from six.moves import range, zip
 
 
@@ -140,7 +141,7 @@ def train_test_split(X, y, eval_size):
     # take the data and label arrays, split them preserving the class distributions
     kf = StratifiedKFold(y, round(1. / eval_size))
 
-    train_indices, valid_indices = next(iter(kf))
+    train_indices, valid_indices = six.next(iter(kf))
     X_train, y_train = X[train_indices], y[train_indices]
     X_valid, y_valid = X[valid_indices], y[valid_indices]
 
@@ -217,6 +218,37 @@ def float32(k):
 
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
                    center_mean=None, center_std=None, **kwargs):
+    r"""
+    Args:
+        X (?):
+        y (?):
+        batch_size (?):
+        encoder (None):
+        rand (bool):
+        augment (None):
+        center_mean (None):
+        center_std (None):
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-batch_iterator
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> # build test data
+        >>> X = np.random.rand(64, 3, 5, 4)
+        >>> y = (np.random.rand(64) * 4).astype(np.int32)
+        >>> batch_size = 16
+        >>> encoder = None
+        >>> rand = True
+        >>> augment = None
+        >>> center_mean = None
+        >>> center_std = None
+        >>> # execute function
+        >>> result = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
+        >>> # verify results
+        >>> print(result)
+    """
     # divides X and y into batches of size bs for sending to the GPU
     # Randomly shuffle data
     if rand:
