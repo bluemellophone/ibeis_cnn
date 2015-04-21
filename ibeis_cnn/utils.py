@@ -561,22 +561,28 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_features(output_layer, results_path, target=None):
+def show_convolutional_features(output_layer, results_path, color=False, target=None):
     nn_layers = layers.get_all_layers(output_layer)
-    for index, layer in enumerate(nn_layers):
+    cnn_layers = []
+    for layer in nn_layers:
         layer_type = str(type(layer))
+        # Only print convolutional layers
         if 'Conv2DCCLayer' not in layer_type:
             continue
-        # if target is not None and target != index:
-        #     continue
+        cnn_layers.append(layer)
+
+    for index, layer in enumerate(cnn_layers):
+        if target is not None and target != index:
+            continue
         # re-use the same figure to save memory
         fig = plt.figure(1)
         ax1 = plt.axes(frameon=False)
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
         all_weights = layer.W.get_value()
-
+        print(all_weights.shape)
         all_weights = all_weights.reshape(all_weights.shape[0] * all_weights.shape[1], all_weights.shape[2], all_weights.shape[3])
+        print(all_weights.shape)
         dim = int(np.round(np.sqrt(len(all_weights))))
         grid = ImageGrid(fig, 111,
                          nrows_ncols=(dim, dim))
