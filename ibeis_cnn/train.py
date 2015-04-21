@@ -176,12 +176,11 @@ def train(data_file, labels_file, model, weights_file, results_path,
                 if best_found or request_test:
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
                                                            results_path, **kwargs)
+                    # Output the layer 1 features
+                    if kwargs.get('show_features'):
+                        utils.show_convolutional_features(output_layer, results_path, color=True, target=0)
                 else:
                     avg_test_accuracy = None
-
-                # Output the layer 1 features
-                if kwargs.get('show_features'):
-                    utils.show_convolutional_features(output_layer, results_path, color=True, target=0)
 
                 # Running tab for what the best model
                 if avg_train_loss < kwargs.get('best_train_loss'):
