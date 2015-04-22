@@ -553,7 +553,6 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
         assert 0 in values, 'Mapped categories must have a 0 index'
         temp = list(category_mapping.iteritems())
         temp = sorted(temp, key=itemgetter(1))
-        print(temp)
         category_list_ = [ t[0] for t in temp ]
 
     confidences = np.zeros((size, size))
