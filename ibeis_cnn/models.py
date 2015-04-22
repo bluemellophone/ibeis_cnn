@@ -256,7 +256,8 @@ class PZ_GIRM_Model(object):
             l_noise,
             num_filters=32,
             filter_size=(5, 5),
-            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
 
@@ -272,7 +273,8 @@ class PZ_GIRM_Model(object):
             l_conv2_dropout,
             num_filters=64,
             filter_size=(3, 3),
-            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
 
@@ -288,7 +290,8 @@ class PZ_GIRM_Model(object):
             l_conv3_dropout,
             num_filters=128,
             filter_size=(3, 3),
-            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
 
@@ -301,7 +304,8 @@ class PZ_GIRM_Model(object):
         l_hidden1 = layers.DenseLayer(
             l_pool3,
             num_units=512,
-            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
 
@@ -315,7 +319,8 @@ class PZ_GIRM_Model(object):
         l_hidden2 = layers.DenseLayer(
             l_hidden1_dropout,
             num_units=512,
-            nonlinearity=nonlinearities.rectify,
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
 
