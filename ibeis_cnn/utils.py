@@ -19,7 +19,7 @@ import cPickle as pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 import matplotlib.cm as cm
-from os.path import join
+from os.path import join, exists
 import utool as ut
 import six
 #from six.moves import range, zip
@@ -404,7 +404,7 @@ def forward_test(X_test, y_test, test_iter, results_path, show=False, confusion=
         encoder = kwargs.get('encoder', None)
         if encoder is not None:
             labels = encoder.inverse_transform(labels)
-        show_confusion_matrix(all_correct, all_predict, labels, results_path)
+        show_confusion_matrix(all_correct, all_predict, labels, results_path, X_test)
     return avg_test_accuracy
 
 
@@ -517,13 +517,13 @@ def set_learning_rate(learning_rate_theano, update):
     print_header_columns()
 
 
-def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
+def show_confusion_matrix(correct_y, predict_y, category_list, results_path, data_x=None):
     """
-    Given the correct and expert labels, show the confusion matrix
+    Given the correct and predict labels, show the confusion matrix
 
     Args:
         correct_y (list of int): the list of correct labels
-        expert_y (list of int): the list of expert assigned labels
+        predict_y (list of int): the list of predict assigned labels
         category_list (list of str): the category list of all categories
 
     Displays:
@@ -532,10 +532,22 @@ def show_confusion_matrix(correct_y, expert_y, category_list, results_path):
     Returns:
         None
     """
+    confused_examples = join(results_path, 'confused')
+    if data_x is not None:
+        if exists(confused_examples):
+            ut.remove_dirs(confused_examples)
+        ut.ensuredirs(confused_examples)
     size = len(category_list)
     confidences = np.zeros((size, size))
-    for correct, expert, in zip(correct_y, expert_y):
-        confidences[correct][expert] += 1
+    for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
+        confidences[correct][predict] += 1
+        if data_x is not None and correct != predict:
+            example = data_x[index]
+            example_correct_label = category_list[int(correct)]
+            example_predict_label = category_list[int(predict)]
+            example_name = '%s^SEEN_INCORRECTLY_AS^%s.png' % (example_correct_label, example_predict_label, )
+            example_path = join(confused_examples, example_name)
+            cv2.imwrite(example, example_path)
 
     row_sums = np.sum(confidences, axis=1)
     norm_conf = (confidences.T / row_sums).T
