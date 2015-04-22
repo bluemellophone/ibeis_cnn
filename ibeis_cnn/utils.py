@@ -539,13 +539,19 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path, dat
         ut.ensuredir(confused_examples)
     size = len(category_list)
     confidences = np.zeros((size, size))
+    counters = {}
     for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
         confidences[correct][predict] += 1
         if data_x is not None and correct != predict:
             example = data_x[index]
             example_correct_label = category_list[int(correct)]
             example_predict_label = category_list[int(predict)]
-            example_name = '%s^SEEN_INCORRECTLY_AS^%s.png' % (example_correct_label, example_predict_label, )
+            example_name = '%s^SEEN_INCORRECTLY_AS^%s' % (example_correct_label, example_predict_label, )
+            if example_name not in counters.keys():
+                counters[example_name] = 0
+            counter = counters[example_name]
+            counters[example_name] += 1
+            example_name = '%s^%d.png' % (example_name, counter)
             example_path = join(confused_examples, example_name)
             cv2.imwrite(example_path, example)
 
