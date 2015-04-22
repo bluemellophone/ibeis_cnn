@@ -172,10 +172,12 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                     kwargs['best_weights'] = layers.get_all_param_values(output_layer)
 
                 # compute the loss over all testing batches
+
+                mapping_fn = getattr(model, 'label_order_mapping', None)
                 request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 if best_found or request_test:
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
-                                                           results_dpath, **kwargs)
+                                                           results_dpath, mapping_fn, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
                         utils.show_convolutional_features(output_layer, results_dpath, color=True, target=0)

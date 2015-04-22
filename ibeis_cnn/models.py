@@ -236,6 +236,10 @@ class PZ_GIRM_Model(object):
                 yb[index] = _invert_label(yb[index])
         return Xb, yb
 
+    # def label_order_mapping(self, category_list):
+    #     category_mapping = { key: index for index, key in enumerate(category_list) }
+    #     return category_mapping
+
     def learning_rate_update(self, x):
         return x / 10.0
 

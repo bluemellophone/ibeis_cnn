@@ -17,6 +17,7 @@ from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
+from operator import itemgetter
 from mpl_toolkits.axes_grid1 import ImageGrid
 import matplotlib.cm as cm
 from os.path import join, exists
@@ -381,7 +382,7 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     return avg_valid_loss, avg_valid_accuracy
 
 
-def forward_test(X_test, y_test, test_iter, results_path, show=False, confusion=True, **kwargs):
+def forward_test(X_test, y_test, test_iter, results_path, mapping_fn=None, show=False, confusion=True, **kwargs):
     """ compute the loss over all test batches """
     all_correct = []
     all_predict = []
@@ -404,7 +405,7 @@ def forward_test(X_test, y_test, test_iter, results_path, show=False, confusion=
         encoder = kwargs.get('encoder', None)
         if encoder is not None:
             labels = encoder.inverse_transform(labels)
-        show_confusion_matrix(all_correct, all_predict, labels, results_path, X_test)
+        show_confusion_matrix(all_correct, all_predict, labels, results_path, mapping_fn, X_test)
     return avg_test_accuracy
 
 
@@ -517,7 +518,8 @@ def set_learning_rate(learning_rate_theano, update):
     print_header_columns()
 
 
-def show_confusion_matrix(correct_y, predict_y, category_list, results_path, data_x=None):
+def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
+                          mapping_fn=None, data_x=None):
     """
     Given the correct and predict labels, show the confusion matrix
 
@@ -538,14 +540,33 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path, dat
             ut.remove_dirs(confused_examples, quiet=True)
         ut.ensuredir(confused_examples)
     size = len(category_list)
+
+    if mapping_fn is None:
+        # Identity
+        category_mapping = { key: index for index, key in enumerate(category_list) }
+        category_list_ = category_list
+    else:
+        category_mapping = mapping_fn(category_list)
+        temp = list(category_list.iteritems())
+        temp = sorted(temp, key=itemgetter(1))
+        category_list_ = [ t[1] for t in temp ]
+
     confidences = np.zeros((size, size))
     counters = {}
     for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
-        confidences[correct][predict] += 1
-        if data_x is not None and correct != predict:
+        # Ensure type
+        correct = int(correct)
+        predict = int(predict)
+        # Get the "text" label
+        example_correct_label = category_list[correct]
+        example_predict_label = category_list[predict]
+        # Perform any mapping that needs to be done
+        correct_ = category_mapping[example_correct_label]
+        predict_ = category_mapping[example_predict_label]
+        # Add to the confidence matrix
+        confidences[correct_][predict_] += 1
+        if data_x is not None and correct_ != predict_:
             example = data_x[index]
-            example_correct_label = category_list[int(correct)]
-            example_predict_label = category_list[int(predict)]
             example_name = '%s^SEEN_INCORRECTLY_AS^%s' % (example_correct_label, example_predict_label, )
             if example_name not in counters.keys():
                 counters[example_name] = 0
@@ -572,8 +593,8 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path, dat
                         verticalalignment='center')
 
     cb = fig.colorbar(res)  # NOQA
-    plt.xticks(np.arange(size), category_list[0:size], rotation=90)
-    plt.yticks(np.arange(size), category_list[0:size])
+    plt.xticks(np.arange(size), category_list_[0:size], rotation=90)
+    plt.yticks(np.arange(size), category_list_[0:size])
     margin_small = 0.1
     margin_large = 0.9
     plt.subplots_adjust(left=margin_small, right=margin_large, bottom=margin_small, top=margin_large)
