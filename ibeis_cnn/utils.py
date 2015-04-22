@@ -547,6 +547,10 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
         category_list_ = category_list
     else:
         category_mapping = mapping_fn(category_list)
+        assert all([ category in category_mapping.keys() for category in category_list ])
+        values = list(category_mapping.values())
+        assert list(set(values)) == values
+        assert 0 in values
         temp = list(category_list.iteritems())
         temp = sorted(temp, key=itemgetter(1))
         category_list_ = [ t[1] for t in temp ]

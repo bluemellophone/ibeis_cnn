@@ -365,6 +365,19 @@ class PZ_GIRM_LARGE_Model(object):
                 yb[index] = _invert_label(yb[index])
         return Xb, yb
 
+    def label_order_mapping(self, category_list):
+        category_mapping = {
+            'ZEBRA_PLAINS:LEFT':        0,
+            'ZEBRA_PLAINS:FRONT_LEFT':  1,
+            'ZEBRA_PLAINS:FRONT':       2,
+            'ZEBRA_PLAINS:FRONT_RIGHT': 3,
+            'ZEBRA_PLAINS:RIGHT':       4,
+            'ZEBRA_PLAINS:BACK_RIGHT':  5,
+            'ZEBRA_PLAINS:BACK':        6,
+            'ZEBRA_PLAINS:BACK_LEFT':   7,
+        }
+        return category_mapping
+
     def learning_rate_update(self, x):
         return x / 10.0
 
