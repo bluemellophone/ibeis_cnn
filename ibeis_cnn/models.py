@@ -389,16 +389,30 @@ class PZ_GIRM_LARGE_Model(object):
         return Xb, yb
 
     def label_order_mapping(self, category_list):
-        category_mapping = {
-            'ZEBRA_PLAINS:LEFT':        0,
-            'ZEBRA_PLAINS:FRONT_LEFT':  1,
-            'ZEBRA_PLAINS:FRONT':       2,
-            'ZEBRA_PLAINS:FRONT_RIGHT': 3,
-            'ZEBRA_PLAINS:RIGHT':       4,
-            'ZEBRA_PLAINS:BACK_RIGHT':  5,
-            'ZEBRA_PLAINS:BACK':        6,
-            'ZEBRA_PLAINS:BACK_LEFT':   7,
+        species_list = [
+            'ZEBRA_PLAINS',
+            'ZEBRA_GREVYS',
+            'ELEPHANT_SAVANNA',
+            'GIRAFFE_RETICULATED:',
+            'GIRAFFE_MASAI',
+        ]
+        viewpoint_mapping = {
+            'LEFT':        0,
+            'FRONT_LEFT':  1,
+            'FRONT':       2,
+            'FRONT_RIGHT': 3,
+            'RIGHT':       4,
+            'BACK_RIGHT':  5,
+            'BACK':        6,
+            'BACK_LEFT':   7,
         }
+        viewpoints = len(viewpoint_mapping.keys())
+        category_mapping = {}
+        for index, species in enumerate(species_list):
+            for viewpoint, value in viewpoint_mapping.iteritems():
+                key = '%s:%s' % (species, viewpoint, )
+                base = viewpoints * index
+                category_mapping[key] = base + value
         return category_mapping
 
     def learning_rate_update(self, x):
