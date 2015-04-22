@@ -358,7 +358,7 @@ def train_pz_girm_large():
         'max_epochs': 500,
         'regularization': 0.0001,
         'test_time_augmentation': True,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
+        # 'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
