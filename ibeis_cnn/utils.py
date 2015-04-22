@@ -547,7 +547,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path, dat
             example_predict_label = category_list[int(predict)]
             example_name = '%s^SEEN_INCORRECTLY_AS^%s.png' % (example_correct_label, example_predict_label, )
             example_path = join(confused_examples, example_name)
-            cv2.imwrite(example, example_path)
+            cv2.imwrite(example_path, example)
 
     row_sums = np.sum(confidences, axis=1)
     norm_conf = (confidences.T / row_sums).T
