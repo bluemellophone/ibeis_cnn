@@ -132,17 +132,23 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
 
 
 if __name__ == '__main__':
-    project_name = 'viewpoint_large'
-    size = (96, 96)
-    process_image_directory(project_name, size)
-    numpy_processed_directory(project_name)
+    # project_name = 'viewpoint_large'
+    # size = (96, 96)
+    # process_image_directory(project_name, size)
+    # numpy_processed_directory(project_name)
 
-    project_name = 'viewpoint'
-    size = (64, 64)
-    process_image_directory(project_name, size)
-    numpy_processed_directory(project_name)
+    # project_name = 'viewpoint'
+    # size = (64, 64)
+    # process_image_directory(project_name, size)
+    # numpy_processed_directory(project_name)
 
-    project_name = 'plains'
+    # project_name = 'plains'
+    # # size = (64, 64)
+    # # process_image_directory(project_name, size)
+    # numpy_processed_directory(project_name)
+    # # view_numpy_data(project_name)
+
+    project_name = 'plains_large'
     # size = (64, 64)
     # process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
