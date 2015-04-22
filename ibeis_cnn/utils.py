@@ -536,7 +536,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path, dat
     if data_x is not None:
         if exists(confused_examples):
             ut.remove_dirs(confused_examples)
-        ut.ensuredirs(confused_examples)
+        ut.ensuredir(confused_examples)
     size = len(category_list)
     confidences = np.zeros((size, size))
     for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
