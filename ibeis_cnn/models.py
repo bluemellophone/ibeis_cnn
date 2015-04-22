@@ -236,9 +236,32 @@ class PZ_GIRM_Model(object):
                 yb[index] = _invert_label(yb[index])
         return Xb, yb
 
-    # def label_order_mapping(self, category_list):
-    #     category_mapping = { key: index for index, key in enumerate(category_list) }
-    #     return category_mapping
+    def label_order_mapping(self, category_list):
+        species_list = [
+            'ZEBRA_PLAINS',
+            'ZEBRA_GREVYS',
+            'ELEPHANT_SAVANNA',
+            'GIRAFFE_RETICULATED',
+            'GIRAFFE_MASAI',
+        ]
+        viewpoint_mapping = {
+            'LEFT':        0,
+            'FRONT_LEFT':  1,
+            'FRONT':       2,
+            'FRONT_RIGHT': 3,
+            'RIGHT':       4,
+            'BACK_RIGHT':  5,
+            'BACK':        6,
+            'BACK_LEFT':   7,
+        }
+        viewpoints = len(viewpoint_mapping.keys())
+        category_mapping = {}
+        for index, species in enumerate(species_list):
+            for viewpoint, value in viewpoint_mapping.iteritems():
+                key = '%s:%s' % (species, viewpoint, )
+                base = viewpoints * index
+                category_mapping[key] = base + value
+        return category_mapping
 
     def learning_rate_update(self, x):
         return x / 10.0
