@@ -241,7 +241,7 @@ class PZ_GIRM_Model(object):
             'ZEBRA_PLAINS',
             'ZEBRA_GREVYS',
             'ELEPHANT_SAVANNA',
-            'GIRAFFE_RETICULATED',
+            'GIRAFFE_RETICULATED:',
             'GIRAFFE_MASAI',
         ]
         viewpoint_mapping = {
