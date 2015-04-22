@@ -524,7 +524,8 @@ class PZ_Model(object):
             num_filters=64,
             filter_size=(5, 5),
             nonlinearity=nonlinearities.rectify,
-            # nonlinearity=nonlinearities.LeakyRectify,
+            # rectify is a function, LeakyRectify a class
+            # nonlinearity = nonlinearities.LeakyRectify(leakiness=(1. / 3.)),
             W=init.Orthogonal(),
         )
 
