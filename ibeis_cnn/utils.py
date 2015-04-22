@@ -549,7 +549,6 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
         category_mapping = mapping_fn(category_list)
         assert all([ category in category_mapping.keys() for category in category_list ]), 'Not all categories are mapped'
         values = list(category_mapping.values())
-        print(values)
         assert len(list(set(values))) == len(values), 'Mapped categories have a duplicate assignment'
         assert 0 in values, 'Mapped categories must have a 0 index'
         temp = list(category_mapping.iteritems())
