@@ -15,7 +15,7 @@ import six  # NOQA
 from os.path import join, abspath
 
 
-def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
+def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **kwargs):
     """
     Driver function
 
@@ -31,7 +31,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
     # Load the data
     print('\n[data] loading data...')
     print('data_fpath = %r' % (data_fpath,))
-    X_test, _ = utils.load(data_fpath, None)
+    X_test, y_test = utils.load(data_fpath, labels_fpath)
 
     # Load the pretrained model if specified
     print('[model] loading pretrained weights from %s' % (weights_fpath))
@@ -52,7 +52,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
-    test_iter = utils.create_testing_func(output_layer, **kwargs)
+    test_iter, test_iter_accuracy = utils.create_testing_func(output_layer, **kwargs)
 
     # Set weights to model
     layers.set_all_param_values(output_layer, pretrained_weights)
@@ -64,8 +64,12 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
     t0 = time.time()
 
     all_predict, labels = utils.forward_test_predictions(X_test, test_iter, results_dpath, **kwargs)
-    print(all_predict)
-    print(labels)
+
+    if y_test is not None:
+        mapping_fn = getattr(model, 'label_order_mapping', None)
+        avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter_accuracy,
+                                               results_dpath, mapping_fn, **kwargs)
+        print('Test accuracy: %0.2f' % (avg_test_accuracy, ))
 
     # End timer
     t1 = time.time()
@@ -86,12 +90,13 @@ def test_pz():
     model                   = models.PZ_GIRM_Model()
 
     root                    = abspath(join('..', 'data'))
-    test_data_fpath        = join(root, 'numpy', project_name, 'X.npy')
+    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
     weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
     config = {}
 
-    test(test_data_fpath, model, weights_fpath, results_dpath, **config)
+    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
 
 def test_pz_large():
@@ -108,12 +113,13 @@ def test_pz_large():
     model                   = models.PZ_GIRM_LARGE_Model()
 
     root                    = abspath(join('..', 'data'))
-    test_data_fpath        = join(root, 'numpy', project_name, 'X.npy')
+    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
     weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
     config = {}
 
-    test(test_data_fpath, model, weights_fpath, results_dpath, **config)
+    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
 
 def test_pz_girm():
@@ -130,12 +136,13 @@ def test_pz_girm():
     model                   = models.PZ_GIRM_Model()
 
     root                    = abspath(join('..', 'data'))
-    test_data_fpath        = join(root, 'numpy', project_name, 'X.npy')
+    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
     weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
     config = {}
 
-    test(test_data_fpath, model, weights_fpath, results_dpath, **config)
+    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
 
 def test_pz_girm_large():
@@ -152,12 +159,13 @@ def test_pz_girm_large():
     model                   = models.PZ_GIRM_LARGE_Model()
 
     root                    = abspath(join('..', 'data'))
-    test_data_fpath        = join(root, 'numpy', project_name, 'X.npy')
+    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
     weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
     config = {}
 
-    test(test_data_fpath, model, weights_fpath, results_dpath, **config)
+    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
 
 if __name__ == '__main__':

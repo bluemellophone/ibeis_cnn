@@ -356,7 +356,7 @@ def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
     return train_iter, valid_iter, test_iter
 
 
-def create_testing_func(output_layer, input_type=T.tensor4, **kwargs):
+def create_testing_func(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
     """
     build the Theano functions that will be used in the optimization
     refer to this link for info on tensor types:
@@ -365,11 +365,24 @@ def create_testing_func(output_layer, input_type=T.tensor4, **kwargs):
         http://deeplearning.net/software/theano/library/tensor/basic.html
     """
     X = input_type('x')
+    y = output_type('y')
     X_batch = input_type('x_batch')
+    y_batch = output_type('y_batch')
 
     # we are minimizing the multi-class negative log-likelihood
     predict_proba = output_layer.get_output(X_batch, deterministic=True)
     pred = T.argmax(predict_proba, axis=1)
+
+    accuracy = T.mean(T.eq(pred, y_batch))
+
+    test_iter_accuracy = theano.function(
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[predict_proba, pred, accuracy],
+        givens={
+            X: X_batch,
+            y: y_batch,
+        },
+    )
 
     test_iter = theano.function(
         inputs=[theano.Param(X_batch)],
@@ -379,7 +392,7 @@ def create_testing_func(output_layer, input_type=T.tensor4, **kwargs):
         },
     )
 
-    return test_iter
+    return test_iter, test_iter_accuracy
 
 
 def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwargs):
