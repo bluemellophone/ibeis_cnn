@@ -266,10 +266,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     for i in range((N + batch_size - 1) // batch_size):
         sl = slice(i * batch_size, (i + 1) * batch_size)
         Xb = X[sl]
-        if y is not None:
-            yb = y[sl]
-        else:
-            yb = None
+        yb = None if y is None else y[sl]
         # Get corret dtype for X
         Xb = Xb.astype(np.float32)
         # Whiten)
@@ -280,13 +277,13 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         # Augment
         if augment is not None:
             Xb_ = np.copy(Xb)
-            yb_ = np.copy(yb)
+            yb_ = None if yb is None else np.copy(yb)
             Xb, yb = augment(Xb_, yb_)
         # Encode
-        if encoder is not None:
+        if encoder is not None and yb is not None:
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
-        yb = yb.astype(np.int32)
+        yb = None if yb is None else yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         Xb = Xb.transpose((0, 3, 1, 2))
         yield Xb, yb
@@ -296,9 +293,9 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
-                      input_type=T.tensor4, output_type=T.ivector,
-                      regularization=None, **kwargs):
+def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
+                          input_type=T.tensor4, output_type=T.ivector,
+                          regularization=None, **kwargs):
     """
     build the Theano functions that will be used in the optimization
     refer to this link for info on tensor types:
@@ -359,6 +356,32 @@ def create_iter_funcs(learning_rate_theano, output_layer, momentum=0.9,
     return train_iter, valid_iter, test_iter
 
 
+def create_testing_func(output_layer, input_type=T.tensor4, **kwargs):
+    """
+    build the Theano functions that will be used in the optimization
+    refer to this link for info on tensor types:
+
+    References:
+        http://deeplearning.net/software/theano/library/tensor/basic.html
+    """
+    X = input_type('x')
+    X_batch = input_type('x_batch')
+
+    # we are minimizing the multi-class negative log-likelihood
+    predict_proba = output_layer.get_output(X_batch, deterministic=True)
+    pred = T.argmax(predict_proba, axis=1)
+
+    test_iter = theano.function(
+        inputs=[theano.Param(X_batch)],
+        outputs=[predict_proba, pred],
+        givens={
+            X: X_batch,
+        },
+    )
+
+    return test_iter
+
+
 def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwargs):
     """ compute the loss over all training batches """
     train_losses = []
@@ -407,6 +430,18 @@ def forward_test(X_test, y_test, test_iter, results_path, mapping_fn=None, show=
             labels = encoder.inverse_transform(labels)
         show_confusion_matrix(all_correct, all_predict, labels, results_path, mapping_fn, X_test)
     return avg_test_accuracy
+
+
+def forward_test_predictions(X_test, test_iter, results_path, **kwargs):
+    """ compute the loss over all test batches """
+    all_predict = []
+    for Xb, _ in batch_iterator(X_test, None, **kwargs):
+        batch_predict_proba, batch_pred = test_iter(Xb)
+        all_predict.append(batch_pred)
+    all_predict = np.hstack(all_predict)
+    encoder = kwargs.get('encoder', None)
+    labels = encoder.inverse_transform(all_predict)
+    return all_predict, labels
 
 
 def add_channels(data):

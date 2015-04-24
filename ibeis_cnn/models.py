@@ -220,7 +220,7 @@ class PZ_GIRM_Model(object):
     def __init__(self):
         pass
 
-    def augment(self, Xb, yb):
+    def augment(self, Xb, yb=None):
         # Invert label function
         def _invert_label(label):
             label = label.replace('LEFT',  '^L^')
@@ -233,7 +233,8 @@ class PZ_GIRM_Model(object):
         for index in range(points):
             if random.uniform(0.0, 1.0) <= 0.5:
                 Xb[index] = Xb[index, :, ::-1]
-                yb[index] = _invert_label(yb[index])
+                if yb is not None:
+                    yb[index] = _invert_label(yb[index])
         return Xb, yb
 
     def label_order_mapping(self, category_list):
@@ -377,7 +378,7 @@ class PZ_GIRM_LARGE_Model(object):
     def __init__(self):
         pass
 
-    def augment(self, Xb, yb):
+    def augment(self, Xb, yb=None):
         # Invert label function
         def _invert_label(label):
             label = label.replace('LEFT',  '^L^')
@@ -390,7 +391,8 @@ class PZ_GIRM_LARGE_Model(object):
         for index in range(points):
             if random.uniform(0.0, 1.0) <= 0.5:
                 Xb[index] = Xb[index, :, ::-1]
-                yb[index] = _invert_label(yb[index])
+                if yb is not None:
+                    yb[index] = _invert_label(yb[index])
         return Xb, yb
 
     def label_order_mapping(self, category_list):
