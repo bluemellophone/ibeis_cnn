@@ -37,7 +37,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
     pretrained_weights = None
     with open(weights_fpath, 'rb') as pfile:
         kwargs = pickle.load(pfile)
-        pretrained_weights = kwargs.get('best_weights', None)
+        pretrained_weights = kwargs.pop('best_weights', None)
 
     print('test kwargs = \n' + (ut.dict_str(kwargs)))
 
