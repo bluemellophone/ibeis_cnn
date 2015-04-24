@@ -69,7 +69,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **k
         mapping_fn = getattr(model, 'label_order_mapping', None)
         avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter_accuracy,
                                                results_dpath, mapping_fn, **kwargs)
-        print('Test accuracy: %0.2f' % (avg_test_accuracy, ))
+        print('Test accuracy for %d examples: %0.2f' % (len(X_test), avg_test_accuracy, ))
 
     # End timer
     t1 = time.time()
