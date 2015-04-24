@@ -237,13 +237,18 @@ class PZ_GIRM_Model(object):
         return Xb, yb
 
     def label_order_mapping(self, category_list):
-        species_list = [
-            'ZEBRA_PLAINS',
-            'ZEBRA_GREVYS',
-            'ELEPHANT_SAVANNA',
-            'GIRAFFE_RETICULATED:',
-            'GIRAFFE_MASAI',
-        ]
+        if len(category_list) == 8:
+            species_list = [
+                'ZEBRA_PLAINS',
+            ]
+        else:
+            species_list = [
+                'ZEBRA_PLAINS',
+                'ZEBRA_GREVYS',
+                'ELEPHANT_SAVANNA',
+                'GIRAFFE_RETICULATED',
+                'GIRAFFE_MASAI',
+            ]
         viewpoint_mapping = {
             'LEFT':        0,
             'FRONT_LEFT':  1,
@@ -389,13 +394,18 @@ class PZ_GIRM_LARGE_Model(object):
         return Xb, yb
 
     def label_order_mapping(self, category_list):
-        species_list = [
-            'ZEBRA_PLAINS',
-            'ZEBRA_GREVYS',
-            'ELEPHANT_SAVANNA',
-            'GIRAFFE_RETICULATED:',
-            'GIRAFFE_MASAI',
-        ]
+        if len(category_list) == 8:
+            species_list = [
+                'ZEBRA_PLAINS',
+            ]
+        else:
+            species_list = [
+                'ZEBRA_PLAINS',
+                'ZEBRA_GREVYS',
+                'ELEPHANT_SAVANNA',
+                'GIRAFFE_RETICULATED',
+                'GIRAFFE_MASAI',
+            ]
         viewpoint_mapping = {
             'LEFT':        0,
             'FRONT_LEFT':  1,
