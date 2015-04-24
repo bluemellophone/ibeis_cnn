@@ -57,8 +57,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
     layers.set_all_param_values(output_layer, pretrained_weights)
 
     # Begin testing with the neural network
-    vals = (utils.get_current_time(), kwargs.get('batch_size'), )
-    print('\n[test] starting testing with batch size %0.1f' % vals)
+    print('\n[test] starting testing with batch size %0.1f' % (kwargs.get('batch_size'), ))
 
     all_predict, labels = utils.forward_test_predictions(X_test, test_iter, results_dpath, **kwargs)
     print(all_predict)
