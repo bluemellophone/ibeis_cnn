@@ -9,6 +9,7 @@ from ibeis_cnn import models
 import cPickle as pickle
 from lasagne import layers
 
+import time
 import utool as ut
 import six  # NOQA
 from os.path import join, abspath
@@ -59,9 +60,16 @@ def test(data_fpath, model, weights_fpath, results_dpath, **kwargs):
     # Begin testing with the neural network
     print('\n[test] starting testing with batch size %0.1f' % (kwargs.get('batch_size'), ))
 
+    # Start timer
+    t0 = time.time()
+
     all_predict, labels = utils.forward_test_predictions(X_test, test_iter, results_dpath, **kwargs)
     print(all_predict)
     print(labels)
+
+    # End timer
+    t1 = time.time()
+    print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
 
 
 def test_pz():
