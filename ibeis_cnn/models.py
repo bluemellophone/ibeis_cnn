@@ -36,8 +36,6 @@ def MaxPool2DLayer_(*args, **kwargs):
     # if not USING_GPU and 'strides' in kwargs:
     #     # cpu does not have stride kwarg. :(
     #     del kwargs['strides']
-    print(args)
-    print(kwargs)
     return MaxPool2DLayer(*args, **kwargs)
 
 
