@@ -357,7 +357,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             yb = None
         # Get corret dtype for X
         Xb = Xb.astype(np.float32)
-        # Whiten)
+        # Whiten
         if center_mean is not None:
             Xb -= center_mean
         if center_std is not None and center_std != 0.0:
