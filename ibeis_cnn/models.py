@@ -33,9 +33,11 @@ except ImportError as ex:
 
 def MaxPool2DLayer_(*args, **kwargs):
     """ wrapper for gpu / cpu compatibility """
-    if not USING_GPU and 'strides' in kwargs:
-        # cpu does not have stride kwarg. :(
-        del kwargs['strides']
+    # if not USING_GPU and 'strides' in kwargs:
+    #     # cpu does not have stride kwarg. :(
+    #     del kwargs['strides']
+    print(args)
+    print(kwargs)
     return MaxPool2DLayer(*args, **kwargs)
 
 
@@ -112,34 +114,34 @@ class IdentificationModel(object):
 
             # Convolve + Max Pool + Dropout 1
             _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), **rlu_orthog),
-            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2)),
+            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
             #_P(layers.DropoutLayer,  p=0.10),
 
             # Convolve + Max Pool + Dropout 2
             _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_orthog),
-            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(Conv2DLayer, num_filters=64, filter_size=(4, 4), **rlu_orthog),
-            #_P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            #_P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(layers.DropoutLayer,  p=0.30),
 
             # Convolve + Max Pool + Dropout 3
             _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_orthog),
-            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(layers.DropoutLayer,  p=0.30),
 
             # Convolve + Max Pool + Dropout 4
             _P(Conv2DLayer, num_filters=64, filter_size=(2, 2), **rlu_orthog),
-            _P(MaxPool2DLayer_, ds=(2, 2), strides=(2, 2),),
+            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             _P(layers.DropoutLayer,  p=0.30),
 
             # Dense Layer + Feature Pool + Dropout 1
             _P(layers.DenseLayer, num_units=1024, **rlu_orthog),
-            #_P(layers.FeaturePoolLayer, ds=2),
+            #_P(layers.FeaturePoolLayer, pool_size=2),
             #_P(layers.DropoutLayer, p=0.5),
 
             ## Dense Layer + Feature Pool + Dropout 2
             #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
-            #_P(layers.FeaturePoolLayer, ds=2,),
+            #_P(layers.FeaturePoolLayer, pool_size=2,),
             #_P(layers.DropoutLayer, p=0.5),
 
             # Softmax output
@@ -242,8 +244,8 @@ class PZ_GIRM_Model(object):
 
         l_pool1 = MaxPool2DLayer_(
             l_conv1,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.10)
@@ -259,8 +261,8 @@ class PZ_GIRM_Model(object):
 
         l_pool2 = MaxPool2DLayer_(
             l_conv2,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.30)
@@ -276,8 +278,8 @@ class PZ_GIRM_Model(object):
 
         l_pool3 = MaxPool2DLayer_(
             l_conv3,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_hidden1 = layers.DenseLayer(
@@ -290,7 +292,7 @@ class PZ_GIRM_Model(object):
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
             l_hidden1,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
@@ -305,7 +307,7 @@ class PZ_GIRM_Model(object):
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
             l_hidden2,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden2_dropout = layers.DropoutLayer(l_hidden2_maxout, p=0.5)
@@ -400,8 +402,8 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_pool1 = MaxPool2DLayer_(
             l_conv1,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.10)
@@ -417,8 +419,8 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_pool2 = MaxPool2DLayer_(
             l_conv2,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.30)
@@ -434,8 +436,8 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_pool3 = MaxPool2DLayer_(
             l_conv3,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv4_dropout = layers.DropoutLayer(l_pool3, p=0.30)
@@ -451,8 +453,8 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_pool4 = MaxPool2DLayer_(
             l_conv4,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_hidden1 = layers.DenseLayer(
@@ -465,7 +467,7 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
             l_hidden1,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
@@ -480,7 +482,7 @@ class PZ_GIRM_LARGE_Model(object):
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
             l_hidden2,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden2_dropout = layers.DropoutLayer(l_hidden2_maxout, p=0.5)
@@ -575,8 +577,8 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_pool1 = MaxPool2DLayer_(
             l_conv1,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv2_dropout = layers.DropoutLayer(l_pool1, p=0.10)
@@ -592,8 +594,8 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_pool2 = MaxPool2DLayer_(
             l_conv2,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv3_dropout = layers.DropoutLayer(l_pool2, p=0.30)
@@ -609,8 +611,8 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_pool3 = MaxPool2DLayer_(
             l_conv3,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_conv4_dropout = layers.DropoutLayer(l_pool3, p=0.30)
@@ -626,8 +628,8 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_pool4 = MaxPool2DLayer_(
             l_conv4,
-            ds=(2, 2),
-            strides=(2, 2),
+            pool_size=(2, 2),
+            stride=(2, 2),
         )
 
         l_hidden1 = layers.DenseLayer(
@@ -640,7 +642,7 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
             l_hidden1,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
@@ -655,7 +657,7 @@ class PZ_GIRM_LARGE_2_Model(object):
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
             l_hidden2,
-            ds=2,
+            pool_size=2,
         )
 
         l_hidden2_dropout = layers.DropoutLayer(l_hidden2_maxout, p=0.5)

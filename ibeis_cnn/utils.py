@@ -554,7 +554,7 @@ def forward_test(X_test, y_test, test_iter, results_path, mapping_fn=None, show=
             print('--------------')
             show = False
     avg_test_accuracy = np.mean(test_accuracies)
-    if confusion:
+    if confusion and results_path is not None:
         all_correct = np.hstack(all_correct)
         all_predict = np.hstack(all_predict)
         labels = list(range(kwargs.get('output_dims')))

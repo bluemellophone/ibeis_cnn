@@ -10,6 +10,8 @@ import utool
 print, print_, printDBG, rrr, profile = utool.inject(
     __name__, '[ibeis_cnn]')
 
+__version__ = '1.0.0.dev1'
+
 
 def reassign_submodule_attributes(verbose=True):
     """

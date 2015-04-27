@@ -15,7 +15,7 @@ import six  # NOQA
 from os.path import join, abspath
 
 
-def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **kwargs):
+def test(data_fpath, model, weights_fpath, results_dpath=None, labels_fpath=None, **kwargs):
     """
     Driver function
 
@@ -32,6 +32,22 @@ def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **k
     print('\n[data] loading data...')
     print('data_fpath = %r' % (data_fpath,))
     X_test, y_test = utils.load(data_fpath, labels_fpath)
+
+    test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
+
+
+def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs):
+    """
+    Driver function
+
+    Args:
+        data_fpath (?):
+        labels_fpath (?):
+        model (?):
+        weights_fpath (?):
+    """
+
+    ######################################################################################
 
     # Load the pretrained model if specified
     print('[model] loading pretrained weights from %s' % (weights_fpath))
@@ -74,6 +90,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **k
     # End timer
     t1 = time.time()
     print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
+    return all_predict, labels
 
 
 def display_caffe_model(weights_model_path, results_path, **kwargs):
