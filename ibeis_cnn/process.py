@@ -36,7 +36,8 @@ def process_image_directory(project_name, size, reset=True):
         cv2.imwrite(dest_path, image)
 
 
-def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
+def numpy_processed_directory(project_name, numpy_ids_file_name='ids.npy',
+                              numpy_x_file_name='X.npy',
                               numpy_y_file_name='y.npy', labels_file_name='labels.csv',
                               reset=True):
     # Raw folders
@@ -48,6 +49,7 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
     project_labels_path = join(labels_path, project_name)
     project_numpy_path = join(numpy_path, project_name)
     # Project files
+    project_numpy_ids_file_name = join(project_numpy_path, numpy_ids_file_name)
     project_numpy_x_file_name = join(project_numpy_path, numpy_x_file_name)
     project_numpy_y_file_name = join(project_numpy_path, numpy_y_file_name)
     project_numpy_labels_file_name = join(project_labels_path, labels_file_name)
@@ -76,6 +78,7 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
     # Create numpy arrays
     # X = np.empty(shape_x, dtype=np.uint8)
     # y = np.empty(shape_y, dtype=np.uint8)
+    ids = []
     X = []
     y = []
 
@@ -89,21 +92,26 @@ def numpy_processed_directory(project_name, numpy_x_file_name='X.npy',
             # X[index] = np.array(cv2.split(image))
             # y[index] = label
             # X.append(np.array(cv2.split(image)))  # Lasange format
+            ids.append(file_name)
             X.append(image)  # cv2 format
             y.append(label)
         except KeyError:
             print('Cannot find label...skipping')
             # raw_input()
 
+    ids = np.array(ids)
     X = np.array(X, dtype=np.uint8)
     # y = np.array(y, dtype=np.uint8)
     y = np.array(y)
 
     # Save numpy array
-    print('  X.shape = %r' % (X.shape,))
-    print('  X.dtype = %r' % (X.dtype,))
-    print('  y.shape = %r' % (y.shape,))
-    print('  y.dtype = %r' % (y.dtype,))
+    print('  ids.shape = %r' % (ids.shape,))
+    print('  ids.dtype = %r' % (ids.dtype,))
+    print('  X.shape   = %r' % (X.shape,))
+    print('  X.dtype   = %r' % (X.dtype,))
+    print('  y.shape   = %r' % (y.shape,))
+    print('  y.dtype   = %r' % (y.dtype,))
+    np.save(project_numpy_ids_file_name, ids)
     np.save(project_numpy_x_file_name, X)
     np.save(project_numpy_y_file_name, y)
 
@@ -132,24 +140,24 @@ def view_numpy_data(project_namel, numpy_x_file_name='X.npy', numpy_y_file_name=
 
 
 if __name__ == '__main__':
-    # project_name = 'viewpoint_large'
+    project_name = 'viewpoint_large'
     # size = (96, 96)
     # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
+    numpy_processed_directory(project_name)
 
-    # project_name = 'viewpoint'
+    project_name = 'viewpoint'
     # size = (64, 64)
     # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
+    numpy_processed_directory(project_name)
 
-    # project_name = 'plains'
-    # # size = (64, 64)
-    # # process_image_directory(project_name, size)
-    # numpy_processed_directory(project_name)
-    # # view_numpy_data(project_name)
+    project_name = 'plains'
+    # size = (64, 64)
+    # process_image_directory(project_name, size)
+    numpy_processed_directory(project_name)
 
     project_name = 'plains_large'
     # size = (64, 64)
     # process_image_directory(project_name, size)
     numpy_processed_directory(project_name)
+
     # view_numpy_data(project_name)

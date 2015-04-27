@@ -96,7 +96,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # Build and print the model
     print('\n[model] building model...')
-    input_cases, input_height, input_width, input_channels = data.shape
+    kwargs['model_shape'] = data.shape
+    input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
     output_layer = model.build_model(
         kwargs.get('batch_size'), input_width, input_height,
         input_channels, kwargs.get('output_dims'))
@@ -105,7 +106,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    all_iters = utils.create_iter_funcs(learning_rate_theano, output_layer, **kwargs)
+    all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, **kwargs)
     train_iter, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
@@ -377,7 +378,8 @@ def train_pz_girm_large():
         >>> train_pz_girm_large()
     """
     project_name            = 'viewpoint_large'
-    model                   = models.PZ_GIRM_LARGE_Model()
+    # model                   = models.PZ_GIRM_LARGE_Model()
+    model                   = models.PZ_GIRM_LARGE_2_Model()
 
     root                    = abspath(join('..', 'data'))
     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
