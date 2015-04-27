@@ -181,7 +181,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                                                            results_dpath, mapping_fn, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
-                        utils.show_convolutional_features(output_layer, results_dpath, color=True, target=0)
+                        nn_layers = layers.get_all_layers(output_layer)
+                        utils.show_convolutional_features(nn_layers, results_dpath, color=True, target=0)
                 else:
                     avg_test_accuracy = None
 

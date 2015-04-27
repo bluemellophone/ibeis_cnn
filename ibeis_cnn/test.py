@@ -97,7 +97,8 @@ def display_caffe_model(weights_model_path, results_dpath, **kwargs):
 
     print('test kwargs = \n' + (ut.dict_str(kwargs)))
     # print('compile_kwargs = \n' + (ut.dict_str(compile_kwargs)))
-    print(pretrained_weights.shape)
+    len(pretrained_weights)
+    utils.show_convolutional_features(pretrained_weights, results_dpath, color=True, target=0)
 
 
 def test_pz():
