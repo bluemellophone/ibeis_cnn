@@ -426,17 +426,12 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
     test_outputs.append(loss_eval)
 
     # fraction of labels the network gets correct
-    if False:
-        predict_proba = output_layer.get_output(X_batch, deterministic=True)
-        pred = T.argmax(predict_proba, axis=1)
-        accuracy = T.mean(T.eq(pred, y_batch))
-        test_outputs.append(pred)
-        test_outputs.append(accuracy)
-        valid_outputs.append(accuracy)
-    else:
-        pass
-    #else:
-    #    output_layer.get_output(X_batch, deterministic=True)
+    predict_proba = output_layer.get_output(X_batch, deterministic=True)
+    pred = T.argmax(predict_proba, axis=1)
+    accuracy = T.mean(T.eq(pred, y_batch))
+    valid_outputs.append(accuracy)
+    test_outputs.append(pred)
+    test_outputs.append(accuracy)
 
     all_params = layers.get_all_params(output_layer)
     # define how to update network parameters based on the training loss
