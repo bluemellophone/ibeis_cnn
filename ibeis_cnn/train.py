@@ -379,8 +379,8 @@ def train_pz_girm_large():
         >>> train_pz_girm_large()
     """
     project_name            = 'viewpoint_large'
-    # model                   = models.PZ_GIRM_LARGE_Model()
-    model                   = models.PZ_GIRM_LARGE_2_Model()
+    model                   = models.PZ_GIRM_LARGE_Model()
+    # model                   = models.PZ_GIRM_LARGE_2_Model()
 
     root                    = abspath(join('..', 'data'))
     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
