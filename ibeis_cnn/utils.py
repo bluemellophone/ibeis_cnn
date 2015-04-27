@@ -704,7 +704,7 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
             feature = (feature - fmin) * (255. / domain)
             if color:
                 feature = cv2.merge(feature)
-                cv2.imshow(feature)
+                cv2.imshow('', feature)
                 cv2.waitKey(0)
                 print(feature.shape)
                 grid[f].imshow(feature, interpolation='nearest')
