@@ -4,6 +4,30 @@ import numpy as np
 #from ibeis_cnn import utils
 
 
+def view_training_data(ibs, **kwargs):
+    """
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-view_training_data --db NNP_Master3
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> view_training_data(ibs)
+    """
+    data_fpath, labels_fpath, training_dpath = get_identify_training_fpaths(ibs, **kwargs)
+    data = np.load(data_fpath, mmap_mode='r')
+    #width = height = base_size * 2  # HACK FIXME
+    #channels = 3
+    #img_list = utils.convert_data_to_imglist(data, width, height, channels)
+    import plottool as pt
+    for img in ut.InteractiveIter(data, display_item=False):
+        pt.imshow(img)
+        pt.update()
+
+
 def get_verified_aid_pairs(ibs):
     """
     Example:
@@ -44,37 +68,6 @@ def filter_aid_pairs(aid1_list, aid2_list):
     index_list = vt.find_best_undirected_edge_indexes(np.vstack((aid1_list, aid2_list)).T)
     aid1_list = ut.list_take(aid1_list, index_list)
     aid2_list = ut.list_take(aid2_list, index_list)
-    return aid1_list, aid2_list
-
-
-def get_identify_training_aid_pairs(ibs):
-    r"""
-    Args:
-        ibs (IBEISController):  ibeis controller object
-
-    Returns:
-        tuple: (aid1_list, aid2_list)
-
-    CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_identify_training_aid_pairs
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
-        >>> import ibeis
-        >>> ibs = ibeis.opendb('NNP_Master3')
-        >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
-        >>> result = str((len(aid1_list), len(aid2_list)))
-        >>> assert aid1_list != aid2_list
-        >>> print(result)
-    """
-    verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
-    if len(verified_aid1_list) > 100:
-        aid1_list = verified_aid1_list
-        aid2_list = verified_aid2_list
-    else:
-        aid1_list, aid2_list = get_hotspotter_aid_pairs(ibs)
-    aid1_list, aid2_list = filter_aid_pairs(aid1_list, aid2_list)
     return aid1_list, aid2_list
 
 
@@ -135,7 +128,7 @@ def extract_square_chips_from_images(ibs, aid_list, target_size):
         python -m ibeis_cnn.ibsplugin --test-extract_square_chips_from_images --show
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> # build test data
@@ -184,7 +177,7 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
         python -m ibeis_cnn.ibsplugin --test-get_aidpair_identify_images
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> # build test data
@@ -210,34 +203,8 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
     print('base_size = %r' % (base_size,))
     assert len(aid1_list) == len(aid2_list)
 
-    # TODO: Generalize these functions
-    def inverable_unique_two_lists(item1_list, item2_list):
-        """
-        item1_list = aid1_list
-        item2_list = aid2_list
-        """
-        import utool as ut
-        unique_list1, inverse1 = np.unique(item1_list, return_inverse=True)
-        unique_list2, inverse2 = np.unique(item2_list, return_inverse=True)
-        flat_stacked, cumsum = ut.invertible_flatten2((unique_list1, unique_list2))
-        flat_unique, inverse3 = np.unique(flat_stacked, return_inverse=True)
-        reconstruct_tup = (inverse3, cumsum, inverse2, inverse1)
-        return flat_unique, reconstruct_tup
-
-    def uninvert_unique_two_lists(flat_list, reconstruct_tup):
-        """
-        flat_list = thumb_list
-        """
-        import utool as ut
-        (inverse3, cumsum, inverse2, inverse1) = reconstruct_tup
-        flat_stacked_ = ut.list_take(flat_list, inverse3)
-        unique_list1_, unique_list2_ = ut.unflatten2(flat_stacked_, cumsum)
-        res_list1_ = ut.list_take(unique_list1_, inverse1)
-        res_list2_ = ut.list_take(unique_list2_, inverse2)
-        return res_list1_, res_list2_
-
     # Flatten to only apply chip operations once
-    flat_unique, reconstruct_tup = inverable_unique_two_lists(aid1_list, aid2_list)
+    flat_unique, reconstruct_tup = ut.inverable_unique_two_lists(aid1_list, aid2_list)
 
     print('get_chips')
     chip_list = ibs.get_annot_chips(flat_unique)
@@ -254,12 +221,12 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
 
     thumb_list = [vt.padded_resize(chip, target_size) for chip in ut.ProgressIter(chip_list)]
 
-    thumb1_list, thumb2_list = uninvert_unique_two_lists(thumb_list, reconstruct_tup)
+    thumb1_list, thumb2_list = ut.uninvert_unique_two_lists(thumb_list, reconstruct_tup)
 
     return thumb1_list, thumb2_list
 
 
-def get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=64, stacked=False, data_format='cv2'):
+def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64, stacked=False, data_format='cv2'):
     thumb1_list, thumb2_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=base_size, stacked=stacked)
     assert data_format == 'cv2'
     # Stacking these might not be the exact correct thing to do.
@@ -274,31 +241,96 @@ def get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=64, stacked=F
     data = np.array(img_list)
     #data = [img[None, :] for img in im
     #data = utils.convert_imagelist_to_data(img_list)
-    return data
+    labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+    return data, labels
 
 
-def view_training_data(ibs, **kwargs):
+def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list):
     """
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-view_training_data --db NNP_Master3
+        python -m ibeis_cnn.ibsplugin --test-get_aidpair_patchmatch_training_data --show
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> # build test data
-        >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> view_training_data(ibs)
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> (aid1_list, aid2_list, kpts1_list, kpts2_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> # execute function
+        >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> from ibeis.viz import viz_helpers as vh
+        >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
+        >>> for label, aid1, aid2, patch1, patch2 in ut.InteractiveIter(zip(label_list, aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list), display_item=False):
+        ...     print('aid1=%r, aid2=%r, label=%r' % (aid1, aid2, label))
+        ...     pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
+        ...     pt.imshow(patch1, pnum=(1, 2, 1))
+        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        ...     pt.imshow(patch2, pnum=(1, 2, 2))
+        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        ...     pt.update()
+        >>> ut.show_if_requested()
     """
-    data_fpath, labels_fpath, training_dpath = get_identify_training_fpaths(ibs, **kwargs)
-    data = np.load(data_fpath, mmap_mode='r')
-    #width = height = base_size * 2  # HACK FIXME
-    #channels = 3
-    #img_list = utils.convert_data_to_imglist(data, width, height, channels)
-    import plottool as pt
-    for img in ut.InteractiveIter(data, display_item=False):
-        pt.imshow(img)
-        pt.update()
+    # Flatten to only apply chip operations once
+    print('geting_unflat_chips')
+    flat_unique, reconstruct_tup = ut.inverable_unique_two_lists(aid1_list, aid2_list)
+    chip_list = ibs.get_annot_chips(flat_unique)
+    chip1_list, chip2_list = ut.uninvert_unique_two_lists(chip_list, reconstruct_tup)
+    import vtool as vt
+    print('warping')
+    warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in zip(chip1_list, kpts1_list)]
+    warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in zip(chip2_list, kpts2_list)]
+    len1_list = list(map(len, warped_patches1_list))
+    assert len1_list == list(map(len, warped_patches2_list))
+    print('flattening')
+    aid1_list_ = ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)])
+    aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
+    warped_patch1_list = ut.flatten(warped_patches1_list)
+    warped_patch2_list = ut.flatten(warped_patches2_list)
+    return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list
+
+
+def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list):
+    """
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data --show
+
+    Notes:
+        # FIXME: THE LABELS SEEM DIFFERENT THAN THOSE SHOWN IN get_aidpair_patchmatch_training_data
+        #
+        # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT NEED MANUAL CORRECTION EITHER THROUGH
+        # EXPLICIT LABLEING OR SEGMENTATION MASKS
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> (aid1_list, aid2_list, kpts1_list, kpts2_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> # execute function
+        >>> data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> from ibeis.viz import viz_helpers as vh
+        >>> for label, (patch1, patch2) in ut.InteractiveIter(zip(labels, ut.ichunks(data, 2)), display_item=False):
+        ...     pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
+        ...     pt.imshow(patch1, pnum=(1, 2, 1))
+        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        ...     pt.imshow(patch2, pnum=(1, 2, 2))
+        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        ...     pt.update()
+        >>> ut.show_if_requested()
+    """
+    aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(
+        ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+    img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
+    data = np.array(img_list)
+    labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
+    #data_per_label = 2
+    return data, labels
 
 
 def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
@@ -408,9 +440,7 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
             ut.checkpath(data_fpath, verbose=True)
             and ut.checkpath(labels_fpath, verbose=True)
     ):
-        data = get_aidpair_training_data(ibs, aid1_list, aid2_list, **idcfg.kw())
-        labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
-
+        data, labels = get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, **idcfg.kw())
         # Remove unknown labels
         from ibeis import const
         label_isinvalid = (labels != const.TRUTH_UNKNOWN)
@@ -456,7 +486,7 @@ def get_identify_training_fpaths(ibs, **kwargs):
         python -m ibeis_cnn.ibsplugin --test-get_identify_training_fpaths
 
     Example:
-        >>> # ENABLE_DOCTEST
+        >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> # build test data
@@ -479,41 +509,153 @@ def get_identify_training_fpaths(ibs, **kwargs):
     return data_fpath, labels_fpath, training_dpath
 
 
-#def get_patchmetric_training_fpaths(ibs, **kwargs):
-#    """
-#    CommandLine:
-#        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths
+def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, base_size=64):
+    """
+    todo use size in cfgstrings
+    """
+    from os.path import join
+    training_dname = get_identify_training_dname(ibs, aid1_list, aid2_list) + 'patch'
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    training_dpath = join(nets_dir, training_dname)
+    ut.ensuredir(nets_dir)
+    ut.ensuredir(training_dpath)
+    view_train_dir = ut.get_argflag('--vtd')
+    if view_train_dir:
+        ut.view_directory(training_dpath)
 
-#    Example:
-#        >>> # ENABLE_DOCTEST
-#        >>> from ibeis_cnn.ibsplugin import *  # NOQA
-#        >>> import ibeis
-#        >>> # build test data
-#        >>> ibs = ibeis.opendb('testdb1')
-#        >>> # execute function
-#        >>> (data_fpath, labels_fpath) = get_patchmetric_training_fpaths(ibs)
-#        >>> # verify results
-#        >>> result = str((data_fpath, labels_fpath))
-#        >>> print(result)
-#    """
-#    def get_aidpairs_and_matches():
-#        aid_list = ibs.get_valid_aids()
-#        import utool as ut
-#        aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
-#        qres_list = ibs.query_chips(aid_list, aid_list)
-#        num_top = 3
-#        aid1_list = np.array(ut.flatten([[qres.qaid] * num_top for qres in qres_list]))
-#        aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num_top] for qres in qres_list]))
-#        print('get_patchmetric_training_fpaths')
-#        aid1_list, aid2_list = get_identify_training_aid_pairs(ibs)
-#    max_examples = kwargs.pop('max_examples', None)
-#    if max_examples is not None:
-#        print('max_examples = %r' % (max_examples,))
-#        aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
-#        aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
-#    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
-#        ibs, aid1_list, aid2_list, **kwargs)
-#    return data_fpath, labels_fpath, training_dpath
+    class PatchMetricDataConfig(object):
+        def __init__(idcfg):
+            pass
+
+        def update(idcfg, **kwargs):
+            idcfg.__dict__.update(**kwargs)
+
+        def kw(idcfg):
+            return ut.KwargsWrapper(idcfg)
+
+        def get_cfgstr(idcfg):
+            cfgstr_list = [
+            ]
+            return ','.join(cfgstr_list)
+
+    cfg = PatchMetricDataConfig()
+    cfg.base_size = base_size
+
+    data_fpath = join(training_dpath, 'data_' + cfg.get_cfgstr())
+    labels_fpath = join(training_dpath, 'labels.pkl')
+    NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
+
+    if NOCACHE_TRAIN or not (
+            ut.checkpath(data_fpath, verbose=True)
+            and ut.checkpath(labels_fpath, verbose=True)
+    ):
+        data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, **cfg.kw())
+
+        # Remove unknown labels
+        from ibeis import const
+        label_isinvalid = (labels != const.TRUTH_UNKNOWN)
+        data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
+        data = data.compress(data_isinvalid, axis=0)
+        labels = labels.compress(label_isinvalid, axis=0)
+
+        print('np.shape(data) = %r' % (np.shape(data),))
+        print('np.shape(labels) = %r' % (np.shape(labels),))
+
+        # to resize the images back to their 2D-structure:
+        # X = images_array.reshape(-1, 3, 48, 48)
+
+        print('writing training data to %s...' % (data_fpath))
+        with open(data_fpath, 'wb') as ofile:
+            np.save(ofile, data)
+
+        print('writing training labels to %s...' % (labels_fpath))
+        with open(labels_fpath, 'wb') as ofile:
+            np.save(ofile, labels)
+    else:
+        print('data and labels cache hit')
+    return data_fpath, labels_fpath, training_dpath
+
+
+def get_identify_training_aid_pairs(ibs):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+
+    Returns:
+        tuple: (aid1_list, aid2_list)
+
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-get_identify_training_aid_pairs
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb('NNP_Master3')
+        >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
+        >>> result = str((len(aid1_list), len(aid2_list)))
+        >>> assert aid1_list != aid2_list
+        >>> print(result)
+    """
+    verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
+    if len(verified_aid1_list) > 100:
+        aid1_list = verified_aid1_list
+        aid2_list = verified_aid2_list
+    else:
+        aid1_list, aid2_list = get_hotspotter_aid_pairs(ibs)
+    aid1_list, aid2_list = filter_aid_pairs(aid1_list, aid2_list)
+    return aid1_list, aid2_list
+
+
+def get_aidpairs_and_matches(ibs, max_examples=None):
+    aid_list = ibs.get_valid_aids()
+    if max_examples is not None:
+        aid_list = aid_list[0:min(max_examples, len(aid_list))]
+    import utool as ut
+    #from ibeis.model.hots import chip_match
+    aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
+    qres_list, qreq_ = ibs.query_chips(aid_list, aid_list, return_request=True)
+    #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
+    #for cm in cm_list:
+    #    cm.evaluate_nsum_score(qreq_=qreq_)
+    #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
+    #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
+    num_top = 3
+    aids1_list = [[qres.qaid] * num_top for qres in qres_list]
+    aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
+    fms_list = [ut.dict_take(qres.aid2_fm, aids2) for qres, aids2 in zip(qres_list, aids2_list)]
+    aid1_list = np.array(ut.flatten(aids1_list))
+    aid2_list = np.array(ut.flatten(aids2_list))
+    fm_list   = ut.flatten(fms_list)
+    kpts1_list = ibs.get_annot_kpts(aid1_list)
+    kpts2_list = ibs.get_annot_kpts(aid2_list)
+    kpts1_m_list = [kpts1.take(fm.T[0], axis=0) for kpts1, fm in zip(kpts1_list, fm_list)]
+    kpts2_m_list = [kpts2.take(fm.T[1], axis=0) for kpts2, fm in zip(kpts2_list, fm_list)]
+    return aid1_list, aid2_list, kpts1_m_list, kpts2_m_list
+
+
+def get_patchmetric_training_fpaths(ibs, **kwargs):
+    """
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb('PZ_MTEST')
+        >>> # execute function
+        >>> (data_fpath, labels_fpath) = get_patchmetric_training_fpaths(ibs)
+        >>> # verify results
+        >>> result = str((data_fpath, labels_fpath))
+        >>> print(result)
+    """
+    max_examples = kwargs.pop('max_examples', None)
+    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list = get_aidpairs_and_matches(ibs, max_examples)
+    data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **kwargs)
+    return data_fpath, labels_fpath, training_dpath
 
 
 if __name__ == '__main__':
