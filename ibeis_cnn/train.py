@@ -149,6 +149,10 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 # Start timer
                 t0 = time.time()
 
+                # Show first weights before any training
+                if kwargs.get('show_features'):
+                    utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
+
                 # compute the loss over all training and validation batches
                 augment_fn = getattr(model, 'augment', None)
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
@@ -165,6 +169,10 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                     print('\n[train] training diverged\n')
                     break
 
+                # Increment the epoch
+                request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0  # Do the test before adding to the epoch counter
+                epoch += 1
+
                 # Is this model the best we've ever seen?
                 best_found = avg_valid_loss < kwargs.get('best_valid_loss')
                 if best_found:
@@ -173,10 +181,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                     kwargs['best_weights'] = layers.get_all_param_values(output_layer)
 
                 # compute the loss over all testing batches
-
                 mapping_fn = getattr(model, 'label_order_mapping', None)
-                request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
-                if best_found or request_test:
+                if request_test or best_found:
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
                                                            results_dpath, mapping_fn, **kwargs)
                     # Output the layer 1 features
@@ -204,8 +210,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 # End timer
                 t1 = time.time()
 
-                # Increment the epoch
-                epoch += 1
+                # Print the epoch
                 utils.print_epoch_info(avg_train_loss, avg_valid_loss,
                                        avg_valid_accuracy, avg_test_accuracy,
                                        epoch, t1 - t0, **kwargs)
