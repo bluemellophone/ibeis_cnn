@@ -76,6 +76,31 @@ def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **k
     print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
 
 
+def display_caffe_model(weights_model_path, results_dpath, **kwargs):
+    """
+    Driver function
+
+    Args:
+        data_fpath (?):
+        labels_fpath (?):
+        model (?):
+        weights_fpath (?):
+    """
+
+    ######################################################################################
+
+    # Load the pretrained model if specified
+    print('[model] loading pretrained weights and model from %s' % (weights_model_path))
+    pretrained_weights = None
+    with open(weights_model_path, 'rb') as pfile:
+        pretrained_weights, output_layer, compile_kwargs = pickle.load(pfile)
+
+    print('test kwargs = \n' + (ut.dict_str(kwargs)))
+    print('compile_kwargs = \n' + (ut.dict_str(compile_kwargs)))
+    print(pretrained_weights.shape)
+    print(output_layer)
+
+
 def test_pz():
     r"""
     CommandLine:
@@ -166,6 +191,26 @@ def test_pz_girm_large():
     config = {}
 
     test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
+
+
+def test_display_caffenet():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.test --test-test_display_caffenet
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.test import *  # NOQA
+        >>> test_display_caffenet()
+    """
+    project_name            = 'caffenet'
+
+    root                    = abspath(join('..', 'data'))
+    results_dpath           = join(root, 'results', project_name)
+    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet.caffe.pickle')
+    config = {}
+
+    test(weights_model_fpath, results_dpath, **config)
 
 
 if __name__ == '__main__':
