@@ -1,7 +1,8 @@
 from __future__ import absolute_import, division, print_function
 import utool as ut
+import vtool as vt
 import numpy as np
-from ibeis_cnn import utils
+#from ibeis_cnn import utils
 
 
 def get_verified_aid_pairs(ibs):
@@ -118,7 +119,58 @@ def compute_target_size_from_aspect(chip_list, target_height=256):
     return target_size
 
 
-def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=128):
+def extract_chip_from_gpath_into_square_worker(args):
+    gfpath, bbox, theta, target_size = args
+    imgBGR = vt.imread(gfpath)  # Read parent image
+    return vt.extract_chip_into_square(imgBGR, bbox, theta, target_size)
+
+
+def extract_square_chips_from_images(ibs, aid_list, target_size):
+    """
+    Simple function for computing a set of chips without going through the whole ibeis stuff
+
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-extract_square_chips_from_images --show
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb('PZ_MTEST')
+        >>> aid_list = ibs.get_valid_aids()[0:40]
+        >>> target_size = (220, 220)
+        >>> # execute function
+        >>> chipBGR_square_list = extract_square_chips_from_images(ibs, aid_list, target_size)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> for chipBGR in ut.InteractiveIter(chipBGR_square_list, display_item=False):
+        ...     pt.imshow(chipBGR)
+        ...     pt.update()
+        >>> # verify results
+        >>> print(result)
+    """
+    gfpath_list = ibs.get_annot_image_paths(aid_list)
+    bbox_list   = ibs.get_annot_bboxes(aid_list)
+    theta_list  = ibs.get_annot_thetas(aid_list)
+    target_size_list = [target_size] * len(aid_list)
+    args_iter = zip(gfpath_list, bbox_list, theta_list, target_size_list)
+    chipBGR_square_gen = ut.generate(extract_chip_from_gpath_into_square_worker, args_iter)
+    chipBGR_square_list = list(chipBGR_square_gen)
+    return chipBGR_square_list
+    #gfpath = gfpath_list[0]
+    #bbox = bbox_list[0]
+    #theta = theta_list[0]
+    #imgBGR = vt.imread(gfpath)
+    #chipBGR_square = vt.extract_chip_into_square(imgBGR, bbox, theta, target_size)
+    pass
+
+
+def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked=False):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -143,21 +195,24 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=128):
         >>> aid1_list = aid1_list[0:min(100, len(aid1_list))]
         >>> aid2_list = aid2_list[0:min(100, len(aid2_list))]
         >>> # execute function
-        >>> img_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list)
+        >>> thumb1_list, thumb2_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
-        >>> for aid1, aid2, img in ut.InteractiveIter(zip(aid1_list, aid2_list, img_list), display_item=False):
+        >>> for aid1, aid2, thumb1, thumb2 in ut.InteractiveIter(zip(aid1_list, aid2_list, thumb1_list, thumb2_list), display_item=False):
         ...     print('aid1=%r, aid2=%r' % (aid1, aid2))
-        ...     pt.imshow(img)
+        ...     pt.imshow(thumb1, pnum=(1, 2, 1))
+        ...     pt.imshow(thumb2, pnum=(1, 2, 2))
         ...     pt.update()
         >>> ut.show_if_requested()
     """
     # TODO: Cache this with visual uuids
 
     import vtool as vt
-    print('get_aidpair_identify_images len(aid1_list)=%r' % (len(aid1_list)))
+    print('[ibeget_aidpair_identify_images len(aid1_list)=%r' % (len(aid1_list)))
+    print('base_size = %r' % (base_size,))
     assert len(aid1_list) == len(aid2_list)
 
+    # TODO: Generalize these functions
     def inverable_unique_two_lists(item1_list, item2_list):
         """
         item1_list = aid1_list
@@ -194,23 +249,58 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=128):
     if AUTO_SIZE:
         target_size = compute_target_size_from_aspect(chip_list, target_height)
     else:
-        target_size = (2 * base_size, base_size)
+        if stacked:
+            target_size = (2 * base_size, base_size)
+        else:
+            target_size = (base_size, base_size)
+
     thumb_list = [vt.padded_resize(chip, target_size) for chip in ut.ProgressIter(chip_list)]
 
     thumb1_list, thumb2_list = uninvert_unique_two_lists(thumb_list, reconstruct_tup)
 
+    return thumb1_list, thumb2_list
+
+
+def get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=64, stacked=False, data_format='cv2'):
+    thumb1_list, thumb2_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=base_size, stacked=stacked)
+    assert data_format == 'cv2'
     # Stacking these might not be the exact correct thing to do.
-    img_list = [
-        np.vstack((thumb1, thumb2)) for thumb1, thumb2, in
-        zip(thumb1_list, thumb2_list)
-    ]
-    return img_list
-
-
-def get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=128):
-    img_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=base_size)
-    data = utils.convert_imagelist_to_data(img_list)
+    if stacked:
+        img_list = [
+            np.vstack((thumb1, thumb2)) for thumb1, thumb2, in
+            zip(thumb1_list, thumb2_list)
+        ]
+    else:
+        # Strided data comes in in pairs of two
+        img_list = ut.flatten(list(zip(thumb1_list, thumb2_list)))
+    data = np.array(img_list)
+    #data = [img[None, :] for img in im
+    #data = utils.convert_imagelist_to_data(img_list)
     return data
+
+
+def view_training_data(ibs, **kwargs):
+    """
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-view_training_data --db NNP_Master3
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> view_training_data(ibs)
+    """
+    data_fpath, labels_fpath, training_dpath = get_identify_training_fpaths(ibs, **kwargs)
+    data = np.load(data_fpath, mmap_mode='r')
+    #width = height = base_size * 2  # HACK FIXME
+    #channels = 3
+    #img_list = utils.convert_data_to_imglist(data, width, height, channels)
+    import plottool as pt
+    for img in ut.InteractiveIter(data, display_item=False):
+        pt.imshow(img)
+        pt.update()
 
 
 def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
@@ -275,7 +365,7 @@ def get_identify_training_dname(ibs, aid1_list, aid2_list):
     return training_dname
 
 
-def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=128):
+def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64):
     """
     todo use size in cfgstrings
     """
@@ -285,13 +375,50 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=12
     training_dpath = join(nets_dir, training_dname)
     ut.ensuredir(nets_dir)
     ut.ensuredir(training_dpath)
-    data_fpath = join(training_dpath, 'data_%d.pkl' % (base_size,))
-    labels_fpath = join(training_dpath, 'labels.pkl')
-    nocache_train = ut.get_argflag('--nocache-train')
+    view_train_dir = ut.get_argflag('--vtd')
+    if view_train_dir:
+        ut.view_directory(training_dpath)
 
-    if nocache_train or not (ut.checkpath(data_fpath, verbose=True) and ut.checkpath(labels_fpath, verbose=True)):
-        data = get_aidpair_training_data(ibs, aid1_list, aid2_list, base_size=base_size)
+    class IdentifyDataConfig(object):
+        def __init__(idcfg):
+            idcfg.stacked = False
+            idcfg.data_format = 'cv2'
+            idcfg.base_size = 64
+
+        def update(idcfg, **kwargs):
+            idcfg.__dict__.update(**kwargs)
+
+        def kw(idcfg):
+            return ut.KwargsWrapper(idcfg)
+
+        def get_cfgstr(idcfg):
+            cfgstr_list = [
+                'stacked' if idcfg.stacked else 'strided',
+                idcfg.data_format,
+                'sz=%d' % (idcfg.base_size,),
+            ]
+            return ','.join(cfgstr_list)
+
+    idcfg = IdentifyDataConfig()
+    idcfg.base_size = base_size
+
+    data_fpath = join(training_dpath, 'data_' + idcfg.get_cfgstr())
+    labels_fpath = join(training_dpath, 'labels.pkl')
+    NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
+
+    if NOCACHE_TRAIN or not (
+            ut.checkpath(data_fpath, verbose=True)
+            and ut.checkpath(labels_fpath, verbose=True)
+    ):
+        data = get_aidpair_training_data(ibs, aid1_list, aid2_list, **idcfg.kw())
         labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+
+        # Remove unknown labels
+        from ibeis import const
+        label_isinvalid = (labels != const.TRUTH_UNKNOWN)
+        data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
+        data = data.compress(data_isinvalid, axis=0)
+        labels = labels.compress(label_isinvalid, axis=0)
 
         print('np.shape(data) = %r' % (np.shape(data),))
         print('np.shape(labels) = %r' % (np.shape(labels),))
@@ -311,31 +438,7 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=12
     return data_fpath, labels_fpath, training_dpath
 
 
-def view_training_data(ibs, base_size=64):
-    """
-    CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-view_training_data --db NNP_Master3
-
-    Example:
-        >>> # ENABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
-        >>> import ibeis
-        >>> # build test data
-        >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> view_training_data(ibs)
-    """
-    data_fpath, labels_fpath = get_identify_training_fpaths(ibs, base_size=base_size)
-    data = np.load(data_fpath, mmap_mode='r')
-    width = height = base_size * 2  # HACK FIXME
-    channels = 3
-    img_list = utils.convert_data_to_imglist(data, width, height, channels)
-    import plottool as pt
-    for img in ut.InteractiveIter(img_list, display_item=False):
-        pt.imshow(img)
-        pt.update()
-
-
-def get_identify_training_fpaths(ibs, base_size=128, max_examples=None):
+def get_identify_training_fpaths(ibs, **kwargs):
     """
 
     Notes:
@@ -368,10 +471,13 @@ def get_identify_training_fpaths(ibs, base_size=128, max_examples=None):
     """
     print('get_identify_training_fpaths')
     aid1_list, aid2_list = get_identify_training_aid_pairs(ibs)
+    max_examples = kwargs.pop('max_examples', None)
     if max_examples is not None:
+        print('max_examples = %r' % (max_examples,))
         aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
         aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
-    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=base_size)
+    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
+        ibs, aid1_list, aid2_list, **kwargs)
     return data_fpath, labels_fpath, training_dpath
 
 

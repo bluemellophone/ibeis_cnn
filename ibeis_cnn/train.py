@@ -76,7 +76,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     print('[train]     labels.dtype = %r' % (labels.dtype,))
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
-    print('label stats = \n' + ut.dict_str(labelhist))
+    print('label histogram = \n' + ut.dict_str(labelhist))
     print('train kwargs = \n' + (ut.dict_str(kwargs)))
 
     # Encoding labels
@@ -89,9 +89,10 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # Split the dataset into training and validation
     print('[train] creating train, validation datasaets...')
-    dataset = utils.train_test_split(data, labels, eval_size=0.2)
+    data_per_label = getattr(model, 'data_per_label', 1)
+    dataset = utils.train_test_split(data, labels, eval_size=0.2, data_per_label=data_per_label)
     X_train, y_train, X_valid, y_valid = dataset
-    dataset = utils.train_test_split(X_train, y_train, eval_size=0.1)
+    dataset = utils.train_test_split(X_train, y_train, eval_size=0.1, data_per_label=data_per_label)
     X_train, y_train, X_test, y_test = dataset
 
     # Build and print the model
@@ -106,7 +107,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, **kwargs)
+    # create theano symbolic expressions that define the network
+    all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, model, **kwargs)
     train_iter, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
@@ -156,12 +158,12 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 # compute the loss over all training and validation batches
                 augment_fn = getattr(model, 'augment', None)
                 avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
-                                                     augment=augment_fn, **kwargs)
+                                                     augment=augment_fn, model=model, **kwargs)
                 if kwargs.get('test_time_augmentation', False):
                     avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
-                                                         augment=augment_fn, **kwargs)
+                                                         augment=augment_fn, model=model, **kwargs)
                 else:
-                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, **kwargs)
+                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, model=model, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
@@ -264,15 +266,17 @@ def train_identification_pz():
     print('get_identification_decision_training_data')
     import ibeis
     ibs = ibeis.opendb('NNP_Master3')
-    base_size = 64
+    base_size = 128
     #max_examples = 1001
-    max_examples = None
+    #max_examples = None
+    max_examples = 400
     data_fpath, labels_fpath, training_dpath = ibsplugin.get_identify_training_fpaths(ibs, base_size=base_size, max_examples=max_examples)
 
     model = models.IdentificationModel()
     config = dict(
-        batch_size=8,
+        batch_size=32,
         learning_rate=.03,
+        output_dims=1024,
     )
     nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
     ut.ensuredir(nets_dir)

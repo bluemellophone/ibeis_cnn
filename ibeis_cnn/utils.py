@@ -13,7 +13,7 @@ from lasagne import objectives
 
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
-from sklearn.utils import shuffle
+#from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import matplotlib.pyplot as plt
@@ -65,7 +65,7 @@ def testdata_imglist():
     return img_list, width, height, channels
 
 
-def convert_imagelist_to_data(img_list):
+def convert_cv2_images_to_theano_images(img_list):
     """
     Converts a list of cv2-style images into a single numpy array of nonflat
     theano-style images.
@@ -79,7 +79,7 @@ def convert_imagelist_to_data(img_list):
         data: in the shape [b, (c x h x w)]
 
     CommandLine:
-        python -m ibeis_cnn.utils --test-convert_imagelist_to_data
+        python -m ibeis_cnn.utils --test-convert_cv2_images_to_theano_images
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -88,7 +88,7 @@ def convert_imagelist_to_data(img_list):
         >>> # build test data
         >>> # execute function
         >>> img_list, width, height, channels = testdata_imglist()
-        >>> data = convert_imagelist_to_data(img_list)
+        >>> data = convert_cv2_images_to_theano_images(img_list)
         >>> data[0].reshape(3, 32, 32)[:, 0:2, 0:2]
         >>> subset = (data[0].reshape(3, 32, 32)[:, 0:2, 0:2])
         >>> #result = str(np.transpose(subset, (1, 2, 0)))
@@ -106,7 +106,7 @@ def convert_imagelist_to_data(img_list):
     return data
 
 
-def convert_data_to_imglist(data, width, height, channels):
+def convert_theano_images_to_cv2_images(data, width, height, channels):
     r"""
     Args:
         data (ndarray): in the shape [b, (c x h x w)]
@@ -140,14 +140,52 @@ def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-def train_test_split(X, y, eval_size):
+def testdata_xy():
+    img_list, width, height, channels = testdata_imglist()
+    data = np.array((img_list * 20))
+    labels = np.random.rand(len(data) / 2) > .5
+    data_per_label = 2
+    return data, labels, data_per_label
+
+
+def train_test_split(X, y, eval_size, data_per_label=1):
+    r"""
+    Args:
+        X (ndarray):
+        y (ndarray):
+        eval_size (?):
+
+    Returns:
+        tuple: (X_train, y_train, X_valid, y_valid)
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-train_test_split
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> # build test data
+        >>> data, labels, data_per_label = testdata_xy()
+        >>> X = data
+        >>> y = labels
+        >>> eval_size = .2
+        >>> # execute function
+        >>> (X_train, y_train, X_valid, y_valid) = train_test_split(X, y, eval_size, data_per_label)
+        >>> # verify results
+        >>> result = str((X_train, y_train, X_valid, y_valid))
+        >>> print(result)
+    """
     # take the data and label arrays, split them preserving the class distributions
-    kf = StratifiedKFold(y, round(1. / eval_size))
-
+    assert len(X) == len(y) * data_per_label
+    nfolds = round(1. / eval_size)
+    kf = StratifiedKFold(y, nfolds)
     train_indices, valid_indices = six.next(iter(kf))
-    X_train, y_train = X[train_indices], y[train_indices]
-    X_valid, y_valid = X[valid_indices], y[valid_indices]
-
+    data_train_indicies = expand_data_indicies(train_indices, data_per_label)
+    data_valid_indicies = expand_data_indicies(valid_indices, data_per_label)
+    X_train = X.take(data_train_indicies, axis=0)
+    X_valid = X.take(data_valid_indicies, axis=0)
+    y_train = y.take(train_indices, axis=0)
+    y_valid = y.take(valid_indices, axis=0)
     return X_train, y_train, X_valid, y_valid
 
 
@@ -220,8 +258,44 @@ def float32(k):
     return np.cast['float32'](k)
 
 
+def expand_data_indicies(indices, data_per_label=1):
+    expanded_indicies = [indices * data_per_label + count for count in range(data_per_label)]
+    data_indices = np.vstack(expanded_indicies).T.flatten()
+    return data_indices
+
+
+def make_random_indicies(num):
+    randstate = np.random.RandomState(RANDOM_SEED)
+    random_indicies = np.arange(num)
+    randstate.shuffle(random_indicies)
+    return random_indicies
+
+
+def data_label_shuffle(X, y, data_per_label=1):
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.utils --test-data_label_shuffle
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> # build test data
+        >>> X, y, data_per_label = testdata_xy()
+        >>> # execute function
+        >>> result = data_label_shuffle(X, y)
+        >>> # verify results
+        >>> print(result)
+    """
+    random_indicies = make_random_indicies(len(X) // data_per_label)
+    data_random_indicies = expand_data_indicies(random_indicies, data_per_label)
+    X = np.ascontiguousarray(X.take(data_random_indicies, axis=0))
+    if y is not None:
+        y =  np.ascontiguousarray(y.take(random_indicies, axis=0))
+    return X, y
+
+
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
-                   center_mean=None, center_std=None, **kwargs):
+                   center_mean=None, center_std=None, model=None, **kwargs):
     r"""
     Args:
         X (ndarray):
@@ -248,25 +322,36 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> augment = None
         >>> center_mean = None
         >>> center_std = None
+        >>> data_per_label = 2
+        >>> model = None
         >>> # execute function
         >>> result = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
         >>> # verify results
         >>> print(next(result))
     """
+    data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
-    # Randomly shuffle data
     if rand:
-        # print('X.shape %r' % (X.shape, ))
-        # print('y.shape %r' % (y.shape, ))
-        if y is None:
-            X = shuffle(X, random_state=RANDOM_SEED)
+        # Randomly shuffle data
+        X, y = data_label_shuffle(X, y, data_per_label)
+    print('[batch iter] X.flags \n%r' % (X.flags, ))
+    print('[batch iter] X.shape %r' % (X.shape, ))
+    if y is not None:
+        print('[batch iter] y.shape %r' % (y.shape, ))
+    N = (X).shape[0] // data_per_label
+    num_batches = (N + batch_size - 1) // batch_size
+    #num_batches -= 2
+    print('num_batches = %r' % (num_batches,))
+    for i in range(num_batches):
+        start_y = i * batch_size
+        end_y = (i + 1) * batch_size
+        x_sl = slice(start_y * data_per_label, end_y * data_per_label)
+        y_sl = slice(start_y, end_y)
+        Xb = X[x_sl]
+        if y is not None:
+            yb = y[y_sl]
         else:
-            X, y = shuffle(X, y, random_state=RANDOM_SEED)
-    N = X.shape[0]
-    for i in range((N + batch_size - 1) // batch_size):
-        sl = slice(i * batch_size, (i + 1) * batch_size)
-        Xb = X[sl]
-        yb = None if y is None else y[sl]
+            yb = None
         # Get corret dtype for X
         Xb = Xb.astype(np.float32)
         # Whiten)
@@ -283,22 +368,31 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         if encoder is not None and yb is not None:
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
-        yb = None if yb is None else yb.astype(np.int32)
+        if yb is not None:
+            yb = np.vstack((yb, -np.ones(len(yb)))).T.flatten()
+            yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         Xb = Xb.transpose((0, 3, 1, 2))
+        print('Yielding batch:')
+        print('  * x_sl = %r' % (x_sl,))
+        print('  * y_sl = %r' % (y_sl,))
+        print('  * Xb.shape = %r' % (Xb.shape,))
+        print('  * yb.shape = %r' % (yb.shape,))
+        # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
 
 
 def multinomial_nll(x, t):
+    #coding_dist=x, true_dist=t
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
+def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
                           input_type=T.tensor4, output_type=T.ivector,
                           regularization=None, **kwargs):
     """
-    build the Theano functions that will be used in the optimization
-    refer to this link for info on tensor types:
+    build the Theano functions (symbolic expressions) that will be used in the
+    optimization refer to this link for info on tensor types:
 
     References:
         http://deeplearning.net/software/theano/library/tensor/basic.html
@@ -308,20 +402,44 @@ def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
     X_batch = input_type('x_batch')
     y_batch = output_type('y_batch')
 
+    # Defaults that are overwritable by a model
+    loss_function = multinomial_nll
+    if model is not None:
+        # Custom model passed in: override certain symbolic expressions
+        if hasattr(model, 'loss_function'):
+            loss_function = model.loss_function
+
     # we are minimizing the multi-class negative log-likelihood
-    objective = objectives.Objective(output_layer, loss_function=multinomial_nll)
+    objective = objectives.Objective(output_layer, loss_function=loss_function)
 
     loss_train = objective.get_loss(X_batch, target=y_batch)
     if regularization is not None:
         L2 = lasagne.regularization.l2(output_layer)
         loss_train += L2 * regularization
-    loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-    predict_proba = output_layer.get_output(X_batch, deterministic=True)
-    pred = T.argmax(predict_proba, axis=1)
 
-    accuracy = T.mean(T.eq(pred, y_batch))
+    valid_outputs = []
+    test_outputs = []
+
+    # deterministic=True will disable dropout
+    loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+    valid_outputs.append(loss_eval)
+    test_outputs.append(loss_eval)
+
+    # fraction of labels the network gets correct
+    if False:
+        predict_proba = output_layer.get_output(X_batch, deterministic=True)
+        pred = T.argmax(predict_proba, axis=1)
+        accuracy = T.mean(T.eq(pred, y_batch))
+        test_outputs.append(pred)
+        test_outputs.append(accuracy)
+        valid_outputs.append(accuracy)
+    else:
+        pass
+    #else:
+    #    output_layer.get_output(X_batch, deterministic=True)
 
     all_params = layers.get_all_params(output_layer)
+    # define how to update network parameters based on the training loss
     updates = lasagne.updates.nesterov_momentum(
         loss_train, all_params, learning_rate_theano, momentum)
 
@@ -337,7 +455,7 @@ def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
 
     valid_iter = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_eval, accuracy],
+        outputs=valid_outputs,
         givens={
             X: X_batch,
             y: y_batch,
@@ -346,7 +464,7 @@ def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
 
     test_iter = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[predict_proba, pred, accuracy],
+        outputs=test_outputs,
         givens={
             X: X_batch,
             y: y_batch,
@@ -399,6 +517,7 @@ def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwar
     """ compute the loss over all training batches """
     train_losses = []
     for Xb, yb in batch_iterator(X_train, y_train, rand=rand, augment=augment, **kwargs):
+        # Runs a batch through the network and updates the weights. Just returns what it did
         batch_train_loss = train_iter(Xb, yb)
         train_losses.append(batch_train_loss)
     avg_train_loss = np.mean(train_losses)
@@ -410,6 +529,7 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     valid_losses = []
     valid_accuracies = []
     for Xb, yb in batch_iterator(X_valid, y_valid, rand=rand, augment=augment, **kwargs):
+        # Valid iter returns the loss, but does not perform any updates
         batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
         valid_losses.append(batch_valid_loss)
         valid_accuracies.append(batch_accuracy)
