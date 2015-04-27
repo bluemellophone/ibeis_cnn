@@ -356,7 +356,7 @@ def create_training_funcs(learning_rate_theano, output_layer, momentum=0.9,
     return train_iter, valid_iter, test_iter
 
 
-def create_testing_func(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
+def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
     """
     build the Theano functions that will be used in the optimization
     refer to this link for info on tensor types:

@@ -52,7 +52,7 @@ def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **k
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
-    test_iter, test_iter_accuracy = utils.create_testing_func(output_layer, **kwargs)
+    test_iter, test_iter_accuracy = utils.create_testing_funcs(output_layer, **kwargs)
 
     # Set weights to model
     layers.set_all_param_values(output_layer, pretrained_weights)
