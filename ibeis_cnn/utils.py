@@ -692,7 +692,7 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
             else:
                 num, height, width = all_weights.shape
         # Find how many features and build grid
-        dim = int(np.round(np.sqrt(num)))
+        dim = int(np.ceil(np.sqrt(num)))
         grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
 
         # Build grid
