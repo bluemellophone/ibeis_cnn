@@ -93,12 +93,11 @@ def display_caffe_model(weights_model_path, results_dpath, **kwargs):
     print('[model] loading pretrained weights and model from %s' % (weights_model_path))
     pretrained_weights = None
     with open(weights_model_path, 'rb') as pfile:
-        pretrained_weights, output_layer = pickle.load(pfile)
+        pretrained_weights = pickle.load(pfile)
 
     print('test kwargs = \n' + (ut.dict_str(kwargs)))
     # print('compile_kwargs = \n' + (ut.dict_str(compile_kwargs)))
     print(pretrained_weights.shape)
-    print(output_layer)
 
 
 def test_pz():
@@ -207,7 +206,7 @@ def test_display_caffenet():
 
     root                    = abspath(join('..', 'data'))
     results_dpath           = join(root, 'results', project_name)
-    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet2.caffe.pickle')
+    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet3.caffe.pickle')
     config = {}
 
     display_caffe_model(weights_model_fpath, results_dpath, **config)
