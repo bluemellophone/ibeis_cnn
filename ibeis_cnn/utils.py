@@ -696,21 +696,15 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
         grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
 
         # Build grid
-        if color:
-            for f, feature in enumerate(all_weights):
-                for c in range(len(feature)):
-                    channel = feature[c]
-                    cmax, cmin = np.max(channel), np.min(channel)
-                    channel = (channel - cmin) * (255. / (cmax - cmin))
-                    feature[c] = channel
+        for f, feature in enumerate(all_weights):
+            # get all the weights and scale them to dimensions that can be shown
+            fmax, fmin = np.max(feature), np.min(feature)
+            domain = fmax - fmin
+            feature = (feature - fmin) * (255. / domain)
+            if color:
                 feature = cv2.merge(feature)
                 grid[f].imshow(feature, interpolation='nearest')
-        else:
-            # get all the weights and scale them to dimensions that can be shown
-            for f, feature in enumerate(all_weights):
-                fmax, fmin = np.max(feature), np.min(feature)
-                domain = fmax - fmin
-                feature = (feature - fmin) * (255. / domain)
+            else:
                 grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
 
         for j in range(dim * dim):
