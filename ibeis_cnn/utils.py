@@ -721,6 +721,10 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
         output_path = join(results_path, output_file)
         plt.savefig(output_path, bbox_inches='tight')
 
+        output_file = 'features_conv%d_%s.png' % (index, color_str)
+        output_path = join(results_path, output_file)
+        plt.savefig(output_path, bbox_inches='tight')
+
 
 if __name__ == '__main__':
     """
