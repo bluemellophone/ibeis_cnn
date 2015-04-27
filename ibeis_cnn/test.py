@@ -95,8 +95,8 @@ def display_caffe_model(weights_model_path, results_path, **kwargs):
     with open(weights_model_path, 'rb') as pfile:
         pretrained_weights = pickle.load(pfile)
 
-    utils.show_convolutional_features(pretrained_weights, results_path, color=False, target=0)
     utils.show_convolutional_features(pretrained_weights, results_path, color=True, target=0)
+    utils.show_convolutional_features(pretrained_weights, results_path, color=False, target=0)
 
 
 def test_pz():
@@ -206,6 +206,26 @@ def test_display_caffenet():
     root                    = abspath(join('..', 'data'))
     results_dpath           = join(root, 'results', project_name)
     weights_model_fpath     = join(root, 'nets', project_name, 'caffenet.caffe.pickle')
+    config = {}
+
+    display_caffe_model(weights_model_fpath, results_dpath, **config)
+
+
+def test_display_vgg():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.test --test-test_display_vgg
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.test import *  # NOQA
+        >>> test_display_vgg()
+    """
+    project_name            = 'vgg'
+
+    root                    = abspath(join('..', 'data'))
+    results_dpath           = join(root, 'results', project_name)
+    weights_model_fpath     = join(root, 'nets', project_name, 'vgg.caffe.pickle')
     config = {}
 
     display_caffe_model(weights_model_fpath, results_dpath, **config)
