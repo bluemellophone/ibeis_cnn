@@ -655,7 +655,8 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_features(nn_layers, results_path, color=False, limit=150, target=None):
+def show_convolutional_features(output_layer, results_path, color=False, limit=150, target=None):
+    nn_layers = layers.get_all_layers(output_layer)
     cnn_layers = []
     for layer in nn_layers:
         layer_type = str(type(layer))
