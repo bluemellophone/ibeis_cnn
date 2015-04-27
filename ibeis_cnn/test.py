@@ -205,7 +205,7 @@ def test_display_caffenet():
 
     root                    = abspath(join('..', 'data'))
     results_dpath           = join(root, 'results', project_name)
-    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet3.caffe.pickle')
+    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet.caffe.pickle')
     config = {}
 
     display_caffe_model(weights_model_fpath, results_dpath, **config)
