@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 import utool as ut
-import vtool as vt
 import numpy as np
 #from ibeis_cnn import utils
 
@@ -30,7 +29,6 @@ def get_hotspotter_aid_pairs(ibs):
     import utool as ut
     aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
     qres_list = ibs.query_chips(aid_list, aid_list)
-
     num_top = 3
     aid1_list = np.array(ut.flatten([[qres.qaid] * num_top for qres in qres_list]))
     aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num_top] for qres in qres_list]))
@@ -71,7 +69,6 @@ def get_identify_training_aid_pairs(ibs):
         >>> print(result)
     """
     verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
-
     if len(verified_aid1_list) > 100:
         aid1_list = verified_aid1_list
         aid2_list = verified_aid2_list
@@ -120,6 +117,7 @@ def compute_target_size_from_aspect(chip_list, target_height=256):
 
 
 def extract_chip_from_gpath_into_square_worker(args):
+    import vtool as vt
     gfpath, bbox, theta, target_size = args
     imgBGR = vt.imread(gfpath)  # Read parent image
     return vt.extract_chip_into_square(imgBGR, bbox, theta, target_size)
@@ -479,6 +477,43 @@ def get_identify_training_fpaths(ibs, **kwargs):
     data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
         ibs, aid1_list, aid2_list, **kwargs)
     return data_fpath, labels_fpath, training_dpath
+
+
+#def get_patchmetric_training_fpaths(ibs, **kwargs):
+#    """
+#    CommandLine:
+#        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths
+
+#    Example:
+#        >>> # ENABLE_DOCTEST
+#        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+#        >>> import ibeis
+#        >>> # build test data
+#        >>> ibs = ibeis.opendb('testdb1')
+#        >>> # execute function
+#        >>> (data_fpath, labels_fpath) = get_patchmetric_training_fpaths(ibs)
+#        >>> # verify results
+#        >>> result = str((data_fpath, labels_fpath))
+#        >>> print(result)
+#    """
+#    def get_aidpairs_and_matches():
+#        aid_list = ibs.get_valid_aids()
+#        import utool as ut
+#        aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
+#        qres_list = ibs.query_chips(aid_list, aid_list)
+#        num_top = 3
+#        aid1_list = np.array(ut.flatten([[qres.qaid] * num_top for qres in qres_list]))
+#        aid2_list = np.array(ut.flatten([qres.get_top_aids()[0:num_top] for qres in qres_list]))
+#        print('get_patchmetric_training_fpaths')
+#        aid1_list, aid2_list = get_identify_training_aid_pairs(ibs)
+#    max_examples = kwargs.pop('max_examples', None)
+#    if max_examples is not None:
+#        print('max_examples = %r' % (max_examples,))
+#        aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
+#        aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
+#    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
+#        ibs, aid1_list, aid2_list, **kwargs)
+#    return data_fpath, labels_fpath, training_dpath
 
 
 if __name__ == '__main__':
