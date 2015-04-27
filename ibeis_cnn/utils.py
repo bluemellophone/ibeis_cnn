@@ -655,7 +655,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None):
+def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None, epoch=None):
     nn_layers = layers.get_all_layers(output_layer)
     cnn_layers = []
     for layer in nn_layers:
@@ -666,10 +666,10 @@ def show_convolutional_layers(output_layer, results_path, color=False, limit=150
         cnn_layers.append(layer)
 
     weights_list = [layer.W.get_value() for layer in cnn_layers]
-    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target)
+    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target, epoch=epoch)
 
 
-def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None):
+def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None, epoch=None):
     for index, all_weights in enumerate(weights_list):
         if target is not None and target != index:
             continue
@@ -715,7 +715,9 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
             grid[j].get_yaxis().set_visible(False)
 
         color_str = 'color' if color else 'gray'
-        output_file = 'features_conv%d_%s.png' % (index, color_str)
+        if epoch is None:
+            epoch = 'X'
+        output_file = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
         output_path = join(results_path, output_file)
         plt.savefig(output_path, bbox_inches='tight')
 
