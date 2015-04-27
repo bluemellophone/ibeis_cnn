@@ -285,34 +285,34 @@ def train_identification_pz():
     #X = k
 
 
-def train_pz():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_pz
+# def train_pz():
+#     r"""
+#     CommandLine:
+#         python -m ibeis_cnn.train --test-train_pz
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_pz()
-    """
-    project_name            = 'plains'
-    model                   = models.PZ_GIRM_Model()
+#     Example:
+#         >>> # DISABLE_DOCTEST
+#         >>> from ibeis_cnn.train import *  # NOQA
+#         >>> train_pz()
+#     """
+#     project_name            = 'plains'
+#     model                   = models.PZ_GIRM_Model()
 
-    root                    = abspath(join('..', 'data'))
-    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+#     root                    = abspath(join('..', 'data'))
+#     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+#     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+#     results_dpath            = join(root, 'results', project_name)
+#     weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+#     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
-    config                  = {
-        'patience': 10,
-        'max_epochs': 100,
-        'regularization': 0.0001,
-        'test_time_augmentation': True,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+#     config                  = {
+#         'patience': 10,
+#         'max_epochs': 100,
+#         'regularization': 0.0001,
+#         'test_time_augmentation': True,
+#         'pretrained_weights_fpath': pretrained_weights_fpath,
+#     }
+#     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
 
 
 def train_pz_large():
@@ -336,8 +336,8 @@ def train_pz_large():
     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience': 10,
-        'max_epochs': 500,
+        'patience': 20,
+        'max_epochs': 1000,
         'regularization': 0.0001,
         'test_time_augmentation': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
@@ -346,35 +346,35 @@ def train_pz_large():
     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
 
 
-def train_pz_girm():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_pz_girm
+# def train_pz_girm():
+#     r"""
+#     CommandLine:
+#         python -m ibeis_cnn.train --test-train_pz_girm
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_pz_girm()
-    """
-    project_name            = 'viewpoint'
-    model                   = models.PZ_GIRM_Model()
+#     Example:
+#         >>> # DISABLE_DOCTEST
+#         >>> from ibeis_cnn.train import *  # NOQA
+#         >>> train_pz_girm()
+#     """
+#     project_name            = 'viewpoint'
+#     model                   = models.PZ_GIRM_Model()
 
-    root                    = abspath(join('..', 'data'))
-    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+#     root                    = abspath(join('..', 'data'))
+#     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+#     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+#     results_dpath            = join(root, 'results', project_name)
+#     weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+#     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
-    config                  = {
-        'patience': 10,
-        'max_epochs': 100,
-        'regularization': 0.0001,
-        'test_time_augmentation': True,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
+#     config                  = {
+#         'patience': 10,
+#         'max_epochs': 100,
+#         'regularization': 0.0001,
+#         'test_time_augmentation': True,
+#         'pretrained_weights_fpath': pretrained_weights_fpath,
+#     }
 
-    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+#     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
 
 
 def train_pz_girm_large():
@@ -399,8 +399,8 @@ def train_pz_girm_large():
     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'patience': 10,
-        'max_epochs': 500,
+        'patience': 20,
+        'max_epochs': 1000,
         'regularization': 0.0001,
         'test_time_augmentation': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
