@@ -8,16 +8,11 @@ from ibeis_cnn import models
 
 import cPickle as pickle
 from lasagne import layers
-import matplotlib.cm as cm
-from mpl_toolkits.axes_grid1 import ImageGrid
-import cv2
-import numpy as np
 
 import time
 import utool as ut
 import six  # NOQA
 from os.path import join, abspath
-import matplotlib.pyplot as plt
 
 
 def test(data_fpath, model, weights_fpath, results_dpath, labels_fpath=None, **kwargs):
@@ -100,57 +95,7 @@ def display_caffe_model(weights_model_path, results_path, **kwargs):
     with open(weights_model_path, 'rb') as pfile:
         pretrained_weights = pickle.load(pfile)
 
-    print(len(pretrained_weights))
-    index = 0
-    color = True
-    limit = 150
-
-    # re-use the same figure to save memory
-    fig = plt.figure(1)
-    ax1 = plt.axes(frameon=False)
-    ax1.get_xaxis().set_visible(False)
-    ax1.get_yaxis().set_visible(False)
-    all_weights = pretrained_weights[index]
-    # Get shape of weights
-    num, channels, height, width = all_weights.shape
-    # non-color features need to be flattened
-    if not color:
-        all_weights = all_weights.reshape(num * channels, height, width)
-        num, height, width = all_weights.shape
-        channels = 1
-    # Limit all_weights
-    if limit is not None and num > limit:
-        all_weights = all_weights[:limit]
-        num, channels, height, width = all_weights.shape
-    # Find how many features and build grid
-    dim = int(np.round(np.sqrt(num)))
-    grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
-
-    # Build grid
-    if color:
-        for f, feature in enumerate(all_weights):
-            for c in range(len(feature)):
-                channel = feature[c]
-                cmax, cmin = np.max(channel), np.min(channel)
-                channel = (channel - cmin) * (255. / (cmax - cmin))
-                feature[c] = channel
-            feature = cv2.merge(feature)
-            grid[f].imshow(feature, interpolation='nearest')
-    else:
-        # get all the weights and scale them to dimensions that can be shown
-        for f, feature in enumerate(all_weights):
-            fmax, fmin = np.max(feature), np.min(feature)
-            domain = fmax - fmin
-            feature = (feature - fmin) * (255. / domain)
-            grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
-
-    for j in range(dim * dim):
-        grid[j].get_xaxis().set_visible(False)
-        grid[j].get_yaxis().set_visible(False)
-
-    output_file = 'features_conv%d.png' % (index)
-    output_path = join(results_path, output_file)
-    plt.savefig(output_path, bbox_inches='tight')
+    utils.show_convolutional_features(pretrained_weights, results_path, color=True, target=0)
 
 
 def test_pz():

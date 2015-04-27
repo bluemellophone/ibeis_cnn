@@ -655,7 +655,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_features(output_layer, results_path, color=False, limit=150, target=None):
+def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None):
     nn_layers = layers.get_all_layers(output_layer)
     cnn_layers = []
     for layer in nn_layers:
@@ -665,7 +665,12 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
             continue
         cnn_layers.append(layer)
 
-    for index, layer in enumerate(cnn_layers):
+    weights_list = [layer.W.get_value() for layer in cnn_layers]
+    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target)
+
+
+def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None):
+    for index, all_weights in enumerate(weights_list):
         if target is not None and target != index:
             continue
         # re-use the same figure to save memory
@@ -673,7 +678,6 @@ def show_convolutional_features(output_layer, results_path, color=False, limit=1
         ax1 = plt.axes(frameon=False)
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
-        all_weights = layer.W.get_value()
         # Get shape of weights
         num, channels, height, width = all_weights.shape
         # non-color features need to be flattened
