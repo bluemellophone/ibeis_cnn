@@ -95,7 +95,7 @@ def display_caffe_model(weights_model_path, results_path, **kwargs):
     with open(weights_model_path, 'rb') as pfile:
         pretrained_weights = pickle.load(pfile)
 
-    utils.show_convolutional_features(pretrained_weights, results_path, color=True, target=0)
+    utils.show_convolutional_features(pretrained_weights, results_path, color=False, target=0)
 
 
 def test_pz():
