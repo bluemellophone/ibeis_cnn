@@ -329,19 +329,22 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> # verify results
         >>> print(next(result))
     """
+    verbose = kwargs.get('verbose', False)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
-    print('[batch iter] X.flags \n%r' % (X.flags, ))
-    print('[batch iter] X.shape %r' % (X.shape, ))
-    if y is not None:
-        print('[batch iter] y.shape %r' % (y.shape, ))
+    if verbose:
+        print('[batch iter] X.flags \n%r' % (X.flags, ))
+        print('[batch iter] X.shape %r' % (X.shape, ))
+        if y is not None:
+            print('[batch iter] y.shape %r' % (y.shape, ))
     N = (X).shape[0] // data_per_label
     num_batches = (N + batch_size - 1) // batch_size
     #num_batches -= 2
-    print('num_batches = %r' % (num_batches,))
+    if verbose:
+        print('num_batches = %r' % (num_batches,))
     for i in range(num_batches):
         start_y = i * batch_size
         end_y = (i + 1) * batch_size
@@ -374,11 +377,12 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         Xb = Xb.transpose((0, 3, 1, 2))
-        print('Yielding batch:')
-        print('  * x_sl = %r' % (x_sl,))
-        print('  * y_sl = %r' % (y_sl,))
-        print('  * Xb.shape = %r' % (Xb.shape,))
-        print('  * yb.shape = %r' % (yb.shape,))
+        if verbose:
+            print('Yielding batch:')
+            print('  * x_sl = %r' % (x_sl,))
+            print('  * y_sl = %r' % (y_sl,))
+            print('  * Xb.shape = %r' % (Xb.shape,))
+            print('  * yb.shape = %r' % (yb.shape,))
         # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
 
