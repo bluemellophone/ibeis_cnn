@@ -210,7 +210,7 @@ def test_display_caffenet():
     weights_model_fpath     = join(root, 'nets', project_name, 'caffenet.caffe.pickle')
     config = {}
 
-    test(weights_model_fpath, results_dpath, **config)
+    display_caffe_model(weights_model_fpath, results_dpath, **config)
 
 
 if __name__ == '__main__':
