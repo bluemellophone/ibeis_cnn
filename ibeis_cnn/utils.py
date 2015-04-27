@@ -698,11 +698,13 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
         # Build grid
         for f, feature in enumerate(all_weights):
             # get all the weights and scale them to dimensions that can be shown
-            fmax, fmin = np.max(feature), np.min(feature)
+            fmin, fmax = np.min(feature), np.max(feature)
+            print(feature.shape, fmax, fmin)
             domain = fmax - fmin
             feature = (feature - fmin) * (255. / domain)
             if color:
                 feature = cv2.merge(feature)
+                print(feature.shape)
                 grid[f].imshow(feature, interpolation='nearest')
             else:
                 grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
@@ -711,7 +713,8 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
             grid[j].get_xaxis().set_visible(False)
             grid[j].get_yaxis().set_visible(False)
 
-        output_file = 'features_conv%d.png' % (index)
+        color_str = 'color' if color else 'gray'
+        output_file = 'features_conv%d_%s.png' % (index, color_str)
         output_path = join(results_path, output_file)
         plt.savefig(output_path, bbox_inches='tight')
 
