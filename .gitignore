@@ -56,3 +56,5 @@ data/
 *.tar.gz
 .DS_Store
 *.zip
+
+test_times.txt
