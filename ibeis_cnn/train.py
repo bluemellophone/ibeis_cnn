@@ -320,7 +320,6 @@ def train_pz_large():
 
     config                  = {
         'patience': 20,
-        'max_epochs': 1000,
         'regularization': 0.0001,
         'test_time_augmentation': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
@@ -341,7 +340,6 @@ def train_pz_girm_large():
     """
     project_name            = 'viewpoint_large'
     model                   = models.PZ_GIRM_LARGE_Model()
-    # model                   = models.PZ_GIRM_LARGE_2_Model()
 
     root                    = abspath(join('..', 'data'))
     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
@@ -351,8 +349,39 @@ def train_pz_girm_large():
     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
+        'learning_rate': 0.1,
         'patience': 20,
-        'max_epochs': 1000,
+        'regularization': 0.0001,
+        'test_time_augmentation': True,
+        'pretrained_weights_fpath': pretrained_weights_fpath,
+    }
+
+    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+
+
+def train_pz_girm_large_deep():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_pz_girm_large_deep
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> train_pz_girm_large_deep()
+    """
+    project_name            = 'viewpoint_large_deep'
+    model                   = models.PZ_GIRM_LARGE_DEEP_Model()
+
+    root                    = abspath(join('..', 'data'))
+    train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    results_dpath            = join(root, 'results', project_name)
+    weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+
+    config                  = {
+        'learning_rate': 0.1,
+        'patience': 20,
         'regularization': 0.0001,
         'test_time_augmentation': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
