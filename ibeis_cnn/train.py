@@ -109,7 +109,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     # create theano symbolic expressions that define the network
     all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, model, **kwargs)
-    train_iter, valid_iter, test_iter = all_iters
+    train_iter, train_iter_determ, valid_iter, test_iter = all_iters
 
     # Load the pretrained model if specified
     if pretrained_weights_fpath is not None and exists(pretrained_weights_fpath):
@@ -153,17 +153,22 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
                 # Show first weights before any training
                 if kwargs.get('show_features'):
-                    utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
+                    utils.show_convolutional_layers(output_layer, results_dpath,
+                                                    color=True, target=0, epoch=epoch)
+
+                # Get the augmentation function, if there is one for this model
+                augment_fn = None
+                if kwargs.get('test_time_augmentation', False):
+                    augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
-                augment_fn = getattr(model, 'augment', None)
-                avg_train_loss = utils.forward_train(X_train, y_train, train_iter, rand=True,
-                                                     augment=augment_fn, model=model, **kwargs)
-                if kwargs.get('test_time_augmentation', False):
-                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
-                                                         augment=augment_fn, model=model, **kwargs)
-                else:
-                    avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter, model=model, **kwargs)
+                avg_train_loss = utils.forward_train(X_train, y_train, train_iter,
+                                                     rand=True, augment=augment_fn,
+                                                     model=model, **kwargs)
+
+                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
+                                                     augment=augment_fn, model=model,
+                                                     **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
@@ -185,6 +190,11 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 # compute the loss over all testing batches
                 mapping_fn = getattr(model, 'label_order_mapping', None)
                 if request_test or best_found:
+                    avg_train_determ_loss = utils.forward_train(X_train, y_train,
+                                                                train_iter_determ, rand=True,
+                                                                augment=augment_fn, model=model,
+                                                                **kwargs)
+
                     avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
                                                            results_dpath, mapping_fn, **kwargs)
                     # Output the layer 1 features
@@ -192,6 +202,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                         utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
                         # utils.show_convolutional_layers(output_layer, results_dpath, color=False, target=0, epoch=epoch)
                 else:
+                    avg_train_determ_loss = None
                     avg_test_accuracy = None
 
                 # Running tab for what the best model
@@ -203,6 +214,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                     kwargs['best_valid_accuracy'] = avg_valid_accuracy
                 if avg_test_accuracy > kwargs.get('best_test_accuracy'):
                     kwargs['best_test_accuracy'] = avg_test_accuracy
+                if avg_train_determ_loss > kwargs.get('best_train_determ_loss'):
+                    kwargs['best_train_determ_loss'] = avg_train_determ_loss
 
                 # Learning rate schedule update
                 if epoch >= epoch_marker + kwargs.get('patience'):
@@ -213,9 +226,9 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 t1 = time.time()
 
                 # Print the epoch
-                utils.print_epoch_info(avg_train_loss, avg_valid_loss,
-                                       avg_valid_accuracy, avg_test_accuracy,
-                                       epoch, t1 - t0, **kwargs)
+                utils.print_epoch_info(avg_train_loss, avg_train_determ_loss,
+                                       avg_valid_loss, avg_valid_accuracy,
+                                       avg_test_accuracy, epoch, t1 - t0, **kwargs)
 
                 # Break on max epochs
                 if epoch >= kwargs.get('max_epochs'):
@@ -285,36 +298,6 @@ def train_identification_pz():
     #X = k
 
 
-# def train_pz():
-#     r"""
-#     CommandLine:
-#         python -m ibeis_cnn.train --test-train_pz
-
-#     Example:
-#         >>> # DISABLE_DOCTEST
-#         >>> from ibeis_cnn.train import *  # NOQA
-#         >>> train_pz()
-#     """
-#     project_name            = 'plains'
-#     model                   = models.PZ_GIRM_Model()
-
-#     root                    = abspath(join('..', 'data'))
-#     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-#     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-#     results_dpath            = join(root, 'results', project_name)
-#     weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-#     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-
-#     config                  = {
-#         'patience': 10,
-#         'max_epochs': 100,
-#         'regularization': 0.0001,
-#         'test_time_augmentation': True,
-#         'pretrained_weights_fpath': pretrained_weights_fpath,
-#     }
-#     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
-
-
 def train_pz_large():
     r"""
     CommandLine:
@@ -344,37 +327,6 @@ def train_pz_large():
     }
 
     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
-
-
-# def train_pz_girm():
-#     r"""
-#     CommandLine:
-#         python -m ibeis_cnn.train --test-train_pz_girm
-
-#     Example:
-#         >>> # DISABLE_DOCTEST
-#         >>> from ibeis_cnn.train import *  # NOQA
-#         >>> train_pz_girm()
-#     """
-#     project_name            = 'viewpoint'
-#     model                   = models.PZ_GIRM_Model()
-
-#     root                    = abspath(join('..', 'data'))
-#     train_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-#     train_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-#     results_dpath            = join(root, 'results', project_name)
-#     weights_fpath            = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-#     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-
-#     config                  = {
-#         'patience': 10,
-#         'max_epochs': 100,
-#         'regularization': 0.0001,
-#         'test_time_augmentation': True,
-#         'pretrained_weights_fpath': pretrained_weights_fpath,
-#     }
-
-#     train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
 
 
 def train_pz_girm_large():

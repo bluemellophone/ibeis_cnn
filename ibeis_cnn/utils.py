@@ -223,26 +223,27 @@ def print_layer_info(output_layer):
     ))
 
 
-def print_epoch_info(train_loss, valid_loss, valid_accuracy, test_accuracy,
-                     epoch, duration, best_train_loss, best_valid_loss,
+def print_epoch_info(train_loss, train_determ_loss, valid_loss, valid_accuracy,
+                     test_accuracy, epoch, duration, best_train_loss, best_valid_loss,
                      best_valid_accuracy, best_test_accuracy, **kwargs):
     best_train      = train_loss == best_train_loss
     best_valid      = valid_loss == best_valid_loss
     best_valid_accuracy = valid_accuracy == best_valid_accuracy
     best_train_accuracy = test_accuracy == best_test_accuracy
     ratio           = train_loss / valid_loss
+    ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
-    print('[info]  {:>5}  |  {}{:>10.6f}{}  |  {}{:>10.6f}{}  '
-          '|  {}{:>11.6f}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
+    print('[info]  {:>5}  |  {}{:>18}{}  |  {}{:>10.6f}{}  '
+          '|  {}{:>20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
               epoch,
               ANSI.BLUE if best_train else '',
-              train_loss,
+              '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
               ANSI.RESET if best_train else '',
               ANSI.GREEN if best_valid else '',
               valid_loss,
               ANSI.RESET if best_valid else '',
               ANSI.RED if unhealthy_ratio else '',
-              ratio,
+              '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
               ANSI.RESET if unhealthy_ratio else '',
               ANSI.MAGENTA if best_valid_accuracy else '',
               '{:.2f}%'.format(valid_accuracy * 100),
@@ -422,6 +423,8 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         L2 = lasagne.regularization.l2(output_layer)
         loss_train += L2 * regularization
 
+    loss_train_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+
     valid_outputs = []
     test_outputs = []
 
@@ -453,6 +456,15 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
+    train_iter_determ = theano.function(
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[loss_train_determ],
+        givens={
+            X: X_batch,
+            y: y_batch,
+        },
+    )
+
     valid_iter = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=valid_outputs,
@@ -471,7 +483,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
-    return train_iter, valid_iter, test_iter
+    return train_iter, train_iter_determ, valid_iter, test_iter
 
 
 def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
