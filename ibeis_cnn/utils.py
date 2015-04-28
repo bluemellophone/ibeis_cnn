@@ -202,8 +202,8 @@ def load(data_file, labels_file=None, random_state=None):
 
 def print_header_columns():
     print('''
-[info]   Epoch |      Train Loss      |  Valid Loss  |      Train / Val       |  Valid Acc  |  Test Acc   |  Dur
-[info] --------|----------------------|--------------|------------------------|-------------|-------------|------\
+[info]   Epoch |      Train Loss       |  Valid Loss  |      Train / Val       |  Valid Acc  |  Test Acc   |  Dur
+[info] --------|-----------------------|--------------|------------------------|-------------|-------------|------\
 ''')
 
 
@@ -233,8 +233,8 @@ def print_epoch_info(train_loss, train_determ_loss, valid_loss, valid_accuracy,
     ratio           = train_loss / valid_loss
     ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
-    print('[info]  {:>5}  |  {}{:>18}{}  |  {}{:>10.6f}{}  '
-          '|  {}{:>20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
+    print('[info]  {:>5}  |  {}{:<18}{}  |  {}{:>10.6f}{}  '
+          '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
               epoch,
               ANSI.BLUE if best_train else '',
               '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
@@ -423,6 +423,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         L2 = lasagne.regularization.l2(output_layer)
         loss_train += L2 * regularization
 
+    # Disable dropout and run the training loss for the epoch
     loss_train_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
 
     valid_outputs = []
