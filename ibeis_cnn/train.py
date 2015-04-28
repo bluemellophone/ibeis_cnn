@@ -349,7 +349,6 @@ def train_pz_girm_large():
     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'learning_rate': 0.1,
         'patience': 20,
         'regularization': 0.0001,
         'val_augment': True,
@@ -380,7 +379,6 @@ def train_pz_girm_large_deep():
     pretrained_weights_fpath = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')  # NOQA
 
     config                  = {
-        'learning_rate': 0.1,
         'patience': 20,
         'regularization': 0.0001,
         'val_augment': True,
