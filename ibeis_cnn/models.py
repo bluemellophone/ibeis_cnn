@@ -411,8 +411,10 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
+
         l_conv2 = Conv2DLayer(
-            l_conv1,
+            l_conv1_dropout,
             num_filters=32,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
@@ -420,8 +422,10 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv2_dropout = layers.DropoutLayer(l_conv2, p=0.10)
+
         l_pool1 = MaxPool2DLayer_(
-            l_conv2,
+            l_conv2_dropout,
             pool_size=(2, 2),
             stride=(2, 2),
         )
@@ -435,17 +439,21 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv3_dropout = layers.DropoutLayer(l_conv3, p=0.30)
+
         l_conv4 = Conv2DLayer(
-            l_conv3,
+            l_conv3_dropout,
             num_filters=64,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
+
+        l_conv4_dropout = layers.DropoutLayer(l_conv4, p=0.30)
 
         l_conv5 = Conv2DLayer(
-            l_conv4,
+            l_conv4_dropout,
             num_filters=64,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
@@ -453,8 +461,10 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv5_dropout = layers.DropoutLayer(l_conv5, p=0.30)
+
         l_pool2 = MaxPool2DLayer_(
-            l_conv5,
+            l_conv5_dropout,
             pool_size=(2, 2),
             stride=(2, 2),
         )
@@ -468,26 +478,32 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv6_dropout = layers.DropoutLayer(l_conv6, p=0.50)
+
         l_conv7 = Conv2DLayer(
-            l_conv6,
+            l_conv6_dropout,
             num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
+
+        l_conv7_dropout = layers.DropoutLayer(l_conv7, p=0.50)
 
         l_conv8 = Conv2DLayer(
-            l_conv7,
+            l_conv7_dropout,
             num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
             W=init.Orthogonal(),
         )
+
+        l_conv8_dropout = layers.DropoutLayer(l_conv8, p=0.50)
 
         l_conv9 = Conv2DLayer(
-            l_conv8,
+            l_conv8_dropout,
             num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
@@ -495,8 +511,10 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             W=init.Orthogonal(),
         )
 
+        l_conv9_dropout = layers.DropoutLayer(l_conv9, p=0.50)
+
         l_pool3 = MaxPool2DLayer_(
-            l_conv9,
+            l_conv9_dropout,
             pool_size=(2, 2),
             stride=(2, 2),
         )
