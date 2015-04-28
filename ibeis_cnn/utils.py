@@ -233,7 +233,7 @@ def print_epoch_info(train_loss, train_determ_loss, valid_loss, valid_accuracy,
     ratio           = train_loss / valid_loss
     ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
     unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
-    print('[info]  {:>5}  |  {}{:<18}{}  |  {}{:>10.6f}{}  '
+    print('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
           '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
               epoch,
               ANSI.BLUE if best_train else '',
