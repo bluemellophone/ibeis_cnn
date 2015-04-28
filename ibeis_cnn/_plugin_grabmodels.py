@@ -11,9 +11,9 @@ MODEL_URLS = {
 }
 
 
-def ensure_model(model):
+def ensure_model(model, redownload=False):
     url = MODEL_URLS[model]
-    extracted_fpath = ut.grab_zipped_url(url, appname='ibeis_cnn')
+    extracted_fpath = ut.grab_zipped_url(url, appname='ibeis_cnn', redownload=redownload)
     return extracted_fpath
 
 
