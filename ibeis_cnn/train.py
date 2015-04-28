@@ -62,7 +62,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'regularization',          None)
     utils._update(kwargs, 'output_dims',             None)
     utils._update(kwargs, 'show_features',           True)
-    utils._update(kwargs, 'test_time_augmentation',  False)
+    utils._update(kwargs, 'val_augment',  False)
 
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
@@ -158,7 +158,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
                 # Get the augmentation function, if there is one for this model
                 augment_fn = None
-                if kwargs.get('test_time_augmentation', False):
+                if kwargs.get('val_augment', False):
                     augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
@@ -321,7 +321,7 @@ def train_pz_large():
     config                  = {
         'patience': 20,
         'regularization': 0.0001,
-        'test_time_augmentation': True,
+        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
@@ -352,7 +352,7 @@ def train_pz_girm_large():
         'learning_rate': 0.1,
         'patience': 20,
         'regularization': 0.0001,
-        'test_time_augmentation': True,
+        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
@@ -383,7 +383,7 @@ def train_pz_girm_large_deep():
         'learning_rate': 0.1,
         'patience': 20,
         'regularization': 0.0001,
-        'test_time_augmentation': True,
+        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
