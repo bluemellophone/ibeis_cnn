@@ -202,8 +202,8 @@ def load(data_file, labels_file=None, random_state=None):
 
 def print_header_columns():
     print('''
-[info]   Epoch |  Train Loss  |  Valid Loss  |  Train / Val  |  Valid Acc  |  Test Acc   |  Dur
-[info] --------|--------------|--------------|---------------|-------------|-------------|------\
+[info]   Epoch |      Train Loss      |  Valid Loss  |      Train / Val       |  Valid Acc  |  Test Acc   |  Dur
+[info] --------|----------------------|--------------|------------------------|-------------|-------------|------\
 ''')
 
 
