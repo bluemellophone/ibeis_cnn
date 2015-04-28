@@ -404,7 +404,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv1 = Conv2DLayer(
             l_in,
-            num_filters=64,
+            num_filters=32,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -413,7 +413,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv2 = Conv2DLayer(
             l_conv1,
-            num_filters=64,
+            num_filters=32,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -428,7 +428,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv3 = Conv2DLayer(
             l_pool1,
-            num_filters=128,
+            num_filters=64,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -437,7 +437,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv4 = Conv2DLayer(
             l_conv3,
-            num_filters=128,
+            num_filters=64,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -446,7 +446,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv5 = Conv2DLayer(
             l_conv4,
-            num_filters=128,
+            num_filters=64,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -461,7 +461,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv6 = Conv2DLayer(
             l_pool2,
-            num_filters=256,
+            num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -470,7 +470,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv7 = Conv2DLayer(
             l_conv6,
-            num_filters=256,
+            num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -479,7 +479,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv8 = Conv2DLayer(
             l_conv7,
-            num_filters=256,
+            num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
@@ -488,7 +488,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv9 = Conv2DLayer(
             l_conv8,
-            num_filters=256,
+            num_filters=128,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
