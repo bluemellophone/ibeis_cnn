@@ -384,6 +384,7 @@ def train_pz_girm_large_deep():
         'patience': 20,
         'regularization': 0.0001,
         'val_augment': True,
+        'batch_size': 64,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
