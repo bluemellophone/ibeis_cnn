@@ -525,7 +525,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
 
 
-def forward_train(X_train, y_train, theano_fn, **kwargs):
+def process_train(X_train, y_train, theano_fn, **kwargs):
     """ compute the loss over all training batches """
     results = process_batch(X_train, y_train, theano_fn, **kwargs)
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
@@ -534,7 +534,7 @@ def forward_train(X_train, y_train, theano_fn, **kwargs):
     return avg_train_loss
 
 
-def forward_valid(X_valid, y_valid, theano_fn, **kwargs):
+def process_valid(X_valid, y_valid, theano_fn, **kwargs):
     """ compute the loss over all validation batches """
     results = process_batch(X_valid, y_valid, theano_fn, **kwargs)
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
@@ -544,7 +544,7 @@ def forward_valid(X_valid, y_valid, theano_fn, **kwargs):
     return avg_valid_loss, avg_valid_accu
 
 
-def forward_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
+def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
     """ compute the loss over all test batches """
     results = process_batch(X_test, y_test, theano_fn, **kwargs)
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
@@ -569,7 +569,7 @@ def forward_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
     return avg_test_accu
 
 
-def forward_test_predictions(X_test, theano_fn, **kwargs):
+def process_predictions(X_test, theano_fn, **kwargs):
     """ compute the loss over all test batches """
     results = process_batch(X_test, None, theano_fn, **kwargs)
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results

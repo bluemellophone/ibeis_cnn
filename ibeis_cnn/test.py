@@ -9,6 +9,7 @@ from ibeis_cnn import models
 import cPickle as pickle
 from lasagne import layers
 
+import theano
 import time
 import utool as ut
 import six  # NOQA
@@ -68,8 +69,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
-    theano_test_fn, theano_accuracy_test_fn = utils.create_testing_funcs(output_layer, **kwargs)
-
+    learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
     theano_forward, theano_backprop = theano_funcs
 
@@ -82,12 +82,13 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    all_predict, labels = utils.forward_test_predictions(X_test, theano_test_fn, results_dpath, **kwargs)
+    all_predict, labels = utils.process_predictions(X_test, theano_forward, **kwargs)
 
     if y_test is not None:
-        mapping_fn = getattr(model, 'label_order_mapping', None)
-        avg_test_accuracy = utils.forward_test(X_test, y_test, theano_accuracy_test_fn,
-                                               results_dpath, mapping_fn, **kwargs)
+        avg_test_accuracy = utils.process_test(X_test, y_test, theano_forward,
+                                               results_dpath,
+                                               model=model, augment=None,
+                                               rand=False, **kwargs)
         print('Test accuracy for %d examples: %0.2f' % (len(X_test), avg_test_accuracy, ))
 
     # End timer

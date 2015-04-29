@@ -172,11 +172,11 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                 augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
-                avg_train_loss = utils.forward_train(X_train, y_train, theano_backprop,
+                avg_train_loss = utils.process_train(X_train, y_train, theano_backprop,
                                                      model=model, augment=augment_fn,
                                                      rand=True, **kwargs)
 
-                avg_valid_data = utils.forward_valid(X_valid, y_valid, theano_forward,
+                avg_valid_data = utils.process_valid(X_valid, y_valid, theano_forward,
                                                      model=model, augment=None,
                                                      rand=False, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
@@ -199,12 +199,13 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
 
                 # compute the loss over all testing batches
                 if request_test or best_found:
-                    avg_train_determ_loss = utils.forward_train(X_train, y_train, theano_forward,
+                    avg_train_determ_loss = utils.process_train(X_train, y_train, theano_forward,
                                                                 model=model, augment=augment_fn,
                                                                 rand=True, **kwargs)
 
+                    # If we want to output the confusion matrix, give the results path
                     results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, theano_forward,
+                    avg_test_accuracy = utils.process_test(X_test, y_test, theano_forward,
                                                            results_dpath_,
                                                            model=model, augment=None,
                                                            rand=False, **kwargs)
