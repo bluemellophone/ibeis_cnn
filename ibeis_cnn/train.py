@@ -172,26 +172,27 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                 augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
-                avg_train_loss = utils.process_train(X_train, y_train, theano_backprop,
-                                                     model=model, augment=augment_fn,
-                                                     rand=True, **kwargs)
+                loss_train = utils.process_train(X_train, y_train, theano_backprop,
+                                                 model=model, augment=augment_fn,
+                                                 rand=True, **kwargs)
 
-                avg_valid_data = utils.process_valid(X_valid, y_valid, theano_forward,
-                                                     model=model, augment=None,
-                                                     rand=False, **kwargs)
-                avg_valid_loss, avg_valid_accuracy = avg_valid_data
+                data_valid = utils.process_valid(X_valid, y_valid, theano_forward,
+                                                 model=model, augment=None,
+                                                 rand=False, **kwargs)
+                loss_valid, accu_valid = data_valid
 
                 # If the training loss is nan, the training has diverged
-                if np.isnan(avg_train_loss):
+                if np.isnan(loss_train):
                     print('\n[train] training diverged\n')
                     break
 
+                # Calculate request_test before adding to the epoch counter
+                request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
                 # Increment the epoch
-                request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0  # Do the test before adding to the epoch counter
                 epoch += 1
 
                 # Is this model the best we've ever seen?
-                best_found = avg_valid_loss < kwargs.get('best_valid_loss')
+                best_found = loss_valid < kwargs.get('best_valid_loss')
                 if best_found:
                     kwargs['best_epoch'] = epoch
                     epoch_marker = epoch
@@ -199,35 +200,37 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
 
                 # compute the loss over all testing batches
                 if request_test or best_found:
-                    avg_train_determ_loss = utils.process_train(X_train, y_train, theano_forward,
-                                                                model=model, augment=augment_fn,
-                                                                rand=True, **kwargs)
+                    loss_determ = utils.process_train(X_train, y_train, theano_forward,
+                                                      model=model, augment=augment_fn,
+                                                      rand=True, **kwargs)
 
                     # If we want to output the confusion matrix, give the results path
                     results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
-                    avg_test_accuracy = utils.process_test(X_test, y_test, theano_forward,
-                                                           results_dpath_,
-                                                           model=model, augment=None,
-                                                           rand=False, **kwargs)
+                    accu_test = utils.process_test(X_test, y_test, theano_forward,
+                                                   results_dpath_,
+                                                   model=model, augment=None,
+                                                   rand=False, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
-                        utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
-                        # utils.show_convolutional_layers(output_layer, results_dpath, color=False, target=0, epoch=epoch)
+                        utils.show_convolutional_layers(output_layer, results_dpath,
+                                                        color=True, target=0, epoch=epoch)
+                        # utils.show_convolutional_layers(output_layer, results_dpath,
+                        #                                 color=False, target=0, epoch=epoch)
                 else:
-                    avg_train_determ_loss = None
-                    avg_test_accuracy = None
+                    loss_determ = None
+                    accu_test = None
 
                 # Running tab for what the best model
-                if avg_train_loss < kwargs.get('best_train_loss'):
-                    kwargs['best_train_loss'] = avg_train_loss
-                if avg_valid_loss < kwargs.get('best_valid_loss'):
-                    kwargs['best_valid_loss'] = avg_valid_loss
-                if avg_valid_accuracy > kwargs.get('best_valid_accuracy'):
-                    kwargs['best_valid_accuracy'] = avg_valid_accuracy
-                if avg_test_accuracy > kwargs.get('best_test_accuracy'):
-                    kwargs['best_test_accuracy'] = avg_test_accuracy
-                if avg_train_determ_loss > kwargs.get('best_train_determ_loss'):
-                    kwargs['best_train_determ_loss'] = avg_train_determ_loss
+                if loss_train < kwargs.get('best_train_loss'):
+                    kwargs['best_train_loss'] = loss_train
+                if loss_valid < kwargs.get('best_valid_loss'):
+                    kwargs['best_valid_loss'] = loss_valid
+                if accu_valid > kwargs.get('best_valid_accuracy'):
+                    kwargs['best_valid_accuracy'] = accu_valid
+                if accu_test > kwargs.get('best_test_accuracy'):
+                    kwargs['best_test_accuracy'] = accu_test
+                if loss_determ > kwargs.get('best_train_determ_loss'):
+                    kwargs['best_train_determ_loss'] = loss_determ
 
                 # Learning rate schedule update
                 if epoch >= epoch_marker + kwargs.get('patience'):
@@ -238,9 +241,9 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                 t1 = time.time()
 
                 # Print the epoch
-                utils.print_epoch_info(avg_train_loss, avg_train_determ_loss,
-                                       avg_valid_loss, avg_valid_accuracy,
-                                       avg_test_accuracy, epoch, t1 - t0, **kwargs)
+                utils.print_epoch_info(loss_train, loss_determ,
+                                       loss_valid, accu_valid,
+                                       accu_test, epoch, t1 - t0, **kwargs)
 
                 # Break on max epochs
                 if epoch >= kwargs.get('max_epochs'):

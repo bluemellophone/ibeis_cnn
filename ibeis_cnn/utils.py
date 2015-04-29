@@ -238,8 +238,9 @@ def print_layer_info(output_layer):
 
 
 def print_epoch_info(train_loss, train_determ_loss, valid_loss, valid_accuracy,
-                     test_accuracy, epoch, duration, best_train_loss, best_valid_loss,
-                     best_valid_accuracy, best_test_accuracy, **kwargs):
+                     test_accuracy, epoch, duration,
+                     best_train_loss, best_valid_loss, best_valid_accuracy,
+                     best_test_accuracy, **kwargs):
     best_train      = train_loss == best_train_loss
     best_valid      = valid_loss == best_valid_loss
     best_valid_accuracy = valid_accuracy == best_valid_accuracy
@@ -452,7 +453,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     probabilities = output_layer.get_output(X_batch, deterministic=True)
     predictions = T.argmax(probabilities, axis=1)
     confidences = probabilities.max(axis=1)
-    accuracy = T.mean(T.eq(predictions, y_batch))
+    # accuracy = T.mean(T.eq(predictions, y_batch))
     performance = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
@@ -461,7 +462,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     theano_backprop = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss] + performance + [accuracy],
+        outputs=[loss] + performance,
         updates=updates,
         givens={
             X: X_batch,
@@ -471,7 +472,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_determ] + performance + [accuracy],
+        outputs=[loss_determ] + performance,
         givens={
             X: X_batch,
             y: y_batch,
@@ -495,42 +496,42 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
 
         Jon, if you get to this before I do, please fix. -J
     """
-    albl_list = []  # [a]ugmented [l]a[b]e[l] list
     loss_list = []
     prob_list = []
+    albl_list = []  # [a]ugmented [l]a[b]e[l] list
     pred_list = []
     conf_list = []
-    accu_list = []
     show = False
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
-        loss, prob, pred, conf, accu = theano_fn(Xb, yb)
-        albl_list.append(yb)
+        loss, prob, pred, conf = theano_fn(Xb, yb)
         loss_list.append(loss)
         prob_list.append(prob)
+        albl_list.append(yb)
         pred_list.append(pred)
         conf_list.append(conf)
-        accu_list.append(accu)
         if show:
             # Print the network output for the first batch
             print('--------------')
-            print('Predect: ', pred)
-            print('Correct: ', yb)
             print('Loss:    ', loss)
             print('Prob:    ', prob)
+            print('Correct: ', yb)
+            print('Predect: ', pred)
             print('Conf:    ', conf)
-            print('Accu:    ', accu)
             print('--------------')
             show = False
     # Convert to numpy array
-    albl_list = np.hstack(albl_list)
-    loss_list = np.hstack(loss_list)
     prob_list = np.vstack(prob_list)
+    albl_list = np.hstack(albl_list)
     pred_list = np.hstack(pred_list)
     conf_list = np.hstack(conf_list)
-    accu_list = np.hstack(accu_list)
+
+    # Calculate performance
+    loss = np.sum(loss_list)
+    accu = T.mean(T.equal(albl_list, pred_list))
+
     # Return
-    return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
+    return loss, accu, prob_list, albl_list, pred_list, conf_list
 
 
 def predict_batch(X_train, theano_fn, **kwargs):
@@ -559,28 +560,23 @@ def predict_batch(X_train, theano_fn, **kwargs):
 def process_train(X_train, y_train, theano_fn, **kwargs):
     """ compute the loss over all training batches """
     results = process_batch(X_train, y_train, theano_fn, **kwargs)
-    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
-    # Find whatever metrics we want
-    avg_train_loss = np.mean(loss_list)
-    return avg_train_loss
+    loss, accu, prob_list, albl_list, pred_list, conf_list = results
+    # Return whatever metrics we want
+    return loss
 
 
 def process_valid(X_valid, y_valid, theano_fn, **kwargs):
     """ compute the loss over all validation batches """
     results = process_batch(X_valid, y_valid, theano_fn, **kwargs)
-    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
-    # Find whatever metrics we want
-    avg_valid_loss = np.mean(loss_list)
-    avg_valid_accu = np.mean(accu_list)
-    return avg_valid_loss, avg_valid_accu
+    loss, accu, prob_list, albl_list, pred_list, conf_list = results
+    # rRturn whatever metrics we want
+    return loss, accu
 
 
 def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
     """ compute the loss over all test batches """
     results = process_batch(X_test, y_test, theano_fn, **kwargs)
-    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
-    # Find whatever metrics we want
-    avg_test_accu = np.mean(accu_list)
+    loss, accu, prob_list, albl_list, pred_list, conf_list = results
     # Output confusion matrix
     if results_path is not None:
         # Grab model
@@ -597,7 +593,7 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
         # Make confusion matrix (pass X to write out failed cases)
         show_confusion_matrix(albl_list, pred_list, label_list, results_path,
                               mapping_fn, X_test)
-    return avg_test_accu
+    return accu
 
 
 def process_predictions(X_test, theano_fn, **kwargs):
