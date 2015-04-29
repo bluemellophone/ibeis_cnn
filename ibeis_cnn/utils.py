@@ -492,15 +492,21 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     prob_list = []
     pred_list = []
     conf_list = []
+    accu_list = []
     show = True
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
+        if yb is not None:
+            accu = np.mean(np.equal(pred, yb))
+        else:
+            accu = [np.nan] * len(Xb)
         albl_list.append(yb)
         loss_list.append(loss)
         prob_list.append(loss)
         pred_list.append(pred)
         conf_list.append(conf)
+        accu_list.append(accu)
         if show:
             # Print the network output for the first batch
             print('--------------')
@@ -509,6 +515,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
             print('Loss:    ', loss)
             print('Prob:    ', prob)
             print('Conf:    ', conf)
+            print('Accu:    ', accu)
             print('--------------')
             show = False
     # Convert to numpy array
@@ -517,13 +524,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     prob_list = np.vstack(prob_list)
     pred_list = np.hstack(pred_list)
     conf_list = np.hstack(conf_list)
-
-    # Find the accuracy list from the predictions and agumented labels
-    if yb is not None:
-        accu_list = T.mean(T.eq(pred_list, albl_list))
-    else:
-        accu_list = [np.nan] * len(X_train)
-
+    accu_list = np.hstack(accu_list)
     print(albl_list.shape)
     print(loss_list.shape)
     print(prob_list.shape)
