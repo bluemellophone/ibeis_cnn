@@ -339,6 +339,35 @@ def data_label_shuffle(X, y, data_per_label=1, seed=RANDOM_SEED):
     return X, y
 
 
+def slice_data_labels(X, y, batch_size, batch_index, data_per_label, verbose=False):
+    start_x = batch_index * batch_size
+    end_x = (batch_index + 1) * batch_size
+    #x_sl = slice(start_y * data_per_label, end_y * data_per_label)
+    #y_sl = slice(start_y, end_y)
+    # Take full batch of images and take the fraction of labels if data_per_label > 1
+    x_sl = slice(start_x, end_x)
+    y_sl = slice(start_x // data_per_label, end_x // data_per_label)
+    Xb = X[x_sl]
+    if y is not None:
+        yb = y[y_sl]
+    else:
+        yb = None
+    # Get corret dtype for X
+    Xb = Xb.astype(np.float32)
+    if verbose:
+        print('[batchiter]   * x_sl = %r' % (x_sl,))
+        print('[batchiter]   * y_sl = %r' % (y_sl,))
+    return Xb, yb
+
+
+def whiten_data(Xb, center_mean, center_std):
+    Xb = Xb.copy()
+    if center_mean is not None and center_std is not None and center_std != 0.0:
+        Xb -= center_mean
+        Xb /= center_std
+    return Xb
+
+
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
                    center_mean=None, center_std=None, model=None, **kwargs):
     r"""
@@ -377,65 +406,44 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     verbose = kwargs.get('verbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
-    ut.embed()
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
     if verbose:
         print('[batchiter] BEGIN')
-        #print('[batchiter] X.flags \n%r' % (X.flags, ))
         print('[batchiter] X.shape %r' % (X.shape, ))
         if y is not None:
             print('[batchiter] y.shape %r' % (y.shape, ))
     if y is not None:
         assert X.shape[0] == (y.shape[0] * data_per_label), 'bad data / label alignment'
-    #N = (X).shape[0] // data_per_label
-    N = (X).shape[0]
-    num_batches = (N + batch_size - 1) // batch_size
-    #num_batches -= 2
+    num_batches = (X.shape[0] + batch_size - 1) // batch_size
     if verbose:
         print('[batchiter] num_batches = %r' % (num_batches,))
-    for i in range(num_batches):
-        start_x = i * batch_size
-        end_x = (i + 1) * batch_size
-        #x_sl = slice(start_y * data_per_label, end_y * data_per_label)
-        #y_sl = slice(start_y, end_y)
-        # Take full batch of images and take the fraction of labels if data_per_label > 1
-        x_sl = slice(start_x, end_x)
-        y_sl = slice(start_x // data_per_label, end_x // data_per_label)
-        Xb = X[x_sl]
-        if y is not None:
-            yb = y[y_sl]
-        else:
-            yb = None
-        # Get corret dtype for X
-        Xb = Xb.astype(np.float32)
+    for batch_index in range(num_batches):
+        # Get batch slice
+        Xb, yb = slice_data_labels(X, y, batch_size, batch_index, data_per_label)
         # Whiten
-        if center_mean is not None:
-            Xb -= center_mean
-        if center_std is not None and center_std != 0.0:
-            Xb /= center_std
+        Xb = whiten_data(Xb, center_mean, center_std)
         # Augment
         if augment is not None:
             Xb_ = np.copy(Xb)
             yb_ = None if yb is None else np.copy(yb)
             Xb, yb = augment(Xb_, yb_)
         # Encode
-        if encoder is not None and yb is not None:
-            yb = encoder.transform(yb)
-        # Get corret dtype for y (after encoding)
         if yb is not None:
+            if encoder is not None:
+                yb = encoder.transform(yb)
+            # Get corret dtype for y (after encoding)
             if data_per_label > 1:
                 # TODO: FIX data_per_label ISSUES
                 yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
-                yb = np.vstack((yb, yb_buffer)).T.flatten()
+                yb = np.hstack((yb, yb_buffer))
+                #yb = np.vstack((yb, yb_buffer)).T.flatten()
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         Xb = Xb.transpose((0, 3, 1, 2))
         if verbose:
             print('[batchiter] Yielding batch:')
-            print('[batchiter]   * x_sl = %r' % (x_sl,))
-            print('[batchiter]   * y_sl = %r' % (y_sl,))
             print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
             print('[batchiter]   * yb.shape = %r' % (yb.shape,))
         # Ugg, we can't have data and labels of different lengths

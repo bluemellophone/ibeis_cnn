@@ -116,8 +116,9 @@ class SiameseModel(object):
         #Q = 262144.0
         #Q = 256 * (G.shape[1] * 2)
         #Q = (G.shape[1] * 2)
-        #Q = 2
-        Q = 1
+        #Q = (G.shape[1])
+        Q = 2
+        #Q = 1
         # Contrastive loss function
         genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
         imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
@@ -140,42 +141,47 @@ class SiameseModel(object):
 
         # JON, ADD THIS INSTEAD W=init.Orthogonal  -- Jason
 
-        rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
-        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
+        #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
+        rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
         # variable batch size (None), channel, width, height
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
         ## DEEP Face-like network
-        #network_layers_def = [
-        #    _P(layers.InputLayer, shape=input_shape),
-        #    #layers.GaussianNoiseLayer,
-        #    _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
-        #    _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
-        #    _P(Conv2DLayer, num_filters=16, filter_size=(9, 9), **rlu_orthog),
-        #    _P(layers.DenseLayer, num_units=128, **rlu_orthog),
-        #    #_P(layers.DropoutLayer, p=0.5),
-        #    #_P(layers.FeaturePoolLayer, pool_size=2),
-
-        #    #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
-        #    #_P(layers.FeaturePoolLayer, pool_size=2,),
-        #    #_P(layers.DropoutLayer, p=0.5),
-
-        #    #_P(layers.DenseLayer, num_units=output_dims,
-        #    #   nonlinearity=nonlinearities.softmax,
-        #    #   W=init.Orthogonal(),),
-        #]
-
-        # Yann Lecun 2005-like network
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
-            _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), **rlu_glorot),
-            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=64, filter_size=(6, 6), **rlu_glorot),
+            #layers.GaussianNoiseLayer,
+            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_glorot),
-            _P(layers.DenseLayer, num_units=50, **rlu_glorot),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
+            _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+            _P(layers.DenseLayer, num_units=512, **rlu_orthog),
+            _P(layers.DenseLayer, num_units=256, **rlu_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
+            #_P(layers.FeaturePoolLayer, pool_size=2),
+
+            #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
+            #_P(layers.FeaturePoolLayer, pool_size=2,),
+            #_P(layers.DropoutLayer, p=0.5),
+
+            #_P(layers.DenseLayer, num_units=output_dims,
+            #   nonlinearity=nonlinearities.softmax,
+            #   W=init.Orthogonal(),),
         ]
+
+        # Yann Lecun 2005-like network
+        #network_layers_def = [
+        #    _P(layers.InputLayer, shape=input_shape),
+        #    _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), **rlu_glorot),
+        #    _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
+        #    _P(Conv2DLayer, num_filters=64, filter_size=(6, 6), **rlu_glorot),
+        #    _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+        #    _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_glorot),
+        #    _P(layers.DenseLayer, num_units=50, **rlu_glorot),
+        #]
 
         # connect and record layers
         network_layers = []

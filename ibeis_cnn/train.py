@@ -284,6 +284,7 @@ def train_patchmatch_pz():
 
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -292,14 +293,14 @@ def train_patchmatch_pz():
     """
     print('get_identification_decision_training_data')
     import ibeis
-    ibs = ibeis.opendb('PZ_MTEST')
-    max_examples = 400
+    ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+    max_examples = None
     data_fpath, labels_fpath, training_dpath = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
 
     model = models.SiameseModel()
     config = dict(
         batch_size=128,
-        learning_rate=.000001,
+        learning_rate=.001,
         output_dims=1024,
         show_confusion=False,
     )
