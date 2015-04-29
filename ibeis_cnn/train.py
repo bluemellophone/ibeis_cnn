@@ -299,7 +299,7 @@ def train_patchmatch_pz():
     model = models.SiameseModel()
     config = dict(
         batch_size=128,
-        learning_rate=.01,
+        learning_rate=.000001,
         output_dims=1024,
         show_confusion=False,
     )

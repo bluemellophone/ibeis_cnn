@@ -225,13 +225,17 @@ def print_layer_info(output_layer):
     nn_layers = layers.get_all_layers(output_layer)
     print('\n[info] Network Structure:')
     for index, layer in enumerate(nn_layers):
+        #print([p.get_value().shape for p in layer.get_params()])
         output_shape = layer.get_output_shape()
+        num_outputs = functools.reduce(operator.mul, output_shape[1:])
+
         print('[info]  {:>3}  {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
             index,
             layer.__class__.__name__,
             str(output_shape),
-            int(str(functools.reduce(operator.mul, output_shape[1:]))),
+            int(num_outputs),
         ))
+        #ut.embed()
     print('[info] ...this model has {:,} learnable parameters\n'.format(
         layers.count_params(output_layer)
     ))
@@ -555,6 +559,14 @@ def predict_batch(X_train, theano_fn, **kwargs):
     conf_list = np.hstack(conf_list)
     # Return
     return prob_list, pred_list, conf_list
+#        batch_train_loss = theano_train_fn(Xb, yb)
+#        train_losses.append(batch_train_loss)
+#    avg_train_loss = np.mean(train_losses)
+#    print(train_losses)
+#    if np.isnan(avg_train_loss):
+#        print('diverged with train_losses=%r' % (train_losses,))
+#    #ut.embed()
+#    return avg_train_loss
 
 
 def process_train(X_train, y_train, theano_fn, **kwargs):

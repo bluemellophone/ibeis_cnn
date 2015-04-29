@@ -39,6 +39,25 @@ def MaxPool2DLayer_(*args, **kwargs):
     return MaxPool2DLayer(*args, **kwargs)
 
 
+def testdata_contrastive_loss():
+    import numpy as np
+    batch_size = 128
+    num_output = 256
+    half_size = batch_size // 2
+    quar_size = batch_size // 4
+    eigh_size = batch_size // 8
+    G = np.random.rand(batch_size, num_output)
+    G = G / np.linalg.norm(G, axis=1, ord=2)[:, None]
+    G[0] = G[1]
+    G[half_size] = G[half_size + 1]
+    G[0:eigh_size:2] = G[1:eigh_size:2] + np.random.rand(eigh_size / 2, num_output) * .00001
+    Y_padded = np.ones(batch_size)
+    Y_padded[0:half_size] = 1
+    Y_padded[quar_size:half_size + quar_size]  = 0
+    Y_padded[-half_size:] = -1
+    return G, Y_padded
+
+
 class SiameseModel(object):
     """
     Model for individual identification
@@ -62,30 +81,51 @@ class SiameseModel(object):
         draw_net.draw_to_file(self.network_layers, filename)
         ut.start_file(filename)
 
-    def loss_function(self, x, t):
+    def loss_function(self, G, Y_padded, T=T):
         """
         Args:
-            x : network output
-            t : target groundtruth labels
+            X : network output
+            Y : target groundtruth labels
 
         References:
             https://www.cs.nyu.edu/~sumit/research/assets/cvpr05.pdf
             https://github.com/Lasagne/Lasagne/issues/168
+
+        Example:
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> # numpy testing but in reality these are theano functions
+            >>> G, Y_padded = testdata_contrastive_loss()
+            >>> T = np
+            >>> np.abs_ = np.abs
+            >>> self = SiameseModel()
+            >>> avg_loss = self.loss_function(G, Y_padded, T=T)
         """
         if True:
             print('[model] Build siamese loss function')
-
+        num_data = G.shape[0]
+        num_labels = num_data // self.data_per_label
         # Mark same genuine pairs as 0 and imposter pairs as 1
-        y = (1 - t[::2])
+        Y = (1 - Y_padded[0:num_labels])
+        Y = (Y_padded[0:num_labels])
         # x is the output we get from all images in the batch
-        gw = x
-        gw1, gw2 = gw[0::2], gw[1::2]
+        G1, G2 = G[0::2], G[1::2]
         # Energy of training pairs
-        ew = T.sum(((gw1 - gw2) ** 2), axis=1)
+        E = T.abs_((G1 - G2)).sum(axis=1)
 
-        margin = 10
-        loss = T.mean(y * ew + (1 - y) * T.maximum(margin - ew, 0))
-        return loss
+        # Q is a constant that is the upper bound of E
+        #Q = 262144.0
+        #Q = 256 * (G.shape[1] * 2)
+        #Q = (G.shape[1] * 2)
+        #Q = 2
+        Q = 1
+        # Contrastive loss function
+        genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
+        imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
+        loss = genuine_loss + imposter_loss
+        avg_loss = T.mean(loss)
+        #margin = 10
+        #loss = T.mean(Y * E + (1 - Y) * T.maximum(margin - E, 0))
+        return avg_loss
 
     def build_model(self, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=True):
@@ -100,53 +140,41 @@ class SiameseModel(object):
 
         # JON, ADD THIS INSTEAD W=init.Orthogonal  -- Jason
 
-        #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
-        rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
+        rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
+        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
         # variable batch size (None), channel, width, height
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
+        ## DEEP Face-like network
+        #network_layers_def = [
+        #    _P(layers.InputLayer, shape=input_shape),
+        #    #layers.GaussianNoiseLayer,
+        #    _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
+        #    _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+        #    _P(Conv2DLayer, num_filters=16, filter_size=(9, 9), **rlu_orthog),
+        #    _P(layers.DenseLayer, num_units=128, **rlu_orthog),
+        #    #_P(layers.DropoutLayer, p=0.5),
+        #    #_P(layers.FeaturePoolLayer, pool_size=2),
+
+        #    #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
+        #    #_P(layers.FeaturePoolLayer, pool_size=2,),
+        #    #_P(layers.DropoutLayer, p=0.5),
+
+        #    #_P(layers.DenseLayer, num_units=output_dims,
+        #    #   nonlinearity=nonlinearities.softmax,
+        #    #   W=init.Orthogonal(),),
+        #]
+
+        # Yann Lecun 2005-like network
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
-
-            #layers.GaussianNoiseLayer,
-
-            # Convolve + Max Pool + Dropout 1
-            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), **rlu_glorot),
             _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
-            #_P(layers.DropoutLayer,  p=0.10),
-
-            # Convolve + Max Pool + Dropout 2
-            _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_orthog),
-            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
-            #_P(Conv2DLayer, num_filters=64, filter_size=(4, 4), **rlu_orthog),
-            #_P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
-            #_P(layers.DropoutLayer,  p=0.30),
-
-            # Convolve + Max Pool + Dropout 3
-            _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_orthog),
-            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
-            #_P(layers.DropoutLayer,  p=0.30),
-
-            # Convolve + Max Pool + Dropout 4
-            _P(Conv2DLayer, num_filters=64, filter_size=(3, 3), **rlu_orthog),
-            _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
-            _P(layers.DropoutLayer,  p=0.30),
-
-            # Dense Layer + Feature Pool + Dropout 1
-            _P(layers.DenseLayer, num_units=1024, **rlu_orthog),
-            #_P(layers.FeaturePoolLayer, pool_size=2),
-            #_P(layers.DropoutLayer, p=0.5),
-
-            ## Dense Layer + Feature Pool + Dropout 2
-            #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
-            #_P(layers.FeaturePoolLayer, pool_size=2,),
-            #_P(layers.DropoutLayer, p=0.5),
-
-            # Softmax output
-            #_P(layers.DenseLayer, num_units=output_dims,
-            #   nonlinearity=nonlinearities.softmax,
-            #   W=init.Orthogonal(),),
+            _P(Conv2DLayer, num_filters=64, filter_size=(6, 6), **rlu_glorot),
+            _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+            _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_glorot),
+            _P(layers.DenseLayer, num_units=50, **rlu_glorot),
         ]
 
         # connect and record layers

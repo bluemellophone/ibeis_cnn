@@ -259,25 +259,6 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
     return thumb1_list, thumb2_list
 
 
-def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64, stacked=False, data_format='cv2'):
-    thumb1_list, thumb2_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=base_size, stacked=stacked)
-    assert data_format == 'cv2'
-    # Stacking these might not be the exact correct thing to do.
-    if stacked:
-        img_list = [
-            np.vstack((thumb1, thumb2)) for thumb1, thumb2, in
-            zip(thumb1_list, thumb2_list)
-        ]
-    else:
-        # Strided data comes in in pairs of two
-        img_list = ut.flatten(list(zip(thumb1_list, thumb2_list)))
-    data = np.array(img_list)
-    #data = [img[None, :] for img in im
-    #data = utils.convert_imagelist_to_data(img_list)
-    labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
-    return data, labels
-
-
 def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
     """
     CommandLine:
@@ -317,13 +298,32 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
     return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list
 
 
+def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64, stacked=False, data_format='cv2'):
+    thumb1_list, thumb2_list = get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=base_size, stacked=stacked)
+    assert data_format == 'cv2'
+    # Stacking these might not be the exact correct thing to do.
+    if stacked:
+        img_list = [
+            np.vstack((thumb1, thumb2)) for thumb1, thumb2, in
+            zip(thumb1_list, thumb2_list)
+        ]
+    else:
+        # Strided data comes in in pairs of two
+        img_list = ut.flatten(list(zip(thumb1_list, thumb2_list)))
+    data = np.array(img_list)
+    #data = [img[None, :] for img in im
+    #data = utils.convert_imagelist_to_data(img_list)
+    labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+    data, labels = remove_unknown_data_and_labels(data, labels)
+    return data, labels
+
+
 def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
     """
     Notes:
-        # FIXME: THE LABELS SEEM DIFFERENT THAN THOSE SHOWN IN get_aidpair_patchmatch_training_data
-        #
-        # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT NEED MANUAL CORRECTION EITHER THROUGH
-        # EXPLICIT LABLEING OR SEGMENTATION MASKS
+        # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT
+        # NEED MANUAL CORRECTION EITHER THROUGH EXPLICIT LABLEING OR
+        # SEGMENTATION MASKS
 
     CommandLine:
         python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data --show
@@ -346,35 +346,73 @@ def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2
     img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
     data = np.array(img_list)
     labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
+    data, labels = remove_unknown_data_and_labels(data, labels)
     #data_per_label = 2
     return data, labels
 
 
+def remove_unknown_data_and_labels(data, labels):
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-remove_unknown_data_and_labels
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> # build test data
+        >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        >>> labels = np.array([1, 2, 0, 2, 1, 0])
+        >>> # execute function
+        >>> data, labels = remove_unknown_data_and_labels(data, labels)
+        >>> # verify results
+        >>> result = str((data, labels))
+        >>> print(result)
+        (array([ 1,  2,  5,  6,  9, 10, 11, 12]), array([1, 0, 1, 0]))
+    """
+    # Remove unknown labels
+    assert labels.shape[0] == data.shape[0] // 2
+    from ibeis import const
+    label_isinvalid = (labels != const.TRUTH_UNKNOWN)
+    #ut.flatten(list(zip(label_isinvalid, label_isinvalid)))
+    data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
+    data = data.compress(data_isinvalid, axis=0)
+    labels = labels.compress(label_isinvalid, axis=0)
+    return data, labels
+
+
+def mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list):
+    import vtool as vt
+    yaw1_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid2_list), np.nan))
+    yaw2_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid1_list), np.nan))
+    yawdist_list = vt.ori_distance(yaw1_list, yaw2_list)
+    TAU = np.pi * 2
+    isinconsistent_list = yawdist_list > TAU / 8
+    return isinconsistent_list
+
+
 def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
     """
+    Returns:
+        ndarray: true in positions of matching, and false in positions of not matching
+
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> # build test data
-        >>> ibs = ibeis.opendb(defaultdb='NNP_Master3')
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
         >>> aid1_list = aid1_list[0:min(100, len(aid1_list))]
         >>> aid2_list = aid2_list[0:min(100, len(aid2_list))]
         >>> # execute function
-        >>> img_list = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+        >>> labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
     """
-    import vtool as vt
+    from ibeis import const
     truth_list = ibs.get_aidpair_truths(aid1_list, aid2_list)
     labels = truth_list
     # Mark different viewpoints as unknown for training
-    yaw1_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid2_list), np.nan))
-    yaw2_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid1_list), np.nan))
-    yawdist_list = vt.ori_distance(yaw1_list, yaw2_list)
-    TAU = np.pi * 2
-    invalid_list = yawdist_list > TAU / 8
-    from ibeis import const
-    labels[invalid_list] = const.TRUTH_UNKNOWN
+    isinconsistent_list = mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list)
+    labels[isinconsistent_list] = const.TRUTH_UNKNOWN
     return labels
 
 
@@ -471,7 +509,6 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             and ut.checkpath(labels_fpath, verbose=True)
     ):
         data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **cfg.kw())
-
         # Remove unknown labels
         from ibeis import const
         label_isinvalid = (labels != const.TRUTH_UNKNOWN)
