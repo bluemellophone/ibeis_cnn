@@ -540,6 +540,7 @@ def process_valid(X_valid, y_valid, theano_fn, **kwargs):
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
     # Find whatever metrics we want
     avg_valid_loss = np.mean(loss_list)
+    print(accu_list)
     avg_valid_accu = np.mean(accu_list)
     return avg_valid_loss, avg_valid_accu
 
