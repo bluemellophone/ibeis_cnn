@@ -143,6 +143,18 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'best_valid_loss',     np.inf)
     utils._update(kwargs, 'best_valid_accuracy', 0.0)
     utils._update(kwargs, 'best_test_accuracy',  0.0)
+    training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
+                  theano_train_fn, theano_validate_fn,
+                  theano_nodrpout_train_fn, theano_test_fn, model,
+                  output_layer, results_dpath, weights_fpath,
+                  learning_rate_theano, **kwargs)
+
+
+def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
+                  theano_train_fn, theano_validate_fn,
+                  theano_nodrpout_train_fn, theano_test_fn, model,
+                  output_layer, results_dpath, weights_fpath,
+                  learning_rate_theano, **kwargs):
     try:
         epoch = 0
         epoch_marker = epoch
