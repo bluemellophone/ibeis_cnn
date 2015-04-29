@@ -493,7 +493,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     accu_list = []
-    show = True
+    show = False
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
@@ -525,12 +525,6 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = np.hstack(pred_list)
     conf_list = np.hstack(conf_list)
     accu_list = np.hstack(accu_list)
-    print(albl_list.shape)
-    print(loss_list.shape)
-    print(prob_list.shape)
-    print(pred_list.shape)
-    print(conf_list.shape)
-    print(accu_list.shape)
     # Return
     return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
 
