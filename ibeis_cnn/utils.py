@@ -377,7 +377,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     verbose = kwargs.get('verbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
-    # ut.embed()
+    ut.embed()
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
