@@ -527,7 +527,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     conf_list = np.hstack(conf_list)
 
     # Calculate performance
-    loss = np.sum(loss_list)
+    loss = np.mean(loss_list)
     accu = np.mean(np.equal(albl_list, pred_list))
 
     # Return
