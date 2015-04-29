@@ -559,14 +559,6 @@ def predict_batch(X_train, theano_fn, **kwargs):
     conf_list = np.hstack(conf_list)
     # Return
     return prob_list, pred_list, conf_list
-#        batch_train_loss = theano_train_fn(Xb, yb)
-#        train_losses.append(batch_train_loss)
-#    avg_train_loss = np.mean(train_losses)
-#    print(train_losses)
-#    if np.isnan(avg_train_loss):
-#        print('diverged with train_losses=%r' % (train_losses,))
-#    #ut.embed()
-#    return avg_train_loss
 
 
 def process_train(X_train, y_train, theano_fn, **kwargs):
