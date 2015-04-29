@@ -452,25 +452,16 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     probabilities = output_layer.get_output(X_batch, deterministic=True)
     predictions = T.argmax(probabilities, axis=1)
     confidences = probabilities.max(axis=1)
-    # accuracy = T.mean(T.eq(predictions, y_batch))
-    performance = [probabilities, predictions, confidences]  # , accuracy]
+    accuracy = T.mean(T.eq(predictions, y_batch))
+    performance = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
     parameters = layers.get_all_params(output_layer)
     updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
 
-    theano_forward = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_determ] + performance ,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
     theano_backprop = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss] + performance,
+        outputs=[loss] + performance + [accuracy],
         updates=updates,
         givens={
             X: X_batch,
@@ -478,7 +469,24 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         },
     )
 
-    return theano_forward, theano_backprop
+    theano_forward = theano.function(
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[loss_determ] + performance + [accuracy],
+        givens={
+            X: X_batch,
+            y: y_batch,
+        },
+    )
+
+    theano_predict = theano.function(
+        inputs=[theano.Param(X_batch)],
+        outputs=performance,
+        givens={
+            X: X_batch,
+        },
+    )
+
+    return theano_backprop, theano_forward, theano_predict
 
 
 def process_batch(X_train, y_train, theano_fn, **kwargs):
@@ -493,17 +501,13 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     accu_list = []
-    show = False
+    show = True
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
-        loss, prob, pred, conf = theano_fn(Xb, yb)
-        if yb is not None:
-            accu = np.mean(np.equal(pred, yb))
-        else:
-            accu = [np.nan] * len(Xb)
+        loss, prob, pred, conf, accu = theano_fn(Xb, yb)
         albl_list.append(yb)
         loss_list.append(loss)
-        prob_list.append(loss)
+        prob_list.append(prob)
         pred_list.append(pred)
         conf_list.append(conf)
         accu_list.append(accu)
@@ -527,6 +531,29 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     accu_list = np.hstack(accu_list)
     # Return
     return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
+
+
+def predict_batch(X_train, theano_fn, **kwargs):
+    """
+        compute the loss over all training batches
+
+        Jon, if you get to this before I do, please fix. -J
+    """
+    prob_list = []
+    pred_list = []
+    conf_list = []
+    for Xb, _ in batch_iterator(X_train, None, **kwargs):
+        # Runs a batch through the network and updates the weights. Just returns what it did
+        prob, pred, conf = theano_fn(Xb)
+        prob_list.append(prob)
+        pred_list.append(pred)
+        conf_list.append(conf)
+    # Convert to numpy array
+    prob_list = np.vstack(prob_list)
+    pred_list = np.hstack(pred_list)
+    conf_list = np.hstack(conf_list)
+    # Return
+    return prob_list, pred_list, conf_list
 
 
 def process_train(X_train, y_train, theano_fn, **kwargs):
@@ -575,9 +602,8 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
 
 def process_predictions(X_test, theano_fn, **kwargs):
     """ compute the loss over all test batches """
-    y_test = np.array([-1] * len(X_test))
-    results = process_batch(X_test, y_test, theano_fn, **kwargs)
-    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
+    results = predict_batch(X_test, theano_fn, **kwargs)
+    prob_list, pred_list, conf_list = results
     # Find whatever metrics we want
     encoder = kwargs.get('encoder', None)
     if encoder is not None:

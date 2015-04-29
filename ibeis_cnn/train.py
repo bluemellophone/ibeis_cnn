@@ -154,7 +154,7 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                   learning_rate_theano, **kwargs):
 
     try:
-        theano_forward, theano_backprop = theano_funcs
+        theano_backprop, theano_forward, theano_predict = theano_funcs
 
         epoch = 0
         epoch_marker = epoch

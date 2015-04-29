@@ -71,7 +71,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
-    theano_forward, theano_backprop = theano_funcs
+    theano_backprop, theano_forward, theano_predict = theano_funcs
 
     # Set weights to model
     layers.set_all_param_values(output_layer, pretrained_weights)
@@ -82,7 +82,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    all_predict, labels = utils.process_predictions(X_test, theano_forward, **kwargs)
+    all_predict, labels = utils.process_predictions(X_test, theano_predict, **kwargs)
 
     if y_test is not None:
         avg_test_accuracy = utils.process_test(X_test, y_test, theano_forward,
