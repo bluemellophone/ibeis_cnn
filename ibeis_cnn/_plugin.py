@@ -52,6 +52,33 @@ def convert_label(label):
 
 
 @register_ibs_method
+def get_neuralnet_dir(ibs):
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    return nets_dir
+
+
+@register_ibs_method
+def get_verified_aid_pairs(ibs):
+    """
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb('NNP_Master3')
+        >>> verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
+    """
+    # Grab marked hard cases
+    am_rowids = ibs._get_all_annotmatch_rowids()
+    remove_photobombs = True
+    if remove_photobombs:
+        flags = ibs.get_annotmatch_is_photobomb(am_rowids)
+        am_rowids = ut.filterfalse_items(am_rowids, flags)
+    verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
+    verified_aid2_list = ibs.get_annotmatch_aid2(am_rowids)
+    return verified_aid1_list, verified_aid2_list
+
+
+@register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     # Load chips and resize to the target
     print('detect_annot_species_viewpoint_cnn')

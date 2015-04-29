@@ -89,26 +89,6 @@ def view_training_data(ibs, **kwargs):
         pt.update()
 
 
-def get_verified_aid_pairs(ibs):
-    """
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> import ibeis
-        >>> ibs = ibeis.opendb('NNP_Master3')
-        >>> verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
-    """
-    # Grab marked hard cases
-    am_rowids = ibs._get_all_annotmatch_rowids()
-    remove_photobombs = True
-    if remove_photobombs:
-        flags = ibs.get_annotmatch_is_photobomb(am_rowids)
-        am_rowids = ut.filterfalse_items(am_rowids, flags)
-    verified_aid1_list = ibs.get_annotmatch_aid1(am_rowids)
-    verified_aid2_list = ibs.get_annotmatch_aid2(am_rowids)
-    return verified_aid1_list, verified_aid2_list
-
-
 def get_hotspotter_aid_pairs(ibs):
     aid_list = ibs.get_valid_aids()
     import utool as ut
@@ -398,13 +378,8 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
     return labels
 
 
-def get_neuralnet_dir(ibs):
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
-    return nets_dir
-
-
 def get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl):
-    nets_dir = get_neuralnet_dir(ibs)
+    nets_dir = ibs.get_neuralnet_dir()
     training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl)
     training_dpath = ut.unixjoin(nets_dir, training_dname)
     ut.ensuredir(nets_dir)
@@ -527,7 +502,7 @@ def get_identify_training_aid_pairs(ibs):
         >>> assert aid1_list != aid2_list
         >>> print(result)
     """
-    verified_aid1_list, verified_aid2_list = get_verified_aid_pairs(ibs)
+    verified_aid1_list, verified_aid2_list = ibs.get_verified_aid_pairs()
     if len(verified_aid1_list) > 100:
         aid1_list = verified_aid1_list
         aid2_list = verified_aid2_list
