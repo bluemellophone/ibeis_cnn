@@ -189,13 +189,13 @@ def train_test_split(X, y, eval_size, data_per_label=1):
     return X_train, y_train, X_valid, y_valid
 
 
-def load(data_file, labels_file=None, random_state=None):
+def load(data_fpath, labels_fpath=None, random_state=None):
     # Load X matrix (data)
-    data = np.load(data_file, mmap_mode='r')
+    data = np.load(data_fpath, mmap_mode='r')
     # Load y vector (labels)
     labels = None
-    if labels_file is not None:
-        labels = np.load(labels_file, mmap_mode='r')
+    if labels_fpath is not None:
+        labels = np.load(labels_fpath, mmap_mode='r')
     # Return data
     return data, labels
 
@@ -330,27 +330,34 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> # verify results
         >>> print(next(result))
     """
-    verbose = kwargs.get('verbose', False)
+    verbose = kwargs.get('verbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
     if verbose:
-        print('[batch iter] X.flags \n%r' % (X.flags, ))
-        print('[batch iter] X.shape %r' % (X.shape, ))
+        print('[batchiter] BEGIN')
+        #print('[batchiter] X.flags \n%r' % (X.flags, ))
+        print('[batchiter] X.shape %r' % (X.shape, ))
         if y is not None:
-            print('[batch iter] y.shape %r' % (y.shape, ))
-    N = (X).shape[0] // data_per_label
+            print('[batchiter] y.shape %r' % (y.shape, ))
+    if y is not None:
+        assert X.shape[0] == (y.shape[0] * data_per_label), 'bad data / label alignment'
+    #N = (X).shape[0] // data_per_label
+    N = (X).shape[0]
     num_batches = (N + batch_size - 1) // batch_size
     #num_batches -= 2
     if verbose:
-        print('num_batches = %r' % (num_batches,))
+        print('[batchiter] num_batches = %r' % (num_batches,))
     for i in range(num_batches):
-        start_y = i * batch_size
-        end_y = (i + 1) * batch_size
-        x_sl = slice(start_y * data_per_label, end_y * data_per_label)
-        y_sl = slice(start_y, end_y)
+        start_x = i * batch_size
+        end_x = (i + 1) * batch_size
+        #x_sl = slice(start_y * data_per_label, end_y * data_per_label)
+        #y_sl = slice(start_y, end_y)
+        # Take full batch of images and take the fraction of labels if data_per_label > 1
+        x_sl = slice(start_x, end_x)
+        y_sl = slice(start_x // data_per_label, end_x // data_per_label)
         Xb = X[x_sl]
         if y is not None:
             yb = y[y_sl]
@@ -373,19 +380,23 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             yb = encoder.transform(yb)
         # Get corret dtype for y (after encoding)
         if yb is not None:
-            # TODO: FIX data_per_label ISSUES
-            # yb = np.vstack((yb, -np.ones(len(yb)))).T.flatten()
+            if data_per_label > 1:
+                # TODO: FIX data_per_label ISSUES
+                yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
+                yb = np.vstack((yb, yb_buffer)).T.flatten()
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         Xb = Xb.transpose((0, 3, 1, 2))
         if verbose:
-            print('Yielding batch:')
-            print('  * x_sl = %r' % (x_sl,))
-            print('  * y_sl = %r' % (y_sl,))
-            print('  * Xb.shape = %r' % (Xb.shape,))
-            print('  * yb.shape = %r' % (yb.shape,))
+            print('[batchiter] Yielding batch:')
+            print('[batchiter]   * x_sl = %r' % (x_sl,))
+            print('[batchiter]   * y_sl = %r' % (y_sl,))
+            print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
+            print('[batchiter]   * yb.shape = %r' % (yb.shape,))
         # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
+    if verbose:
+        print('[batchiter] END')
 
 
 def multinomial_nll(x, t):
@@ -447,7 +458,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
     updates = lasagne.updates.nesterov_momentum(
         loss_train, all_params, learning_rate_theano, momentum)
 
-    train_iter = theano.function(
+    theano_train_fn = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=[loss_train],
         updates=updates,
@@ -457,16 +468,18 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
-    train_iter_determ = theano.function(
+    # determenistic version of the training function (no dropout)
+    theano_nodrpout_train_fn = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=[loss_train_determ],
+        # no updates for this function (named train because it is run on training data)
         givens={
             X: X_batch,
             y: y_batch,
         },
     )
 
-    valid_iter = theano.function(
+    theano_validate_fn = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=valid_outputs,
         givens={
@@ -475,7 +488,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
-    test_iter = theano.function(
+    theano_test_fn = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=test_outputs,
         givens={
@@ -484,7 +497,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
-    return train_iter, train_iter_determ, valid_iter, test_iter
+    return theano_train_fn, theano_nodrpout_train_fn, theano_validate_fn, theano_test_fn
 
 
 def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
@@ -506,7 +519,7 @@ def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivect
 
     accuracy = T.mean(T.eq(pred, y_batch))
 
-    test_iter_accuracy = theano.function(
+    theano_accuracy_test_fn = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
         outputs=[predict_proba, pred, accuracy],
         givens={
@@ -515,7 +528,7 @@ def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivect
         },
     )
 
-    test_iter = theano.function(
+    theano_test_fn = theano.function(
         inputs=[theano.Param(X_batch)],
         outputs=[predict_proba, pred],
         givens={
@@ -523,27 +536,27 @@ def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivect
         },
     )
 
-    return test_iter, test_iter_accuracy
+    return theano_test_fn, theano_accuracy_test_fn
 
 
-def forward_train(X_train, y_train, train_iter, rand=False, augment=None, **kwargs):
+def forward_train(X_train, y_train, theano_train_fn, rand=False, augment=None, **kwargs):
     """ compute the loss over all training batches """
     train_losses = []
     for Xb, yb in batch_iterator(X_train, y_train, rand=rand, augment=augment, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
-        batch_train_loss = train_iter(Xb, yb)
+        batch_train_loss = theano_train_fn(Xb, yb)
         train_losses.append(batch_train_loss)
     avg_train_loss = np.mean(train_losses)
     return avg_train_loss
 
 
-def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwargs):
+def forward_valid(X_valid, y_valid, theano_validate_fn, rand=False, augment=None, **kwargs):
     """ compute the loss over all validation batches """
     valid_losses = []
     valid_accuracies = []
     for Xb, yb in batch_iterator(X_valid, y_valid, rand=rand, augment=augment, **kwargs):
         # Valid iter returns the loss, but does not perform any updates
-        batch_valid_loss, batch_accuracy = valid_iter(Xb, yb)
+        batch_valid_loss, batch_accuracy = theano_validate_fn(Xb, yb)
         valid_losses.append(batch_valid_loss)
         valid_accuracies.append(batch_accuracy)
     avg_valid_loss = np.mean(valid_losses)
@@ -551,13 +564,13 @@ def forward_valid(X_valid, y_valid, valid_iter, rand=False, augment=None, **kwar
     return avg_valid_loss, avg_valid_accuracy
 
 
-def forward_test(X_test, y_test, test_iter, results_path, mapping_fn=None, show=False, confusion=True, **kwargs):
+def forward_test(X_test, y_test, theano_test_fn, results_path, mapping_fn=None, show=False, confusion=True, **kwargs):
     """ compute the loss over all test batches """
     all_correct = []
     all_predict = []
     test_accuracies = []
     for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
-        batch_predict_proba, batch_pred, batch_accuracy = test_iter(Xb, yb)
+        batch_predict_proba, batch_pred, batch_accuracy = theano_test_fn(Xb, yb)
         test_accuracies.append(batch_accuracy)
         all_correct.append(yb)
         all_predict.append(batch_pred)
@@ -573,16 +586,17 @@ def forward_test(X_test, y_test, test_iter, results_path, mapping_fn=None, show=
         labels = list(range(kwargs.get('output_dims')))
         encoder = kwargs.get('encoder', None)
         if encoder is not None:
+            #with ut.embed_on_exception_context:
             labels = encoder.inverse_transform(labels)
         show_confusion_matrix(all_correct, all_predict, labels, results_path, mapping_fn, X_test)
     return avg_test_accuracy
 
 
-def forward_test_predictions(X_test, test_iter, results_path, **kwargs):
+def forward_test_predictions(X_test, theano_test_fn, results_path, **kwargs):
     """ compute the loss over all test batches """
     all_predict = []
     for Xb, _ in batch_iterator(X_test, None, **kwargs):
-        batch_predict_proba, batch_pred = test_iter(Xb)
+        batch_predict_proba, batch_pred = theano_test_fn(Xb)
         all_predict.append(batch_pred)
     all_predict = np.hstack(all_predict)
     encoder = kwargs.get('encoder', None)

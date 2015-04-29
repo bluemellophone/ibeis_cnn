@@ -54,9 +54,11 @@ def convert_label(label):
 @register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     # Load chips and resize to the target
+    print('detect_annot_species_viewpoint_cnn')
     target = (96, 96)
     chip_list = ibs.get_annot_chips(aid_list)
-    chip_list_resized = [ cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4) for chip in chip_list ]
+    print('resizing chips')
+    chip_list_resized = [ cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4) for chip in ut.ProgressIter(chip_list, lbl='resizing chips') ]
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None

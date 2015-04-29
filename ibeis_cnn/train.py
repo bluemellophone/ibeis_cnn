@@ -109,7 +109,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     # create theano symbolic expressions that define the network
     all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, model, **kwargs)
-    train_iter, train_iter_determ, valid_iter, test_iter = all_iters
+    theano_train_fn, theano_nodrpout_train_fn, theano_validate_fn, theano_test_fn = all_iters
 
     # Load the pretrained model if specified
     if pretrained_weights_fpath is not None and exists(pretrained_weights_fpath):
@@ -162,11 +162,11 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                     augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
-                avg_train_loss = utils.forward_train(X_train, y_train, train_iter,
+                avg_train_loss = utils.forward_train(X_train, y_train, theano_train_fn,
                                                      rand=True, augment=augment_fn,
                                                      model=model, **kwargs)
 
-                avg_valid_data = utils.forward_valid(X_valid, y_valid, valid_iter,
+                avg_valid_data = utils.forward_valid(X_valid, y_valid, theano_validate_fn,
                                                      augment=augment_fn, model=model,
                                                      **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
@@ -191,12 +191,12 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
                 mapping_fn = getattr(model, 'label_order_mapping', None)
                 if request_test or best_found:
                     avg_train_determ_loss = utils.forward_train(X_train, y_train,
-                                                                train_iter_determ, rand=True,
+                                                                theano_nodrpout_train_fn, rand=True,
                                                                 augment=augment_fn, model=model,
                                                                 **kwargs)
 
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter,
-                                                           results_dpath, mapping_fn, **kwargs)
+                    avg_test_accuracy = utils.forward_test(X_test, y_test, theano_test_fn,
+                                                           results_dpath, mapping_fn, model=model, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
                         utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
@@ -264,6 +264,36 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils.save_model(kwargs, weights_fpath)
 
 
+def train_patchmatch_pz():
+    r"""
+
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_patchmatch_pz
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> train_patchmatch_pz()
+    """
+    print('get_identification_decision_training_data')
+    import ibeis
+    ibs = ibeis.opendb('PZ_MTEST')
+    max_examples = 400
+    data_fpath, labels_fpath, training_dpath = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
+
+    model = models.SiameseModel()
+    config = dict(
+        batch_size=128,
+        learning_rate=.01,
+        output_dims=1024,
+        confusion=False,
+    )
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    ut.ensuredir(nets_dir)
+    weights_fpath = join(nets_dir, 'ibeis_cnn_weights.pickle')
+    train(data_fpath, labels_fpath, model, weights_fpath, training_dpath, **config)
+
+
 #@ibeis.register_plugin()
 def train_identification_pz():
     r"""
@@ -285,11 +315,12 @@ def train_identification_pz():
     max_examples = 400
     data_fpath, labels_fpath, training_dpath = ibsplugin.get_identify_training_fpaths(ibs, base_size=base_size, max_examples=max_examples)
 
-    model = models.IdentificationModel()
+    model = models.SiameseModel()
     config = dict(
         batch_size=32,
         learning_rate=.03,
         output_dims=1024,
+        confusion=False,
     )
     nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
     ut.ensuredir(nets_dir)

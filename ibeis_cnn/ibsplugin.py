@@ -1,7 +1,84 @@
 from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
-#from ibeis_cnn import utils
+from ibeis_cnn import utils
+
+
+def interact_view_data_fpath_patches(data_fpath, labels_fpath):
+    data, labels = utils.load(data_fpath, labels_fpath)
+    interact_view_data_patches(labels, data)
+
+
+def interact_view_data_patches(labels, data):
+    warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
+    interact_view_patches(labels, warped_patch1_list, warped_patch2_list)
+    pass
+
+
+def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, aid1_list_=None, aid2_list_=None):
+    from ibeis.viz import viz_helpers as vh
+    import plottool as pt
+    iter_ = list(enumerate(zip(label_list, warped_patch1_list, warped_patch2_list)))
+    for count, (label, patch1, patch2) in ut.InteractiveIter(iter_, display_item=False):
+        if aid1_list_ is not None:
+            aid1 = aid1_list_[count]
+            aid2 = aid2_list_[count]
+            print('aid1=%r, aid2=%r, label=%r' % (aid1, aid2, label))
+        pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
+        pt.imshow(patch1, pnum=(1, 2, 1))
+        pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        pt.imshow(patch2, pnum=(1, 2, 2))
+        pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        pt.update()
+
+
+class NewConfigBase(object):
+    def update(self, **kwargs):
+        self.__dict__.update(**kwargs)
+
+    def kw(self):
+        return ut.KwargsWrapper(self)
+
+
+class PatchMetricDataConfig(NewConfigBase):
+    def __init__(idcfg):
+        pass
+
+    def get_cfgstr(idcfg):
+        cfgstr_list = [
+        ]
+        return ','.join(cfgstr_list)
+
+
+class IdentifyDataConfig(NewConfigBase):
+    def __init__(idcfg):
+        idcfg.stacked = False
+        idcfg.data_format = 'cv2'
+        idcfg.base_size = 64
+
+    def get_cfgstr(idcfg):
+        cfgstr_list = [
+            'stacked' if idcfg.stacked else 'strided',
+            idcfg.data_format,
+            'sz=%d' % (idcfg.base_size,),
+        ]
+        return ','.join(cfgstr_list)
+
+
+def write_data_and_labels(data, labels, data_fpath, labels_fpath):
+    print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
+    print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
+
+    # to resize the images back to their 2D-structure:
+    # X = images_array.reshape(-1, 3, 48, 48)
+
+    print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
+    with open(data_fpath, 'wb') as ofile:
+        np.save(ofile, data)
+
+    print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
+    with open(labels_fpath, 'wb') as ofile:
+        np.save(ofile, labels)
 
 
 def view_training_data(ibs, **kwargs):
@@ -245,7 +322,7 @@ def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64
     return data, labels
 
 
-def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list):
+def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
     """
     CommandLine:
         python -m ibeis_cnn.ibsplugin --test-get_aidpair_patchmatch_training_data --show
@@ -256,21 +333,13 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, 
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_list, kpts2_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list) = get_aidpairs_and_matches(ibs, 10)
         >>> # execute function
-        >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+        >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
+        >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = tup
         >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> from ibeis.viz import viz_helpers as vh
         >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
-        >>> for label, aid1, aid2, patch1, patch2 in ut.InteractiveIter(zip(label_list, aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list), display_item=False):
-        ...     print('aid1=%r, aid2=%r, label=%r' % (aid1, aid2, label))
-        ...     pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
-        ...     pt.imshow(patch1, pnum=(1, 2, 1))
-        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-        ...     pt.imshow(patch2, pnum=(1, 2, 2))
-        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-        ...     pt.update()
+        >>> interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, aid1_list_, aid2_list_)
         >>> ut.show_if_requested()
     """
     # Flatten to only apply chip operations once
@@ -280,8 +349,8 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, 
     chip1_list, chip2_list = ut.uninvert_unique_two_lists(chip_list, reconstruct_tup)
     import vtool as vt
     print('warping')
-    warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in zip(chip1_list, kpts1_list)]
-    warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in zip(chip2_list, kpts2_list)]
+    warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in zip(chip1_list, kpts1_m_list)]
+    warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in zip(chip2_list, kpts2_m_list)]
     len1_list = list(map(len, warped_patches1_list))
     assert len1_list == list(map(len, warped_patches2_list))
     print('flattening')
@@ -292,16 +361,16 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_list, 
     return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list
 
 
-def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list):
+def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
     """
-    CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data --show
-
     Notes:
         # FIXME: THE LABELS SEEM DIFFERENT THAN THOSE SHOWN IN get_aidpair_patchmatch_training_data
         #
         # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT NEED MANUAL CORRECTION EITHER THROUGH
         # EXPLICIT LABLEING OR SEGMENTATION MASKS
+
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -309,23 +378,15 @@ def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_l
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_list, kpts2_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list) = get_aidpairs_and_matches(ibs, 10)
         >>> # execute function
-        >>> data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+        >>> data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
         >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> from ibeis.viz import viz_helpers as vh
-        >>> for label, (patch1, patch2) in ut.InteractiveIter(zip(labels, ut.ichunks(data, 2)), display_item=False):
-        ...     pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
-        ...     pt.imshow(patch1, pnum=(1, 2, 1))
-        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-        ...     pt.imshow(patch2, pnum=(1, 2, 2))
-        ...     pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-        ...     pt.update()
+        >>> interact_view_data_patches(labels, data)
         >>> ut.show_if_requested()
     """
     aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(
-        ibs, aid1_list, aid2_list, kpts1_list, kpts2_list)
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
     img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
     data = np.array(img_list)
     labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
@@ -409,26 +470,6 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
     if view_train_dir:
         ut.view_directory(training_dpath)
 
-    class IdentifyDataConfig(object):
-        def __init__(idcfg):
-            idcfg.stacked = False
-            idcfg.data_format = 'cv2'
-            idcfg.base_size = 64
-
-        def update(idcfg, **kwargs):
-            idcfg.__dict__.update(**kwargs)
-
-        def kw(idcfg):
-            return ut.KwargsWrapper(idcfg)
-
-        def get_cfgstr(idcfg):
-            cfgstr_list = [
-                'stacked' if idcfg.stacked else 'strided',
-                idcfg.data_format,
-                'sz=%d' % (idcfg.base_size,),
-            ]
-            return ','.join(cfgstr_list)
-
     idcfg = IdentifyDataConfig()
     idcfg.base_size = base_size
 
@@ -447,20 +488,7 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
         data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
         data = data.compress(data_isinvalid, axis=0)
         labels = labels.compress(label_isinvalid, axis=0)
-
-        print('np.shape(data) = %r' % (np.shape(data),))
-        print('np.shape(labels) = %r' % (np.shape(labels),))
-
-        # to resize the images back to their 2D-structure:
-        # X = images_array.reshape(-1, 3, 48, 48)
-
-        print('writing training data to %s...' % (data_fpath))
-        with open(data_fpath, 'wb') as ofile:
-            np.save(ofile, data)
-
-        print('writing training labels to %s...' % (labels_fpath))
-        with open(labels_fpath, 'wb') as ofile:
-            np.save(ofile, labels)
+        write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath
@@ -509,7 +537,7 @@ def get_identify_training_fpaths(ibs, **kwargs):
     return data_fpath, labels_fpath, training_dpath
 
 
-def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, base_size=64):
+def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
     """
     todo use size in cfgstrings
     """
@@ -523,25 +551,9 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
     if view_train_dir:
         ut.view_directory(training_dpath)
 
-    class PatchMetricDataConfig(object):
-        def __init__(idcfg):
-            pass
-
-        def update(idcfg, **kwargs):
-            idcfg.__dict__.update(**kwargs)
-
-        def kw(idcfg):
-            return ut.KwargsWrapper(idcfg)
-
-        def get_cfgstr(idcfg):
-            cfgstr_list = [
-            ]
-            return ','.join(cfgstr_list)
-
     cfg = PatchMetricDataConfig()
-    cfg.base_size = base_size
 
-    data_fpath = join(training_dpath, 'data_' + cfg.get_cfgstr())
+    data_fpath = join(training_dpath, 'data_' + cfg.get_cfgstr() + '.pkl')
     labels_fpath = join(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
@@ -549,7 +561,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             ut.checkpath(data_fpath, verbose=True)
             and ut.checkpath(labels_fpath, verbose=True)
     ):
-        data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, **cfg.kw())
+        data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **cfg.kw())
 
         # Remove unknown labels
         from ibeis import const
@@ -558,19 +570,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
         data = data.compress(data_isinvalid, axis=0)
         labels = labels.compress(label_isinvalid, axis=0)
 
-        print('np.shape(data) = %r' % (np.shape(data),))
-        print('np.shape(labels) = %r' % (np.shape(labels),))
-
-        # to resize the images back to their 2D-structure:
-        # X = images_array.reshape(-1, 3, 48, 48)
-
-        print('writing training data to %s...' % (data_fpath))
-        with open(data_fpath, 'wb') as ofile:
-            np.save(ofile, data)
-
-        print('writing training labels to %s...' % (labels_fpath))
-        with open(labels_fpath, 'wb') as ofile:
-            np.save(ofile, labels)
+        write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath
@@ -637,7 +637,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None):
 def get_patchmetric_training_fpaths(ibs, **kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths
+        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -646,15 +646,19 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> # build test data
         >>> ibs = ibeis.opendb('PZ_MTEST')
         >>> # execute function
-        >>> (data_fpath, labels_fpath) = get_patchmetric_training_fpaths(ibs)
+        >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs)
         >>> # verify results
         >>> result = str((data_fpath, labels_fpath))
+        >>> ut.quit_if_noshow()
+        >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
         >>> print(result)
     """
+    print('\n\n[get_patchmetric_training_fpaths] START')
     max_examples = kwargs.pop('max_examples', None)
     aid1_list, aid2_list, kpts1_m_list, kpts2_m_list = get_aidpairs_and_matches(ibs, max_examples)
     data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
         ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **kwargs)
+    print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
     return data_fpath, labels_fpath, training_dpath
 
 

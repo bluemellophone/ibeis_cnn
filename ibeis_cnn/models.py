@@ -39,7 +39,7 @@ def MaxPool2DLayer_(*args, **kwargs):
     return MaxPool2DLayer(*args, **kwargs)
 
 
-class IdentificationModel(object):
+class SiameseModel(object):
     """
     Model for individual identification
     """
@@ -91,7 +91,7 @@ class IdentificationModel(object):
                     input_channels, output_dims, verbose=True):
         from functools import partial as _P  # NOQA
         if verbose:
-            print('[model] Build identification model')
+            print('[model] Build siamese model')
             print('[model]   * batch_size     = %r' % (batch_size,))
             print('[model]   * input_width    = %r' % (input_width,))
             print('[model]   * input_height   = %r' % (input_height,))
@@ -103,7 +103,8 @@ class IdentificationModel(object):
         #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
         rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
         # variable batch size (None), channel, width, height
-        input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
+        #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
+        input_shape = (None, input_channels, input_width, input_height)
 
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
@@ -111,24 +112,24 @@ class IdentificationModel(object):
             #layers.GaussianNoiseLayer,
 
             # Convolve + Max Pool + Dropout 1
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
             #_P(layers.DropoutLayer,  p=0.10),
 
             # Convolve + Max Pool + Dropout 2
-            _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(Conv2DLayer, num_filters=64, filter_size=(4, 4), **rlu_orthog),
             #_P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(layers.DropoutLayer,  p=0.30),
 
             # Convolve + Max Pool + Dropout 3
-            _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             #_P(layers.DropoutLayer,  p=0.30),
 
             # Convolve + Max Pool + Dropout 4
-            _P(Conv2DLayer, num_filters=64, filter_size=(2, 2), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=64, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2),),
             _P(layers.DropoutLayer,  p=0.30),
 

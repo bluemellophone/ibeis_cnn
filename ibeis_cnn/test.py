@@ -68,7 +68,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
-    test_iter, test_iter_accuracy = utils.create_testing_funcs(output_layer, **kwargs)
+    theano_test_fn, theano_accuracy_test_fn = utils.create_testing_funcs(output_layer, **kwargs)
 
     # Set weights to model
     layers.set_all_param_values(output_layer, pretrained_weights)
@@ -79,11 +79,11 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    all_predict, labels = utils.forward_test_predictions(X_test, test_iter, results_dpath, **kwargs)
+    all_predict, labels = utils.forward_test_predictions(X_test, theano_test_fn, results_dpath, **kwargs)
 
     if y_test is not None:
         mapping_fn = getattr(model, 'label_order_mapping', None)
-        avg_test_accuracy = utils.forward_test(X_test, y_test, test_iter_accuracy,
+        avg_test_accuracy = utils.forward_test(X_test, y_test, theano_accuracy_test_fn,
                                                results_dpath, mapping_fn, **kwargs)
         print('Test accuracy for %d examples: %0.2f' % (len(X_test), avg_test_accuracy, ))
 
