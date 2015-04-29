@@ -108,8 +108,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     # create theano symbolic expressions that define the network
-    all_iters = utils.create_training_funcs(learning_rate_theano, output_layer, model, **kwargs)
-    theano_train_fn, theano_nodrpout_train_fn, theano_validate_fn, theano_test_fn = all_iters
+    theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
 
     # Load the pretrained model if specified
     if pretrained_weights_fpath is not None and exists(pretrained_weights_fpath):
@@ -144,18 +143,19 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'best_valid_accuracy', 0.0)
     utils._update(kwargs, 'best_test_accuracy',  0.0)
     training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_train_fn, theano_validate_fn,
-                  theano_nodrpout_train_fn, theano_test_fn, model,
-                  output_layer, results_dpath, weights_fpath,
+                  theano_funcs, model, output_layer,
+                  results_dpath, weights_fpath,
                   learning_rate_theano, **kwargs)
 
 
 def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_train_fn, theano_validate_fn,
-                  theano_nodrpout_train_fn, theano_test_fn, model,
-                  output_layer, results_dpath, weights_fpath,
+                  theano_funcs, model, output_layer,
+                  results_dpath, weights_fpath,
                   learning_rate_theano, **kwargs):
+
     try:
+        theano_forward, theano_backprop = theano_funcs
+
         epoch = 0
         epoch_marker = epoch
         while True:
@@ -174,11 +174,11 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                     augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
-                avg_train_loss = utils.forward_train(X_train, y_train, theano_train_fn,
+                avg_train_loss = utils.forward_train(X_train, y_train, theano_backprop,
                                                      rand=True, augment=augment_fn,
                                                      model=model, **kwargs)
 
-                avg_valid_data = utils.forward_valid(X_valid, y_valid, theano_validate_fn,
+                avg_valid_data = utils.forward_valid(X_valid, y_valid, theano_forward,
                                                      augment=augment_fn, model=model,
                                                      **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
@@ -203,11 +203,11 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                 mapping_fn = getattr(model, 'label_order_mapping', None)
                 if request_test or best_found:
                     avg_train_determ_loss = utils.forward_train(X_train, y_train,
-                                                                theano_nodrpout_train_fn, rand=True,
+                                                                theano_forward, rand=True,
                                                                 augment=augment_fn, model=model,
                                                                 **kwargs)
 
-                    avg_test_accuracy = utils.forward_test(X_test, y_test, theano_test_fn,
+                    avg_test_accuracy = utils.forward_test(X_test, y_test, theano_forward,
                                                            results_dpath, mapping_fn, model=model, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):

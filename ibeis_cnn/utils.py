@@ -404,7 +404,7 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
+def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
                           input_type=T.tensor4, output_type=T.ivector,
                           regularization=None, **kwargs):
     """
@@ -421,46 +421,41 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
 
     # Defaults that are overwritable by a model
     loss_function = multinomial_nll
-    if model is not None:
-        # Custom model passed in: override certain symbolic expressions
-        if hasattr(model, 'loss_function'):
-            loss_function = model.loss_function
+    if model is not None and hasattr(model, 'loss_function'):
+        loss_function = model.loss_function
 
     # we are minimizing the multi-class negative log-likelihood
     objective = objectives.Objective(output_layer, loss_function=loss_function)
+    loss = objective.get_loss(X_batch, target=y_batch)
+    loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
 
-    loss_train = objective.get_loss(X_batch, target=y_batch)
+    # Regularize
     if regularization is not None:
         L2 = lasagne.regularization.l2(output_layer)
-        loss_train += L2 * regularization
+        loss += L2 * regularization
 
-    # Disable dropout and run the training loss for the epoch
-    loss_train_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+    # Run inference and get performance
+    probabilities = output_layer.get_output(X_batch, deterministic=True)
+    predictions = T.argmax(probabilities, axis=1)
+    confidences = probabilities.max(axis=1)
+    # accuracy = T.mean(T.eq(predictions, y_batch))
 
-    valid_outputs = []
-    test_outputs = []
+    # Define how to update network parameters based on the training loss
+    parameters = layers.get_all_params(output_layer)
+    updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate, momentum)
 
-    # deterministic=True will disable dropout
-    loss_eval = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-    valid_outputs.append(loss_eval)
-    test_outputs.append(loss_eval)
-
-    # fraction of labels the network gets correct
-    predict_proba = output_layer.get_output(X_batch, deterministic=True)
-    pred = T.argmax(predict_proba, axis=1)
-    accuracy = T.mean(T.eq(pred, y_batch))
-    valid_outputs.append(accuracy)
-    test_outputs.append(pred)
-    test_outputs.append(accuracy)
-
-    all_params = layers.get_all_params(output_layer)
-    # define how to update network parameters based on the training loss
-    updates = lasagne.updates.nesterov_momentum(
-        loss_train, all_params, learning_rate_theano, momentum)
-
-    theano_train_fn = theano.function(
+    theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_train],
+        outputs=[loss_determ, probabilities, predictions, confidences],  # accuracy
+        givens={
+            X: X_batch,
+            y: y_batch,
+        },
+    )
+
+    theano_backprop = theano.function(
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[loss],
         updates=updates,
         givens={
             X: X_batch,
@@ -468,75 +463,7 @@ def create_training_funcs(learning_rate_theano, output_layer, model, momentum=0.
         },
     )
 
-    # determenistic version of the training function (no dropout)
-    theano_nodrpout_train_fn = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_train_determ],
-        # no updates for this function (named train because it is run on training data)
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    theano_validate_fn = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=valid_outputs,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    theano_test_fn = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=test_outputs,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    return theano_train_fn, theano_nodrpout_train_fn, theano_validate_fn, theano_test_fn
-
-
-def create_testing_funcs(output_layer, input_type=T.tensor4, output_type=T.ivector, **kwargs):
-    """
-    build the Theano functions that will be used in the optimization
-    refer to this link for info on tensor types:
-
-    References:
-        http://deeplearning.net/software/theano/library/tensor/basic.html
-    """
-    X = input_type('x')
-    y = output_type('y')
-    X_batch = input_type('x_batch')
-    y_batch = output_type('y_batch')
-
-    # we are minimizing the multi-class negative log-likelihood
-    predict_proba = output_layer.get_output(X_batch, deterministic=True)
-    pred = T.argmax(predict_proba, axis=1)
-
-    accuracy = T.mean(T.eq(pred, y_batch))
-
-    theano_accuracy_test_fn = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[predict_proba, pred, accuracy],
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    theano_test_fn = theano.function(
-        inputs=[theano.Param(X_batch)],
-        outputs=[predict_proba, pred],
-        givens={
-            X: X_batch,
-        },
-    )
-
-    return theano_test_fn, theano_accuracy_test_fn
+    return theano_forward, theano_backprop
 
 
 def forward_train(X_train, y_train, theano_train_fn, rand=False, augment=None, **kwargs):
@@ -570,7 +497,7 @@ def forward_test(X_test, y_test, theano_test_fn, results_path, mapping_fn=None, 
     all_predict = []
     test_accuracies = []
     for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
-        batch_predict_proba, batch_pred, batch_accuracy = theano_test_fn(Xb, yb)
+        batch_test_loss, batch_predict_proba, batch_pred, batch_accuracy = theano_test_fn(Xb, yb)
         test_accuracies.append(batch_accuracy)
         all_correct.append(yb)
         all_predict.append(batch_pred)
