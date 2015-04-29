@@ -61,8 +61,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'max_epochs',              kwargs.get('patience') * 10)
     utils._update(kwargs, 'regularization',          None)
     utils._update(kwargs, 'output_dims',             None)
+    utils._update(kwargs, 'show_confusion',          True)
     utils._update(kwargs, 'show_features',           True)
-    utils._update(kwargs, 'val_augment',  False)
 
     # Automatically figure out how many classes
     if kwargs.get('output_dims') is None:
@@ -169,18 +169,16 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                                                     color=True, target=0, epoch=epoch)
 
                 # Get the augmentation function, if there is one for this model
-                augment_fn = None
-                if kwargs.get('val_augment', False):
-                    augment_fn = getattr(model, 'augment', None)
+                augment_fn = getattr(model, 'augment', None)
 
                 # compute the loss over all training and validation batches
                 avg_train_loss = utils.forward_train(X_train, y_train, theano_backprop,
-                                                     rand=True, augment=augment_fn,
-                                                     model=model, **kwargs)
+                                                     model=model, augment=augment_fn,
+                                                     rand=True, **kwargs)
 
                 avg_valid_data = utils.forward_valid(X_valid, y_valid, theano_forward,
-                                                     augment=augment_fn, model=model,
-                                                     **kwargs)
+                                                     model=model, augment=None,
+                                                     rand=False, **kwargs)
                 avg_valid_loss, avg_valid_accuracy = avg_valid_data
 
                 # If the training loss is nan, the training has diverged
@@ -200,15 +198,16 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                     kwargs['best_weights'] = layers.get_all_param_values(output_layer)
 
                 # compute the loss over all testing batches
-                mapping_fn = getattr(model, 'label_order_mapping', None)
                 if request_test or best_found:
-                    avg_train_determ_loss = utils.forward_train(X_train, y_train,
-                                                                theano_forward, rand=True,
-                                                                augment=augment_fn, model=model,
-                                                                **kwargs)
+                    avg_train_determ_loss = utils.forward_train(X_train, y_train, theano_forward,
+                                                                model=model, augment=augment_fn,
+                                                                rand=True, **kwargs)
 
+                    results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
                     avg_test_accuracy = utils.forward_test(X_test, y_test, theano_forward,
-                                                           results_dpath, mapping_fn, model=model, **kwargs)
+                                                           results_dpath_,
+                                                           model=model, augment=None,
+                                                           rand=False, **kwargs)
                     # Output the layer 1 features
                     if kwargs.get('show_features'):
                         utils.show_convolutional_layers(output_layer, results_dpath, color=True, target=0, epoch=epoch)
@@ -298,7 +297,7 @@ def train_patchmatch_pz():
         batch_size=128,
         learning_rate=.01,
         output_dims=1024,
-        confusion=False,
+        show_confusion=False,
     )
     nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
     ut.ensuredir(nets_dir)
@@ -332,7 +331,7 @@ def train_identification_pz():
         batch_size=32,
         learning_rate=.03,
         output_dims=1024,
-        confusion=False,
+        show_confusion=False,
     )
     nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
     ut.ensuredir(nets_dir)
@@ -364,7 +363,6 @@ def train_pz_large():
     config                  = {
         'patience': 20,
         'regularization': 0.0001,
-        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
@@ -394,7 +392,6 @@ def train_pz_girm_large():
     config                  = {
         'patience': 20,
         'regularization': 0.0001,
-        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 
@@ -424,7 +421,6 @@ def train_pz_girm_large_deep():
     config                  = {
         'patience': 20,
         'regularization': 0.0001,
-        'val_augment': True,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
 

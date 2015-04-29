@@ -453,6 +453,7 @@ def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
     predictions = T.argmax(probabilities, axis=1)
     confidences = probabilities.max(axis=1)
     # accuracy = T.mean(T.eq(predictions, y_batch))
+    performance = [probabilities, predictions, confidences]  # , accuracy]
 
     # Define how to update network parameters based on the training loss
     parameters = layers.get_all_params(output_layer)
@@ -460,7 +461,7 @@ def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
 
     theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_determ, probabilities, predictions, confidences],  # accuracy
+        outputs=[loss_determ] + performance ,
         givens={
             X: X_batch,
             y: y_batch,
@@ -469,7 +470,7 @@ def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
 
     theano_backprop = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss],
+        outputs=[loss] + performance,
         updates=updates,
         givens={
             X: X_batch,
@@ -480,69 +481,105 @@ def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
     return theano_forward, theano_backprop
 
 
-def forward_train(X_train, y_train, theano_train_fn, rand=False, augment=None, **kwargs):
-    """ compute the loss over all training batches """
-    train_losses = []
-    for Xb, yb in batch_iterator(X_train, y_train, rand=rand, augment=augment, **kwargs):
+def process_batch(X_train, y_train, theano_fn, **kwargs):
+    """
+        compute the loss over all training batches
+
+        Jon, if you get to this before I do, please fix. -J
+    """
+    albl_list = []  # [a]ugmented [l]a[b]e[l] list
+    loss_list = []
+    prob_list = []
+    pred_list = []
+    conf_list = []
+    accu_list = []
+    show = False
+    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
-        batch_train_loss = theano_train_fn(Xb, yb)
-        train_losses.append(batch_train_loss)
-    avg_train_loss = np.mean(train_losses)
-    return avg_train_loss
-
-
-def forward_valid(X_valid, y_valid, theano_validate_fn, rand=False, augment=None, **kwargs):
-    """ compute the loss over all validation batches """
-    valid_losses = []
-    valid_accuracies = []
-    for Xb, yb in batch_iterator(X_valid, y_valid, rand=rand, augment=augment, **kwargs):
-        # Valid iter returns the loss, but does not perform any updates
-        batch_valid_loss, batch_accuracy = theano_validate_fn(Xb, yb)
-        valid_losses.append(batch_valid_loss)
-        valid_accuracies.append(batch_accuracy)
-    avg_valid_loss = np.mean(valid_losses)
-    avg_valid_accuracy = np.mean(valid_accuracies)
-    return avg_valid_loss, avg_valid_accuracy
-
-
-def forward_test(X_test, y_test, theano_test_fn, results_path, mapping_fn=None, show=False, confusion=True, **kwargs):
-    """ compute the loss over all test batches """
-    all_correct = []
-    all_predict = []
-    test_accuracies = []
-    for Xb, yb in batch_iterator(X_test, y_test, **kwargs):
-        batch_test_loss, batch_predict_proba, batch_pred, batch_accuracy = theano_test_fn(Xb, yb)
-        test_accuracies.append(batch_accuracy)
-        all_correct.append(yb)
-        all_predict.append(batch_pred)
+        loss, prob, pred, conf = theano_fn(Xb, yb)
+        if yb is not None:
+            accu = T.mean(T.eq(pred, yb))
+        else:
+            accu = [np.nan] * len(Xb)
+        albl_list.append(yb)
+        loss_list.append(loss)
+        prob_list.append(loss)
+        pred_list.append(pred)
+        conf_list.append(conf)
+        accu_list.append(accu)
         if show:
-            print('Predect: ', batch_pred)
+            # Print the network output for the first batch
+            print('--------------')
+            print('Predect: ', pred)
             print('Correct: ', yb)
             print('--------------')
             show = False
-    avg_test_accuracy = np.mean(test_accuracies)
-    if confusion and results_path is not None:
-        all_correct = np.hstack(all_correct)
-        all_predict = np.hstack(all_predict)
-        labels = list(range(kwargs.get('output_dims')))
+    # Convert to numpy array
+    albl_list = np.hstack(albl_list)
+    loss_list = np.hstack(loss_list)
+    prob_list = np.hstack(prob_list)
+    pred_list = np.hstack(pred_list)
+    conf_list = np.hstack(conf_list)
+    accu_list = np.hstack(accu_list)
+    # Return
+    return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
+
+
+def forward_train(X_train, y_train, theano_fn, **kwargs):
+    """ compute the loss over all training batches """
+    results = process_batch(X_train, y_train, theano_fn, **kwargs)
+    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
+    # Find whatever metrics we want
+    avg_train_loss = np.mean(loss_list)
+    return avg_train_loss
+
+
+def forward_valid(X_valid, y_valid, theano_fn, **kwargs):
+    """ compute the loss over all validation batches """
+    results = process_batch(X_valid, y_valid, theano_fn, **kwargs)
+    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
+    # Find whatever metrics we want
+    avg_valid_loss = np.mean(loss_list)
+    avg_valid_accu = np.mean(accu_list)
+    return avg_valid_loss, avg_valid_accu
+
+
+def forward_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
+    """ compute the loss over all test batches """
+    results = process_batch(X_test, y_test, theano_fn, **kwargs)
+    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
+    # Find whatever metrics we want
+    avg_test_accu = np.mean(accu_list)
+    # Output confusion matrix
+    if results_path is not None:
+        # Grab model
+        model = kwargs.get('model', None)
+        mapping_fn = None
+        if model is not None:
+            mapping_fn = getattr(model, 'label_order_mapping', None)
+        # TODO: THIS NEEDS TO BE FIXED
+        label_list = list(range(kwargs.get('output_dims')))
+        # Encode labels if avaialble
         encoder = kwargs.get('encoder', None)
         if encoder is not None:
-            #with ut.embed_on_exception_context:
-            labels = encoder.inverse_transform(labels)
-        show_confusion_matrix(all_correct, all_predict, labels, results_path, mapping_fn, X_test)
-    return avg_test_accuracy
+            label_list = encoder.inverse_transform(label_list)
+        # Make confusion matrix (pass X to write out failed cases)
+        show_confusion_matrix(albl_list, pred_list, label_list, results_path,
+                              mapping_fn, X_test)
+    return avg_test_accu
 
 
-def forward_test_predictions(X_test, theano_test_fn, results_path, **kwargs):
+def forward_test_predictions(X_test, theano_fn, **kwargs):
     """ compute the loss over all test batches """
-    all_predict = []
-    for Xb, _ in batch_iterator(X_test, None, **kwargs):
-        batch_predict_proba, batch_pred = theano_test_fn(Xb)
-        all_predict.append(batch_pred)
-    all_predict = np.hstack(all_predict)
+    results = process_batch(X_test, None, theano_fn, **kwargs)
+    albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
+    # Find whatever metrics we want
     encoder = kwargs.get('encoder', None)
-    labels = encoder.inverse_transform(all_predict)
-    return all_predict, labels
+    if encoder is not None:
+        label_list = encoder.inverse_transform(pred_list)
+    else:
+        label_list = [None] * len(pred_list)
+    return pred_list, label_list
 
 
 def add_channels(data):

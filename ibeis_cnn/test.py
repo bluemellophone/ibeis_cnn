@@ -69,7 +69,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     theano_test_fn, theano_accuracy_test_fn = utils.create_testing_funcs(output_layer, **kwargs)
-    
+
     theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
     theano_forward, theano_backprop = theano_funcs
 
