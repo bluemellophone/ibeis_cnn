@@ -575,7 +575,8 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
 
 def process_predictions(X_test, theano_fn, **kwargs):
     """ compute the loss over all test batches """
-    results = process_batch(X_test, None, theano_fn, **kwargs)
+    y_test = [-1] * len(X_test)
+    results = process_batch(X_test, y_test, theano_fn, **kwargs)
     albl_list, loss_list, prob_list, pred_list, conf_list, accu_list = results
     # Find whatever metrics we want
     encoder = kwargs.get('encoder', None)
