@@ -497,6 +497,10 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
+
+        print('--------------')
+        print(loss, prob, pred, conf)
+        print('--------------')
         if yb is not None:
             accu = T.mean(T.eq(pred, yb))
         else:
