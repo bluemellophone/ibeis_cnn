@@ -284,33 +284,58 @@ def expand_data_indicies(indices, data_per_label=1):
     return data_indices
 
 
-def make_random_indicies(num):
-    randstate = np.random.RandomState(RANDOM_SEED)
+def make_random_indicies(num, seed=RANDOM_SEED):
+    r"""
+    Args:
+        num (int):
+        seed (hashable):
+
+    Returns:
+        ndarray: random_indicies
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-make_random_indicies
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> num = 10
+        >>> seed = 42
+        >>> random_indicies = make_random_indicies(num, seed)
+        >>> result = str(random_indicies)
+        >>> print(result)
+        [8 1 5 0 7 2 9 4 3 6]
+    """
+    randstate = np.random.RandomState(seed)
     random_indicies = np.arange(num)
     randstate.shuffle(random_indicies)
     return random_indicies
 
 
-def data_label_shuffle(X, y, data_per_label=1):
+def data_label_shuffle(X, y, data_per_label=1, seed=RANDOM_SEED):
     r"""
     CommandLine:
         python -m ibeis_cnn.utils --test-data_label_shuffle
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.utils import *  # NOQA
-        >>> # build test data
         >>> X, y, data_per_label = testdata_xy()
-        >>> # execute function
-        >>> result = data_label_shuffle(X, y)
-        >>> # verify results
+        >>> data_per_label = 2
+        >>> seed = 42
+        >>> result = data_label_shuffle(X, y, data_per_label, seed=seed)
         >>> print(result)
     """
-    random_indicies = make_random_indicies(len(X) // data_per_label)
-    data_random_indicies = expand_data_indicies(random_indicies, data_per_label)
-    X = np.ascontiguousarray(X.take(data_random_indicies, axis=0))
+    num_labels = len(X) // data_per_label
     if y is not None:
-        y =  np.ascontiguousarray(y.take(random_indicies, axis=0))
+        assert num_labels == len(y), 'misaligned len(X)=%r, len(y)=%r' % (len(X), len(y))
+    random_indicies = make_random_indicies(num_labels, seed=seed)
+    data_random_indicies = expand_data_indicies(random_indicies, data_per_label)
+    X = X.take(data_random_indicies, axis=0)
+    X = np.ascontiguousarray(X)
+    if y is not None:
+        y =  y.take(random_indicies, axis=0)
+        y =  np.ascontiguousarray(y)
     return X, y
 
 
@@ -352,6 +377,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     verbose = kwargs.get('verbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
+    ut.embed()
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
