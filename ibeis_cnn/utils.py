@@ -418,7 +418,7 @@ def multinomial_nll(x, t):
     return T.nnet.categorical_crossentropy(x, t)
 
 
-def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
+def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
                           input_type=T.tensor4, output_type=T.ivector,
                           regularization=None, **kwargs):
     """
@@ -457,7 +457,7 @@ def create_theano_funcs(learning_rate, output_layer, model, momentum=0.9,
 
     # Define how to update network parameters based on the training loss
     parameters = layers.get_all_params(output_layer)
-    updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate, momentum)
+    updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
 
     theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
