@@ -501,7 +501,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     accu_list = []
-    show = True
+    show = False
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf, accu = theano_fn(Xb, yb)
