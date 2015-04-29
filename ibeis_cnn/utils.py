@@ -493,14 +493,10 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     accu_list = []
-    show = False
+    show = True
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
-
-        print('--------------')
-        print(loss, prob, pred, conf)
-        print('--------------')
         if yb is not None:
             accu = T.mean(T.eq(pred, yb))
         else:
@@ -516,15 +512,25 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
             print('--------------')
             print('Predect: ', pred)
             print('Correct: ', yb)
+            print('Loss:    ', loss)
+            print('Prob:    ', prob)
+            print('Conf:    ', conf)
+            print('Accu:    ', accu)
             print('--------------')
             show = False
     # Convert to numpy array
     albl_list = np.hstack(albl_list)
     loss_list = np.hstack(loss_list)
-    prob_list = np.hstack(prob_list)
+    prob_list = np.vstack(prob_list)
     pred_list = np.hstack(pred_list)
     conf_list = np.hstack(conf_list)
     accu_list = np.hstack(accu_list)
+    print(albl_list.shape)
+    print(loss_list.shape)
+    print(prob_list.shape)
+    print(pred_list.shape)
+    print(conf_list.shape)
+    print(accu_list.shape)
     # Return
     return albl_list, loss_list, prob_list, pred_list, conf_list, accu_list
 
