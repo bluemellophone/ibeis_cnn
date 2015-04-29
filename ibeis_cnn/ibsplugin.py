@@ -65,22 +65,6 @@ class IdentifyDataConfig(NewConfigBase):
         return ','.join(cfgstr_list)
 
 
-def write_data_and_labels(data, labels, data_fpath, labels_fpath):
-    print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
-    print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
-
-    # to resize the images back to their 2D-structure:
-    # X = images_array.reshape(-1, 3, 48, 48)
-
-    print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
-    with open(data_fpath, 'wb') as ofile:
-        np.save(ofile, data)
-
-    print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
-    with open(labels_fpath, 'wb') as ofile:
-        np.save(ofile, labels)
-
-
 def view_training_data(ibs, **kwargs):
     """
     CommandLine:
@@ -168,9 +152,7 @@ def compute_target_size_from_aspect(chip_list, target_height=256):
         >>> ibs = ibeis.opendb('testdb1')
         >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
         >>> # execute function
-        >>> chip1_list = ibs.get_annot_chips(aid1_list)
-        >>> chip2_list = ibs.get_annot_chips(aid2_list)
-        >>> chip_list = chip1_list + chip2_list
+        >>> chip_list = ibs.get_annot_chips(ut.unique_keep_order2(aid1_list + aid2_list))
         >>> target_height = 256
         >>> target_size = compute_target_size_from_aspect(chip_list, target_height)
         >>> # verify results
@@ -230,12 +212,6 @@ def extract_square_chips_from_images(ibs, aid_list, target_size):
     chipBGR_square_gen = ut.generate(extract_chip_from_gpath_into_square_worker, args_iter)
     chipBGR_square_list = list(chipBGR_square_gen)
     return chipBGR_square_list
-    #gfpath = gfpath_list[0]
-    #bbox = bbox_list[0]
-    #theta = theta_list[0]
-    #imgBGR = vt.imread(gfpath)
-    #chipBGR_square = vt.extract_chip_into_square(imgBGR, bbox, theta, target_size)
-    pass
 
 
 def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked=False):
@@ -422,7 +398,24 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
     return labels
 
 
-def get_identify_training_dname(ibs, aid1_list, aid2_list):
+def get_neuralnet_dir(ibs):
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    return nets_dir
+
+
+def get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl):
+    nets_dir = get_neuralnet_dir(ibs)
+    training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl)
+    training_dpath = ut.unixjoin(nets_dir, training_dname)
+    ut.ensuredir(nets_dir)
+    ut.ensuredir(training_dpath)
+    view_train_dir = ut.get_argflag('--vtd')
+    if view_train_dir:
+        ut.view_directory(training_dpath)
+    return training_dpath
+
+
+def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
     """
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -443,7 +436,7 @@ def get_identify_training_dname(ibs, aid1_list, aid2_list):
         >>> ibs = ibeis.opendb('testdb1')
         >>> aid1_list = ibs.get_valid_aids()
         >>> aid2_list = ibs.get_valid_aids()
-        >>> training_dpath = get_identify_training_dname(ibs, aid1_list, aid2_list)
+        >>> training_dpath = get_identify_training_dname(ibs, aid1_list, aid2_list, 'training')
         >>> # verify results
         >>> result = str(training_dpath)
         >>> print(result)
@@ -452,7 +445,7 @@ def get_identify_training_dname(ibs, aid1_list, aid2_list):
     semantic_uuids1 = ibs.get_annot_semantic_uuids(aid1_list)
     semantic_uuids2 = ibs.get_annot_semantic_uuids(aid2_list)
     aidpair_hashstr_list = map(ut.hashstr, zip(semantic_uuids1, semantic_uuids2))
-    training_dname = ut.hashstr_arr(aidpair_hashstr_list, hashlen=16, lbl='training')
+    training_dname = ut.hashstr_arr(aidpair_hashstr_list, hashlen=16, lbl=lbl)
     return training_dname
 
 
@@ -460,21 +453,13 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
     """
     todo use size in cfgstrings
     """
-    from os.path import join
-    training_dname = get_identify_training_dname(ibs, aid1_list, aid2_list)
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
-    training_dpath = join(nets_dir, training_dname)
-    ut.ensuredir(nets_dir)
-    ut.ensuredir(training_dpath)
-    view_train_dir = ut.get_argflag('--vtd')
-    if view_train_dir:
-        ut.view_directory(training_dpath)
+    training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, 'train_identity')
 
     idcfg = IdentifyDataConfig()
     idcfg.base_size = base_size
 
-    data_fpath = join(training_dpath, 'data_' + idcfg.get_cfgstr())
-    labels_fpath = join(training_dpath, 'labels.pkl')
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + idcfg.get_cfgstr())
+    labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
     if NOCACHE_TRAIN or not (
@@ -488,52 +473,9 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
         data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
         data = data.compress(data_isinvalid, axis=0)
         labels = labels.compress(label_isinvalid, axis=0)
-        write_data_and_labels(data, labels, data_fpath, labels_fpath)
+        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
-    return data_fpath, labels_fpath, training_dpath
-
-
-def get_identify_training_fpaths(ibs, **kwargs):
-    """
-
-    Notes:
-        Blog post:
-        http://benanne.github.io/2015/03/17/plankton.html
-
-        Code:
-        https://github.com/benanne/kaggle-ndsb
-
-        You need to do something like this to pass two images through the network:
-        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L89
-
-        And then something like this to combine them again:
-        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L224
-
-    CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_identify_training_fpaths
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
-        >>> import ibeis
-        >>> # build test data
-        >>> ibs = ibeis.opendb('testdb1')
-        >>> # execute function
-        >>> (data_fpath, labels_fpath) = get_identify_training_fpaths(ibs)
-        >>> # verify results
-        >>> result = str((data_fpath, labels_fpath))
-        >>> print(result)
-    """
-    print('get_identify_training_fpaths')
-    aid1_list, aid2_list = get_identify_training_aid_pairs(ibs)
-    max_examples = kwargs.pop('max_examples', None)
-    if max_examples is not None:
-        print('max_examples = %r' % (max_examples,))
-        aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
-        aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
-    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
-        ibs, aid1_list, aid2_list, **kwargs)
     return data_fpath, labels_fpath, training_dpath
 
 
@@ -541,20 +483,12 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
     """
     todo use size in cfgstrings
     """
-    from os.path import join
-    training_dname = get_identify_training_dname(ibs, aid1_list, aid2_list) + 'patch'
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
-    training_dpath = join(nets_dir, training_dname)
-    ut.ensuredir(nets_dir)
-    ut.ensuredir(training_dpath)
-    view_train_dir = ut.get_argflag('--vtd')
-    if view_train_dir:
-        ut.view_directory(training_dpath)
+    training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, 'train_patchmetric')
 
     cfg = PatchMetricDataConfig()
 
-    data_fpath = join(training_dpath, 'data_' + cfg.get_cfgstr() + '.pkl')
-    labels_fpath = join(training_dpath, 'labels.pkl')
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfg.get_cfgstr() + '.pkl')
+    labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
     if NOCACHE_TRAIN or not (
@@ -569,8 +503,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
         data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
         data = data.compress(data_isinvalid, axis=0)
         labels = labels.compress(label_isinvalid, axis=0)
-
-        write_data_and_labels(data, labels, data_fpath, labels_fpath)
+        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath
@@ -578,9 +511,6 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
 
 def get_identify_training_aid_pairs(ibs):
     r"""
-    Args:
-        ibs (IBEISController):  ibeis controller object
-
     Returns:
         tuple: (aid1_list, aid2_list)
 
@@ -634,6 +564,38 @@ def get_aidpairs_and_matches(ibs, max_examples=None):
     return aid1_list, aid2_list, kpts1_m_list, kpts2_m_list
 
 
+def get_identify_training_fpaths(ibs, **kwargs):
+    """
+    Notes:
+        Blog post: http://benanne.github.io/2015/03/17/plankton.html
+        Code: https://github.com/benanne/kaggle-ndsb
+        You need to do something like this to pass two images through the network:
+        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L89
+        And then something like this to combine them again:
+        https://github.com/benanne/kaggle-ndsb/blob/master/dihedral.py#L224
+
+    CommandLine:
+        python -m ibeis_cnn.ibsplugin --test-get_identify_training_fpaths
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb('testdb1')
+        >>> (data_fpath, labels_fpath) = get_identify_training_fpaths(ibs)
+    """
+    print('get_identify_training_fpaths')
+    aid1_list, aid2_list = get_identify_training_aid_pairs(ibs)
+    max_examples = kwargs.pop('max_examples', None)
+    if max_examples is not None:
+        print('max_examples = %r' % (max_examples,))
+        aid1_list = aid1_list[0:min(max_examples, len(aid1_list))]
+        aid2_list = aid2_list[0:min(max_examples, len(aid2_list))]
+    data_fpath, labels_fpath, training_dpath = cached_identify_training_data_fpaths(
+        ibs, aid1_list, aid2_list, **kwargs)
+    return data_fpath, labels_fpath, training_dpath
+
+
 def get_patchmetric_training_fpaths(ibs, **kwargs):
     """
     CommandLine:
@@ -643,15 +605,10 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
-        >>> # build test data
         >>> ibs = ibeis.opendb('PZ_MTEST')
-        >>> # execute function
         >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs)
-        >>> # verify results
-        >>> result = str((data_fpath, labels_fpath))
         >>> ut.quit_if_noshow()
         >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
-        >>> print(result)
     """
     print('\n\n[get_patchmetric_training_fpaths] START')
     max_examples = kwargs.pop('max_examples', None)

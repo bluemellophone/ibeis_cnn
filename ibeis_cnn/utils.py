@@ -189,6 +189,20 @@ def train_test_split(X, y, eval_size, data_per_label=1):
     return X_train, y_train, X_valid, y_valid
 
 
+def write_data_and_labels(data, labels, data_fpath, labels_fpath):
+    print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
+    print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
+    # to resize the images back to their 2D-structure:
+    # X = images_array.reshape(-1, 3, 48, 48)
+    print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
+    with open(data_fpath, 'wb') as ofile:
+        np.save(ofile, data)
+
+    print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
+    with open(labels_fpath, 'wb') as ofile:
+        np.save(ofile, labels)
+
+
 def load(data_fpath, labels_fpath=None, random_state=None):
     # Load X matrix (data)
     data = np.load(data_fpath, mmap_mode='r')
