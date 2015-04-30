@@ -66,6 +66,38 @@ class CaffeNet(init.Initializer):
         return floatX(self.pretrained_weights[:fanout, :fanin, :, :])
 
 
+class VGGNet(init.Initializer):
+    """Intialize weights as the pretrained VGGNet layers (similar structure to OverFeat)
+
+    Parameters
+    ----------
+    layer : int
+    """
+    def __init__(self, layer=0):
+        self.layer = layer
+        weights_path = join('..', 'data', 'nets', 'vgg', 'vgg.caffe.pickle')
+        pretrained_weights = None
+        try:
+            with open(weights_path, 'rb') as pfile:
+                pretrained_weights = pickle.load(pfile)
+        except Exception:
+            raise IOError('VGGNet model not found: %r' % (weights_path, ))
+        # print(len(pretrained_weights))
+        # for index, layer in enumerate(pretrained_weights):
+        #     print(index, layer.shape)
+        assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
+        self.pretrained_weights = pretrained_weights[layer]
+
+    def sample(self, shape):
+        fanout, fanin, height, width = shape
+        fanout_, fanin_, height_, width_ = self.pretrained_weights.shape
+        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
+        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
+        assert height == height_, 'The height must be identical between the layer and weights'
+        assert width  == width_,  'The width must be identical between the layer and weights'
+        return floatX(self.pretrained_weights[:fanout, :fanin, :, :])
+
+
 def MaxPool2DLayer_(*args, **kwargs):
     """ wrapper for gpu / cpu compatibility """
     # if not USING_GPU and 'strides' in kwargs:
@@ -472,7 +504,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=4),
+            W=VGGNet(layer=0),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
