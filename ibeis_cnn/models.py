@@ -14,6 +14,7 @@ import random
 import utool as ut
 import six
 import theano.tensor as T
+import numpy as np
 from os.path import join
 import pickle
 
@@ -42,20 +43,23 @@ class _PretainedInitializer(init.Initializer):
         ----------
         layer : int
     """
-    def __init__(self, weights_path, layer=0, show_network=False):
+    def __init__(self, weights_path, layer=0, rand=False, show_network=False):
         self.layer = layer
+        self.rand = rand
         weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         pretrained_weights = None
         try:
             with open(weights_path, 'rb') as pfile:
                 pretrained_weights = pickle.load(pfile)
         except Exception:
-            raise IOError('CaffeNet model not found: %r' % (weights_path, ))
+            raise IOError('The specified model was not found: %r' % (weights_path, ))
         if show_network:
             for index, layer_ in enumerate(pretrained_weights):
                 print(index, layer_.shape)
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
+        if rand:
+            self.pretrained_weights = np.random.shuffle(self.pretrained_weights)
 
     def sample(self, shape):
         fanout, fanin, height, width = shape
@@ -320,7 +324,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(11, 11),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=0),
+            W=CaffeNet(layer=0, rand=True),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -331,7 +335,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(5, 5),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=2),
+            W=CaffeNet(layer=2, rand=True),
         )
 
         l_pool1 = MaxPool2DLayer_(
@@ -502,7 +506,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=0),
+            W=VGGNet(layer=0, rand=True),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -513,7 +517,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=2),
+            W=VGGNet(layer=2, rand=True),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
