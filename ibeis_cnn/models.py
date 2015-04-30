@@ -15,6 +15,8 @@ import utool as ut
 import numpy as np
 import six
 import theano.tensor as T
+from os.path import join
+import pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
@@ -42,6 +44,12 @@ class OverFeat(init.Initializer):
     """
     def __init__(self, layer=1.0):
         self.layer = layer
+        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        print(weights_path)
+        pretrained_weights = None
+        with open(weights_path, 'rb') as pfile:
+            pretrained_weights = pickle.load(pfile)
+        print(len(pretrained_weights))
 
     def sample(self, shape):
         print('Sample------------------')
