@@ -324,7 +324,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(11, 11),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=0, rand=True),
+            W=CaffeNet(layer=0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -335,7 +335,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(5, 5),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=2, rand=True),
+            W=CaffeNet(layer=2),
         )
 
         l_pool1 = MaxPool2DLayer_(
@@ -506,7 +506,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=0, rand=True),
+            W=VGGNet(layer=0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -517,7 +517,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=2, rand=True),
+            W=VGGNet(layer=2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
