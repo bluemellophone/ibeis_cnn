@@ -9,8 +9,10 @@ from __future__ import absolute_import, division, print_function
 from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
+from lasagne.utils import floatX
 import random
 import utool as ut
+import numpy as np
 import six
 import theano.tensor as T
 
@@ -29,6 +31,26 @@ except ImportError as ex:
     Conv2DLayer = layers.Conv2DLayer
     MaxPool2DLayer = layers.MaxPool2DLayer
     USING_GPU = False
+
+
+class OverFeat(init.Initializer):
+    """Intialize weights as the pretrained Overfeat layers
+
+    Parameters
+    ----------
+    layer : int
+    """
+    def __init__(self, layer=1.0):
+        self.layer = layer
+
+    def sample(self, shape):
+        print('Sample------------------')
+        print(self.layer)
+        print(shape)
+        print('Sample------------------')
+        range_ = (-1.0, 1.0)
+        return floatX(np.random.uniform(
+            low=range_[0], high=range_[1], size=shape))
 
 
 def MaxPool2DLayer_(*args, **kwargs):
@@ -437,7 +459,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            W=OverFeat(layer=2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)

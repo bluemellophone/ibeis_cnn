@@ -82,19 +82,19 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    all_predict, labels = utils.process_predictions(X_test, theano_predict, **kwargs)
+    pred_list, label_list, conf_list = utils.process_predictions(X_test, theano_predict, **kwargs)
 
     if y_test is not None:
-        avg_test_accuracy = utils.process_test(X_test, y_test, theano_forward,
-                                               results_dpath,
-                                               model=model, augment=None,
-                                               rand=False, **kwargs)
-        print('Test accuracy for %d examples: %0.2f' % (len(X_test), avg_test_accuracy, ))
+        accu_test = utils.process_test(X_test, y_test, theano_forward,
+                                       results_dpath,
+                                       model=model, augment=None,
+                                       rand=False, **kwargs)
+        print('Test accuracy for %d examples: %0.2f' % (len(X_test), accu_test, ))
 
     # End timer
     t1 = time.time()
     print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
-    return all_predict, labels
+    return pred_list, label_list, conf_list
 
 
 def display_caffe_model(weights_model_path, results_path, **kwargs):

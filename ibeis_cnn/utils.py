@@ -636,7 +636,7 @@ def process_predictions(X_test, theano_fn, **kwargs):
         label_list = encoder.inverse_transform(pred_list)
     else:
         label_list = [None] * len(pred_list)
-    return pred_list, label_list
+    return pred_list, label_list, conf_list
 
 
 def add_channels(data):
