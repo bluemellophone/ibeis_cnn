@@ -41,7 +41,7 @@ class CaffeNet(init.Initializer):
     ----------
     layer : int
     """
-    def __init__(self, layer=0):
+    def __init__(self, layer=0, show_network=False):
         self.layer = layer
         weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         pretrained_weights = None
@@ -50,9 +50,9 @@ class CaffeNet(init.Initializer):
                 pretrained_weights = pickle.load(pfile)
         except Exception:
             raise IOError('CaffeNet model not found: %r' % (weights_path, ))
-        # print(len(pretrained_weights))
-        # for index, layer in enumerate(pretrained_weights):
-        #     print(index, layer.shape)
+        if show_network:
+            for index, layer in enumerate(pretrained_weights):
+                print(index, layer.shape)
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
 
@@ -82,9 +82,9 @@ class VGGNet(init.Initializer):
                 pretrained_weights = pickle.load(pfile)
         except Exception:
             raise IOError('VGGNet model not found: %r' % (weights_path, ))
-        # print(len(pretrained_weights))
-        # for index, layer in enumerate(pretrained_weights):
-        #     print(index, layer.shape)
+        if show_network:
+            for index, layer in enumerate(pretrained_weights):
+                print(index, layer.shape)
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
 
