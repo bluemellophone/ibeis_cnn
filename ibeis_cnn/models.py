@@ -51,7 +51,7 @@ class OverFeat(init.Initializer):
             pretrained_weights = pickle.load(pfile)
         print(len(pretrained_weights))
         for index, layer in enumerate(pretrained_weights):
-            print(index, layer)
+            print(index, layer.shape)
 
     def sample(self, shape):
         print('Sample------------------')
