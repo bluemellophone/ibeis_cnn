@@ -41,19 +41,20 @@ class CaffeNet(init.Initializer):
     ----------
     layer : int
     """
-    def __init__(self, layer=1):
+    def __init__(self, layer=0):
         self.layer = layer
+        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        pretrained_weights = None
         try:
-            weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
-            pretrained_weights = None
             with open(weights_path, 'rb') as pfile:
                 pretrained_weights = pickle.load(pfile)
-            # print(len(pretrained_weights))
-            # for index, layer in enumerate(pretrained_weights):
-            #     print(index, layer.shape)
-            self.pretrained_weights = pretrained_weights[layer]
         except Exception:
-            raise IOError('CaffeNet model not installed or the layer requested was not found')
+            raise IOError('CaffeNet model not found: %r' % (weights_path, ))
+        # print(len(pretrained_weights))
+        # for index, layer in enumerate(pretrained_weights):
+        #     print(index, layer.shape)
+        assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
+        self.pretrained_weights = pretrained_weights[layer]
 
     def sample(self, shape):
         fanout, fanin, height, width = shape
