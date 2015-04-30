@@ -57,7 +57,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'momentum',                0.9)
     utils._update(kwargs, 'batch_size',              128)
     utils._update(kwargs, 'patience',                10)
-    utils._update(kwargs, 'test',                    5)  # Test every X epochs
+    utils._update(kwargs, 'run_test',                10)  # Test every 10 epochs
     utils._update(kwargs, 'max_epochs',              kwargs.get('patience') * 10)
     utils._update(kwargs, 'regularization',          None)
     utils._update(kwargs, 'output_dims',             None)
@@ -187,7 +187,7 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                     break
 
                 # Calculate request_test before adding to the epoch counter
-                request_test = kwargs.get('test') is not None and epoch % kwargs.get('test') == 0
+                request_test = kwargs.get('run_test') is not None and epoch % kwargs.get('run_test') == 0
                 # Increment the epoch
                 epoch += 1
 
@@ -199,7 +199,8 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                     kwargs['best_weights'] = layers.get_all_param_values(output_layer)
 
                 # compute the loss over all testing batches
-                if request_test or best_found:
+                # if request_test or best_found:
+                if request_test:
                     loss_determ = utils.process_train(X_train, y_train, theano_forward,
                                                       model=model, augment=augment_fn,
                                                       rand=True, **kwargs)

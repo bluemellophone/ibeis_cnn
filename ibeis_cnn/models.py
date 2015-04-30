@@ -9,10 +9,14 @@ from __future__ import absolute_import, division, print_function
 from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
+from lasagne.utils import floatX
 import random
 import utool as ut
 import six
 import theano.tensor as T
+import numpy as np
+from os.path import join
+import pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
@@ -29,6 +33,60 @@ except ImportError as ex:
     Conv2DLayer = layers.Conv2DLayer
     MaxPool2DLayer = layers.MaxPool2DLayer
     USING_GPU = False
+
+
+class _PretainedInitializer(init.Initializer):
+    """
+        Intialize weights from a specified pretrained network layers
+
+        Parameters
+        ----------
+        layer : int
+    """
+    def __init__(self, weights_path, layer=0, rand=False, show_network=False):
+        self.layer = layer
+        self.rand = rand
+        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        pretrained_weights = None
+        try:
+            with open(weights_path, 'rb') as pfile:
+                pretrained_weights = pickle.load(pfile)
+        except Exception:
+            raise IOError('The specified model was not found: %r' % (weights_path, ))
+        if show_network:
+            for index, layer_ in enumerate(pretrained_weights):
+                print(index, layer_.shape)
+        assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
+        self.pretrained_weights = pretrained_weights[layer]
+        if rand:
+            np.random.shuffle(self.pretrained_weights)
+
+    def sample(self, shape):
+        fanout, fanin, height, width = shape
+        fanout_, fanin_, height_, width_ = self.pretrained_weights.shape
+        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
+        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
+        assert height == height_, 'The height must be identical between the layer and weights'
+        assert width  == width_,  'The width must be identical between the layer and weights'
+        return floatX(self.pretrained_weights[:fanout, :fanin, :, :])
+
+
+class CaffeNet(_PretainedInitializer):
+    """
+        Intialize weights as the pretrained CaffeNet layers
+    """
+    def __init__(self, **kwargs):
+        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        super(CaffeNet, self).__init__(weights_path, **kwargs)
+
+
+class VGGNet(_PretainedInitializer):
+    """
+        Intialize weights as the pretrained VGGNet layers
+    """
+    def __init__(self, **kwargs):
+        weights_path = join('..', 'data', 'nets', 'vgg', 'vgg.caffe.pickle')
+        super(VGGNet, self).__init__(weights_path, **kwargs)
 
 
 def MaxPool2DLayer_(*args, **kwargs):
@@ -266,13 +324,24 @@ class PZ_GIRM_LARGE_Model(object):
             l_in,
         )
 
-        l_conv1 = Conv2DLayer(
+        l_conv0 = Conv2DLayer(
             l_noise,
+            num_filters=32,
+            filter_size=(11, 11),
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
+            W=CaffeNet(layer=0),
+        )
+
+        l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
+
+        l_conv1 = Conv2DLayer(
+            l_conv0_dropout,
             num_filters=32,
             filter_size=(5, 5),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            W=CaffeNet(layer=2),
         )
 
         l_pool1 = MaxPool2DLayer_(
@@ -437,13 +506,24 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             shape=(None, input_channels, input_width, input_height)
         )
 
-        l_conv1 = Conv2DLayer(
+        l_conv0 = Conv2DLayer(
             l_in,
             num_filters=32,
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            W=VGGNet(layer=0),
+        )
+
+        l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
+
+        l_conv1 = Conv2DLayer(
+            l_conv0_dropout,
+            num_filters=32,
+            filter_size=(3, 3),
+            # nonlinearity=nonlinearities.rectify,
+            nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
+            W=VGGNet(layer=2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)

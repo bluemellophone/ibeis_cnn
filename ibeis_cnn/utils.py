@@ -406,6 +406,10 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     verbose = kwargs.get('verbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
+<<<<<<< HEAD
+=======
+    # ut.embed()
+>>>>>>> 196b5ad3791738c9d57f187e8b1064b471a47839
     if rand:
         # Randomly shuffle data
         X, y = data_label_shuffle(X, y, data_per_label)
@@ -644,7 +648,7 @@ def process_predictions(X_test, theano_fn, **kwargs):
         label_list = encoder.inverse_transform(pred_list)
     else:
         label_list = [None] * len(pred_list)
-    return pred_list, label_list
+    return pred_list, label_list, conf_list
 
 
 def add_channels(data):

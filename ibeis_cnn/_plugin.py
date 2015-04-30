@@ -94,7 +94,7 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     model_path = grabmodels.ensure_model('viewpoint', redownload=False)
     weights_path = join(model_path, 'viewpoint', 'ibeis_cnn_weights.pickle')
     # Predict on the data and convert labels to IBEIS namespace
-    all_predict, label_list = test.test_data(X_test, y_test, model, weights_path)
+    pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
     return species_viewpoint_list
 
@@ -126,3 +126,28 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
             print('    AID %4d (%r, %r) should be %r' % bad_viewpoint)
     # Return bad
     return bad_species_list, bad_viewpoint_list
+
+
+@register_ibs_method
+def detect_image_cnn(ibs, gid_list):
+    # Load chips and resize to the target
+    print('detect_image_cnn')
+    target = (96, 96)
+    stride = (12, 12)
+    targetx, targety = target
+    stridex, stridey = stride
+    gid = gid_list[0]
+    print('Detecting with gid=%r' % (gid, ))
+    image = ibs.get_images(gid)
+    h, w, c = image.shape
+    cv2.imshow('', image)
+    cv2.waitKey(0)
+    y = 0
+    while y < h - targety:
+        x = 0
+        while x < w - targetx:
+            chip = image[y : y + targety, x : x + targetx]
+            cv2.imshow('', chip)
+            cv2.waitKey(0)
+            x += stridex
+        y += stridey
