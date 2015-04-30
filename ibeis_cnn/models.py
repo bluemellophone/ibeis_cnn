@@ -52,8 +52,8 @@ class _PretainedInitializer(init.Initializer):
         except Exception:
             raise IOError('CaffeNet model not found: %r' % (weights_path, ))
         if show_network:
-            for index, layer in enumerate(pretrained_weights):
-                print(index, layer.shape)
+            for index, layer_ in enumerate(pretrained_weights):
+                print(index, layer_.shape)
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
 
