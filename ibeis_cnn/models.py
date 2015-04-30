@@ -59,7 +59,7 @@ class _PretainedInitializer(init.Initializer):
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
         if rand:
-            self.pretrained_weights = np.random.shuffle(self.pretrained_weights)
+            np.random.shuffle(self.pretrained_weights)
 
     def sample(self, shape):
         fanout, fanin, height, width = shape
