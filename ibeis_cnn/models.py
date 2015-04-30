@@ -217,8 +217,11 @@ class SiameseModel(object):
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
             _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
             _P(layers.DenseLayer, num_units=512, **rlu_orthog),
+            _P(layers.DropoutLayer, p=0.5),
             _P(layers.DenseLayer, num_units=256, **rlu_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
+            _P(layers.DropoutLayer, p=0.5),
+            _P(layers.DenseLayer, num_units=256, **rlu_orthog),
+            _P(layers.DropoutLayer, p=0.5),
             #_P(layers.FeaturePoolLayer, pool_size=2),
 
             #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),

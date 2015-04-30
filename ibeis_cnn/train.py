@@ -70,14 +70,15 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
+    print('[train]     memory(data) = %r' % (ut.get_object_size_str(data),))
     print('[train]     data.shape = %r' % (data.shape,))
     print('[train]     data.dtype = %r' % (data.dtype,))
     print('[train]     labels.shape = %r' % (labels.shape,))
     print('[train]     labels.dtype = %r' % (labels.dtype,))
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
-    print('label histogram = \n' + ut.dict_str(labelhist))
-    print('train kwargs = \n' + (ut.dict_str(kwargs)))
+    print('[train] label histogram = \n' + ut.dict_str(labelhist))
+    print('[train] kwargs = \n' + (ut.dict_str(kwargs)))
 
     # Encoding labels
     kwargs['encoder'] = None
@@ -300,14 +301,15 @@ def train_patchmatch_pz():
 
     model = models.SiameseModel()
     config = dict(
-        batch_size=128,
-        learning_rate=.001,
+        patience=50,
+        batch_size=256,
+        learning_rate=.004,
         output_dims=1024,
         show_confusion=False,
     )
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)
-    weights_fpath = join(nets_dir, 'ibeis_cnn_weights.pickle')
+    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
     train(data_fpath, labels_fpath, model, weights_fpath, training_dpath, **config)
 
 
@@ -334,14 +336,15 @@ def train_identification_pz():
 
     model = models.SiameseModel()
     config = dict(
+        patience=50,
         batch_size=32,
         learning_rate=.03,
         output_dims=1024,
         show_confusion=False,
     )
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)
-    weights_fpath = join(nets_dir, 'ibeis_cnn_weights.pickle')
+    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
     train(data_fpath, labels_fpath, model, weights_fpath, training_dpath, **config)
     #X = k
 

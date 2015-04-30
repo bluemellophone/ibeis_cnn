@@ -259,7 +259,23 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
     return thumb1_list, thumb2_list
 
 
-def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
+#def get_unique_featureids(aid1_list, aid2_list, fm_list):
+#    import vtool as vt
+#    vt.group_indices(np.array(aid1_list))
+#    fx1_list = [fm.T[0] for fm in fm_list]
+#    fx2_list = [fm.T[1] for fm in fm_list]
+#    #aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+#    #aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+#    #iddict_ = {}
+#    #unique_feat_ids1 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx1_list]
+#    #unique_feat_ids2 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx2_list]
+#    #unique_feat_ids = ut.flatten(unique_feat_ids1) + ut.flatten(unique_feat_ids2)
+#    #return unique_feat_ids
+
+#    #
+
+
+def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list):
     """
     CommandLine:
         python -m ibeis_cnn.ibsplugin --test-get_aidpair_patchmatch_training_data --show
@@ -270,9 +286,9 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list) = get_aidpairs_and_matches(ibs, 10)
         >>> # execute function
-        >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
+        >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
         >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = tup
         >>> ut.quit_if_noshow()
         >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
@@ -280,21 +296,116 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
         >>> ut.show_if_requested()
     """
     # Flatten to only apply chip operations once
+    print('get_aidpair_patchmatch_training_data num_pairs = %r' % (len(aid1_list)))
+    assert len(aid1_list) == len(aid2_list)
+    assert len(aid1_list) == len(kpts1_m_list)
+    assert len(aid1_list) == len(kpts2_m_list)
+    assert len(aid1_list) == len(fm_list)
     print('geting_unflat_chips')
     flat_unique, reconstruct_tup = ut.inverable_unique_two_lists(aid1_list, aid2_list)
+    print('grabbing %d unique chips' % (len(flat_unique)))
     chip_list = ibs.get_annot_chips(flat_unique)
+    #if False:
+    #    aid_multilist = (np.array(aid1_list), np.array(aid2_list))
+    #    flat_unique_, flat_groupx_multilist = ut.inverable_group_multi_list()
+    #    fx1_list = [fm.T[0] for fm in fm_list]
+    #    fx2_list = [fm.T[1] for fm in fm_list]
+    #    fx_multilist = (fx1_list, fx2_list)
+    #    fx_groups = [[ut.list_take(fx_multilist[listx], groupx) for listx, groupx in enumerate(groupx_list)] for groupx_list in flat_groupx_multilist]
+
+    #    for fxgrp in fx_groups:
+    #        flat_list1, cumsum1 = ut.invertible_flatten2(fxgrp)
+    #        flat_list2, cumsum2 = ut.invertible_flatten2(flat_list1)
+    #        unique_fx, invert_fx3 = np.unique(flat_list2, return_inverse=True)
+    #        pass
+    #    #[[ut.list_take(aid_multilist[listx], groupx) for listx, groupx in enumerate(groupx_list)] for groupx_list in flat_groupx_multilist]
+
+    ut.print_object_size(chip_list, 'chip_list')
     chip1_list, chip2_list = ut.uninvert_unique_two_lists(chip_list, reconstruct_tup)
     import vtool as vt
+    import itertools
     print('warping')
-    warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in zip(chip1_list, kpts1_m_list)]
-    warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in zip(chip2_list, kpts2_m_list)]
+    # TODO: Finishme
+    #NODUP_KEYPOINT_WARP = True
+    #if NODUP_KEYPOINT_WARP:
+    #    # Prevent duplicate keypoint warping computations
+    #    fx1_list = [fm.T[0] for fm in fm_list]
+    #    fx2_list = [fm.T[1] for fm in fm_list]
+    #    aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+    #    aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+    #    iddict_ = {}
+    #    unique_feat_ids1 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx1_list]
+    #    unique_feat_ids2 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx2_list]
+    #    unique_feat_ids = ut.flatten(unique_feat_ids1) + ut.flatten(unique_feat_ids2)
+    #    print(len(set(unique_feat_ids)) / len(unique_feat_ids))
+
+    USE_CACHEFUNC = True
+
+    if USE_CACHEFUNC:
+        def idcache_find_misses(id_list, cache_):
+            # Generalize?
+            val_list = [cache_.get(id_, None) for id_ in id_list]
+            ismiss_list = [val is None for val in val_list]
+            return val_list, ismiss_list
+
+        def idcache_save(ismiss_list, miss_vals, id_list, val_list, cache_):
+            # Generalize?
+            miss_indices = ut.list_where(ismiss_list)
+            miss_ids  = ut.filter_items(id_list, ismiss_list)
+            # overwrite missed output
+            for index, val in zip(miss_indices, miss_vals):
+                val_list[index] = val
+            # cache save
+            for id_, val in zip(miss_ids, miss_vals):
+                cache_[id_] = val
+
+        def cacheget_wraped_patches(aid, fxs, chip, kpts, cache_={}):
+            # +-- Custom ids
+            id_list = [(aid, fx) for fx in fxs]
+            # L__
+            val_list, ismiss_list = idcache_find_misses(id_list, cache_)
+            if any(ismiss_list):
+                # +-- Custom evaluate misses
+                kpts_miss = kpts.compress(ismiss_list, axis=0)
+                miss_vals = vt.get_warped_patches(chip, kpts_miss)[0]
+                # L__
+                idcache_save(ismiss_list, miss_vals, id_list, val_list, cache_)
+            return val_list
+            #patch_list = []
+            #for fx, kp in zip(fxs, kpts):
+            #    try:
+            #        patch = cache_[(aid, fxs)]
+            #    except KeyError:
+            #        patch = vt.get_warped_patches(chip, kpts)[0]
+            #        cache_[(aid, fx)] = patch
+            #    patch_list.append(patch)
+            #return patch_list
+        fx1_list = [fm.T[0] for fm in fm_list]
+        fx2_list = [fm.T[1] for fm in fm_list]
+        warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list, kpts1_m_list), nTotal=len(kpts1_m_list), lbl='warp1')
+        warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list, kpts2_m_list), nTotal=len(kpts2_m_list), lbl='warp2')
+        warped_patches1_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter1))
+        warped_patches2_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter2))
+    else:
+        warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list), nTotal=len(kpts1_m_list), lbl='warp1')
+        warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list), nTotal=len(kpts2_m_list), lbl='warp2')
+        warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in warp_iter1]
+        warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in warp_iter2]
+
+    del chip_list
+    del chip1_list
+    del chip2_list
+    ut.print_object_size(warped_patches1_list, 'warped_patches1_list')
+    ut.print_object_size(warped_patches2_list, 'warped_patches2_list')
     len1_list = list(map(len, warped_patches1_list))
     assert len1_list == list(map(len, warped_patches2_list))
     print('flattening')
     aid1_list_ = ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)])
     aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
     warped_patch1_list = ut.flatten(warped_patches1_list)
+    del warped_patches1_list
     warped_patch2_list = ut.flatten(warped_patches2_list)
+    del warped_patches2_list
     return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list
 
 
@@ -311,14 +422,17 @@ def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64
         # Strided data comes in in pairs of two
         img_list = ut.flatten(list(zip(thumb1_list, thumb2_list)))
     data = np.array(img_list)
+    del img_list
     #data = [img[None, :] for img in im
     #data = utils.convert_imagelist_to_data(img_list)
     labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
-    data, labels = remove_unknown_data_and_labels(data, labels)
+    assert labels.shape[0] == data.shape[0] // 2
+    from ibeis import const
+    assert np.all(labels != const.TRUTH_UNKNOWN)
     return data, labels
 
 
-def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
+def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list):
     """
     Notes:
         # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT
@@ -326,7 +440,7 @@ def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2
         # SEGMENTATION MASKS
 
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data --show
+        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data_and_labels --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -334,49 +448,25 @@ def get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list) = get_aidpairs_and_matches(ibs, 10)
         >>> # execute function
-        >>> data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
+        >>> data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_patches(labels, data)
         >>> ut.show_if_requested()
     """
+    # To the removal of unknown pairs before computing the data
+
     aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list)
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
+    labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
     img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
     data = np.array(img_list)
-    labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
-    data, labels = remove_unknown_data_and_labels(data, labels)
+    del img_list
     #data_per_label = 2
-    return data, labels
-
-
-def remove_unknown_data_and_labels(data, labels):
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-remove_unknown_data_and_labels
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
-        >>> # build test data
-        >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-        >>> labels = np.array([1, 2, 0, 2, 1, 0])
-        >>> # execute function
-        >>> data, labels = remove_unknown_data_and_labels(data, labels)
-        >>> # verify results
-        >>> result = str((data, labels))
-        >>> print(result)
-        (array([ 1,  2,  5,  6,  9, 10, 11, 12]), array([1, 0, 1, 0]))
-    """
-    # Remove unknown labels
     assert labels.shape[0] == data.shape[0] // 2
     from ibeis import const
-    label_isinvalid = (labels != const.TRUTH_UNKNOWN)
-    #ut.flatten(list(zip(label_isinvalid, label_isinvalid)))
-    data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
-    data = data.compress(data_isinvalid, axis=0)
-    labels = labels.compress(label_isinvalid, axis=0)
+    assert np.all(labels != const.TRUTH_UNKNOWN)
     return data, labels
 
 
@@ -466,6 +556,7 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
     """
     todo use size in cfgstrings
     """
+    print('[cached_identify_training_data_fpaths] begin')
     training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, 'train_identity')
 
     idcfg = IdentifyDataConfig()
@@ -480,19 +571,13 @@ def cached_identify_training_data_fpaths(ibs, aid1_list, aid2_list, base_size=64
             and ut.checkpath(labels_fpath, verbose=True)
     ):
         data, labels = get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, **idcfg.kw())
-        # Remove unknown labels
-        from ibeis import const
-        label_isinvalid = (labels != const.TRUTH_UNKNOWN)
-        data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
-        data = data.compress(data_isinvalid, axis=0)
-        labels = labels.compress(label_isinvalid, axis=0)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath
 
 
-def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list):
+def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list):
     """
     todo use size in cfgstrings
     """
@@ -500,7 +585,8 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
 
     cfg = PatchMetricDataConfig()
 
-    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfg.get_cfgstr() + '.pkl')
+    fm_hashstr = ut.hashstr_arr(fm_list, lbl='fm')
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + fm_hashstr + '_' + cfg.get_cfgstr() + '.pkl')
     labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
@@ -508,13 +594,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             ut.checkpath(data_fpath, verbose=True)
             and ut.checkpath(labels_fpath, verbose=True)
     ):
-        data, labels = get_patchmetric_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **cfg.kw())
-        # Remove unknown labels
-        from ibeis import const
-        label_isinvalid = (labels != const.TRUTH_UNKNOWN)
-        data_isinvalid = np.vstack((label_isinvalid, label_isinvalid)).T.flatten()
-        data = data.compress(data_isinvalid, axis=0)
-        labels = labels.compress(label_isinvalid, axis=0)
+        data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **cfg.kw())
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
@@ -549,7 +629,24 @@ def get_identify_training_aid_pairs(ibs):
     return aid1_list, aid2_list
 
 
+def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
+    return aid1_list, aid2_list
+
+
 def get_aidpairs_and_matches(ibs, max_examples=None):
+    """
+    Returns:
+        aid pairs and matching keypoint pairs as well as the original index of the feature matches
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> max_examples = None
+
+    """
     aid_list = ibs.get_valid_aids()
     if max_examples is not None:
         aid_list = aid_list[0:min(max_examples, len(aid_list))]
@@ -557,23 +654,100 @@ def get_aidpairs_and_matches(ibs, max_examples=None):
     #from ibeis.model.hots import chip_match
     aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
     qres_list, qreq_ = ibs.query_chips(aid_list, aid_list, return_request=True)
+    # TODO: Use ChipMatch2 instead of QueryResult
     #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
     #for cm in cm_list:
     #    cm.evaluate_nsum_score(qreq_=qreq_)
     #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
     #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
+
+    # Get aid pairs and feature matches
     num_top = 3
-    aids1_list = [[qres.qaid] * num_top for qres in qres_list]
     aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
+    aids1_list = [[qres.qaid] * len(aids2) for qres, aids2 in zip(qres_list, aids2_list)]
     fms_list = [ut.dict_take(qres.aid2_fm, aids2) for qres, aids2 in zip(qres_list, aids2_list)]
     aid1_list = np.array(ut.flatten(aids1_list))
     aid2_list = np.array(ut.flatten(aids2_list))
-    fm_list   = ut.flatten(fms_list)
+    fm_list = ut.flatten(fms_list)
+
+    # Filter out bad training examples
+    labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+    from ibeis import const
+    isvalid = (labels != const.TRUTH_UNKNOWN)
+    aid1_list = ut.list_compress(aid1_list, isvalid)
+    aid2_list = ut.list_compress(aid2_list, isvalid)
+    fm_list   = ut.list_compress(fm_list, isvalid)
+    labels    = ut.list_compress(labels, isvalid)
+
+    EQUALIZE_LABELS = True
+    #def expand_patchmatch_aids(aid1_list, aid2_list, labels, fm_list):
+    if EQUALIZE_LABELS:
+        #def equalize_labels(fm_list,
+        import vtool as vt
+        import six
+        print('flattening')
+        #aid1_list_ = ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)])
+        #aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
+        len1_list = list(map(len, fm_list))
+        labels_ = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels)])
+        labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels_, labels_))}
+        print('[ibsplugin] original label histogram = \n' + ut.dict_str(labelhist))
+        labels_ = np.array(labels_)
+
+        allowed_ratio = ut.PHI
+        true_max_ = max(labelhist.values())
+        true_min_ = min(labelhist.values())
+        min_ = min(true_min_ * allowed_ratio, true_max_)
+        #min_ = 500
+        keep_indicies_list = []
+        for key, val in six.iteritems(labelhist):
+            # Be stupid and grab the first few labels of each type
+            # should grab some optimal set based on feature scores or something
+            # either that or random sample
+            type_indicies = np.where(labels_ == key)[0]
+            size = min(min_, len(type_indicies))
+            if size == len(type_indicies):
+                keep_indicies = type_indicies
+            else:
+                randstate = np.random.RandomState(0)
+                keep_indicies = randstate.choice(type_indicies, size=min_, replace=False)
+            keep_indicies_list.append(keep_indicies)
+        flag_list = np.zeros(len(labels_), dtype=np.bool)
+        flag_list[np.hstack(keep_indicies_list)] = True
+
+        #fm_flat, cumsum = ut.invertible_flatten2_numpy(fm_list)
+        flags_list = ut.unflatten2(flag_list, np.cumsum(len1_list))
+        fm_list = vt.zipcompress(fm_list, flags_list, axis=0)
+
+        # remove empty aids
+        isnonempty_list = [len(fm) != 0 for fm in fm_list]
+        fm_list = ut.list_compress(fm_list, isnonempty_list)
+        aid1_list = ut.list_compress(aid1_list, isnonempty_list)
+        aid2_list = ut.list_compress(aid2_list, isnonempty_list)
+        labels    = ut.list_compress(labels, isnonempty_list)
+
+        # PRINT NEW LABEL STATS
+        len1_list = list(map(len, fm_list))
+        labels_ = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels)])
+        labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels_, labels_))}
+        print('[ibsplugin] equalized label histogram = \n' + ut.dict_str(labelhist))
+
+    fx1_list = [fm.T[0] for fm in fm_list]
+    fx2_list = [fm.T[1] for fm in fm_list]
+    # check for any duplicates
+    #if False:
+    #    aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+    #    aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+    #    aidfx_list = ut.flatten(aidfx1_list) + ut.flatten(aidfx2_list)
+    #    import vtool as vt
+    #    unique_ids = vt.compute_unique_data_ids_(aidfx_list)
+    #    print(len(set(unique_ids)) / len(unique_ids))
+
     kpts1_list = ibs.get_annot_kpts(aid1_list)
     kpts2_list = ibs.get_annot_kpts(aid2_list)
-    kpts1_m_list = [kpts1.take(fm.T[0], axis=0) for kpts1, fm in zip(kpts1_list, fm_list)]
-    kpts2_m_list = [kpts2.take(fm.T[1], axis=0) for kpts2, fm in zip(kpts2_list, fm_list)]
-    return aid1_list, aid2_list, kpts1_m_list, kpts2_m_list
+    kpts1_m_list = [kpts1.take(fx1, axis=0) for kpts1, fx1 in zip(kpts1_list, fx1_list)]
+    kpts2_m_list = [kpts2.take(fx2, axis=0) for kpts2, fx2 in zip(kpts2_list, fx2_list)]
+    return aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list
 
 
 def get_identify_training_fpaths(ibs, **kwargs):
@@ -624,9 +798,9 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
     """
     print('\n\n[get_patchmetric_training_fpaths] START')
     max_examples = kwargs.pop('max_examples', None)
-    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list = get_aidpairs_and_matches(ibs, max_examples)
+    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list = get_aidpairs_and_matches(ibs, max_examples)
     data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, **kwargs)
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **kwargs)
     print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
     return data_fpath, labels_fpath, training_dpath
 
