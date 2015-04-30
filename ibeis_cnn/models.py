@@ -42,7 +42,7 @@ class OverFeat(init.Initializer):
     ----------
     layer : int
     """
-    def __init__(self, layer=1.0):
+    def __init__(self, layer=1):
         self.layer = layer
         weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         print(weights_path)
@@ -50,6 +50,8 @@ class OverFeat(init.Initializer):
         with open(weights_path, 'rb') as pfile:
             pretrained_weights = pickle.load(pfile)
         print(len(pretrained_weights))
+        for index, layer in enumerate(pretrained_weights):
+            print(index, layer)
 
     def sample(self, shape):
         print('Sample------------------')
