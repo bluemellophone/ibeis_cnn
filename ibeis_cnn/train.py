@@ -286,7 +286,7 @@ def train_patchmatch_pz():
 
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
     Example:
         >>> # DISABLE_DOCTEST

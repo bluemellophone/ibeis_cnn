@@ -129,7 +129,7 @@ class CaffeNet(_PretainedInitializer):
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = CaffeNet()
+        >>> self = CaffeNet(show_network=True)
         >>> print('done')
     """
     def __init__(self, **kwargs):
@@ -150,7 +150,7 @@ class VGGNetFull(_PretainedInitializer):
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = VGGNetFull()
+        >>> self = VGGNetFull(show_network=True)
         >>> print('done')
     """
     def __init__(self, **kwargs):
@@ -170,12 +170,12 @@ class VGGNetConv(_PretainedInitializer):
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = VGGNetConv()
+        >>> self = VGGNetConv(show_network=True)
         >>> print('done')
     """
     def __init__(self, **kwargs):
-        vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
-        weights_path = ut.grab_file_url(vggnet_url, appname='ibeis_cnn')
+        #vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
+        weights_path = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), 'vgg.caffe.slice_0_6_None.pickle')
         super(VGGNetConv, self).__init__(weights_path, **kwargs)
 
 
@@ -292,24 +292,30 @@ class SiameseModel(object):
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
-        vgg_preinit = VGGNetFull(layer=0),
+        init_vgg_l0 = VGGNetConv(layer=0, show_network=True)
+        Conv2DLayerVGG_L0 = _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), W=init_vgg_l0, **leaky)
 
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
             #layers.GaussianNoiseLayer,
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), W=vgg_preinit, **leaky),
+            Conv2DLayerVGG_L0,
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
+
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
-            _P(layers.DropoutLayer, p=0.2),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1)),
-            #_P(layers.DenseLayer, num_units=512, **rlu_orthog),
+
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+
             _P(layers.DenseLayer, num_units=512, **leaky_orthog),
             _P(layers.DropoutLayer, p=0.5),
-            #_P(layers.DenseLayer, num_units=256, **rlu_orthog),
+            _P(layers.DenseLayer, num_units=512, **leaky_orthog),
+            _P(layers.DropoutLayer, p=0.5),
+
+            #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
             #_P(layers.DropoutLayer, p=0.5),
             #_P(layers.FeaturePoolLayer, pool_size=2),
 
-            #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
+            #_P(layers.DenseLayer, num_units=1024, **leaky_orthog),
             #_P(layers.FeaturePoolLayer, pool_size=2,),
             #_P(layers.DropoutLayer, p=0.5),
 
