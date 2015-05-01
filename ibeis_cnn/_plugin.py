@@ -128,7 +128,7 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
     return bad_species_list, bad_viewpoint_list
 
 
-def _suggest_candidate_regions(ibs, image, min_size, num_candidates=1000):
+def _suggest_candidate_regions(ibs, image, min_size, num_candidates=2000):
     h, w, c = image.shape
     h -= 1
     w -= 1
@@ -150,17 +150,18 @@ def _suggest_candidate_regions(ibs, image, min_size, num_candidates=1000):
 
 
 @register_ibs_method
-def detect_image_cnn(ibs, gid_list, confidence=0.80):
+def detect_image_cnn(ibs, gid, confidence=0.80):
     # Load chips and resize to the target
     target = (96, 96)
     targetx, targety = target
-    gid = gid_list[0]
+    # gid = gid_list[random.randint(0, len(gid_list))]
+    # gid = gid_list[0]
     print('Detecting with gid=%r...' % (gid, ))
     image = ibs.get_images(gid)
     rects = np.copy(image)
     h, w, c = image.shape
     print('Querrying for candidate regions...')
-    candidate_list = _suggest_candidate_regions(ibs, image, target)
+    candidate_list = _suggest_candidate_regions(ibs, image, (32, 32))
     chip_list_resized = []
     print('Extracting candidate regions...')
     for candidate in candidate_list:
