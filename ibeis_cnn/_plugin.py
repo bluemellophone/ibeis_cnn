@@ -10,7 +10,6 @@ from ibeis_cnn import models
 from ibeis_cnn import test
 from ibeis_cnn import _plugin_grabmodels as grabmodels
 import utool as ut
-from os.path import join
 import cv2
 import numpy as np
 import random
@@ -92,8 +91,7 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     y_test = None
     # Define model and load weights
     model = models.PZ_GIRM_LARGE_Model()
-    model_path = grabmodels.ensure_model('viewpoint', redownload=False)
-    weights_path = join(model_path, 'viewpoint', 'ibeis_cnn_weights.pickle')
+    weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
@@ -174,8 +172,7 @@ def detect_image_cnn(ibs, gid_list):
     y_test = None
     # Define model and load weights
     model = models.PZ_GIRM_LARGE_Model()
-    model_path = grabmodels.ensure_model('viewpoint', redownload=False)
-    weights_path = join(model_path, 'viewpoint', 'ibeis_cnn_weights.pickle')
+    weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
