@@ -59,7 +59,7 @@ def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)
         >>> # execute function
         >>> sliced_weights_path = save_pretrained_weights(pretrained_weights, weights_path, slice_)
         >>> # PUT YOUR PUBLISH PATH HERE
-        >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS/')
+        >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS')
         >>> ut.copy(sliced_weights_path, publish_fpath)
     """
     # slice and save
