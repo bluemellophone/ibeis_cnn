@@ -15,8 +15,8 @@ import utool as ut
 import six
 import theano.tensor as T
 import numpy as np
-#from os.path import join
-#import cPickle as pickle
+# from os.path import join
+# import cPickle as pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
@@ -48,10 +48,10 @@ def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)
         >>> # DISABLE_DOCTEST
         >>> # Build a new subset of an existing model
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
+        >>> from ibeis_cnn._plugin_grabmodels import ensure_model
         >>> # Get base model weights
         >>> modelname = ut.get_argval('--net', type_=str, default='vggnet_full')
-        >>> weights_path = ensure_unzipped_model(modelname)
+        >>> weights_path = ensure_model(modelname)
         >>> pretrained_weights = ut.load_cPkl(weights_path)
         >>> # Get the slice you want
         >>> slice_str = ut.get_argval('--slice', type_=str, default='slice(0, 6)')
@@ -82,41 +82,49 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
 
 class _PretainedInitializer(init.Initializer):
     """
-    Intialize weights from a specified pretrained network layers
+    Intialize weights from a specified (Caffe) pretrained network layers
 
     Args:
         layer (int) : int
     """
-    def __init__(self, weights_path, layer=0, rand=False, show_network=False):
-        self.layer = layer
+    def __init__(self, weights_path, layer=None, rand=False, show_network=False):
         self.rand = rand
         #weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
-        pretrained_weights = None
         try:
-            pretrained_weights = ut.load_cPkl(weights_path)
+            self.pretrained_weights = ut.load_cPkl(weights_path)
         except Exception:
             raise IOError('The specified model was not found: %r' % (weights_path, ))
         if show_network:
-            print_pretrained_weights(pretrained_weights, weights_path)
-        assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
-        self.pretrained_weights = pretrained_weights[layer]
-        if rand:
-            np.random.shuffle(self.pretrained_weights)
+            print_pretrained_weights(self.pretrained_weights, weights_path)
+        self.set_layer(layer)
 
-    #def get_filter_size(self):
-    #    return self.pretrained_weigh
+    def get_num_layers(self):
+        return len(self.pretrained_weights)
 
-    #def get_num_filters(self):
-    #    return self.pretrained_weigh
+    def get_num_layer_filters(self, layer):
+        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        fanout, fanin, height, width = self.pretrained_weights[layer].shape
+        return fanout
+
+    def set_layer(self, layer):
+        self.layer = layer
+        if self.layer is None:
+            self.pretrained_layer = None
+        else:
+            assert self.layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+            self.pretrained_layer = self.pretrained_weights[self.layer]
+            if self.rand:
+                np.random.shuffle(self.pretrained_layer)
+        return self
 
     def sample(self, shape):
         fanout, fanin, height, width = shape
-        fanout_, fanin_, height_, width_ = self.pretrained_weights.shape
+        fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
         assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
         assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
         assert height == height_, 'The height must be identical between the layer and weights'
         assert width  == width_,  'The width must be identical between the layer and weights'
-        return floatX(self.pretrained_weights[:fanout, :fanin, :, :])
+        return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
 
 
 class CaffeNet(_PretainedInitializer):
@@ -132,11 +140,10 @@ class CaffeNet(_PretainedInitializer):
         >>> self = CaffeNet(show_network=True)
         >>> print('done')
     """
-    def __init__(self, **kwargs):
-        #cafenet_url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
-        #weights_path = ut.grab_file_url(cafenet_url, appname='ibeis_cnn')
-        from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
-        weights_path = ensure_unzipped_model('caffenet_full')
+    def __init__(self, full=False, **kwargs):
+        from ibeis_cnn._plugin_grabmodels import ensure_model
+        model_name = 'caffenet_full' if full else 'caffe'
+        weights_path = ensure_model(model_name)
         super(CaffeNet, self).__init__(weights_path, **kwargs)
 
 
@@ -162,10 +169,10 @@ class VGGNetFull(_PretainedInitializer):
 
 class VGGNetConv(_PretainedInitializer):
     """
-    Intialize weights as the pretrained VGGNetConv layers
+    Intialize weights as the pretrained VGGNet layers
 
     CommandLine:
-        python -m ibeis_cnn.models --test-VGGNetConv
+        python -m ibeis_cnn.models --test-VGGNet
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -175,7 +182,9 @@ class VGGNetConv(_PretainedInitializer):
     """
     def __init__(self, **kwargs):
         #vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
+        #from ibeis_cnn._plugin_grabmodels import ensure_model
         weights_path = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), 'vgg.caffe.slice_0_6_None.pickle')
+        #weights_path = ensure_model('vgg.caffe.slice_0_6_None')
         super(VGGNetConv, self).__init__(weights_path, **kwargs)
 
 
@@ -409,6 +418,8 @@ class PZ_GIRM_LARGE_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+        _CaffeNet = CaffeNet()
+
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
             shape=(None, input_channels, input_width, input_height)
@@ -424,7 +435,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(11, 11),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=0),
+            W=_CaffeNet.set_layer(0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -435,7 +446,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(5, 5),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=CaffeNet(layer=2),
+            W=_CaffeNet.set_layer(2),
         )
 
         l_pool1 = MaxPool2DLayer(
