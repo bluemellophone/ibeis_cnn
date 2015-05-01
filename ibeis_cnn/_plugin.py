@@ -90,7 +90,7 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
     # Define model and load weights
-    model = models.PZ_GIRM_LARGE_Model()
+    model = models.ViewpointModel()
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
@@ -171,7 +171,7 @@ def detect_image_cnn(ibs, gid_list):
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
     # Define model and load weights
-    model = models.PZ_GIRM_LARGE_Model()
+    model = models.ViewpointModel()
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
