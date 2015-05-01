@@ -120,87 +120,40 @@ def display_caffe_model(weights_model_path, results_path, **kwargs):
     utils.show_convolutional_features(pretrained_weights, results_path, color=False, target=0)
 
 
-def test_pz():
+def test_viewpoint_pz():
     r"""
     CommandLine:
-        python -m ibeis_cnn.test --test-test_pz
+        python -m ibeis_cnn.test --test-test_viewpoint_pz
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.test import *  # NOQA
-        >>> test_pz()
+        >>> test_viewpoint_pz()
     """
-    project_name            = 'plains'
-    model                   = models.PZ_GIRM_Model()
-
+    project_name            = 'viewpoint_pz'
+    model                   = models.ViewpointModel()
     root                    = abspath(join('..', 'data'))
+
     test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
     test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
     weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
     config = {}
-
     test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
 
-def test_pz_large():
+def test_viewpoint():
     r"""
     CommandLine:
-        python -m ibeis_cnn.test --test-test_pz_large
+        python -m ibeis_cnn.test --test-test_viewpoint
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.test import *  # NOQA
-        >>> test_pz_large()
-    """
-    project_name            = 'plains_large'
-    model                   = models.PZ_GIRM_LARGE_Model()
-
-    root                    = abspath(join('..', 'data'))
-    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath           = join(root, 'results', project_name)
-    weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    config = {}
-
-    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
-
-
-def test_pz_girm():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.test --test-test_pz_girm
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.test import *  # NOQA
-        >>> test_pz_girm()
+        >>> test_viewpoint()
     """
     project_name            = 'viewpoint'
     model                   = models.PZ_GIRM_Model()
-
-    root                    = abspath(join('..', 'data'))
-    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
-    results_dpath           = join(root, 'results', project_name)
-    weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
-    config = {}
-
-    test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
-
-
-def test_pz_girm_large():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.test --test-test_pz_girm_large
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.test import *  # NOQA
-        >>> test_pz_girm_large()
-    """
-    project_name            = 'viewpoint_large'
-    model                   = models.PZ_GIRM_LARGE_Model()
 
     root                    = abspath(join('..', 'data'))
     test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
