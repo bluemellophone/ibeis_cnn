@@ -105,6 +105,7 @@ class PretrainedNetwork(object):
         python -m ibeis_cnn.models --test-PretrainedNetwork:0
         python -m ibeis_cnn.models --test-PretrainedNetwork:1
         python -m ibeis_cnn.models --test-PretrainedNetwork:2
+        python -m ibeis_cnn.models --test-PretrainedNetwork:3
 
     Example0:
         >>> # DISABLE_DOCTEST
@@ -115,10 +116,16 @@ class PretrainedNetwork(object):
     Example1:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = PretrainedNetwork('vggnet_full', show_network=True)
+        >>> self = PretrainedNetwork('caffenet', show_network=True)
         >>> print('done')
 
     Example2:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> self = PretrainedNetwork('vggnet_full', show_network=True)
+        >>> print('done')
+
+    Example3:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = PretrainedNetwork('vggnet', show_network=True)
@@ -381,7 +388,7 @@ class PZ_GIRM_LARGE_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        _CaffeNet = PretrainedNetwork('caffenet_full')
+        _CaffeNet = PretrainedNetwork('caffenet')
 
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
@@ -569,7 +576,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        _VGGNet = PretrainedNetwork('vggnet_full', show_network=True)
+        _VGGNet = PretrainedNetwork('vggnet', show_network=True)
 
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
