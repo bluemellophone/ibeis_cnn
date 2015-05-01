@@ -579,6 +579,8 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+        _VGGNet = VGGNet()
+
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
             shape=(None, input_channels, input_width, input_height)
@@ -590,7 +592,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=0),
+            W=_VGGNet.set_layer(0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -601,7 +603,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=2),
+            W=_VGGNet.set_layer(2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
