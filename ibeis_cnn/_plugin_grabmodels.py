@@ -10,14 +10,19 @@ MODEL_URLS = {
     'viewpoint':     'https://www.dropbox.com/s/6xjtcz8qrdj2cof/viewpoint.pickle?dl=0',
     'caffenet':      'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle',
     'caffenet_full': 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle',
-    'vggnet':        'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle',
-    'vggnet_full':   'https://www.dropbox.com/s/vps5m2fbvl6y1jb/vgg.caffe.slice_0_6_None.pickle?dl=0',
+    'vggnet_full':        'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle',
+    'vggnet':   'https://www.dropbox.com/s/vps5m2fbvl6y1jb/vgg.caffe.slice_0_6_None.pickle?dl=0',
 }
 
 
 def ensure_model(model, redownload=False):
-    url = MODEL_URLS[model]
-    extracted_fpath = ut.grab_file_url(url, appname='ibeis_cnn', redownload=redownload)
+    try:
+        url = MODEL_URLS[model]
+        extracted_fpath = ut.grab_file_url(url, appname='ibeis_cnn', redownload=redownload)
+    except KeyError as ex:
+        ut.printex(ex, 'model is not uploaded', iswarning=True)
+        extracted_fpath = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), model)
+        ut.assert_exists(extracted_fpath)
     return extracted_fpath
 
 

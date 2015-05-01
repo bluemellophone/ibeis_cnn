@@ -104,6 +104,7 @@ class PretrainedNetwork(object):
     CommandLine:
         python -m ibeis_cnn.models --test-PretrainedNetwork:0
         python -m ibeis_cnn.models --test-PretrainedNetwork:1
+        python -m ibeis_cnn.models --test-PretrainedNetwork:2
 
     Example0:
         >>> # DISABLE_DOCTEST
@@ -111,20 +112,21 @@ class PretrainedNetwork(object):
         >>> self = PretrainedNetwork('caffenet_full', show_network=True)
         >>> print('done')
 
-    Example0:
+    Example1:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = PretrainedNetwork('vggnet_full', show_network=True)
         >>> print('done')
+
+    Example2:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> self = PretrainedNetwork('vggnet', show_network=True)
+        >>> print('done')
     """
     def __init__(self, modelkey=None, show_network=False):
         from ibeis_cnn._plugin_grabmodels import ensure_model
-
-        if modelkey == 'vggnet_slice_0_6_None':
-            weights_path = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), 'vgg.caffe.slice_0_6_None.pickle')
-        else:
-            weights_path = ensure_model(modelkey)
-
+        weights_path = ensure_model(modelkey)
         try:
             self.pretrained_weights = ut.load_cPkl(weights_path)
         except Exception:
