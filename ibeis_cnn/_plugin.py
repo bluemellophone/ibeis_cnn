@@ -81,15 +81,16 @@ def get_verified_aid_pairs(ibs):
 @register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     # Load chips and resize to the target
-    print('detect_annot_species_viewpoint_cnn')
     target = (96, 96)
+    print('Loading chips...')
     chip_list = ibs.get_annot_chips(aid_list)
-    print('resizing chips')
+    print('Resizing chips...')
     chip_list_resized = [ cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4) for chip in ut.ProgressIter(chip_list, lbl='resizing chips') ]
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
     # Define model and load weights
+    print('Loading model...')
     model = models.ViewpointModel()
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
@@ -133,37 +134,45 @@ def _suggest_candidate_regions(ibs, image, min_size, num_candidates=1000):
     w -= 1
     min_x, min_y = min_size
     def _candidate():
-        x0 = int(random.uniform(0,  w - min_x))
-        y0 = int(random.uniform(0,  h - min_y))
-        x1 = int(random.uniform(x0 + min_x, w))
-        y1 = int(random.uniform(y0 + min_y, h))
-        if random.uniform(0.0, 1.0) < 0.5:
-            x0, x1 = w - x1, w - x0
-            y0, y1 = h - y1, h - y0
+        x0, y0, x1, y1 = 0, 0, 0, 0
+        while x1 - x0 < min_x or y1 - y0 < min_y:
+            x0 = int(random.uniform(0, w))
+            y0 = int(random.uniform(0, h))
+            x1 = int(random.uniform(0, w))
+            y1 = int(random.uniform(0, h))
+            if x0 > x1:
+                x0, x1 = x1, x0
+            if y0 > y1:
+                y0, y1 = y1, y0
         return y0, y1, x0, x1
     candidate_list = [ _candidate() for _ in range(num_candidates) ]
     return candidate_list
 
 
 @register_ibs_method
-def detect_image_cnn(ibs, gid_list):
+def detect_image_cnn(ibs, gid_list, confidence=0.80):
     # Load chips and resize to the target
-    print('detect_image_cnn')
     target = (96, 96)
     targetx, targety = target
     gid = gid_list[0]
-    print('Detecting with gid=%r' % (gid, ))
+    print('Detecting with gid=%r...' % (gid, ))
     image = ibs.get_images(gid)
     rects = np.copy(image)
     h, w, c = image.shape
+    print('Querrying for candidate regions...')
     candidate_list = _suggest_candidate_regions(ibs, image, target)
     chip_list_resized = []
+    print('Extracting candidate regions...')
     for candidate in candidate_list:
         y0, y1, x0, x1 = candidate
         chip = image[y0 : y1, x0 : x1]
         chip = cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
         chip_list_resized.append(chip)
-        cv2.rectangle(rects, (x0, y0), (x1, y1), (255, 0, 0))
+        color = (255, 0, 0)
+        # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
+        mx = int((x1 - x0) * 0.5)
+        my = int((y1 - y0) * 0.5)
+        cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
     cv2.imshow('', rects)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
@@ -172,9 +181,37 @@ def detect_image_cnn(ibs, gid_list):
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
     # Define model and load weights
+    print('Loading model...')
     model = models.ViewpointModel()
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     # Predict on the data and convert labels to IBEIS namespace
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
-    print(species_viewpoint_list)
+
+    values = zip(candidate_list, pred_list, species_viewpoint_list, conf_list)
+    skipped = 0
+    rects = np.copy(image)
+    color_dict = {
+        'giraffe': (255, 0, 0),
+        'giraffe_masai': (255, 255, 0),
+        'zebra_plains': (0, 0, 255),
+        'zebra_grevys': (0, 255, 0),
+        'elephant_savanna': (0, 0, 0),
+    }
+    for candidate, pred, species_viewpoint, conf in values:
+        y0, y1, x0, x1 = candidate
+        species, viewpoint = species_viewpoint
+        if conf < confidence:
+            skipped += 1
+            continue
+        print('%r Found %s (%s, %s) at %s' % (candidate, pred, species, viewpoint, conf, ))
+        color = color_dict[species]
+        # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
+        mx = int((x1 - x0) * 0.5)
+        my = int((y1 - y0) * 0.5)
+        cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
+    print('Skipped [ %d / %d ]' % (skipped, len(values), ))
+
+    cv2.imshow('', rects)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

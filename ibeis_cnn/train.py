@@ -225,14 +225,14 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                 # Running tab for what the best model
                 if loss_train < kwargs.get('best_train_loss'):
                     kwargs['best_train_loss'] = loss_train
+                if loss_determ > kwargs.get('best_determ_loss'):
+                    kwargs['best_determ_loss'] = loss_determ
                 if loss_valid < kwargs.get('best_valid_loss'):
                     kwargs['best_valid_loss'] = loss_valid
                 if accu_valid > kwargs.get('best_valid_accuracy'):
                     kwargs['best_valid_accuracy'] = accu_valid
                 if accu_test > kwargs.get('best_test_accuracy'):
                     kwargs['best_test_accuracy'] = accu_test
-                if loss_determ > kwargs.get('best_train_determ_loss'):
-                    kwargs['best_train_determ_loss'] = loss_determ
 
                 # Learning rate schedule update
                 if epoch >= epoch_marker + kwargs.get('patience'):
