@@ -15,7 +15,7 @@ import utool as ut
 import six
 import theano.tensor as T
 import numpy as np
-from os.path import join
+#from os.path import join
 import cPickle as pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
@@ -48,8 +48,9 @@ class _PretainedInitializer(init.Initializer):
         #weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         pretrained_weights = None
         try:
-            with open(weights_path, 'rb') as pfile:
-                pretrained_weights = pickle.load(pfile)
+            pretrained_weights = ut.load_cPkl(weights_path)
+            #with open(weights_path, 'rb') as pfile:
+            #    pretrained_weights = pickle.load(pfile)
         except Exception:
             raise IOError('The specified model was not found: %r' % (weights_path, ))
         if show_network:
@@ -87,12 +88,11 @@ class CaffeNet(_PretainedInitializer):
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = CaffeNet()
-        >>> print(result)
+        >>> print('done')
     """
     def __init__(self, **kwargs):
-        #https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle?dl=0
-        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
-        weights_path = ut.grab_file_url(url, appname='ibeis_cnn')
+        cafenet_url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
+        weights_path = ut.grab_file_url(cafenet_url, appname='ibeis_cnn')
         super(CaffeNet, self).__init__(weights_path, **kwargs)
 
 
@@ -107,11 +107,11 @@ class VGGNet(_PretainedInitializer):
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = VGGNet()
-        >>> print(result)
+        >>> print('done')
     """
     def __init__(self, **kwargs):
-        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/vgg.caffe.pickle'
-        weights_path = ut.grab_file_url(url, appname='ibeis_cnn')
+        vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
+        weights_path = ut.grab_file_url(vggnet_url, appname='ibeis_cnn')
         super(VGGNet, self).__init__(weights_path, **kwargs)
 
 
