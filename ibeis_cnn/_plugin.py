@@ -166,6 +166,7 @@ def detect_image_cnn(ibs, gid_list):
         cv2.rectangle(rects, (x0, y0), (x1, y1), (255, 0, 0))
     cv2.imshow('', rects)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
