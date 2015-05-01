@@ -16,7 +16,7 @@ import six
 import theano.tensor as T
 import numpy as np
 from os.path import join
-import pickle
+import cPickle as pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
@@ -37,16 +37,15 @@ except ImportError as ex:
 
 class _PretainedInitializer(init.Initializer):
     """
-        Intialize weights from a specified pretrained network layers
+    Intialize weights from a specified pretrained network layers
 
-        Parameters
-        ----------
-        layer : int
+    Args:
+        layer (int) : int
     """
     def __init__(self, weights_path, layer=0, rand=False, show_network=False):
         self.layer = layer
         self.rand = rand
-        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        #weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         pretrained_weights = None
         try:
             with open(weights_path, 'rb') as pfile:
@@ -61,6 +60,12 @@ class _PretainedInitializer(init.Initializer):
         if rand:
             np.random.shuffle(self.pretrained_weights)
 
+    #def get_filter_size(self):
+    #    return self.pretrained_weigh
+
+    #def get_num_filters(self):
+    #    return self.pretrained_weigh
+
     def sample(self, shape):
         fanout, fanin, height, width = shape
         fanout_, fanin_, height_, width_ = self.pretrained_weights.shape
@@ -73,28 +78,26 @@ class _PretainedInitializer(init.Initializer):
 
 class CaffeNet(_PretainedInitializer):
     """
-        Intialize weights as the pretrained CaffeNet layers
+    Intialize weights as the pretrained CaffeNet layers
     """
     def __init__(self, **kwargs):
+        #https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle?dl=0
+        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
+        weights_path = ut.grab_file_url(url, app='ibeis_cnn')
         weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         super(CaffeNet, self).__init__(weights_path, **kwargs)
 
 
 class VGGNet(_PretainedInitializer):
     """
-        Intialize weights as the pretrained VGGNet layers
+    Intialize weights as the pretrained VGGNet layers
     """
     def __init__(self, **kwargs):
+        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
+        ut.grab_file_url(url, app='ibeis_cnn')
+        #https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle?dl=0
         weights_path = join('..', 'data', 'nets', 'vgg', 'vgg.caffe.pickle')
         super(VGGNet, self).__init__(weights_path, **kwargs)
-
-
-def MaxPool2DLayer_(*args, **kwargs):
-    """ wrapper for gpu / cpu compatibility """
-    # if not USING_GPU and 'strides' in kwargs:
-    #     # cpu does not have stride kwarg. :(
-    #     del kwargs['strides']
-    return MaxPool2DLayer(*args, **kwargs)
 
 
 def testdata_contrastive_loss():
@@ -209,19 +212,17 @@ class SiameseModel(object):
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
             #layers.GaussianNoiseLayer,
-            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(5, 5), **rlu_orthog),
+            _P(layers.DropoutLayer, p=0.2),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
-            _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
-            _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+            _P(layers.DropoutLayer, p=0.2),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1)),
+            #_P(layers.DenseLayer, num_units=512, **rlu_orthog),
             _P(layers.DenseLayer, num_units=512, **rlu_orthog),
             _P(layers.DropoutLayer, p=0.5),
-            _P(layers.DenseLayer, num_units=256, **rlu_orthog),
-            _P(layers.DropoutLayer, p=0.5),
-            _P(layers.DenseLayer, num_units=256, **rlu_orthog),
-            _P(layers.DropoutLayer, p=0.5),
+            #_P(layers.DenseLayer, num_units=256, **rlu_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
             #_P(layers.FeaturePoolLayer, pool_size=2),
 
             #_P(layers.DenseLayer, num_units=1024, **rlu_orthog),
@@ -237,9 +238,9 @@ class SiameseModel(object):
         #network_layers_def = [
         #    _P(layers.InputLayer, shape=input_shape),
         #    _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), **rlu_glorot),
-        #    _P(MaxPool2DLayer_, pool_size=(2, 2), stride=(2, 2)),
+        #    _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
         #    _P(Conv2DLayer, num_filters=64, filter_size=(6, 6), **rlu_glorot),
-        #    _P(MaxPool2DLayer_, pool_size=(3, 3), stride=(2, 2)),
+        #    _P(MaxPool2DLayer, pool_size=(3, 3), stride=(2, 2)),
         #    _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_glorot),
         #    _P(layers.DenseLayer, num_units=50, **rlu_glorot),
         #]
@@ -347,7 +348,7 @@ class PZ_GIRM_LARGE_Model(object):
             W=CaffeNet(layer=2),
         )
 
-        l_pool1 = MaxPool2DLayer_(
+        l_pool1 = MaxPool2DLayer(
             l_conv1,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -364,7 +365,7 @@ class PZ_GIRM_LARGE_Model(object):
             W=init.Orthogonal(),
         )
 
-        l_pool2 = MaxPool2DLayer_(
+        l_pool2 = MaxPool2DLayer(
             l_conv2,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -381,7 +382,7 @@ class PZ_GIRM_LARGE_Model(object):
             W=init.Orthogonal(),
         )
 
-        l_pool3 = MaxPool2DLayer_(
+        l_pool3 = MaxPool2DLayer(
             l_conv3,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -398,7 +399,7 @@ class PZ_GIRM_LARGE_Model(object):
             W=init.Orthogonal(),
         )
 
-        l_pool4 = MaxPool2DLayer_(
+        l_pool4 = MaxPool2DLayer(
             l_conv4,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -542,7 +543,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv2_dropout = layers.DropoutLayer(l_conv2, p=0.10)
 
-        l_pool1 = MaxPool2DLayer_(
+        l_pool1 = MaxPool2DLayer(
             l_conv2_dropout,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -581,7 +582,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv5_dropout = layers.DropoutLayer(l_conv5, p=0.30)
 
-        l_pool2 = MaxPool2DLayer_(
+        l_pool2 = MaxPool2DLayer(
             l_conv5_dropout,
             pool_size=(2, 2),
             stride=(2, 2),
@@ -631,7 +632,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
 
         l_conv9_dropout = layers.DropoutLayer(l_conv9, p=0.50)
 
-        l_pool3 = MaxPool2DLayer_(
+        l_pool3 = MaxPool2DLayer(
             l_conv9_dropout,
             pool_size=(2, 2),
             stride=(2, 2),

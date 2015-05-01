@@ -4,7 +4,7 @@ import utool as ut
     __name__, '[ibeis_cnn._plugin_grabmodels]', DEBUG=False)
 
 
-DEFAULT_CNNMODELS_DIR = ut.get_app_resource_dir('ibeis_cnn', 'pretrained')
+#DEFAULT_CNNMODELS_DIR = ut.get_app_resource_dir('ibeis_cnn', 'pretrained')
 
 MODEL_URLS = {
     'viewpoint': 'https://www.dropbox.com/s/c0vimzc9pubpjwn/viewpoint.zip?dl=0',

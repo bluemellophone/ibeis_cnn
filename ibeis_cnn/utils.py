@@ -907,13 +907,15 @@ def show_convolutional_features(weights_list, results_path, color=False, limit=1
         color_str = 'color' if color else 'gray'
         if epoch is None:
             epoch = 'X'
-        output_file = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
-        output_path = join(results_path, output_file)
-        plt.savefig(output_path, bbox_inches='tight')
+        output_fname = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
+        fig_dpath = join(results_path, 'feature_figures')
+        ut.ensuredir(fig_dpath)
+        output_fpath = join(fig_dpath, output_fname)
+        plt.savefig(output_fpath, bbox_inches='tight')
 
-        output_file = 'features_conv%d_%s.png' % (index, color_str)
-        output_path = join(results_path, output_file)
-        plt.savefig(output_path, bbox_inches='tight')
+        output_fname = 'features_conv%d_%s.png' % (index, color_str)
+        output_fpath = join(results_path, output_fname)
+        plt.savefig(output_fpath, bbox_inches='tight')
 
 
 if __name__ == '__main__':
