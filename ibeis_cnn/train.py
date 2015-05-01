@@ -301,9 +301,9 @@ def train_patchmatch_pz():
 
     model = models.SiameseModel()
     config = dict(
-        patience=50,
+        patience=100,
         batch_size=256,
-        learning_rate=.004,
+        learning_rate=.001,
         output_dims=1024,
         show_confusion=False,
     )
