@@ -11,6 +11,7 @@ from lasagne import nonlinearities
 from lasagne import init
 from lasagne.utils import floatX
 import random
+import functools
 import utool as ut
 import six
 import theano.tensor as T
@@ -144,18 +145,31 @@ class PretrainedNetwork(object):
     def get_num_layers(self):
         return len(self.pretrained_weights)
 
-    def get_num_layer_filters(self, layer):
-        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        fanout, fanin, height, width = self.pretrained_weights[layer].shape
+    def get_layer_num_filters(self, layer_index):
+        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
         return fanout
 
-    def get_pretrained_layer(self, layer, rand=False):
-        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        pretrained_layer = self.pretrained_weights[layer]
-        layer = _PretrainedLayerInitializer(pretrained_layer)
+    def get_layer_filter_size(self, layer_index):
+        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
+        return (height, width)
+
+    def get_conv2d_layer(self, layer_index, **kwargs):
+        """ Assumes requested layer is convolutional """
+        W = self.get_pretrained_layer(layer_index)
+        num_filters = self.get_layer_num_filters(layer_index)
+        filter_size = self.get_layer_filter_size(layer_index)
+        Layer = functools.partial(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, W=W, **kwargs)
+        return Layer
+
+    def get_pretrained_layer(self, layer_index, rand=False):
+        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        pretrained_layer = self.pretrained_weights[layer_index]
+        weights_initializer = _PretrainedLayerInitializer(pretrained_layer)
         if rand:
-            np.random.shuffle(layer)
-        return layer
+            np.random.shuffle(weights_initializer)
+        return weights_initializer
 
 
 def testdata_contrastive_loss():
@@ -249,7 +263,7 @@ class SiameseModel(object):
 
     def build_model(self, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=True):
-        from functools import partial as _P  # NOQA
+        _P = functools.partial
         if verbose:
             print('[model] Build siamese model')
             print('[model]   * batch_size     = %r' % (batch_size,))
@@ -271,13 +285,14 @@ class SiameseModel(object):
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
-        init_vgg = PretrainedNetwork('vggnet', show_network=True)
-        Conv2DLayerVGG_L0 = _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), W=init_vgg.get_pretrained_layer(0), **leaky)
+        vggnet = PretrainedNetwork('vggnet', show_network=True)
 
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
+
             #layers.GaussianNoiseLayer,
-            Conv2DLayerVGG_L0,
+            vggnet.get_conv2d_layer(0, **leaky),
+
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
 
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
