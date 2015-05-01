@@ -16,7 +16,7 @@ import six
 import theano.tensor as T
 import numpy as np
 #from os.path import join
-import cPickle as pickle
+#import cPickle as pickle
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
 try:
@@ -35,6 +35,51 @@ except ImportError as ex:
     USING_GPU = False
 
 
+def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)):
+    """
+
+    CommandLine:
+        python -m ibeis_cnn.models --test-save_pretrained_weights --net='vggnet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights --net='vggnet_full' --slice='slice(0,30)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights --net='caffenet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights --net='caffenet_full' --slice='slice(0,?)'
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> # Build a new subset of an existing model
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
+        >>> # Get base model weights
+        >>> modelname = ut.get_argval('--net', type_=str, default='vggnet_full')
+        >>> weights_path = ensure_unzipped_model(modelname)
+        >>> pretrained_weights = ut.load_cPkl(weights_path)
+        >>> # Get the slice you want
+        >>> slice_str = ut.get_argval('--slice', type_=str, default='slice(0, 6)')
+        >>> slice_ = eval(slice_str, globals(), locals())
+        >>> # execute function
+        >>> sliced_weights_path = save_pretrained_weights(pretrained_weights, weights_path, slice_)
+        >>> # PUT YOUR PUBLISH PATH HERE
+        >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS/')
+        >>> ut.copy(sliced_weights_path, publish_fpath)
+    """
+    # slice and save
+    suffix = '.slice_%r_%r_%r' % (slice_.start, slice_.stop, slice_.step)
+    sliced_weights_path = ut.augpath(weights_path, suffix)
+    sliced_pretrained_weights = pretrained_weights[slice_]
+    ut.save_cPkl(sliced_weights_path, sliced_pretrained_weights)
+    # print info
+    print_pretrained_weights(pretrained_weights, weights_path)
+    print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
+    return sliced_weights_path
+
+
+def print_pretrained_weights(pretrained_weights, lbl=''):
+    print('Initialization network: %r' % (lbl))
+    print('Total memory: %s' % (ut.get_object_size_str(pretrained_weights)))
+    for index, layer_ in enumerate(pretrained_weights):
+        print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
+
+
 class _PretainedInitializer(init.Initializer):
     """
     Intialize weights from a specified pretrained network layers
@@ -49,13 +94,10 @@ class _PretainedInitializer(init.Initializer):
         pretrained_weights = None
         try:
             pretrained_weights = ut.load_cPkl(weights_path)
-            #with open(weights_path, 'rb') as pfile:
-            #    pretrained_weights = pickle.load(pfile)
         except Exception:
             raise IOError('The specified model was not found: %r' % (weights_path, ))
         if show_network:
-            for index, layer_ in enumerate(pretrained_weights):
-                print(index, layer_.shape)
+            print_pretrained_weights(pretrained_weights, weights_path)
         assert layer <= len(pretrained_weights), 'Trying to specify a layer that does not exist'
         self.pretrained_weights = pretrained_weights[layer]
         if rand:
@@ -91,28 +133,50 @@ class CaffeNet(_PretainedInitializer):
         >>> print('done')
     """
     def __init__(self, **kwargs):
-        cafenet_url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
-        weights_path = ut.grab_file_url(cafenet_url, appname='ibeis_cnn')
+        #cafenet_url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
+        #weights_path = ut.grab_file_url(cafenet_url, appname='ibeis_cnn')
+        from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
+        weights_path = ensure_unzipped_model('caffenet_full')
         super(CaffeNet, self).__init__(weights_path, **kwargs)
 
 
-class VGGNet(_PretainedInitializer):
+class VGGNetFull(_PretainedInitializer):
     """
-    Intialize weights as the pretrained VGGNet layers
+    Intialize weights as the pretrained VGGNetFull layers
 
     CommandLine:
-        python -m ibeis_cnn.models --test-VGGNet
+        python -m ibeis_cnn.models --test-VGGNetFull
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = VGGNet()
+        >>> self = VGGNetFull()
+        >>> print('done')
+    """
+    def __init__(self, **kwargs):
+        from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
+        weights_path = ensure_unzipped_model('vggnet_full')
+        #weights_path = ut.grab_file_url(vggnet_url, appname='ibeis_cnn')
+        super(VGGNetFull, self).__init__(weights_path, **kwargs)
+
+
+class VGGNetConv(_PretainedInitializer):
+    """
+    Intialize weights as the pretrained VGGNetConv layers
+
+    CommandLine:
+        python -m ibeis_cnn.models --test-VGGNetConv
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> self = VGGNetConv()
         >>> print('done')
     """
     def __init__(self, **kwargs):
         vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
         weights_path = ut.grab_file_url(vggnet_url, appname='ibeis_cnn')
-        super(VGGNet, self).__init__(weights_path, **kwargs)
+        super(VGGNetConv, self).__init__(weights_path, **kwargs)
 
 
 def testdata_contrastive_loss():
@@ -215,26 +279,31 @@ class SiameseModel(object):
             print('[model]   * input_channels = %r' % (input_channels,))
             print('[model]   * output_dims    = %r' % (output_dims,))
 
-        # JON, ADD THIS INSTEAD W=init.Orthogonal  -- Jason
+        #num_filters=32,
+        #filter_size=(3, 3),
+        ## nonlinearity=nonlinearities.rectify,
+        #nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
 
         #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
-        rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
+        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
+        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
         # variable batch size (None), channel, width, height
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
-        ## DEEP Face-like network
+        vgg_preinit = VGGNetFull(layer=0),
+
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
             #layers.GaussianNoiseLayer,
-            _P(Conv2DLayer, num_filters=16, filter_size=(5, 5), **rlu_orthog),
-            _P(layers.DropoutLayer, p=0.2),
+            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), W=vgg_preinit, **leaky),
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **rlu_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
             _P(layers.DropoutLayer, p=0.2),
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1)),
             #_P(layers.DenseLayer, num_units=512, **rlu_orthog),
-            _P(layers.DenseLayer, num_units=512, **rlu_orthog),
+            _P(layers.DenseLayer, num_units=512, **leaky_orthog),
             _P(layers.DropoutLayer, p=0.5),
             #_P(layers.DenseLayer, num_units=256, **rlu_orthog),
             #_P(layers.DropoutLayer, p=0.5),
@@ -531,7 +600,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=0),
+            W=VGGNetFull(layer=0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -542,7 +611,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNet(layer=2),
+            W=VGGNetFull(layer=2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
