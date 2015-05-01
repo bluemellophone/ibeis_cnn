@@ -83,7 +83,7 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     # Load chips and resize to the target
     target = (96, 96)
     print('Loading chips...')
-    chip_list = ibs.get_annot_chips(aid_list)
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True)
     print('Resizing chips...')
     chip_list_resized = [ cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4) for chip in ut.ProgressIter(chip_list, lbl='resizing chips') ]
     # Build data for network
