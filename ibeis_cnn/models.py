@@ -46,7 +46,6 @@ class _PretainedInitializer(init.Initializer):
     def __init__(self, weights_path, layer=0, rand=False, show_network=False):
         self.layer = layer
         self.rand = rand
-        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
         pretrained_weights = None
         try:
             with open(weights_path, 'rb') as pfile:
