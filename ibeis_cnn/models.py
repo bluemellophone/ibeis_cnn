@@ -80,12 +80,19 @@ class CaffeNet(_PretainedInitializer):
     """
     Intialize weights as the pretrained CaffeNet layers
 
+    CommandLine:
+        python -m ibeis_cnn.models --test-CaffeNet
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> self = CaffeNet()
+        >>> print(result)
     """
     def __init__(self, **kwargs):
         #https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle?dl=0
         url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
-        weights_path = ut.grab_file_url(url, app='ibeis_cnn')
-        weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
+        weights_path = ut.grab_file_url(url, appname='ibeis_cnn')
         super(CaffeNet, self).__init__(weights_path, **kwargs)
 
 
@@ -103,10 +110,8 @@ class VGGNet(_PretainedInitializer):
         >>> print(result)
     """
     def __init__(self, **kwargs):
-        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle'
+        url = 'https://www.dropbox.com/s/r9oaif5os45cn2s/vgg.caffe.pickle'
         weights_path = ut.grab_file_url(url, appname='ibeis_cnn')
-        #https://www.dropbox.com/s/r9oaif5os45cn2s/caffenet.caffe.pickle?dl=0
-        #weights_path = join('..', 'data', 'nets', 'vgg', 'vgg.caffe.pickle')
         super(VGGNet, self).__init__(weights_path, **kwargs)
 
 
