@@ -80,42 +80,9 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
         print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
 
 
-class _PretainedInitializer(init.Initializer):
-    """
-    Intialize weights from a specified (Caffe) pretrained network layers
-
-    Args:
-        layer (int) : int
-    """
-    def __init__(self, weights_path, layer=None, rand=False, show_network=False):
-        self.rand = rand
-        #weights_path = join('..', 'data', 'nets', 'caffenet', 'caffenet.caffe.pickle')
-        try:
-            self.pretrained_weights = ut.load_cPkl(weights_path)
-        except Exception:
-            raise IOError('The specified model was not found: %r' % (weights_path, ))
-        if show_network:
-            print_pretrained_weights(self.pretrained_weights, weights_path)
-        self.set_layer(layer)
-
-    def get_num_layers(self):
-        return len(self.pretrained_weights)
-
-    def get_num_layer_filters(self, layer):
-        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        fanout, fanin, height, width = self.pretrained_weights[layer].shape
-        return fanout
-
-    def set_layer(self, layer):
-        self.layer = layer
-        if self.layer is None:
-            self.pretrained_layer = None
-        else:
-            assert self.layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-            self.pretrained_layer = self.pretrained_weights[self.layer]
-            if self.rand:
-                np.random.shuffle(self.pretrained_layer)
-        return self
+class _PretrainedLayerInitializer(init.Initializer):
+    def __init__(self, pretrained_layer):
+        self.pretrained_layer = pretrained_layer
 
     def sample(self, shape):
         fanout, fanin, height, width = shape
@@ -127,65 +94,59 @@ class _PretainedInitializer(init.Initializer):
         return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
 
 
-class CaffeNet(_PretainedInitializer):
+class PretrainedNetwork(object):
     """
-    Intialize weights as the pretrained CaffeNet layers
+    Intialize weights from a specified (Caffe) pretrained network layers
+
+    Args:
+        layer (int) : int
 
     CommandLine:
-        python -m ibeis_cnn.models --test-CaffeNet
+        python -m ibeis_cnn.models --test-PretrainedNetwork:0
+        python -m ibeis_cnn.models --test-PretrainedNetwork:1
 
-    Example:
+    Example0:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = CaffeNet(show_network=True)
+        >>> self = PretrainedNetwork('caffenet_full', show_network=True)
+        >>> print('done')
+
+    Example0:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> self = PretrainedNetwork('vggnet_full', show_network=True)
         >>> print('done')
     """
-    def __init__(self, full=False, **kwargs):
+    def __init__(self, modelkey=None, show_network=False):
         from ibeis_cnn._plugin_grabmodels import ensure_model
-        model_name = 'caffenet_full' if full else 'caffe'
-        weights_path = ensure_model(model_name)
-        super(CaffeNet, self).__init__(weights_path, **kwargs)
 
+        if modelkey == 'vggnet_slice_0_6_None':
+            weights_path = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), 'vgg.caffe.slice_0_6_None.pickle')
+        else:
+            weights_path = ensure_model(modelkey)
 
-class VGGNetFull(_PretainedInitializer):
-    """
-    Intialize weights as the pretrained VGGNetFull layers
+        try:
+            self.pretrained_weights = ut.load_cPkl(weights_path)
+        except Exception:
+            raise IOError('The specified model was not found: %r' % (weights_path, ))
+        if show_network:
+            print_pretrained_weights(self.pretrained_weights, weights_path)
 
-    CommandLine:
-        python -m ibeis_cnn.models --test-VGGNetFull
+    def get_num_layers(self):
+        return len(self.pretrained_weights)
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = VGGNetFull(show_network=True)
-        >>> print('done')
-    """
-    def __init__(self, **kwargs):
-        from ibeis_cnn._plugin_grabmodels import ensure_unzipped_model
-        weights_path = ensure_unzipped_model('vggnet_full')
-        #weights_path = ut.grab_file_url(vggnet_url, appname='ibeis_cnn')
-        super(VGGNetFull, self).__init__(weights_path, **kwargs)
+    def get_num_layer_filters(self, layer):
+        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        fanout, fanin, height, width = self.pretrained_weights[layer].shape
+        return fanout
 
-
-class VGGNetConv(_PretainedInitializer):
-    """
-    Intialize weights as the pretrained VGGNet layers
-
-    CommandLine:
-        python -m ibeis_cnn.models --test-VGGNet
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = VGGNetConv(show_network=True)
-        >>> print('done')
-    """
-    def __init__(self, **kwargs):
-        #vggnet_url = 'https://www.dropbox.com/s/i7yb2ogmzr3w7v5/vgg.caffe.pickle'
-        #from ibeis_cnn._plugin_grabmodels import ensure_model
-        weights_path = ut.unixjoin(ut.get_app_resource_dir('ibeis_cnn'), 'vgg.caffe.slice_0_6_None.pickle')
-        #weights_path = ensure_model('vgg.caffe.slice_0_6_None')
-        super(VGGNetConv, self).__init__(weights_path, **kwargs)
+    def get_pretrained_layer(self, layer, rand=False):
+        assert layer <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
+        pretrained_layer = self.pretrained_weights[layer]
+        layer = _PretrainedLayerInitializer(pretrained_layer)
+        if rand:
+            np.random.shuffle(layer)
+        return layer
 
 
 def testdata_contrastive_loss():
@@ -301,8 +262,8 @@ class SiameseModel(object):
         #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
         input_shape = (None, input_channels, input_width, input_height)
 
-        init_vgg_l0 = VGGNetConv(layer=0, show_network=True)
-        Conv2DLayerVGG_L0 = _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), W=init_vgg_l0, **leaky)
+        init_vgg = PretrainedNetwork('vggnet', show_network=True)
+        Conv2DLayerVGG_L0 = _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), W=init_vgg.get_pretrained_layer(0), **leaky)
 
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
@@ -418,7 +379,7 @@ class PZ_GIRM_LARGE_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        _CaffeNet = CaffeNet()
+        _CaffeNet = PretrainedNetwork('caffenet_full')
 
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
@@ -435,7 +396,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(11, 11),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=_CaffeNet.set_layer(0),
+            W=_CaffeNet.get_pretrained_layer(0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -446,7 +407,7 @@ class PZ_GIRM_LARGE_Model(object):
             filter_size=(5, 5),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=_CaffeNet.set_layer(2),
+            W=_CaffeNet.get_pretrained_layer(2),
         )
 
         l_pool1 = MaxPool2DLayer(
@@ -606,6 +567,8 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+        _VGGNet = PretrainedNetwork('vggnet_full', show_network=True)
+
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
             shape=(None, input_channels, input_width, input_height)
@@ -617,7 +580,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNetFull(layer=0),
+            W=_VGGNet.get_pretrained_layer(0),
         )
 
         l_conv0_dropout = layers.DropoutLayer(l_conv0, p=0.10)
@@ -628,7 +591,7 @@ class PZ_GIRM_LARGE_DEEP_Model(object):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=VGGNetFull(layer=2),
+            W=_VGGNet.get_pretrained_layer(2),
         )
 
         l_conv1_dropout = layers.DropoutLayer(l_conv1, p=0.10)
