@@ -278,9 +278,9 @@ class SiameseModel(object):
 
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
 
-            _P(layers.DenseLayer, num_units=512, **leaky_orthog),
-            _P(layers.DropoutLayer, p=0.5),
-            _P(layers.DenseLayer, num_units=512, **leaky_orthog),
+            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
+            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
             _P(layers.DropoutLayer, p=0.5),
 
             #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
