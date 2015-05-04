@@ -203,7 +203,18 @@ def write_data_and_labels(data, labels, data_fpath, labels_fpath):
         np.save(ofile, labels)
 
 
-def load(data_fpath, labels_fpath=None, random_state=None):
+def load(data_fpath, labels_fpath=None):
+    # Load X matrix (data)
+    data = np.load(data_fpath, mmap_mode='r')
+    # Load y vector (labels)
+    labels = None
+    if labels_fpath is not None:
+        labels = np.load(labels_fpath, mmap_mode='r')
+    # Return data
+    return data, labels
+
+
+def load_ids(id_fpath, labels_fpath=None):
     # Load X matrix (data)
     data = np.load(data_fpath, mmap_mode='r')
     # Load y vector (labels)

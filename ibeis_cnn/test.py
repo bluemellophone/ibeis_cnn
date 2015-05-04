@@ -11,6 +11,7 @@ from lasagne import layers
 
 import theano
 import time
+import numpy as np
 import utool as ut
 import six  # NOQA
 from os.path import join, abspath
@@ -120,6 +121,26 @@ def display_caffe_model(weights_model_path, results_path, **kwargs):
     utils.show_convolutional_features(pretrained_weights, results_path, color=False, target=0)
 
 
+def review_labels(id_path, data_fpath, labels_fpath, model, weights_fpath, **kwargs):
+    print('\n[data] loading data...')
+    print('data_fpath = %r' % (data_fpath,))
+    ids_test = utils.load_ids(id_path)
+    X_test, y_test = utils.load(data_fpath, labels_fpath)
+    pred_list, label_list, conf_list = test_data(X_test, None, model, weights_fpath, **kwargs)
+
+    new_y_test = []
+    new_csv = []
+    for y, label, id_, image in zip(y_test, label_list, ids_test, X_test):
+        print(y, label, id_)
+        new_y_test.append(y)
+        new_csv.append('%s:%s' % (id_, y, ))
+
+    new_y_test = np.hstack(new_y_test)
+    new_csv = '\n'.join(new_csv)
+    print(new_y_test)
+    print(new_csv)
+
+
 def test_viewpoint_pz():
     r"""
     CommandLine:
@@ -134,10 +155,10 @@ def test_viewpoint_pz():
     model                   = models.ViewpointModel()
     root                    = abspath(join('..', 'data'))
 
-    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    test_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
-    weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    weights_fpath           = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
     config = {}
     test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
 
@@ -154,15 +175,38 @@ def test_viewpoint():
     """
     project_name            = 'viewpoint'
     model                   = models.ViewpointModel()
-
     root                    = abspath(join('..', 'data'))
-    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
-    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+
+    test_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
     results_dpath           = join(root, 'results', project_name)
-    weights_fpath           = join(root, 'nets', project_name, 'ibeis_cnn_weights.pickle')
+    weights_fpath           = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
     config = {}
 
     test(test_data_fpath, model, weights_fpath, results_dpath, test_labels_fpath, **config)
+
+
+def test_review():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.test --test-test_review
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.test import *  # NOQA
+        >>> test_review()
+    """
+    project_name            = 'viewpoint'
+    model                   = models.ViewpointModel()
+    root                    = abspath(join('..', 'data'))
+
+    test_ids_fpath          = join(root, 'numpy', project_name, 'ids.npy')
+    test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
+    test_labels_fpath       = join(root, 'numpy', project_name, 'y.npy')
+    weights_fpath           = join(root, 'nets',  project_name, 'ibeis_cnn_weights.pickle')
+    config = {}
+
+    review_labels(test_ids_fpath, test_data_fpath, test_labels_fpath, model, weights_fpath, **config)
 
 
 def test_display_caffenet():
@@ -176,10 +220,10 @@ def test_display_caffenet():
         >>> test_display_caffenet()
     """
     project_name            = 'caffenet'
-
     root                    = abspath(join('..', 'data'))
+
     results_dpath           = join(root, 'results', project_name)
-    weights_model_fpath     = join(root, 'nets', project_name, 'caffenet.caffe.pickle')
+    weights_model_fpath     = join(root, 'nets',    project_name, 'caffenet.caffe.pickle')
     config = {}
 
     display_caffe_model(weights_model_fpath, results_dpath, **config)
@@ -196,10 +240,10 @@ def test_display_vgg():
         >>> test_display_vgg()
     """
     project_name            = 'vgg'
-
     root                    = abspath(join('..', 'data'))
+
     results_dpath           = join(root, 'results', project_name)
-    weights_model_fpath     = join(root, 'nets', project_name, 'vgg.caffe.pickle')
+    weights_model_fpath     = join(root, 'nets',    project_name, 'vgg.caffe.pickle')
     config = {}
 
     display_caffe_model(weights_model_fpath, results_dpath, **config)
