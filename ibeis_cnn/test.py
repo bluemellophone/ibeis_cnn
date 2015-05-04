@@ -153,7 +153,7 @@ def test_viewpoint():
         >>> test_viewpoint()
     """
     project_name            = 'viewpoint'
-    model                   = models.PZ_GIRM_Model()
+    model                   = models.ViewpointModel()
 
     root                    = abspath(join('..', 'data'))
     test_data_fpath         = join(root, 'numpy', project_name, 'X.npy')
