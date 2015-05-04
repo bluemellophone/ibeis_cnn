@@ -13,6 +13,7 @@ import theano
 import time
 import numpy as np
 import utool as ut
+import cv2
 import six  # NOQA
 from os.path import join, abspath
 
@@ -132,8 +133,14 @@ def review_labels(id_path, data_fpath, labels_fpath, model, weights_fpath, **kwa
     new_csv = []
     for y, label, id_, image in zip(y_test, label_list, ids_test, X_test):
         print(y, label, id_)
+        if y != label:
+            title = 'K: %s - S: %s' % (y, label, )
+            cv2.imshow(title, image)
+            key = cv2.waitKey()
+            print(key)
         new_y_test.append(y)
-        new_csv.append('%s:%s' % (id_, y, ))
+        new_csv.append('%s,%s' % (id_, y, ))
+    cv2.destroyAllWindows()
 
     new_y_test = np.hstack(new_y_test)
     new_csv = '\n'.join(new_csv)
