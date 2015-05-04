@@ -135,12 +135,21 @@ def review_labels(id_path, data_fpath, labels_fpath, model, weights_fpath, **kwa
         print(y, label, id_)
         if y != label:
             title = 'K: %s - S: %s' % (y, label, )
+            key = None
             cv2.imshow(title, image)
-            key = cv2.waitKey()
-            print(key)
+            while key not in ['k', 's']:
+                key = chr(cv2.waitKey()).lower()
+                print('    %s' % (key, ))
+            cv2.destroyAllWindows()
+            if key == 'k':
+                print('    Keeping...')
+            elif key == 's':
+                print('    Switching...')
+                y = label
+            else:
+                raise IOError('Specified an illegal character (can never happen)')
         new_y_test.append(y)
         new_csv.append('%s,%s' % (id_, y, ))
-    cv2.destroyAllWindows()
 
     new_y_test = np.hstack(new_y_test)
     new_csv = '\n'.join(new_csv)
