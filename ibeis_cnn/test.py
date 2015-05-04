@@ -152,9 +152,11 @@ def review_labels(id_path, data_fpath, labels_fpath, model, weights_fpath, **kwa
         new_csv.append('%s,%s' % (id_, y, ))
 
     new_y_test = np.hstack(new_y_test)
-    new_csv = '\n'.join(new_csv)
-    print(new_y_test)
-    print(new_csv)
+    np.save('y.npy', new_y_test)
+
+    with open('labels.csv', 'w') as csv_file:
+        new_csv = '\n'.join(new_csv)
+        csv_file.write(new_csv)
 
 
 def test_viewpoint_pz():
