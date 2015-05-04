@@ -216,13 +216,9 @@ def load(data_fpath, labels_fpath=None):
 
 def load_ids(id_fpath, labels_fpath=None):
     # Load X matrix (data)
-    data = np.load(data_fpath, mmap_mode='r')
-    # Load y vector (labels)
-    labels = None
-    if labels_fpath is not None:
-        labels = np.load(labels_fpath, mmap_mode='r')
+    ids = np.load(id_fpath, mmap_mode='r')
     # Return data
-    return data, labels
+    return ids
 
 
 def print_header_columns():
