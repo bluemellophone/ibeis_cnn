@@ -139,7 +139,7 @@ def review_labels(id_path, data_fpath, labels_fpath, model, weights_fpath, **kwa
             cv2.imshow(title, image)
             while key not in ['k', 's']:
                 key = chr(cv2.waitKey()).lower()
-                print('    %s' % (key, ))
+                # print('    %s' % (key, ))
             cv2.destroyAllWindows()
             if key == 'k':
                 print('    Keeping...')
