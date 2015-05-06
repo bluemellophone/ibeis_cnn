@@ -10,7 +10,7 @@ from ibeis_cnn import draw_net
 from ibeis_cnn import models
 from ibeis_cnn import ibsplugin
 from six.moves import input
-
+import sys
 import time
 import theano
 import numpy as np
@@ -21,6 +21,7 @@ from sklearn import preprocessing
 import utool as ut
 import six
 from os.path import join, abspath, dirname, exists
+print, rrr, profile = ut.inject2(__name__, '[train]')
 
 
 def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
@@ -41,6 +42,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # Load the data
     print('\n[train] --- LOADING DATA ---')
+    sys.stdout.flush()
     print('data_fpath = %r' % (data_fpath,))
     print('labels_fpath = %r' % (labels_fpath,))
     data, labels = utils.load(data_fpath, labels_fpath)
@@ -103,8 +105,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     X_train, y_train, X_test, y_test = _tup
 
     # Build and print the model
-    print('\n[train] --- SAMPLING DATA ---')
-    print('\n[train] building model...')
+    print('\n[train] --- BUILDING MODEL ---')
     kwargs['model_shape'] = data.shape
     input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
     output_layer = model.build_model(
@@ -113,11 +114,13 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils.print_layer_info(output_layer)
 
     # Create the Theano primitives
+    print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     # create theano symbolic expressions that define the network
     theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
 
+    print('\n[train] --- WEIGHT INITIALIZATION ---')
     # Load the pretrained model if specified
     if pretrained_weights_fpath is not None and exists(pretrained_weights_fpath):
         print('[model] loading pretrained weights from %s' % (pretrained_weights_fpath))
@@ -127,6 +130,8 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
             layers.set_all_param_values(output_layer, pretrained_weights)
             if pretrained_kwargs:
                 kwargs = kwargs_
+    else:
+        print('[model] no pretrained weights')
 
     # Center the data by subtracting the mean (AFTER KWARGS UPDATE)
     if kwargs.get('center'):
