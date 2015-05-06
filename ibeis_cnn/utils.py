@@ -221,11 +221,155 @@ def load_ids(id_fpath, labels_fpath=None):
     return ids
 
 
-def print_header_columns():
-    print('''
-[info]   Epoch |  Train Loss (determ)  |  Valid Loss  |  Train / Val (determ)  |  Valid Acc  |  Test Acc   |  Dur
-[info] --------|-----------------------|--------------|------------------------|-------------|-------------|------\
-''')
+def get_printcolinfo(requested_headers=None):
+    r"""
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> requested_headers = None
+        >>> printcol_info = get_printcolinfo(requested_headers)
+    """
+    if requested_headers is None:
+        requested_headers = ['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'valid_acc', 'test_acc', 'duration']
+    header_dict = {
+        'epoch'        : '   Epoch ',
+        'train_loss'   : '  Train Loss (determ)  ',
+        'valid_loss'   : '  Valid Loss  ',
+        'trainval_rat' : '  Train / Val (determ)  ',
+        'valid_acc'    : '  Valid Acc ',
+        'test_acc'     : '  Test Acc  ',
+        'duration'     : '  Dur ',
+    }
+
+    def datafmt(str_, align='>', precision=None, type_='', colored=False, lbl=''):
+        precision_str = '.%d' % (precision,) if precision is not None else ''
+        num_nonspace = len(str_.strip())
+        num_lspace = len(str_.rstrip()) - num_nonspace
+        num_rspace = len(str_.lstrip()) - num_nonspace
+        middle_fmt = '{:%s%d%s%s}%s' % (align, num_nonspace, precision_str, type_, lbl)
+        lspace = (' ' * num_lspace)
+        rspace = (' ' * num_rspace)
+        sep = '{}' if colored else ''
+        return sep.join((lspace, middle_fmt, rspace))
+
+    format_dict = {
+        'epoch'        : datafmt(header_dict['epoch'], '>'),
+        'train_loss'   : datafmt(header_dict['train_loss'], '<', colored=True),
+        'valid_loss'   : datafmt(header_dict['valid_loss'], '>', 6, 'f', colored=True),
+        'trainval_rat' : datafmt(header_dict['trainval_rat'], '<', colored=True),
+        'valid_acc'    : datafmt(header_dict['valid_acc'], '>', colored=True),
+        'test_acc'     : datafmt(header_dict['test_acc'], '>', colored=True),
+        'duration'     : datafmt(header_dict['duration'], '>', 1, 'f', lbl='s'),
+    }
+    data_fmt_list = ut.dict_take(format_dict, requested_headers)
+    header_nice_list = ut.dict_take(header_dict, requested_headers)
+    printcol_info = {
+        'requested_headers': requested_headers,
+        'header_nice_list': header_nice_list,
+        'data_fmt_list': data_fmt_list,
+    }
+    return printcol_info
+
+
+def print_header_columns(printcol_info):
+    header_nice_list = printcol_info['header_nice_list']
+    header_line_list = ['-' * len(nice) for nice in header_nice_list]
+    header_line1 = '[info] ' + '|'.join(header_nice_list)
+    header_line2 = '[info] ' + '|'.join(header_line_list)
+    header_str = ('\n' + header_line1 + '\n' + header_line2)
+    #print(header_str)
+    #header_str = ut.codeblock(
+    #    '''
+    #    [info]   Epoch |  Train Loss (determ)  |  Valid Loss  |  Train / Val (determ)  |  Valid Acc  |  Test Acc   |  Dur
+    #    [info] --------|-----------------------|--------------|------------------------|-------------|-------------|------\
+    #    '''
+    #)
+    print(header_str)
+
+
+def print_epoch_info(printcol_info, epoch_info):
+
+    requested_headers = printcol_info['requested_headers']
+
+    (train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy,
+     epoch, duration, best_train_loss, best_valid_loss, best_valid_accuracy,
+     best_test_accuracy) = ut.dict_take(epoch_info, 'train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy, epoch, duration, best_train_loss, best_valid_loss, best_valid_accuracy, best_test_accuracy'.split(', '))
+
+    best_train      = train_loss == best_train_loss
+    best_valid      = valid_loss == best_valid_loss
+    best_valid_accuracy = valid_accuracy == best_valid_accuracy
+    best_train_accuracy = test_accuracy == best_test_accuracy
+    ratio           = train_loss / valid_loss
+    ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
+    unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
+    data_fmt_list = printcol_info['data_fmt_list']
+    data_fmtstr = '[info] ' +  '|'.join(data_fmt_list)
+    #data_fmtstr = ('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
+    #               '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s')
+
+    def epoch_str():
+        return (epoch_info['epoch'],)
+
+    def train_loss_str():
+        train_loss = epoch_info['train_loss']
+        best_train_loss = epoch_info['best_train_loss']
+        train_determ_loss = epoch_info['train_determ_loss']
+        best_train      = train_loss == best_train_loss
+        return (
+            ANSI.BLUE if best_train else '',
+            '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
+            ANSI.RESET if best_train else '',
+        )
+
+    def valid_loss_str():
+        return (ANSI.GREEN if best_valid else '', valid_loss, ANSI.RESET if best_valid else '',)
+
+    def trainval_rat_str():
+        return (
+            ANSI.RED if unhealthy_ratio else '',
+            '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
+            ANSI.RESET if unhealthy_ratio else '',)
+
+    def valid_acc_str():
+        return (ANSI.MAGENTA if best_valid_accuracy else '',
+                '{:.2f}%'.format(valid_accuracy * 100),
+                ANSI.RESET if best_valid_accuracy else '',)
+
+    def test_acc_str():
+        return (ANSI.CYAN if best_train_accuracy else '',
+                '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
+                ANSI.RESET if best_train_accuracy else '',)
+
+    def duration_str():
+        return (duration,)
+
+    # Hack to build up the format data
+    locals_ = locals()
+    func_list = [locals_[prefix + '_str'] for prefix in requested_headers]
+    fmttup = tuple()
+    for func in func_list:
+        fmttup += func()
+    #fmttup = (
+    #    epoch,
+    #    ANSI.BLUE if best_train else '',
+    #    '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
+    #    ANSI.RESET if best_train else '',
+    #    ANSI.GREEN if best_valid else '',
+    #    valid_loss,
+    #    ANSI.RESET if best_valid else '',
+    #    ANSI.RED if unhealthy_ratio else '',
+    #    '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
+    #    ANSI.RESET if unhealthy_ratio else '',
+    #    ANSI.MAGENTA if best_valid_accuracy else '',
+    #    '{:.2f}%'.format(valid_accuracy * 100),
+    #    ANSI.RESET if best_valid_accuracy else '',
+    #    ANSI.CYAN if best_train_accuracy else '',
+    #    '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
+    #    ANSI.RESET if best_train_accuracy else '',
+    #    duration,
+    #)
+    epoch_info_str = data_fmtstr.format(*fmttup)
+    print(epoch_info_str)
 
 
 def print_layer_info(output_layer):
@@ -246,39 +390,6 @@ def print_layer_info(output_layer):
     print('[info] ...this model has {:,} learnable parameters\n'.format(
         layers.count_params(output_layer)
     ))
-
-
-def print_epoch_info(train_loss, train_determ_loss, valid_loss, valid_accuracy,
-                     test_accuracy, epoch, duration,
-                     best_train_loss, best_valid_loss, best_valid_accuracy,
-                     best_test_accuracy, **kwargs):
-    best_train      = train_loss == best_train_loss
-    best_valid      = valid_loss == best_valid_loss
-    best_valid_accuracy = valid_accuracy == best_valid_accuracy
-    best_train_accuracy = test_accuracy == best_test_accuracy
-    ratio           = train_loss / valid_loss
-    ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
-    unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
-    print('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
-          '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s'.format(
-              epoch,
-              ANSI.BLUE if best_train else '',
-              '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
-              ANSI.RESET if best_train else '',
-              ANSI.GREEN if best_valid else '',
-              valid_loss,
-              ANSI.RESET if best_valid else '',
-              ANSI.RED if unhealthy_ratio else '',
-              '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
-              ANSI.RESET if unhealthy_ratio else '',
-              ANSI.MAGENTA if best_valid_accuracy else '',
-              '{:.2f}%'.format(valid_accuracy * 100),
-              ANSI.RESET if best_valid_accuracy else '',
-              ANSI.CYAN if best_train_accuracy else '',
-              '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
-              ANSI.RESET if best_train_accuracy else '',
-              duration,
-          ))
 
 
 def float32(k):
@@ -486,8 +597,14 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     # we are minimizing the multi-class negative log-likelihood
     objective = objectives.Objective(output_layer, loss_function=loss_function)
+    print('Building loss model')
     loss = objective.get_loss(X_batch, target=y_batch)
+    print('Building detrmenistic loss model')
     loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+
+    #theano.printing.pydotprint(loss, outfile="./symbolic_graph_opt.png", var_with_name_simple=True)
+    #ut.startfile('./symbolic_graph_opt.png')
+    #ut.embed()
 
     # Regularize
     if regularization is not None:
@@ -760,7 +877,6 @@ def set_learning_rate(learning_rate_theano, update):
     new_learning_rate_theano = update(learning_rate_theano.get_value())
     learning_rate_theano.set_value(float32(new_learning_rate_theano))
     print('\n[train] setting learning rate to %.9f' % (new_learning_rate_theano))
-    print_header_columns()
 
 
 def show_confusion_matrix(correct_y, predict_y, category_list, results_path,

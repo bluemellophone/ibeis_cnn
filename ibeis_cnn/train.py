@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import models
 from ibeis_cnn import ibsplugin
+from six.moves import input
 
 import time
 import theano
@@ -37,7 +38,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     ######################################################################################
 
     # Load the data
-    print('\n[data] loading data...')
+    print('\n[train] --- LOADING DATA ---')
     print('data_fpath = %r' % (data_fpath,))
     print('labels_fpath = %r' % (labels_fpath,))
     data, labels = utils.load(data_fpath, labels_fpath)
@@ -49,6 +50,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     if pretrained_weights_fpath is not None:
         pretrained_weights_dpath = dirname(abspath(pretrained_weights_fpath))
         ut.ensuredir(pretrained_weights_dpath)
+    print('[train] kwargs = \n' + (ut.dict_str(kwargs)))
 
     # Training parameters defaults
     utils._update(kwargs, 'center',                  True)
@@ -70,16 +72,17 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
 
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
-    print('[train]     memory(data) = %r' % (ut.get_object_size_str(data),))
-    print('[train]     data.shape = %r' % (data.shape,))
-    print('[train]     data.dtype = %r' % (data.dtype,))
-    print('[train]     labels.shape = %r' % (labels.shape,))
-    print('[train]     labels.dtype = %r' % (labels.dtype,))
+    print('[train] memory(data) = %r' % (ut.get_object_size_str(data),))
+    print('[train] data.shape   = %r' % (data.shape,))
+    print('[train] data.dtype   = %r' % (data.dtype,))
+    print('[train] labels.shape = %r' % (labels.shape,))
+    print('[train] labels.dtype = %r' % (labels.dtype,))
 
     labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
     print('[train] label histogram = \n' + ut.dict_str(labelhist))
-    print('[train] kwargs = \n' + (ut.dict_str(kwargs)))
 
+    print('\n[train] --- CONFIGURE SETTINGS ---')
+    print('[train] kwargs = \n' + (ut.dict_str(kwargs)))
     # Encoding labels
     kwargs['encoder'] = None
     if kwargs.get('encode', False):
@@ -89,6 +92,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     # utils.show_image_from_data(data)
 
     # Split the dataset into training and validation
+    print('\n[train] --- SAMPLING DATA ---')
     print('[train] creating train, validation datasaets...')
     data_per_label = getattr(model, 'data_per_label', 1)
     dataset = utils.train_test_split(data, labels, eval_size=0.2, data_per_label=data_per_label)
@@ -97,12 +101,13 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     X_train, y_train, X_test, y_test = dataset
 
     # Build and print the model
-    print('\n[model] building model...')
+    print('\n[train] --- SAMPLING DATA ---')
+    print('\n[train] building model...')
     kwargs['model_shape'] = data.shape
     input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
     output_layer = model.build_model(
-        kwargs.get('batch_size'), input_width, input_height,
-        input_channels, kwargs.get('output_dims'))
+        kwargs['batch_size'], input_width, input_height,
+        input_channels, kwargs['output_dims'])
     utils.print_layer_info(output_layer)
 
     # Create the Theano primitives
@@ -131,11 +136,6 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
         utils._update(kwargs, 'center_mean', 0.0)
         utils._update(kwargs, 'center_std', 1.0)
 
-    # Begin training the neural network
-    vals = (utils.get_current_time(), kwargs.get('learning_rate'), )
-    print('\n[train] starting training at %s with learning rate %.9f' % vals)
-    utils.print_header_columns()
-
     utils._update(kwargs, 'best_weights',        None)
     utils._update(kwargs, 'best_valid_accuracy', 0.0)
     utils._update(kwargs, 'best_test_accuracy',  0.0)
@@ -153,129 +153,147 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
                   theano_funcs, model, output_layer,
                   results_dpath, weights_fpath,
                   learning_rate_theano, **kwargs):
+    print('\n[train] --- TRAINING LOOP ---')
+    # Begin training the neural network
+    vals = (utils.get_current_time(), kwargs.get('learning_rate'), )
+    print('\n[train] starting training at %s with learning rate %.9f' % vals)
+    printcol_info = utils.get_printcolinfo(kwargs.get('requested_headers', None))
+    utils.print_header_columns(printcol_info)
+    theano_backprop, theano_forward, theano_predict = theano_funcs
+    epoch = 0
+    epoch_marker = epoch
+    while True:
+        try:
+            # Start timer
+            t0 = time.time()
 
-    try:
-        theano_backprop, theano_forward, theano_predict = theano_funcs
+            # Show first weights before any training
+            if kwargs.get('show_features'):
+                utils.show_convolutional_layers(output_layer, results_dpath,
+                                                color=True, target=0, epoch=epoch)
 
-        epoch = 0
-        epoch_marker = epoch
-        while True:
-            try:
-                # Start timer
-                t0 = time.time()
+            # Get the augmentation function, if there is one for this model
+            augment_fn = getattr(model, 'augment', None)
 
-                # Show first weights before any training
+            # compute the loss over all training and validation batches
+            train_loss = utils.process_train(X_train, y_train, theano_backprop,
+                                             model=model, augment=augment_fn,
+                                             rand=True, **kwargs)
+
+            data_valid = utils.process_valid(X_valid, y_valid, theano_forward,
+                                             model=model, augment=None,
+                                             rand=False, **kwargs)
+            valid_loss, valid_accuracy = data_valid
+
+            # If the training loss is nan, the training has diverged
+            if np.isnan(train_loss):
+                print('\n[train] training diverged\n')
+                break
+
+            # Calculate request_test before adding to the epoch counter
+            request_test = kwargs.get('run_test') is not None and epoch % kwargs.get('run_test') == 0
+            # Increment the epoch
+            epoch += 1
+
+            # Is this model the best we've ever seen?
+            best_found = valid_loss < kwargs.get('best_valid_loss')
+            if best_found:
+                kwargs['best_epoch'] = epoch
+                epoch_marker = epoch
+                kwargs['best_weights'] = layers.get_all_param_values(output_layer)
+
+            # compute the loss over all testing batches
+            # if request_test or best_found:
+            if request_test:
+                train_determ_loss = utils.process_train(X_train, y_train, theano_forward,
+                                                        model=model, augment=augment_fn,
+                                                        rand=True, **kwargs)
+
+                # If we want to output the confusion matrix, give the results path
+                results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
+                test_accuracy = utils.process_test(
+                    X_test, y_test, theano_forward, results_dpath_,
+                    model=model, augment=None, rand=False, **kwargs)
+                # Output the layer 1 features
                 if kwargs.get('show_features'):
                     utils.show_convolutional_layers(output_layer, results_dpath,
                                                     color=True, target=0, epoch=epoch)
+                    # utils.show_convolutional_layers(output_layer, results_dpath,
+                    #                                 color=False, target=0, epoch=epoch)
+            else:
+                train_determ_loss = None
+                test_accuracy = None
 
-                # Get the augmentation function, if there is one for this model
-                augment_fn = getattr(model, 'augment', None)
+            # Running tab for what the best model
+            if train_loss < kwargs.get('best_train_loss'):
+                kwargs['best_train_loss'] = train_loss
+            if train_determ_loss > kwargs.get('best_determ_loss'):
+                kwargs['best_determ_loss'] = train_determ_loss
+            if valid_loss < kwargs.get('best_valid_loss'):
+                kwargs['best_valid_loss'] = valid_loss
+            if valid_accuracy > kwargs.get('best_valid_accuracy'):
+                kwargs['best_valid_accuracy'] = valid_accuracy
+            if test_accuracy > kwargs.get('best_test_accuracy'):
+                kwargs['best_test_accuracy'] = test_accuracy
 
-                # compute the loss over all training and validation batches
-                loss_train = utils.process_train(X_train, y_train, theano_backprop,
-                                                 model=model, augment=augment_fn,
-                                                 rand=True, **kwargs)
+            # Learning rate schedule update
+            if epoch >= epoch_marker + kwargs.get('patience'):
+                epoch_marker = epoch
+                utils.set_learning_rate(learning_rate_theano, model.learning_rate_update)
+                utils.print_header_columns(printcol_info)
 
-                data_valid = utils.process_valid(X_valid, y_valid, theano_forward,
-                                                 model=model, augment=None,
-                                                 rand=False, **kwargs)
-                loss_valid, accu_valid = data_valid
+            # End timer
+            t1 = time.time()
 
-                # If the training loss is nan, the training has diverged
-                if np.isnan(loss_train):
-                    print('\n[train] training diverged\n')
-                    break
+            # Print the epoch
+            duration = t1 - t0
+            epoch_info = {
+                'train_loss'          : train_loss,
+                'train_determ_loss'   : train_determ_loss,
+                'valid_loss'          : valid_loss,
+                'valid_accuracy'      : valid_accuracy,
+                'test_accuracy'       : test_accuracy,
+                'epoch'               : epoch,
+                'duration'            : duration,
+                'best_train_loss'     : kwargs['best_train_loss'],
+                'best_valid_loss'     : kwargs['best_valid_loss'],
+                'best_valid_accuracy' : kwargs['best_valid_accuracy'],
+                'best_test_accuracy'  : kwargs['best_test_accuracy'],
+            }
+            utils.print_epoch_info(printcol_info, epoch_info)
+            #ut.embed()
 
-                # Calculate request_test before adding to the epoch counter
-                request_test = kwargs.get('run_test') is not None and epoch % kwargs.get('run_test') == 0
-                # Increment the epoch
-                epoch += 1
-
-                # Is this model the best we've ever seen?
-                best_found = loss_valid < kwargs.get('best_valid_loss')
-                if best_found:
-                    kwargs['best_epoch'] = epoch
-                    epoch_marker = epoch
-                    kwargs['best_weights'] = layers.get_all_param_values(output_layer)
-
-                # compute the loss over all testing batches
-                # if request_test or best_found:
-                if request_test:
-                    loss_determ = utils.process_train(X_train, y_train, theano_forward,
-                                                      model=model, augment=augment_fn,
-                                                      rand=True, **kwargs)
-
-                    # If we want to output the confusion matrix, give the results path
-                    results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
-                    accu_test = utils.process_test(X_test, y_test, theano_forward,
-                                                   results_dpath_,
-                                                   model=model, augment=None,
-                                                   rand=False, **kwargs)
-                    # Output the layer 1 features
-                    if kwargs.get('show_features'):
-                        utils.show_convolutional_layers(output_layer, results_dpath,
-                                                        color=True, target=0, epoch=epoch)
-                        # utils.show_convolutional_layers(output_layer, results_dpath,
-                        #                                 color=False, target=0, epoch=epoch)
-                else:
-                    loss_determ = None
-                    accu_test = None
-
-                # Running tab for what the best model
-                if loss_train < kwargs.get('best_train_loss'):
-                    kwargs['best_train_loss'] = loss_train
-                if loss_determ > kwargs.get('best_determ_loss'):
-                    kwargs['best_determ_loss'] = loss_determ
-                if loss_valid < kwargs.get('best_valid_loss'):
-                    kwargs['best_valid_loss'] = loss_valid
-                if accu_valid > kwargs.get('best_valid_accuracy'):
-                    kwargs['best_valid_accuracy'] = accu_valid
-                if accu_test > kwargs.get('best_test_accuracy'):
-                    kwargs['best_test_accuracy'] = accu_test
-
-                # Learning rate schedule update
-                if epoch >= epoch_marker + kwargs.get('patience'):
-                    epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_theano, model.learning_rate_update)
-
-                # End timer
-                t1 = time.time()
-
-                # Print the epoch
-                utils.print_epoch_info(loss_train, loss_determ,
-                                       loss_valid, accu_valid,
-                                       accu_test, epoch, t1 - t0, **kwargs)
-
-                # Break on max epochs
-                if epoch >= kwargs.get('max_epochs'):
-                    print('\n[train] maximum number of epochs reached\n')
-                    break
-            except KeyboardInterrupt:
-                # We have caught the Keyboard Interrupt, figure out what resolution mode
-                print('\n[train] Caught CRTL+C')
-                resolution = ''
-                while not (resolution.isdigit() and int(resolution) in [1, 2, 3]):
-                    print('\n[train] What do you want to do?')
-                    print('[train]     1 - Shock weights')
-                    print('[train]     2 - Save best weights')
-                    print('[train]     3 - Stop network training')
-                    resolution = raw_input('[train] Resolution: ')
-                resolution = int(resolution)
-                # We have a resolution
-                if resolution == 1:
-                    # Shock the weights of the network
-                    utils.shock_network(output_layer)
-                    epoch_marker = epoch
-                    utils.set_learning_rate(learning_rate_theano, model.learning_rate_shock)
-                elif resolution == 2:
-                    # Save the weights of the network
-                    utils.save_model(kwargs, weights_fpath)
-                else:
-                    # Terminate the network training
-                    raise KeyboardInterrupt
-    except KeyboardInterrupt:
-        print('\n\n[train] ...stopping network training\n')
+            # Break on max epochs
+            if epoch >= kwargs.get('max_epochs'):
+                print('\n[train] maximum number of epochs reached\n')
+                break
+        except KeyboardInterrupt:
+            # We have caught the Keyboard Interrupt, figure out what resolution mode
+            print('\n[train] Caught CRTL+C')
+            resolution = ''
+            while not (resolution.isdigit()):
+                print('\n[train] What do you want to do?')
+                print('[train]     0 - Continue')
+                print('[train]     1 - Shock weights')
+                print('[train]     2 - Save best weights')
+                print('[train]     3 - Stop network training')
+                resolution = input('[train] Resolution: ')
+            resolution = int(resolution)
+            # We have a resolution
+            if resolution == 0:
+                print('resuming training...')
+            elif resolution == 1:
+                # Shock the weights of the network
+                utils.shock_network(output_layer)
+                epoch_marker = epoch
+                utils.set_learning_rate(learning_rate_theano, model.learning_rate_shock)
+                utils.print_header_columns(printcol_info)
+            elif resolution == 2:
+                # Save the weights of the network
+                utils.save_model(kwargs, weights_fpath)
+            else:
+                # Terminate the network training
+                raise
 
     # Save the best network
     utils.save_model(kwargs, weights_fpath)
@@ -287,7 +305,8 @@ def train_patchmatch_pz():
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=256
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
     Example:
@@ -295,20 +314,25 @@ def train_patchmatch_pz():
         >>> from ibeis_cnn.train import *  # NOQA
         >>> train_patchmatch_pz()
     """
-    print('get_identification_decision_training_data')
-    import ibeis
-    ibs = ibeis.opendb(defaultdb='PZ_MTEST')
     max_examples = ut.get_argval('--max-examples', type_=int, default=None)
-    print('max examples = {}'.format(max_examples))
-    data_fpath, labels_fpath, training_dpath = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
+    print('[train] train_patchmatch_pz')
+    print('[train] max examples = {}'.format(max_examples))
+
+    with ut.Indenter('[LOAD IBEIS DB]'):
+        import ibeis
+        ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+
+    with ut.Indenter('[ENSURE TRAINING DATA]'):
+        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
+        data_fpath, labels_fpath, training_dpath = pathtup
 
     model = models.SiameseModel()
     config = dict(
         patience=100,
-        batch_size=128,
-        learning_rate=.001,
-        output_dims=1024,
+        batch_size=ut.get_argval('--batch_size', type_=int, default=128),
+        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
         show_confusion=False,
+        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration']
     )
     nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)
@@ -342,7 +366,6 @@ def train_identification_pz():
         patience=50,
         batch_size=32,
         learning_rate=.03,
-        output_dims=1024,
         show_confusion=False,
     )
     nets_dir = ibs.get_neuralnet_dir()

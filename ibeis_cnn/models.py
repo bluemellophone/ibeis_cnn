@@ -10,12 +10,15 @@ from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
 from lasagne.utils import floatX
+#from ibeis_cnn import lasange_ext
 import random
 import functools
 import utool as ut
 import six
+import theano
 import theano.tensor as T
 import numpy as np
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # from os.path import join
 # import cPickle as pickle
 
@@ -36,14 +39,15 @@ except ImportError as ex:
     USING_GPU = False
 
 
-def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)):
+def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice(None)):
     """
+    Used to save a slice of pretrained weights. The doctest will publish a new set of weights
 
     CommandLine:
-        python -m ibeis_cnn.models --test-save_pretrained_weights --net='vggnet_full' --slice='slice(0,6)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights --net='vggnet_full' --slice='slice(0,30)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights --net='caffenet_full' --slice='slice(0,6)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights --net='caffenet_full' --slice='slice(0,?)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,30)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,?)'
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -58,7 +62,7 @@ def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)
         >>> slice_str = ut.get_argval('--slice', type_=str, default='slice(0, 6)')
         >>> slice_ = eval(slice_str, globals(), locals())
         >>> # execute function
-        >>> sliced_weights_path = save_pretrained_weights(pretrained_weights, weights_path, slice_)
+        >>> sliced_weights_path = save_pretrained_weights_slice(pretrained_weights, weights_path, slice_)
         >>> # PUT YOUR PUBLISH PATH HERE
         >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS')
         >>> ut.copy(sliced_weights_path, publish_fpath)
@@ -75,6 +79,11 @@ def save_pretrained_weights(pretrained_weights, weights_path, slice_=slice(None)
 
 
 def print_pretrained_weights(pretrained_weights, lbl=''):
+    r"""
+    Args:
+        pretrained_weights (list of ndarrays): represents layer weights
+        lbl (str): label
+    """
     print('Initialization network: %r' % (lbl))
     print('Total memory: %s' % (ut.get_object_size_str(pretrained_weights)))
     for index, layer_ in enumerate(pretrained_weights):
@@ -95,6 +104,75 @@ class _PretrainedLayerInitializer(init.Initializer):
         return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
 
 
+def testdata_contrastive_loss():
+    import numpy as np
+    batch_size = 128
+    num_output = 256
+    half_size = batch_size // 2
+    quar_size = batch_size // 4
+    eigh_size = batch_size // 8
+    G = np.random.rand(batch_size, num_output)
+    G = G / np.linalg.norm(G, axis=1, ord=2)[:, None]
+    G[0] = G[1]
+    G[half_size] = G[half_size + 1]
+    G[0:eigh_size:2] = G[1:eigh_size:2] + np.random.rand(eigh_size / 2, num_output) * .00001
+    Y_padded = np.ones(batch_size)
+    Y_padded[0:half_size] = 1
+    Y_padded[quar_size:half_size + quar_size]  = 0
+    Y_padded[-half_size:] = -1
+    return G, Y_padded
+
+
+def make_layer_str(layer):
+    r"""
+    Args:
+        layer (lasange.Layer): a network layer
+    """
+    common_attrs = ['shape', 'num_filters', 'num_units', 'ds', 'filter_shape', 'stride', 'strides', 'p']
+    ignore_attrs = ['nonlinearity', 'b', 'W']
+    #func_attrs = ['get_output_shape']
+    func_attrs = []
+    layer_attrs_dict = {
+        'DropoutLayer': ['p'],
+        'InputLayer': ['shape'],
+        'Conv2DCCLayer': ['num_filters', 'stride'],
+        'MaxPool2DCCLayer': ['stride'],
+        'DenseLayer': ['num_units'],
+    }
+    layer_type = '{0}'.format(layer.__class__.__name__)
+    request_attrs = sorted(list(set(layer_attrs_dict.get(layer_type, []) + common_attrs)))
+    isvalid_list = [hasattr(layer, attr) for attr in request_attrs]
+    attr_key_list = ut.list_compress(request_attrs, isvalid_list)
+
+    DEBUG = False
+    if DEBUG:
+        #if layer_type == 'Conv2DCCLayer':
+        #    ut.embed()
+        print('---')
+        print(' * ' + layer_type)
+        print(' * does not have keys: %r' % (ut.filterfalse_items(request_attrs, isvalid_list),))
+        print(' * missing keys: %r' % ((set(layer.__dict__.keys()) - set(ignore_attrs)) - set(attr_key_list),))
+        print(' * has keys: %r' % (attr_key_list,))
+
+    attr_val_list = [getattr(layer, attr) for attr in attr_key_list]
+    attr_str_list = ['%s=%r' % item for item in zip(attr_key_list, attr_val_list)]
+
+    for func_attr in func_attrs:
+        if hasattr(layer, func_attr):
+            attr_str_list.append('%s=%r' % (func_attr, getattr(layer, func_attr).__call__()))
+
+    if hasattr(layer, 'nonlinearity'):
+        try:
+            nonlinearity = layer.nonlinearity.__name__
+        except AttributeError:
+            nonlinearity = layer.nonlinearity.__class__.__name__
+        attr_str_list.append('nonlinearity={0}'.format(nonlinearity))
+    attr_str = ','.join(attr_str_list)
+
+    layer_str = layer_type + '(' + attr_str + ')'
+    return layer_str
+
+
 class PretrainedNetwork(object):
     """
     Intialize weights from a specified (Caffe) pretrained network layers
@@ -105,28 +183,14 @@ class PretrainedNetwork(object):
     CommandLine:
         python -m ibeis_cnn.models --test-PretrainedNetwork:0
         python -m ibeis_cnn.models --test-PretrainedNetwork:1
-        python -m ibeis_cnn.models --test-PretrainedNetwork:2
-        python -m ibeis_cnn.models --test-PretrainedNetwork:3
 
     Example0:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = PretrainedNetwork('caffenet_full', show_network=True)
-        >>> print('done')
-
-    Example1:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = PretrainedNetwork('caffenet', show_network=True)
         >>> print('done')
 
-    Example2:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = PretrainedNetwork('vggnet_full', show_network=True)
-        >>> print('done')
-
-    Example3:
+    Example1:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.models import *  # NOQA
         >>> self = PretrainedNetwork('vggnet', show_network=True)
@@ -172,30 +236,42 @@ class PretrainedNetwork(object):
         return weights_initializer
 
 
-def testdata_contrastive_loss():
-    import numpy as np
-    batch_size = 128
-    num_output = 256
-    half_size = batch_size // 2
-    quar_size = batch_size // 4
-    eigh_size = batch_size // 8
-    G = np.random.rand(batch_size, num_output)
-    G = G / np.linalg.norm(G, axis=1, ord=2)[:, None]
-    G[0] = G[1]
-    G[half_size] = G[half_size + 1]
-    G[0:eigh_size:2] = G[1:eigh_size:2] + np.random.rand(eigh_size / 2, num_output) * .00001
-    Y_padded = np.ones(batch_size)
-    Y_padded[0:half_size] = 1
-    Y_padded[quar_size:half_size + quar_size]  = 0
-    Y_padded[-half_size:] = -1
-    return G, Y_padded
+class BaseModel(object):
+    def __init__(self):
+        self.network_layers = None
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        self.data_per_label = 1
+        self.net_dir = '.'
+
+    def draw_architecture(self):
+        from ibeis_cnn import draw_net
+        filename = 'tmp.png'
+        draw_net.draw_to_file(self.network_layers, filename)
+        ut.startfile(filename)
+
+    def get_architecture_hashid(self):
+        architecture_str = self.get_architecture_str()
+        hashid = ut.hashstr(architecture_str, alphabet=ut.ALPHABET_16, hashlen=16)
+        return hashid
+
+    def get_architecture_str(self, sep='_'):
+        layer_str_list = [make_layer_str(layer) for layer in self.network_layers]
+        architecture_str = sep.join(layer_str_list)
+        return architecture_str
+
+    def print_architecture_str(self, **kwargs):
+        architecture_str = self.get_architecture_str(**kwargs)
+        print(architecture_str)
 
 
-class SiameseModel(object):
+class SiameseModel(BaseModel):
     """
     Model for individual identification
     """
     def __init__(self):
+        super(SiameseModel, self).__init__()
         self.network_layers = None
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
@@ -208,12 +284,6 @@ class SiameseModel(object):
     def learning_rate_shock(self, x):
         return x * 10.0
 
-    def draw_architecture(self):
-        from ibeis_cnn import draw_net
-        filename = 'tmp.png'
-        draw_net.draw_to_file(self.network_layers, filename)
-        ut.start_file(filename)
-
     def loss_function(self, G, Y_padded, T=T):
         """
         Args:
@@ -224,34 +294,70 @@ class SiameseModel(object):
             https://www.cs.nyu.edu/~sumit/research/assets/cvpr05.pdf
             https://github.com/Lasagne/Lasagne/issues/168
 
+        CommandLine:
+            # Train Network
+            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=16 --batch_size=128 --learning_rate .0000001
+
         Example:
             >>> from ibeis_cnn.models import *  # NOQA
             >>> # numpy testing but in reality these are theano functions
+            >>> self = SiameseModel()
             >>> G, Y_padded = testdata_contrastive_loss()
             >>> T = np
             >>> np.abs_ = np.abs
-            >>> self = SiameseModel()
             >>> avg_loss = self.loss_function(G, Y_padded, T=T)
         """
         if True:
             print('[model] Build siamese loss function')
+
         num_data = G.shape[0]
         num_labels = num_data // self.data_per_label
         # Mark same genuine pairs as 0 and imposter pairs as 1
         Y = (1 - Y_padded[0:num_labels])
         Y = (Y_padded[0:num_labels])
-        # x is the output we get from all images in the batch
+
+        if T is theano.tensor:
+            G.name = 'G'
+            Y.name = 'Y'
+
+        L1_NORMALIZE = True
+        if L1_NORMALIZE:
+            # L1-normalize the output of the network
+            G = G / T.abs_(G).sum(axis=1)[:, None]
+
+        # Split batch into pairs
         G1, G2 = G[0::2], G[1::2]
+
+        if T is theano.tensor:
+            G1.name = 'G1'
+            G2.name = 'G2'
+
         # Energy of training pairs
-        E = T.abs_((G1 - G2)).sum(axis=1)
+        #E = T.abs_((G1 - G2)).sum(axis=1)
+
+        if False:
+            # Hack in a print
+            G_ellone = T.abs_(G).sum(axis=1)
+            G_ellone_printer = theano.printing.Print('ellone(G)')(G_ellone)
+            G_ellone.name = 'G_ellone'
+            G_ellone_printer.name = 'G_ellone_printer'
+            E = T.abs_((G1 - G2)).sum(axis=1) + (G_ellone - G_ellone_printer)[:, None]
+        else:
+            E = T.abs_((G1 - G2)).sum(axis=1)
+
+        if T is theano.tensor:
+            E.name = 'E'
 
         # Q is a constant that is the upper bound of E
         #Q = 262144.0
         #Q = 256 * (G.shape[1] * 2)
         #Q = (G.shape[1] * 2)
         #Q = (G.shape[1])
-        Q = 2
         #Q = 1
+        if L1_NORMALIZE:
+            Q = 2
+        else:
+            Q = 20
         # Contrastive loss function
         genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
         imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
@@ -259,10 +365,51 @@ class SiameseModel(object):
         avg_loss = T.mean(loss)
         #margin = 10
         #loss = T.mean(Y * E + (1 - Y) * T.maximum(margin - E, 0))
+
+        if T is theano.tensor:
+            loss.name = 'loss'
+            avg_loss.name = 'avg_loss'
+
+        if False:
+            graph_dpath = '.'
+            graph_fname = 'symbolic_graph.png'
+            graph_fpath = ut.unixjoin(graph_dpath, graph_fname)
+            ut.ensuredir(graph_dpath)
+            theano.printing.pydotprint(avg_loss, outfile=graph_fpath, var_with_name_simple=True)
+            ut.startfile(graph_fpath)
+        #ut.embed()
+        #avg_loss = dbgfunc.outputs[0]
+
         return avg_loss
 
     def build_model(self, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=True):
+        r"""
+        CommandLine:
+            python -m ibeis_cnn.models --test-SiameseModel.build_model
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> # build test data
+            >>> self = SiameseModel()
+            >>> batch_size = 128
+            >>> input_width = 64
+            >>> input_height = 64
+            >>> input_channels = 3
+            >>> output_dims = None
+            >>> verbose = True
+            >>> # execute function
+            >>> output_layer = self.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
+            >>> print('----')
+            >>> self.print_architecture_str(sep='\n')
+            >>> print('hashid=%r' % (self.get_architecture_hashid()),)
+            >>> print('----')
+            >>> # verify results
+            >>> result = str(output_layer)
+            >>> print(result)
+        """
+        # TODO: remove output dims
         _P = functools.partial
         if verbose:
             print('[model] Build siamese model')
@@ -270,7 +417,7 @@ class SiameseModel(object):
             print('[model]   * input_width    = %r' % (input_width,))
             print('[model]   * input_height   = %r' % (input_height,))
             print('[model]   * input_channels = %r' % (input_channels,))
-            print('[model]   * output_dims    = %r' % (output_dims,))
+            #print('[model]   * output_dims    = %r' % (output_dims,))
 
         #num_filters=32,
         #filter_size=(3, 3),
@@ -304,6 +451,7 @@ class SiameseModel(object):
             #_P(layers.DropoutLayer, p=0.5),
             _P(layers.DenseLayer, num_units=256, **leaky_orthog),
             _P(layers.DropoutLayer, p=0.5),
+            #_P(lasange_ext.l1),  # TODO: make a layer
 
             #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
             #_P(layers.DropoutLayer, p=0.5),

@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
 from ibeis_cnn import utils
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ibsplugin]')
 
 
 def interact_view_data_fpath_patches(data_fpath, labels_fpath):
