@@ -287,6 +287,7 @@ def train_patchmatch_pz():
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=256
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
     Example:
@@ -297,13 +298,14 @@ def train_patchmatch_pz():
     print('get_identification_decision_training_data')
     import ibeis
     ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-    max_examples = None
+    max_examples = ut.get_argval('--max-examples', type_=int, default=None)
+    print('max examples = {}'.format(max_examples))
     data_fpath, labels_fpath, training_dpath = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
 
     model = models.SiameseModel()
     config = dict(
         patience=100,
-        batch_size=256,
+        batch_size=128,
         learning_rate=.001,
         output_dims=1024,
         show_confusion=False,

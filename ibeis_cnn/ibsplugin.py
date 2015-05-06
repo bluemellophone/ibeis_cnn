@@ -797,10 +797,10 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
     """
     print('\n\n[get_patchmetric_training_fpaths] START')
-    max_examples = kwargs.pop('max_examples', None)
+    max_examples = kwargs.get('max_examples', None)
     aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list = get_aidpairs_and_matches(ibs, max_examples)
     data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **kwargs)
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
     print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
     return data_fpath, labels_fpath, training_dpath
 
