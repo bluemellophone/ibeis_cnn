@@ -14,9 +14,13 @@ Examples:
         dot = get_pydot_graph(layers, verbose=True)
         return Image(dot.create_png())
 """
-
-import pydot
+from __future__ import absolute_import, division, print_function
+from operator import itemgetter
+import numpy as np
+import cv2
+from os.path import join, exists
 import utool as ut
+from lasagne import layers
 
 
 def get_hex_color(layer_type):
@@ -82,6 +86,7 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         >>> result = str(pydot_graph)
         >>> print(result)
     """
+    import pydot
     pydot_graph = pydot.Dot('Network', graph_type='digraph')
     pydot_nodes = {}
     pydot_edges = []
@@ -174,6 +179,172 @@ def draw_to_notebook(layers, **kwargs):
 
     dot = get_pydot_graph(layers, **kwargs)
     return Image(dot.create_png())
+
+
+def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
+                          mapping_fn=None, data_x=None):
+    """
+    Given the correct and predict labels, show the confusion matrix
+
+    Args:
+        correct_y (list of int): the list of correct labels
+        predict_y (list of int): the list of predict assigned labels
+        category_list (list of str): the category list of all categories
+
+    Displays:
+        matplotlib: graph of the confusion matrix
+
+    Returns:
+        None
+    """
+    import matplotlib.pyplot as plt
+    confused_examples = join(results_path, 'confused')
+    if data_x is not None:
+        if exists(confused_examples):
+            ut.remove_dirs(confused_examples, quiet=True)
+        ut.ensuredir(confused_examples)
+    size = len(category_list)
+
+    if mapping_fn is None:
+        # Identity
+        category_mapping = { key: index for index, key in enumerate(category_list) }
+        category_list_ = category_list
+    else:
+        category_mapping = mapping_fn(category_list)
+        assert all([ category in category_mapping.keys() for category in category_list ]), 'Not all categories are mapped'
+        values = list(category_mapping.values())
+        assert len(list(set(values))) == len(values), 'Mapped categories have a duplicate assignment'
+        assert 0 in values, 'Mapped categories must have a 0 index'
+        temp = list(category_mapping.iteritems())
+        temp = sorted(temp, key=itemgetter(1))
+        category_list_ = [ t[0] for t in temp ]
+
+    confidences = np.zeros((size, size))
+    counters = {}
+    for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
+        # Ensure type
+        correct = int(correct)
+        predict = int(predict)
+        # Get the "text" label
+        example_correct_label = category_list[correct]
+        example_predict_label = category_list[predict]
+        # Perform any mapping that needs to be done
+        correct_ = category_mapping[example_correct_label]
+        predict_ = category_mapping[example_predict_label]
+        # Add to the confidence matrix
+        confidences[correct_][predict_] += 1
+        if data_x is not None and correct_ != predict_:
+            example = data_x[index]
+            example_name = '%s^SEEN_INCORRECTLY_AS^%s' % (example_correct_label, example_predict_label, )
+            if example_name not in counters.keys():
+                counters[example_name] = 0
+            counter = counters[example_name]
+            counters[example_name] += 1
+            example_name = '%s^%d.png' % (example_name, counter)
+            example_path = join(confused_examples, example_name)
+            cv2.imwrite(example_path, example)
+
+    row_sums = np.sum(confidences, axis=1)
+    norm_conf = (confidences.T / row_sums).T
+
+    fig = plt.figure(1)
+    plt.clf()
+    ax = fig.add_subplot(111)
+    ax.set_aspect(1)
+    res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet,
+                    interpolation='nearest')
+
+    for x in range(size):
+        for y in range(size):
+            ax.annotate(str(int(confidences[x][y])), xy=(y, x),
+                        horizontalalignment='center',
+                        verticalalignment='center')
+
+    cb = fig.colorbar(res)  # NOQA
+    plt.xticks(np.arange(size), category_list_[0:size], rotation=90)
+    plt.yticks(np.arange(size), category_list_[0:size])
+    margin_small = 0.1
+    margin_large = 0.9
+    plt.subplots_adjust(left=margin_small, right=margin_large, bottom=margin_small, top=margin_large)
+    plt.xlabel('Predicted')
+    plt.ylabel('Correct')
+    plt.savefig(join(results_path, 'confusion.png'))
+
+
+def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None, epoch=None):
+    nn_layers = layers.get_all_layers(output_layer)
+    cnn_layers = []
+    for layer in nn_layers:
+        layer_type = str(type(layer))
+        # Only print convolutional layers
+        if 'Conv2DCCLayer' not in layer_type:
+            continue
+        cnn_layers.append(layer)
+
+    weights_list = [layer.W.get_value() for layer in cnn_layers]
+    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target, epoch=epoch)
+
+
+def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None, epoch=None):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import ImageGrid
+    import matplotlib.cm as cm
+    for index, all_weights in enumerate(weights_list):
+        if target is not None and target != index:
+            continue
+        # re-use the same figure to save memory
+        fig = plt.figure(1)
+        ax1 = plt.axes(frameon=False)
+        ax1.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
+        # Get shape of weights
+        num, channels, height, width = all_weights.shape
+        # non-color features need to be flattened
+        if not color:
+            all_weights = all_weights.reshape(num * channels, height, width)
+            num, height, width = all_weights.shape
+        # Limit all_weights
+        if limit is not None and num > limit:
+            all_weights = all_weights[:limit]
+            if color:
+                num, channels, height, width = all_weights.shape
+            else:
+                num, height, width = all_weights.shape
+        # Find how many features and build grid
+        dim = int(np.ceil(np.sqrt(num)))
+        grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+
+        # Build grid
+        for f, feature in enumerate(all_weights):
+            # get all the weights and scale them to dimensions that can be shown
+            if color:
+                feature = feature[::-1]  # Rotate BGR to RGB
+                feature = cv2.merge(feature)
+            fmin, fmax = np.min(feature), np.max(feature)
+            domain = fmax - fmin
+            feature = (feature - fmin) * (255. / domain)
+            feature = feature.astype(np.uint8)
+            if color:
+                grid[f].imshow(feature, interpolation='nearest')
+            else:
+                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+
+        for j in range(dim * dim):
+            grid[j].get_xaxis().set_visible(False)
+            grid[j].get_yaxis().set_visible(False)
+
+        color_str = 'color' if color else 'gray'
+        if epoch is None:
+            epoch = 'X'
+        output_fname = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
+        fig_dpath = join(results_path, 'feature_figures')
+        ut.ensuredir(fig_dpath)
+        output_fpath = join(fig_dpath, output_fname)
+        plt.savefig(output_fpath, bbox_inches='tight')
+
+        output_fname = 'features_conv%d_%s.png' % (index, color_str)
+        output_fpath = join(results_path, output_fname)
+        plt.savefig(output_fpath, bbox_inches='tight')
 
 
 if __name__ == '__main__':

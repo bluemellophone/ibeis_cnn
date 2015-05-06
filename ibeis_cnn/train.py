@@ -5,6 +5,8 @@ optionally by initializing the network with pre-trained weights.
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
+from ibeis_cnn import batch_processing as batch
+from ibeis_cnn import draw_net
 from ibeis_cnn import models
 from ibeis_cnn import ibsplugin
 from six.moves import input
@@ -89,16 +91,16 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
         kwargs['encoder'] = preprocessing.LabelEncoder()
         kwargs['encoder'].fit(labels)
 
-    # utils.show_image_from_data(data)
+    # draw_net.show_image_from_data(data)
 
     # Split the dataset into training and validation
     print('\n[train] --- SAMPLING DATA ---')
     print('[train] creating train, validation datasaets...')
     data_per_label = getattr(model, 'data_per_label', 1)
-    dataset = utils.train_test_split(data, labels, eval_size=0.2, data_per_label=data_per_label)
-    X_train, y_train, X_valid, y_valid = dataset
-    dataset = utils.train_test_split(X_train, y_train, eval_size=0.1, data_per_label=data_per_label)
-    X_train, y_train, X_test, y_test = dataset
+    _tup = utils.train_test_split(data, labels, eval_size=0.2, data_per_label=data_per_label)
+    X_train, y_train, X_valid, y_valid = _tup
+    _tup = utils.train_test_split(X_train, y_train, eval_size=0.1, data_per_label=data_per_label)
+    X_train, y_train, X_test, y_test = _tup
 
     # Build and print the model
     print('\n[train] --- SAMPLING DATA ---')
@@ -136,6 +138,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
         utils._update(kwargs, 'center_mean', 0.0)
         utils._update(kwargs, 'center_std', 1.0)
 
+    # Should these not be in kwargs?
     utils._update(kwargs, 'best_weights',        None)
     utils._update(kwargs, 'best_valid_accuracy', 0.0)
     utils._update(kwargs, 'best_test_accuracy',  0.0)
@@ -169,18 +172,18 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
 
             # Show first weights before any training
             if kwargs.get('show_features'):
-                utils.show_convolutional_layers(output_layer, results_dpath,
-                                                color=True, target=0, epoch=epoch)
+                draw_net.show_convolutional_layers(output_layer, results_dpath,
+                                                   color=True, target=0, epoch=epoch)
 
             # Get the augmentation function, if there is one for this model
             augment_fn = getattr(model, 'augment', None)
 
             # compute the loss over all training and validation batches
-            train_loss = utils.process_train(X_train, y_train, theano_backprop,
+            train_loss = batch.process_train(X_train, y_train, theano_backprop,
                                              model=model, augment=augment_fn,
                                              rand=True, **kwargs)
 
-            data_valid = utils.process_valid(X_valid, y_valid, theano_forward,
+            data_valid = batch.process_valid(X_valid, y_valid, theano_forward,
                                              model=model, augment=None,
                                              rand=False, **kwargs)
             valid_loss, valid_accuracy = data_valid
@@ -205,20 +208,20 @@ def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
             # compute the loss over all testing batches
             # if request_test or best_found:
             if request_test:
-                train_determ_loss = utils.process_train(X_train, y_train, theano_forward,
+                train_determ_loss = batch.process_train(X_train, y_train, theano_forward,
                                                         model=model, augment=augment_fn,
                                                         rand=True, **kwargs)
 
                 # If we want to output the confusion matrix, give the results path
                 results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
-                test_accuracy = utils.process_test(
+                test_accuracy = batch.process_test(
                     X_test, y_test, theano_forward, results_dpath_,
                     model=model, augment=None, rand=False, **kwargs)
                 # Output the layer 1 features
                 if kwargs.get('show_features'):
-                    utils.show_convolutional_layers(output_layer, results_dpath,
-                                                    color=True, target=0, epoch=epoch)
-                    # utils.show_convolutional_layers(output_layer, results_dpath,
+                    draw_net.show_convolutional_layers(output_layer, results_dpath,
+                                                       color=True, target=0, epoch=epoch)
+                    # draw_net.show_convolutional_layers(output_layer, results_dpath,
                     #                                 color=False, target=0, epoch=epoch)
             else:
                 train_determ_loss = None

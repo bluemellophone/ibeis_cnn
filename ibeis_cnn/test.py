@@ -5,6 +5,7 @@ tests a test set of data using a specified, pre0trained model and weights
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import models
+from ibeis_cnn import batch_processing as batch
 
 import cPickle as pickle
 from lasagne import layers
@@ -84,10 +85,10 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    pred_list, label_list, conf_list = utils.process_predictions(X_test, theano_predict, **kwargs)
+    pred_list, label_list, conf_list = batch.process_predictions(X_test, theano_predict, **kwargs)
 
     if y_test is not None:
-        accu_test = utils.process_test(X_test, y_test, theano_forward,
+        accu_test = batch.process_test(X_test, y_test, theano_forward,
                                        results_dpath,
                                        model=model, augment=None,
                                        rand=False, **kwargs)

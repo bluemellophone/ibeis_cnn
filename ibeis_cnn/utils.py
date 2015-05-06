@@ -10,35 +10,14 @@ import theano
 import theano.tensor as T
 import lasagne
 from lasagne import objectives
-
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
 #from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
-import matplotlib.pyplot as plt
-from operator import itemgetter
-from mpl_toolkits.axes_grid1 import ImageGrid
-import matplotlib.cm as cm
-from os.path import join, exists
 import utool as ut
 import six
 #from six.moves import range, zip
-
-
-# NOTE: can use pygments instead
-class ANSI(object):
-    RED     = '\033[91m'
-    GREEN   = '\033[92m'
-    BLUE    = '\033[94m'
-    CYAN    = '\033[96m'
-    WHITE   = '\033[97m'
-    YELLOW  = '\033[93m'
-    MAGENTA = '\033[95m'
-    GREY    = '\033[90m'
-    BLACK   = '\033[90m'
-    # DEFAULT = '\033[99m'
-    RESET   = '\033[0m'
 
 
 RANDOM_SEED = None
@@ -306,6 +285,22 @@ def print_epoch_info(printcol_info, epoch_info):
     data_fmtstr = '[info] ' +  '|'.join(data_fmt_list)
     #data_fmtstr = ('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
     #               '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s')
+    import colorama
+    ANSI = colorama.Fore
+
+    # NOTE: can use pygments or colorama (which supports windows) instead
+    #class ANSI(object):
+    #    RED     = '\033[91m'
+    #    GREEN   = '\033[92m'
+    #    BLUE    = '\033[94m'
+    #    CYAN    = '\033[96m'
+    #    WHITE   = '\033[97m'
+    #    YELLOW  = '\033[93m'
+    #    MAGENTA = '\033[95m'
+    #    GREY    = '\033[90m'
+    #    BLACK   = '\033[90m'
+    #    # DEFAULT = '\033[99m'
+    #    RESET   = '\033[0m'
 
     def epoch_str():
         return (epoch_info['epoch'],)
@@ -486,90 +481,6 @@ def whiten_data(Xb, center_mean, center_std):
     return Xb
 
 
-def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
-                   center_mean=None, center_std=None, model=None, **kwargs):
-    r"""
-    Args:
-        X (ndarray):
-        y (ndarray):
-        batch_size (int):
-        encoder (None):
-        rand (bool):
-        augment (None):
-        center_mean (None):
-        center_std (None):
-
-    CommandLine:
-        python -m ibeis_cnn.utils --test-batch_iterator
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.utils import *  # NOQA
-        >>> # build test data
-        >>> X = np.random.rand(64, 3, 5, 4)
-        >>> y = (np.random.rand(64) * 4).astype(np.int32)
-        >>> batch_size = 16
-        >>> encoder = None
-        >>> rand = True
-        >>> augment = None
-        >>> center_mean = None
-        >>> center_std = None
-        >>> data_per_label = 2
-        >>> model = None
-        >>> # execute function
-        >>> result = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
-        >>> # verify results
-        >>> print(next(result))
-    """
-    verbose = kwargs.get('verbose', ut.VERYVERBOSE)
-    data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
-    # divides X and y into batches of size bs for sending to the GPU
-    if rand:
-        # Randomly shuffle data
-        X, y = data_label_shuffle(X, y, data_per_label)
-    if verbose:
-        print('[batchiter] BEGIN')
-        print('[batchiter] X.shape %r' % (X.shape, ))
-        if y is not None:
-            print('[batchiter] y.shape %r' % (y.shape, ))
-    if y is not None:
-        assert X.shape[0] == (y.shape[0] * data_per_label), 'bad data / label alignment'
-    num_batches = (X.shape[0] + batch_size - 1) // batch_size
-    if verbose:
-        print('[batchiter] num_batches = %r' % (num_batches,))
-    for batch_index in range(num_batches):
-        # Get batch slice
-        Xb, yb = slice_data_labels(X, y, batch_size, batch_index, data_per_label)
-        # Whiten
-        Xb = whiten_data(Xb, center_mean, center_std)
-        # Augment
-        if augment is not None:
-            Xb_ = np.copy(Xb)
-            yb_ = None if yb is None else np.copy(yb)
-            Xb, yb = augment(Xb_, yb_)
-        # Encode
-        if yb is not None:
-            if encoder is not None:
-                yb = encoder.transform(yb)
-            # Get corret dtype for y (after encoding)
-            if data_per_label > 1:
-                # TODO: FIX data_per_label ISSUES
-                yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
-                yb = np.hstack((yb, yb_buffer))
-                #yb = np.vstack((yb, yb_buffer)).T.flatten()
-            yb = yb.astype(np.int32)
-        # Convert cv2 format to Lasagne format for batching
-        Xb = Xb.transpose((0, 3, 1, 2))
-        if verbose:
-            print('[batchiter] Yielding batch:')
-            print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
-            print('[batchiter]   * yb.shape = %r' % (yb.shape,))
-        # Ugg, we can't have data and labels of different lengths
-        yield Xb, yb
-    if verbose:
-        print('[batchiter] END')
-
-
 def multinomial_nll(x, t):
     #coding_dist=x, true_dist=t
     return T.nnet.categorical_crossentropy(x, t)
@@ -650,125 +561,6 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     )
 
     return theano_backprop, theano_forward, theano_predict
-
-
-def process_batch(X_train, y_train, theano_fn, **kwargs):
-    """
-        compute the loss over all training batches
-
-        Jon, if you get to this before I do, please fix. -J
-    """
-    loss_list = []
-    prob_list = []
-    albl_list = []  # [a]ugmented [l]a[b]e[l] list
-    pred_list = []
-    conf_list = []
-    show = False
-    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
-        # Runs a batch through the network and updates the weights. Just returns what it did
-        loss, prob, pred, conf = theano_fn(Xb, yb)
-        loss_list.append(loss)
-        prob_list.append(prob)
-        albl_list.append(yb)
-        pred_list.append(pred)
-        conf_list.append(conf)
-        if show:
-            # Print the network output for the first batch
-            print('--------------')
-            print('Loss:    ', loss)
-            print('Prob:    ', prob)
-            print('Correct: ', yb)
-            print('Predect: ', pred)
-            print('Conf:    ', conf)
-            print('--------------')
-            show = False
-    # Convert to numpy array
-    prob_list = np.vstack(prob_list)
-    albl_list = np.hstack(albl_list)
-    pred_list = np.hstack(pred_list)
-    conf_list = np.hstack(conf_list)
-
-    # Calculate performance
-    loss = np.mean(loss_list)
-    accu = np.mean(np.equal(albl_list, pred_list))
-
-    # Return
-    return loss, accu, prob_list, albl_list, pred_list, conf_list
-
-
-def predict_batch(X_train, theano_fn, **kwargs):
-    """
-        compute the loss over all training batches
-
-        Jon, if you get to this before I do, please fix. -J
-    """
-    prob_list = []
-    pred_list = []
-    conf_list = []
-    for Xb, _ in batch_iterator(X_train, None, **kwargs):
-        # Runs a batch through the network and updates the weights. Just returns what it did
-        prob, pred, conf = theano_fn(Xb)
-        prob_list.append(prob)
-        pred_list.append(pred)
-        conf_list.append(conf)
-    # Convert to numpy array
-    prob_list = np.vstack(prob_list)
-    pred_list = np.hstack(pred_list)
-    conf_list = np.hstack(conf_list)
-    # Return
-    return prob_list, pred_list, conf_list
-
-
-def process_train(X_train, y_train, theano_fn, **kwargs):
-    """ compute the loss over all training batches """
-    results = process_batch(X_train, y_train, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
-    # Return whatever metrics we want
-    return loss
-
-
-def process_valid(X_valid, y_valid, theano_fn, **kwargs):
-    """ compute the loss over all validation batches """
-    results = process_batch(X_valid, y_valid, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
-    # rRturn whatever metrics we want
-    return loss, accu
-
-
-def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
-    """ compute the loss over all test batches """
-    results = process_batch(X_test, y_test, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
-    # Output confusion matrix
-    if results_path is not None:
-        # Grab model
-        model = kwargs.get('model', None)
-        mapping_fn = None
-        if model is not None:
-            mapping_fn = getattr(model, 'label_order_mapping', None)
-        # TODO: THIS NEEDS TO BE FIXED
-        label_list = list(range(kwargs.get('output_dims')))
-        # Encode labels if avaialble
-        encoder = kwargs.get('encoder', None)
-        if encoder is not None:
-            label_list = encoder.inverse_transform(label_list)
-        # Make confusion matrix (pass X to write out failed cases)
-        show_confusion_matrix(albl_list, pred_list, label_list, results_path,
-                              mapping_fn, X_test)
-    return accu
-
-
-def process_predictions(X_test, theano_fn, **kwargs):
-    """ compute the loss over all test batches """
-    results = predict_batch(X_test, theano_fn, **kwargs)
-    prob_list, pred_list, conf_list = results
-    # Find whatever metrics we want
-    encoder = kwargs.get('encoder', None)
-    if encoder is not None:
-        label_list = encoder.inverse_transform(pred_list)
-    else:
-        label_list = [None] * len(pred_list)
-    return pred_list, label_list, conf_list
 
 
 def add_channels(data):
@@ -877,168 +669,6 @@ def set_learning_rate(learning_rate_theano, update):
     new_learning_rate_theano = update(learning_rate_theano.get_value())
     learning_rate_theano.set_value(float32(new_learning_rate_theano))
     print('\n[train] setting learning rate to %.9f' % (new_learning_rate_theano))
-
-
-def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
-                          mapping_fn=None, data_x=None):
-    """
-    Given the correct and predict labels, show the confusion matrix
-
-    Args:
-        correct_y (list of int): the list of correct labels
-        predict_y (list of int): the list of predict assigned labels
-        category_list (list of str): the category list of all categories
-
-    Displays:
-        matplotlib: graph of the confusion matrix
-
-    Returns:
-        None
-    """
-    confused_examples = join(results_path, 'confused')
-    if data_x is not None:
-        if exists(confused_examples):
-            ut.remove_dirs(confused_examples, quiet=True)
-        ut.ensuredir(confused_examples)
-    size = len(category_list)
-
-    if mapping_fn is None:
-        # Identity
-        category_mapping = { key: index for index, key in enumerate(category_list) }
-        category_list_ = category_list
-    else:
-        category_mapping = mapping_fn(category_list)
-        assert all([ category in category_mapping.keys() for category in category_list ]), 'Not all categories are mapped'
-        values = list(category_mapping.values())
-        assert len(list(set(values))) == len(values), 'Mapped categories have a duplicate assignment'
-        assert 0 in values, 'Mapped categories must have a 0 index'
-        temp = list(category_mapping.iteritems())
-        temp = sorted(temp, key=itemgetter(1))
-        category_list_ = [ t[0] for t in temp ]
-
-    confidences = np.zeros((size, size))
-    counters = {}
-    for index, (correct, predict) in enumerate(zip(correct_y, predict_y)):
-        # Ensure type
-        correct = int(correct)
-        predict = int(predict)
-        # Get the "text" label
-        example_correct_label = category_list[correct]
-        example_predict_label = category_list[predict]
-        # Perform any mapping that needs to be done
-        correct_ = category_mapping[example_correct_label]
-        predict_ = category_mapping[example_predict_label]
-        # Add to the confidence matrix
-        confidences[correct_][predict_] += 1
-        if data_x is not None and correct_ != predict_:
-            example = data_x[index]
-            example_name = '%s^SEEN_INCORRECTLY_AS^%s' % (example_correct_label, example_predict_label, )
-            if example_name not in counters.keys():
-                counters[example_name] = 0
-            counter = counters[example_name]
-            counters[example_name] += 1
-            example_name = '%s^%d.png' % (example_name, counter)
-            example_path = join(confused_examples, example_name)
-            cv2.imwrite(example_path, example)
-
-    row_sums = np.sum(confidences, axis=1)
-    norm_conf = (confidences.T / row_sums).T
-
-    fig = plt.figure(1)
-    plt.clf()
-    ax = fig.add_subplot(111)
-    ax.set_aspect(1)
-    res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet,
-                    interpolation='nearest')
-
-    for x in range(size):
-        for y in range(size):
-            ax.annotate(str(int(confidences[x][y])), xy=(y, x),
-                        horizontalalignment='center',
-                        verticalalignment='center')
-
-    cb = fig.colorbar(res)  # NOQA
-    plt.xticks(np.arange(size), category_list_[0:size], rotation=90)
-    plt.yticks(np.arange(size), category_list_[0:size])
-    margin_small = 0.1
-    margin_large = 0.9
-    plt.subplots_adjust(left=margin_small, right=margin_large, bottom=margin_small, top=margin_large)
-    plt.xlabel('Predicted')
-    plt.ylabel('Correct')
-    plt.savefig(join(results_path, 'confusion.png'))
-
-
-def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None, epoch=None):
-    nn_layers = layers.get_all_layers(output_layer)
-    cnn_layers = []
-    for layer in nn_layers:
-        layer_type = str(type(layer))
-        # Only print convolutional layers
-        if 'Conv2DCCLayer' not in layer_type:
-            continue
-        cnn_layers.append(layer)
-
-    weights_list = [layer.W.get_value() for layer in cnn_layers]
-    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target, epoch=epoch)
-
-
-def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None, epoch=None):
-    for index, all_weights in enumerate(weights_list):
-        if target is not None and target != index:
-            continue
-        # re-use the same figure to save memory
-        fig = plt.figure(1)
-        ax1 = plt.axes(frameon=False)
-        ax1.get_xaxis().set_visible(False)
-        ax1.get_yaxis().set_visible(False)
-        # Get shape of weights
-        num, channels, height, width = all_weights.shape
-        # non-color features need to be flattened
-        if not color:
-            all_weights = all_weights.reshape(num * channels, height, width)
-            num, height, width = all_weights.shape
-        # Limit all_weights
-        if limit is not None and num > limit:
-            all_weights = all_weights[:limit]
-            if color:
-                num, channels, height, width = all_weights.shape
-            else:
-                num, height, width = all_weights.shape
-        # Find how many features and build grid
-        dim = int(np.ceil(np.sqrt(num)))
-        grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
-
-        # Build grid
-        for f, feature in enumerate(all_weights):
-            # get all the weights and scale them to dimensions that can be shown
-            if color:
-                feature = feature[::-1]  # Rotate BGR to RGB
-                feature = cv2.merge(feature)
-            fmin, fmax = np.min(feature), np.max(feature)
-            domain = fmax - fmin
-            feature = (feature - fmin) * (255. / domain)
-            feature = feature.astype(np.uint8)
-            if color:
-                grid[f].imshow(feature, interpolation='nearest')
-            else:
-                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
-
-        for j in range(dim * dim):
-            grid[j].get_xaxis().set_visible(False)
-            grid[j].get_yaxis().set_visible(False)
-
-        color_str = 'color' if color else 'gray'
-        if epoch is None:
-            epoch = 'X'
-        output_fname = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
-        fig_dpath = join(results_path, 'feature_figures')
-        ut.ensuredir(fig_dpath)
-        output_fpath = join(fig_dpath, output_fname)
-        plt.savefig(output_fpath, bbox_inches='tight')
-
-        output_fname = 'features_conv%d_%s.png' % (index, color_str)
-        output_fpath = join(results_path, output_fname)
-        plt.savefig(output_fpath, bbox_inches='tight')
 
 
 if __name__ == '__main__':

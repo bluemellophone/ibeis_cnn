@@ -491,9 +491,9 @@ class SiameseModel(BaseModel):
         return output_layer
 
 
-class ViewpointModel(object):
+class ViewpointModel(BaseModel):
     def __init__(self):
-        pass
+        super(ViewpointModel, self).__init__()
 
     def augment(self, Xb, yb=None):
         # Invert label function
