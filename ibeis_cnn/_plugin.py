@@ -144,24 +144,97 @@ def _suggest_random_candidate_regions(ibs, image, min_size, num_candidates=2000)
                 x0, x1 = x1, x0
             if y0 > y1:
                 y0, y1 = y1, y0
-        return y0, y1, x0, x1
+        return x0, y0, x1, y1
     candidate_list = [ _candidate() for _ in range(num_candidates) ]
     return candidate_list
 
 
-def _suggest_bing_candidate_regions(ibs, image_path_list, num_candidates=2000):
+def _suggest_bing_candidate_regions(ibs, image_path_list):
     def _dedictify(dict_list):
-        return [ [d_['miny'], d_['maxy'], d_['minx'], d_['maxx']] for d_ in dict_list ]
+        return [ [d_['minx'], d_['miny'], d_['maxx'], d_['maxy']] for d_ in dict_list ]
 
     from pybing import BING_Detector
     detector = BING_Detector()
-    results_list = list(detector.detect(image_path_list))
+    results_list = detector.detect(image_path_list)
     result_list = [ _dedictify(results[1]) for results in results_list ]
     return result_list
 
 
+def non_max_suppression_fast(box_list, conf_list, overlapThresh=0.5):
+    """
+        Python version of Malisiewicz's Matlab code:
+        https://github.com/quantombone/exemplarsvm
+
+        NOTE: This is adapted from Pedro Felzenszwalb's version (nms.m),
+        but an inner loop has been eliminated to significantly speed it
+        up in the case of a large number of boxes
+
+        Reference: https://github.com/rbgirshick/rcnn/blob/master/nms/nms.m
+        Reference: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+    """
+    # if there are no boxes, return an empty list
+    if len(box_list) == 0:
+        return []
+
+    # Convert to Numpy
+    box_list  = np.array(box_list)
+    conf_list = np.array(conf_list)
+
+    # if the bounding boxes integers, convert them to floats --
+    # this is important since we'll be doing a bunch of divisions
+    if box_list.dtype.kind == "i":
+        box_list = box_list.astype("float")
+
+    # initialize the list of picked indexes
+    pick = []
+
+    # grab the coordinates of the bounding boxes
+    # Our boxes are stored as y1, y2, x1, x2 to be in-line with OpenCV indexing
+    x1 = box_list[:, 0]
+    y1 = box_list[:, 1]
+    x2 = box_list[:, 2]
+    y2 = box_list[:, 3]
+    s  = conf_list
+
+    # compute the area of the bounding boxes and sort the bounding
+    # boxes by the bottom-right y-coordinate of the bounding box
+    area = (x2 - x1 + 1) * (y2 - y1 + 1)
+    idxs = np.argsort(s)
+
+    # keep looping while some indexes still remain in the indexes
+    # list
+    while len(idxs) > 0:
+        # grab the last index in the indexes list and add the
+        # index value to the list of picked indexes
+        last = len(idxs) - 1
+        i = idxs[last]
+        pick.append(i)
+
+        # find the largest (x, y) coordinates for the start of
+        # the bounding box and the smallest (x, y) coordinates
+        # for the end of the bounding box
+        xx1 = np.maximum(x1[i], x1[idxs[:last]])
+        yy1 = np.maximum(y1[i], y1[idxs[:last]])
+        xx2 = np.minimum(x2[i], x2[idxs[:last]])
+        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+
+        # compute the width and height of the bounding box
+        w = np.maximum(0, xx2 - xx1 + 1)
+        h = np.maximum(0, yy2 - yy1 + 1)
+
+        # compute the ratio of overlap
+        overlap = (w * h) / area[idxs[:last]]
+
+        # delete all indexes from the index list that have
+        idxs = np.delete(idxs, np.concatenate(([last], np.where(overlap > overlapThresh)[0])))
+
+    # return only the bounding boxes that were picked using the
+    # integer data type
+    return pick
+
+
 @register_ibs_method
-def detect_image_cnn(ibs, gid, confidence=0.80):
+def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     # Load chips and resize to the target
     target = (96, 96)
     targetx, targety = target
@@ -174,13 +247,16 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
 
     print('Querrying for candidate regions...')
     image_path = ibs.get_image_paths(gid)
-    candidate_list = _suggest_bing_candidate_regions(ibs, [image_path])[0]
-    num_candidates = len(candidate_list)
-    print('Num candidates: %r' % (num_candidates, ))
+    if extraction == 'random':
+        candidate_list = _suggest_random_candidate_regions(ibs, image, (32, 32))
+    else:
+        candidate_list = _suggest_bing_candidate_regions(ibs, [image_path])[0]
+
+    print('Num candidates: %r' % (len(candidate_list), ))
     chip_list_resized = []
     print('Extracting candidate regions...')
     for candidate in candidate_list:
-        y0, y1, x0, x1 = candidate
+        x0, y0, x1, y1 = candidate
         chip = image[y0 : y1, x0 : x1]
         chip = cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
         chip_list_resized.append(chip)
@@ -189,26 +265,9 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
         mx = int((x1 - x0) * 0.5)
         my = int((y1 - y0) * 0.5)
         cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
-    cv2.imshow('', rects)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-    print('Querrying for candidate regions...')
-    candidate_list = _suggest_random_candidate_regions(ibs, image, (32, 32), num_candidates)
-    print('Extracting candidate regions...')
-    for candidate in candidate_list:
-        y0, y1, x0, x1 = candidate
-        # chip = image[y0 : y1, x0 : x1]
-        # chip = cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
-        # chip_list_resized.append(chip)
-        color = (255, 0, 0)
-        # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
-        mx = int((x1 - x0) * 0.5)
-        my = int((y1 - y0) * 0.5)
-        cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
-    cv2.imshow('', rects)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow('', rects)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
@@ -221,8 +280,18 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
     pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
 
+    num_all_candidates = len(conf_list)
+    index_list = non_max_suppression_fast(candidate_list, conf_list)
+    print('Surviving candidates: %r' % (index_list, ))
+    num_supressed_candidates = num_all_candidates - len(index_list)
+    print('Supressed: %d candidates' % (num_supressed_candidates, ))
+
+    candidate_list         = np.take(candidate_list, index_list, axis=0)
+    pred_list              = np.take(pred_list, index_list, axis=0)
+    species_viewpoint_list = np.take(species_viewpoint_list, index_list, axis=0)
+    conf_list              = np.take(conf_list, index_list, axis=0)
+
     values = zip(candidate_list, pred_list, species_viewpoint_list, conf_list)
-    skipped = 0
     rects = np.copy(image)
     color_dict = {
         'giraffe': (255, 0, 0),
@@ -231,18 +300,20 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
         'zebra_grevys': (0, 255, 0),
         'elephant_savanna': (0, 0, 0),
     }
+    skipped = 0
     for candidate, pred, species_viewpoint, conf in values:
-        y0, y1, x0, x1 = candidate
+        print(candidate)
+        x0, y0, x1, y1 = tuple(candidate)
         species, viewpoint = species_viewpoint
         if conf < confidence:
             skipped += 1
             continue
         print('%r Found %s (%s, %s) at %s' % (candidate, pred, species, viewpoint, conf, ))
         color = color_dict[species]
-        # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
-        mx = int((x1 - x0) * 0.5)
-        my = int((y1 - y0) * 0.5)
-        cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
+        cv2.rectangle(rects, (x0, y0), (x1, y1), color)
+        # mx = int((x1 - x0) * 0.5)
+        # my = int((y1 - y0) * 0.5)
+        # cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
     print('Skipped [ %d / %d ]' % (skipped, len(values), ))
 
     cv2.imshow('', rects)
