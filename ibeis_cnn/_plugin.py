@@ -302,7 +302,6 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     }
     skipped = 0
     for candidate, pred, species_viewpoint, conf in values:
-        print(candidate)
         x0, y0, x1, y1 = tuple(candidate)
         species, viewpoint = species_viewpoint
         if conf < confidence:
