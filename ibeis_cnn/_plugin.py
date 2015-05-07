@@ -128,7 +128,7 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
     return bad_species_list, bad_viewpoint_list
 
 
-def _suggest_candidate_regions(ibs, image, min_size, num_candidates=2000):
+def _suggest_random_candidate_regions(ibs, image, min_size, num_candidates=2000):
     h, w, c = image.shape
     h -= 1
     w -= 1
@@ -149,6 +149,17 @@ def _suggest_candidate_regions(ibs, image, min_size, num_candidates=2000):
     return candidate_list
 
 
+def _suggest_bing_candidate_regions(ibs, image_path_list, num_candidates=2000):
+    def _dedictify(dict_list):
+        return [ [d_['miny'], d_['maxy'], d_['minx'], d_['maxx']] for d_ in dict_list ]
+
+    from pybing import BING_Detector
+    detector = BING_Detector()
+    results_list = list(detector.detect(image_path_list))
+    result_list = [ _dedictify(results[1]) for results in results_list ]
+    return result_list
+
+
 @register_ibs_method
 def detect_image_cnn(ibs, gid, confidence=0.80):
     # Load chips and resize to the target
@@ -160,8 +171,12 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
     image = ibs.get_images(gid)
     rects = np.copy(image)
     h, w, c = image.shape
+
     print('Querrying for candidate regions...')
-    candidate_list = _suggest_candidate_regions(ibs, image, (32, 32))
+    image_path = ibs.get_image_paths(gid)
+    candidate_list = _suggest_bing_candidate_regions(ibs, [image_path])[0]
+    num_candidates = len(candidate_list)
+    print('Num candidates: %r' % (num_candidates, ))
     chip_list_resized = []
     print('Extracting candidate regions...')
     for candidate in candidate_list:
@@ -169,6 +184,23 @@ def detect_image_cnn(ibs, gid, confidence=0.80):
         chip = image[y0 : y1, x0 : x1]
         chip = cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
         chip_list_resized.append(chip)
+        color = (255, 0, 0)
+        # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
+        mx = int((x1 - x0) * 0.5)
+        my = int((y1 - y0) * 0.5)
+        cv2.circle(rects, (x0 + mx, y0 + my), 5, color, -1)
+    cv2.imshow('', rects)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    print('Querrying for candidate regions...')
+    candidate_list = _suggest_random_candidate_regions(ibs, image, (32, 32), num_candidates)
+    print('Extracting candidate regions...')
+    for candidate in candidate_list:
+        y0, y1, x0, x1 = candidate
+        # chip = image[y0 : y1, x0 : x1]
+        # chip = cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
+        # chip_list_resized.append(chip)
         color = (255, 0, 0)
         # cv2.rectangle(rects, (x0, y0), (x1, y1), color)
         mx = int((x1 - x0) * 0.5)
