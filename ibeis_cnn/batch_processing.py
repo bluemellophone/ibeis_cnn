@@ -1,5 +1,5 @@
 from __future__ import absolute_import, division, print_function
-from ibeis_cnn import utils
+from ibeis_cnn import utils, draw_net
 import utool as ut
 import numpy as np
 
@@ -188,8 +188,8 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
         if encoder is not None:
             label_list = encoder.inverse_transform(label_list)
         # Make confusion matrix (pass X to write out failed cases)
-        utils.show_confusion_matrix(albl_list, pred_list, label_list, results_path,
-                                    mapping_fn, X_test)
+        draw_net.show_confusion_matrix(albl_list, pred_list, label_list, results_path,
+                                       mapping_fn, X_test)
     return accu
 
 
