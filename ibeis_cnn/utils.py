@@ -272,7 +272,10 @@ def print_epoch_info(printcol_info, epoch_info):
 
     (train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy,
      epoch, duration, best_train_loss, best_valid_loss, best_valid_accuracy,
-     best_test_accuracy) = ut.dict_take(epoch_info, 'train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy, epoch, duration, best_train_loss, best_valid_loss, best_valid_accuracy, best_test_accuracy'.split(', '))
+     best_test_accuracy) = ut.dict_take(epoch_info, [
+         'train_loss', 'train_determ_loss', 'valid_loss', 'valid_accuracy',
+         'test_accuracy', 'epoch', 'duration', 'best_train_loss',
+         'best_valid_loss', 'best_valid_accuracy', 'best_test_accuracy'])
 
     best_train      = train_loss == best_train_loss
     best_valid      = valid_loss == best_valid_loss
