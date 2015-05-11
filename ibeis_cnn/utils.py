@@ -24,6 +24,15 @@ RANDOM_SEED = None
 # RANDOM_SEED = 42
 
 
+def get_gpu_memory():
+    """
+    References:
+        https://groups.google.com/forum/#!topic/theano-users/2EdclcmZazU
+        https://gist.github.com/matpalm/9c0c7c6a6f3681a0d39d
+    """
+    return theano.sandbox.cuda.cuda_ndarray.cuda_ndarray.mem_info()
+
+
 def _update(kwargs, key, value):
     #if key not in kwargs.keys():
     if key not in kwargs:
