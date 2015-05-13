@@ -403,7 +403,34 @@ def train_viewpoint_pz():
     weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
     pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
     config                   = {
-        'patience': 20,
+        'patience': 10,
+        'regularization': 0.0001,
+        'pretrained_weights_fpath': pretrained_weights_fpath,
+    }
+    train(train_data_fpath, train_labels_fpath, model, weights_fpath, results_dpath, **config)
+
+
+def train_quality_pz():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_quality_pz
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> train_quality_pz()
+    """
+    project_name             = 'quality_pz'
+    model                    = models.ViewpointModel()
+    root                     = abspath(join('..', 'data'))
+
+    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
+    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
+    results_dpath            = join(root, 'results', project_name)
+    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
+    config                   = {
+        'patience': 10,
         'regularization': 0.0001,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
@@ -430,7 +457,7 @@ def train_viewpoint():
     weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
     pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
     config                   = {
-        'patience': 20,
+        'patience': 10,
         'regularization': 0.0001,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
