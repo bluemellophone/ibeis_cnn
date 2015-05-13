@@ -8,8 +8,6 @@ import operator
 
 import theano
 import theano.tensor as T
-import lasagne
-from lasagne import objectives
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
 #from sklearn.utils import shuffle
@@ -18,6 +16,7 @@ import cPickle as pickle
 import utool as ut
 import six
 #from six.moves import range, zip
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
 
 RANDOM_SEED = None
@@ -29,6 +28,15 @@ def get_gpu_memory():
     References:
         https://groups.google.com/forum/#!topic/theano-users/2EdclcmZazU
         https://gist.github.com/matpalm/9c0c7c6a6f3681a0d39d
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-get_gpu_memory
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> result = get_gpu_memory()
+        >>> print(result)
     """
     return theano.sandbox.cuda.cuda_ndarray.cuda_ndarray.mem_info()
 
@@ -128,11 +136,11 @@ def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-def testdata_xy():
+def testdata_xy(data_per_label=2):
     img_list, width, height, channels = testdata_imglist()
     data = np.array((img_list * 20))
-    labels = np.random.rand(len(data) / 2) > .5
-    data_per_label = 2
+    labels = np.random.rand(len(data) / data_per_label) > .5
+    #data_per_label = 2
     return data, labels, data_per_label
 
 
@@ -496,83 +504,6 @@ def whiten_data(Xb, center_mean, center_std):
 def multinomial_nll(x, t):
     #coding_dist=x, true_dist=t
     return T.nnet.categorical_crossentropy(x, t)
-
-
-def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
-                          input_type=T.tensor4, output_type=T.ivector,
-                          regularization=None, **kwargs):
-    """
-    build the Theano functions (symbolic expressions) that will be used in the
-    optimization refer to this link for info on tensor types:
-
-    References:
-        http://deeplearning.net/software/theano/library/tensor/basic.html
-    """
-    X = input_type('x')
-    y = output_type('y')
-    X_batch = input_type('x_batch')
-    y_batch = output_type('y_batch')
-
-    # Defaults that are overwritable by a model
-    loss_function = multinomial_nll
-    if model is not None and hasattr(model, 'loss_function'):
-        loss_function = model.loss_function
-
-    # we are minimizing the multi-class negative log-likelihood
-    objective = objectives.Objective(output_layer, loss_function=loss_function)
-    print('Building loss model')
-    loss = objective.get_loss(X_batch, target=y_batch)
-    print('Building detrmenistic loss model')
-    loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-
-    #theano.printing.pydotprint(loss, outfile="./symbolic_graph_opt.png", var_with_name_simple=True)
-    #ut.startfile('./symbolic_graph_opt.png')
-    #ut.embed()
-
-    # Regularize
-    if regularization is not None:
-        L2 = lasagne.regularization.l2(output_layer)
-        loss += L2 * regularization
-
-    # Run inference and get performance
-    probabilities = output_layer.get_output(X_batch, deterministic=True)
-    predictions = T.argmax(probabilities, axis=1)
-    confidences = probabilities.max(axis=1)
-    # accuracy = T.mean(T.eq(predictions, y_batch))
-    performance = [probabilities, predictions, confidences]
-
-    # Define how to update network parameters based on the training loss
-    parameters = layers.get_all_params(output_layer)
-    updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
-
-    theano_backprop = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss] + performance,
-        updates=updates,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    theano_forward = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_determ] + performance,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
-
-    theano_predict = theano.function(
-        inputs=[theano.Param(X_batch)],
-        outputs=performance,
-        givens={
-            X: X_batch,
-        },
-    )
-
-    return theano_backprop, theano_forward, theano_predict
 
 
 def add_channels(data):

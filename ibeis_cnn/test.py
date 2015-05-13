@@ -73,7 +73,7 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
+    theano_funcs = batch.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
     theano_backprop, theano_forward, theano_predict = theano_funcs
 
     # Set weights to model

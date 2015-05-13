@@ -261,28 +261,193 @@ class BaseModel(object):
         architecture_str = sep.join(layer_str_list)
         return architecture_str
 
-    def print_architecture_str(self, **kwargs):
-        architecture_str = self.get_architecture_str(**kwargs)
+    def print_architecture_str(self, sep='\n'):
+        architecture_str = self.get_architecture_str(sep=sep)
         print(architecture_str)
+
+    def get_output_layer(self):
+        assert self.network_layers is not None, 'need to initialize architecture first'
+        output_layer = self.network_layers[-1]
+        return output_layer
+
+
+def evaluate_layer_list(network_layers_def):
+    """ compiles a sequence of partial functions into a network """
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
+        network_layers = []
+        layer_fn_iter = iter(network_layers_def)
+        prev_layer = six.next(layer_fn_iter)()
+        network_layers.append(prev_layer)
+        for layer_fn in layer_fn_iter:
+            prev_layer = layer_fn(prev_layer)
+            network_layers.append(prev_layer)
+    return network_layers
+
+
+class DummyModel(BaseModel):
+    def __init__(model):
+        super(DummyModel, model).__init__()
+        model.network_layers = None
+        model.data_per_label = 1
+        model.input_shape = (None, 1, 4, 4)
+        model.output_dims = 5
+        model.learning_rate = .001
+        model.batch_size = 8
+        model.momentum = .9
+
+    def loss_function(model, output, truth):
+        return T.nnet.categorical_crossentropy(output, truth)
+
+    #def get_loss_function(model):
+    #    return T.nnet.categorical_crossentropy
+
+    def initialize_architecture(model, verbose=True):
+        input_shape = model.input_shape
+        _P = functools.partial
+        network_layers_def = [
+            _P(layers.InputLayer, shape=input_shape),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3)),
+            _P(layers.DenseLayer, num_units=64),
+            _P(layers.DenseLayer, num_units=model.output_dims,
+               nonlinearity=nonlinearities.softmax,
+               W=init.Orthogonal(),),
+        ]
+        network_layers = evaluate_layer_list(network_layers_def)
+        model.network_layers = network_layers
+        output_layer = model.network_layers[-1]
+        return output_layer
+
+    #def initialize_symbolic_inputs(model):
+    #    model.symbolic_index = T.lscalar(name='index')
+    #    model.symbolic_X = T.tensor4(name='X')
+    #    model.symbolic_y = T.ivector(name='y')
+
+    #def initialize_symbolic_updates(model):
+    #    pass
+
+    #def initialize_symbolic_outputs(model):
+    #    pass
 
 
 class SiameseModel(BaseModel):
     """
     Model for individual identification
     """
-    def __init__(self):
-        super(SiameseModel, self).__init__()
-        self.network_layers = None
+    def __init__(model):
+        super(SiameseModel, model).__init__()
+        model.network_layers = None
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
-        self.data_per_label = 2
+        model.data_per_label = 2
 
-    def learning_rate_update(self, x):
-        return x / 10.0
+    def learning_rate_update(model, x):
+        return x / 2.0
 
-    def learning_rate_shock(self, x):
-        return x * 10.0
+    def learning_rate_shock(model, x):
+        return x * 2.0
+
+    def build_model(model, batch_size, input_width, input_height,
+                    input_channels, output_dims, verbose=True):
+        r"""
+        CommandLine:
+            python -m ibeis_cnn.models --test-SiameseModel.build_model
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> # build test data
+            >>> model = SiameseModel()
+            >>> batch_size = 128
+            >>> input_width = 64
+            >>> input_height = 64
+            >>> input_channels = 3
+            >>> output_dims = None
+            >>> verbose = True
+            >>> # execute function
+            >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
+            >>> print('----')
+            >>> model.print_architecture_str(sep='\n')
+            >>> print('hashid=%r' % (model.get_architecture_hashid()),)
+            >>> print('----')
+            >>> # verify results
+            >>> result = str(output_layer)
+            >>> print(result)
+        """
+        input_shape = (None, input_channels, input_width, input_height)
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        model.output_dims = 256
+        model.initialize_architecture(verbose=verbose)
+        output_layer = model.get_output_layer()
+        return output_layer
+
+    def initialize_architecture(model, verbose=True):
+        # TODO: remove output dims
+        _P = functools.partial
+        (_, input_channels, input_width, input_height) = model.input_shape
+        model.output_dims
+        if verbose:
+            print('[model] Initialize siamese model architecture')
+            print('[model]   * batch_size     = %r' % (model.batch_size,))
+            print('[model]   * input_width    = %r' % (input_width,))
+            print('[model]   * input_height   = %r' % (input_height,))
+            print('[model]   * input_channels = %r' % (input_channels,))
+            print('[model]   * output_dims    = %r' % (model.output_dims,))
+
+        #num_filters=32,
+        #filter_size=(3, 3),
+        ## nonlinearity=nonlinearities.rectify,
+        #nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
+
+        #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
+        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
+        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
+        # variable batch size (None), channel, width, height
+        #input_shape = (batch_size * model.data_per_label, input_channels, input_width, input_height)
+
+        vggnet = PretrainedNetwork('vggnet', show_network=True)
+
+        network_layers_def = [
+            _P(layers.InputLayer, shape=model.input_shape),
+
+            #layers.GaussianNoiseLayer,
+            vggnet.get_conv2d_layer(0, **leaky),
+
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
+
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
+
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+
+            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
+            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+            _P(layers.DropoutLayer, p=0.5),
+            #_P(lasange_ext.l1),  # TODO: make a layer
+
+            #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
+            #_P(layers.FeaturePoolLayer, pool_size=2),
+
+            #_P(layers.DenseLayer, num_units=1024, **leaky_orthog),
+            #_P(layers.FeaturePoolLayer, pool_size=2,),
+            #_P(layers.DropoutLayer, p=0.5),
+
+            #_P(layers.DenseLayer, num_units=output_dims,
+            #   nonlinearity=nonlinearities.softmax,
+            #   W=init.Orthogonal(),),
+        ]
+
+        # connect and record layers
+        network_layers = evaluate_layer_list(network_layers_def)
+        model.network_layers = network_layers
+        output_layer = model.network_layers[-1]
+        return output_layer
 
     def loss_function(self, G, Y_padded, T=T):
         """
@@ -381,114 +546,6 @@ class SiameseModel(BaseModel):
         #avg_loss = dbgfunc.outputs[0]
 
         return avg_loss
-
-    def build_model(self, batch_size, input_width, input_height,
-                    input_channels, output_dims, verbose=True):
-        r"""
-        CommandLine:
-            python -m ibeis_cnn.models --test-SiameseModel.build_model
-
-        Example:
-            >>> # DISABLE_DOCTEST
-            >>> from ibeis_cnn.models import *  # NOQA
-            >>> # build test data
-            >>> self = SiameseModel()
-            >>> batch_size = 128
-            >>> input_width = 64
-            >>> input_height = 64
-            >>> input_channels = 3
-            >>> output_dims = None
-            >>> verbose = True
-            >>> # execute function
-            >>> output_layer = self.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
-            >>> print('----')
-            >>> self.print_architecture_str(sep='\n')
-            >>> print('hashid=%r' % (self.get_architecture_hashid()),)
-            >>> print('----')
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
-        """
-        # TODO: remove output dims
-        _P = functools.partial
-        if verbose:
-            print('[model] Build siamese model')
-            print('[model]   * batch_size     = %r' % (batch_size,))
-            print('[model]   * input_width    = %r' % (input_width,))
-            print('[model]   * input_height   = %r' % (input_height,))
-            print('[model]   * input_channels = %r' % (input_channels,))
-            #print('[model]   * output_dims    = %r' % (output_dims,))
-
-        #num_filters=32,
-        #filter_size=(3, 3),
-        ## nonlinearity=nonlinearities.rectify,
-        #nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-
-        #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
-        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
-        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
-        # variable batch size (None), channel, width, height
-        #input_shape = (batch_size * self.data_per_label, input_channels, input_width, input_height)
-        input_shape = (None, input_channels, input_width, input_height)
-
-        vggnet = PretrainedNetwork('vggnet', show_network=True)
-
-        network_layers_def = [
-            _P(layers.InputLayer, shape=input_shape),
-
-            #layers.GaussianNoiseLayer,
-            vggnet.get_conv2d_layer(0, **leaky),
-
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
-
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
-
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-
-            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
-            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
-            _P(layers.DropoutLayer, p=0.5),
-            #_P(lasange_ext.l1),  # TODO: make a layer
-
-            #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
-            #_P(layers.FeaturePoolLayer, pool_size=2),
-
-            #_P(layers.DenseLayer, num_units=1024, **leaky_orthog),
-            #_P(layers.FeaturePoolLayer, pool_size=2,),
-            #_P(layers.DropoutLayer, p=0.5),
-
-            #_P(layers.DenseLayer, num_units=output_dims,
-            #   nonlinearity=nonlinearities.softmax,
-            #   W=init.Orthogonal(),),
-        ]
-
-        # Yann Lecun 2005-like network
-        #network_layers_def = [
-        #    _P(layers.InputLayer, shape=input_shape),
-        #    _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), **rlu_glorot),
-        #    _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-        #    _P(Conv2DLayer, num_filters=64, filter_size=(6, 6), **rlu_glorot),
-        #    _P(MaxPool2DLayer, pool_size=(3, 3), stride=(2, 2)),
-        #    _P(Conv2DLayer, num_filters=128, filter_size=(5, 5), **rlu_glorot),
-        #    _P(layers.DenseLayer, num_units=50, **rlu_glorot),
-        #]
-
-        # connect and record layers
-        network_layers = []
-        layer_fn_iter = iter(network_layers_def)
-        prev_layer = six.next(layer_fn_iter)()
-        network_layers.append(prev_layer)
-        for layer_fn in layer_fn_iter:
-            prev_layer = layer_fn(prev_layer)
-            network_layers.append(prev_layer)
-
-        self.network_layers = network_layers
-        output_layer = prev_layer
-        return output_layer
 
 
 class ViewpointModel(BaseModel):

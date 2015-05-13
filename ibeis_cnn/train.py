@@ -2,6 +2,14 @@
 """
 constructs the Theano optimization and trains a learning model,
 optionally by initializing the network with pre-trained weights.
+
+
+CommandLine:
+    python -m ibeis_cnn.train --test-train_patchmatch_pz
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
@@ -21,7 +29,7 @@ from sklearn import preprocessing
 import utool as ut
 import six
 from os.path import join, abspath, dirname, exists
-print, rrr, profile = ut.inject2(__name__, '[train]')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
 
 def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
@@ -118,7 +126,7 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
     # create theano symbolic expressions that define the network
-    theano_funcs = utils.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
+    theano_funcs = batch.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
 
     print('\n[train] --- WEIGHT INITIALIZATION ---')
     # Load the pretrained model if specified

@@ -50,6 +50,17 @@ def get_hex_color(layer_type):
         return '#{0:x}'.format(hash(layer_type) % 2 ** 24)
 
 
+def draw_theano_symbolic_expression(thean_expr):
+    import theano
+    graph_dpath = '.'
+    graph_fname = 'symbolic_graph.png'
+    graph_fpath = ut.unixjoin(graph_dpath, graph_fname)
+    ut.ensuredir(graph_dpath)
+    theano.printing.pydotprint(thean_expr, outfile=graph_fpath, var_with_name_simple=True)
+    ut.startfile(graph_fpath)
+    return graph_fpath
+
+
 def get_pydot_graph(layers, output_shape=True, verbose=False):
     """
     Creates a PyDot graph of the network defined by the given layers.
