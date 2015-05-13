@@ -421,7 +421,7 @@ def train_quality_pz():
         >>> train_quality_pz()
     """
     project_name             = 'quality_pz'
-    model                    = models.ViewpointModel()
+    model                    = models.QualityModel()
     root                     = abspath(join('..', 'data'))
 
     train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
