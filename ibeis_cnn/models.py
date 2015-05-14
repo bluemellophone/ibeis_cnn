@@ -300,6 +300,16 @@ class DummyModel(BaseModel):
     def loss_function(model, output, truth):
         return T.nnet.categorical_crossentropy(output, truth)
 
+    def make_prediction_expr(model, newtork_output):
+        prediction = T.argmax(newtork_output, axis=1)
+        prediction.name = 'prediction'
+        return prediction
+
+    def make_accuracy_expr(model, prediction, y_batch):
+        accuracy = T.mean(T.eq(prediction, y_batch))
+        accuracy.name = 'accuracy'
+        return prediction
+
     #def get_loss_function(model):
     #    return T.nnet.categorical_crossentropy
 

@@ -359,12 +359,10 @@ def create_efficient_iter_funcs_train2(model, X_unshared, y_unshared):
     updates = lasagne.updates.nesterov_momentum(loss_train, all_params, model.learning_rate, model.momentum)
 
     # Build expression to convert network output into a prediction
-    prediction = T.argmax(newtork_output, axis=1)
-    prediction.name = 'prediction'
+    prediction = model.make_prediction_expr(newtork_output)
 
     # Build expression to compute accuracy
-    accuracy = T.mean(T.eq(prediction, y_batch))
-    accuracy.name = 'accuracy'
+    accuracy = model.make_accuracy_expr(prediction, y_batch)
 
     # Build expressions which sample a batch
     batch_size = model.batch_size
