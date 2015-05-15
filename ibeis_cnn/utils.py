@@ -23,6 +23,15 @@ RANDOM_SEED = None
 # RANDOM_SEED = 42
 
 
+def concatenate_hack(sequence, axis=0):
+    # Hack to fix numpy bug. concatenate should do hstacks on 0-dim arrays
+    if len(sequence) > 0 and len(sequence[1].shape) == 0:
+        res = np.hstack(sequence)
+    else:
+        res = np.concatenate(sequence, axis=axis)
+    return res
+
+
 def get_gpu_memory():
     """
     References:

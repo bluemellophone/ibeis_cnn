@@ -10,14 +10,14 @@ from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
 from lasagne.utils import floatX
-#from ibeis_cnn import lasange_ext
+from ibeis_cnn import lasange_ext
 import random
 import functools
 import utool as ut
 import six
-import theano
 import theano.tensor as T
 import numpy as np
+from ibeis_cnn import utils
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # from os.path import join
 # import cPickle as pickle
@@ -90,39 +90,6 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
         print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
 
 
-class _PretrainedLayerInitializer(init.Initializer):
-    def __init__(self, pretrained_layer):
-        self.pretrained_layer = pretrained_layer
-
-    def sample(self, shape):
-        fanout, fanin, height, width = shape
-        fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
-        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
-        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
-        assert height == height_, 'The height must be identical between the layer and weights'
-        assert width  == width_,  'The width must be identical between the layer and weights'
-        return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
-
-
-def testdata_contrastive_loss():
-    import numpy as np
-    batch_size = 128
-    num_output = 256
-    half_size = batch_size // 2
-    quar_size = batch_size // 4
-    eigh_size = batch_size // 8
-    G = np.random.rand(batch_size, num_output)
-    G = G / np.linalg.norm(G, axis=1, ord=2)[:, None]
-    G[0] = G[1]
-    G[half_size] = G[half_size + 1]
-    G[0:eigh_size:2] = G[1:eigh_size:2] + np.random.rand(eigh_size / 2, num_output) * .00001
-    Y_padded = np.ones(batch_size)
-    Y_padded[0:half_size] = 1
-    Y_padded[quar_size:half_size + quar_size]  = 0
-    Y_padded[-half_size:] = -1
-    return G, Y_padded
-
-
 def make_layer_str(layer):
     r"""
     Args:
@@ -171,6 +138,35 @@ def make_layer_str(layer):
 
     layer_str = layer_type + '(' + attr_str + ')'
     return layer_str
+
+
+def evaluate_layer_list(network_layers_def):
+    """ compiles a sequence of partial functions into a network """
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
+        network_layers = []
+        layer_fn_iter = iter(network_layers_def)
+        prev_layer = six.next(layer_fn_iter)()
+        network_layers.append(prev_layer)
+        for layer_fn in layer_fn_iter:
+            prev_layer = layer_fn(prev_layer)
+            network_layers.append(prev_layer)
+    return network_layers
+
+
+class _PretrainedLayerInitializer(init.Initializer):
+    def __init__(self, pretrained_layer):
+        self.pretrained_layer = pretrained_layer
+
+    def sample(self, shape):
+        fanout, fanin, height, width = shape
+        fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
+        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
+        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
+        assert height == height_, 'The height must be identical between the layer and weights'
+        assert width  == width_,  'The width must be identical between the layer and weights'
+        return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
 
 
 class PretrainedNetwork(object):
@@ -256,6 +252,9 @@ class BaseModel(object):
         hashid = ut.hashstr(architecture_str, alphabet=ut.ALPHABET_16, hashlen=16)
         return hashid
 
+    def print_layer_info(self):
+        utils.print_layer_info(self.get_output_layer())
+
     def get_architecture_str(self, sep='_'):
         layer_str_list = [make_layer_str(layer) for layer in self.network_layers]
         architecture_str = sep.join(layer_str_list)
@@ -270,32 +269,36 @@ class BaseModel(object):
         output_layer = self.network_layers[-1]
         return output_layer
 
+    def learning_rate_update(model, x):
+        return x / 2.0
 
-def evaluate_layer_list(network_layers_def):
-    """ compiles a sequence of partial functions into a network """
-    import warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
-        network_layers = []
-        layer_fn_iter = iter(network_layers_def)
-        prev_layer = six.next(layer_fn_iter)()
-        network_layers.append(prev_layer)
-        for layer_fn in layer_fn_iter:
-            prev_layer = layer_fn(prev_layer)
-            network_layers.append(prev_layer)
-    return network_layers
+    def learning_rate_shock(model, x):
+        return x * 2.0
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
 class DummyModel(BaseModel):
-    def __init__(model):
+    def __init__(model, autoinit=False, batch_size=8, input_shape=(None, 1, 4, 4)):
         super(DummyModel, model).__init__()
         model.network_layers = None
         model.data_per_label = 1
-        model.input_shape = (None, 1, 4, 4)
+        model.input_shape = input_shape
         model.output_dims = 5
         model.learning_rate = .001
         model.batch_size = 8
         model.momentum = .9
+        if autoinit:
+            model.initialize_architecture()
+
+    def make_random_testdata(model, num=1000, seed=0):
+        np.random.seed(seed)
+        X_unshared = np.random.rand(num, * model.input_shape[1:]).astype(np.float32)
+        y_unshared = (np.random.rand(num) * model.output_dims).astype(np.int32)
+        if ut.VERBOSE:
+            print('made random testdata')
+            print('size(X_unshared) = %r' % (ut.get_object_size_str(X_unshared),))
+            print('size(y_unshared) = %r' % (ut.get_object_size_str(y_unshared),))
+        return X_unshared, y_unshared
 
     def loss_function(model, output, truth):
         return T.nnet.categorical_crossentropy(output, truth)
@@ -308,7 +311,7 @@ class DummyModel(BaseModel):
     def make_accuracy_expr(model, prediction, y_batch):
         accuracy = T.mean(T.eq(prediction, y_batch))
         accuracy.name = 'accuracy'
-        return prediction
+        return accuracy
 
     #def get_loss_function(model):
     #    return T.nnet.categorical_crossentropy
@@ -319,7 +322,8 @@ class DummyModel(BaseModel):
         network_layers_def = [
             _P(layers.InputLayer, shape=input_shape),
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3)),
-            _P(layers.DenseLayer, num_units=64),
+            _P(Conv2DLayer, num_filters=16, filter_size=(2, 2)),
+            _P(layers.DenseLayer, num_units=8),
             _P(layers.DenseLayer, num_units=model.output_dims,
                nonlinearity=nonlinearities.softmax,
                W=init.Orthogonal(),),
@@ -327,6 +331,11 @@ class DummyModel(BaseModel):
         network_layers = evaluate_layer_list(network_layers_def)
         model.network_layers = network_layers
         output_layer = model.network_layers[-1]
+        if verbose:
+            print('initialize_architecture')
+        if ut.VERBOSE:
+            model.print_architecture_str()
+            model.print_layer_info()
         return output_layer
 
     #def initialize_symbolic_inputs(model):
@@ -352,12 +361,6 @@ class SiameseModel(BaseModel):
         # 2*N images in a batch and N labels that map to
         # two images a piece
         model.data_per_label = 2
-
-    def learning_rate_update(model, x):
-        return x / 2.0
-
-    def learning_rate_shock(model, x):
-        return x * 2.0
 
     def build_model(model, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=True):
@@ -459,102 +462,10 @@ class SiameseModel(BaseModel):
         output_layer = model.network_layers[-1]
         return output_layer
 
-    def loss_function(self, G, Y_padded, T=T):
-        """
-        Args:
-            X : network output
-            Y : target groundtruth labels
-
-        References:
-            https://www.cs.nyu.edu/~sumit/research/assets/cvpr05.pdf
-            https://github.com/Lasagne/Lasagne/issues/168
-
-        CommandLine:
-            # Train Network
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=16 --batch_size=128 --learning_rate .0000001
-
-        Example:
-            >>> from ibeis_cnn.models import *  # NOQA
-            >>> # numpy testing but in reality these are theano functions
-            >>> self = SiameseModel()
-            >>> G, Y_padded = testdata_contrastive_loss()
-            >>> T = np
-            >>> np.abs_ = np.abs
-            >>> avg_loss = self.loss_function(G, Y_padded, T=T)
-        """
-        if True:
+    def loss_function(self, G, Y_padded, T=T, verbose=True):
+        if verbose:
             print('[model] Build siamese loss function')
-
-        num_data = G.shape[0]
-        num_labels = num_data // self.data_per_label
-        # Mark same genuine pairs as 0 and imposter pairs as 1
-        Y = (1 - Y_padded[0:num_labels])
-        Y = (Y_padded[0:num_labels])
-
-        if T is theano.tensor:
-            G.name = 'G'
-            Y.name = 'Y'
-
-        L1_NORMALIZE = True
-        if L1_NORMALIZE:
-            # L1-normalize the output of the network
-            G = G / T.abs_(G).sum(axis=1)[:, None]
-
-        # Split batch into pairs
-        G1, G2 = G[0::2], G[1::2]
-
-        if T is theano.tensor:
-            G1.name = 'G1'
-            G2.name = 'G2'
-
-        # Energy of training pairs
-        #E = T.abs_((G1 - G2)).sum(axis=1)
-
-        if False:
-            # Hack in a print
-            G_ellone = T.abs_(G).sum(axis=1)
-            G_ellone_printer = theano.printing.Print('ellone(G)')(G_ellone)
-            G_ellone.name = 'G_ellone'
-            G_ellone_printer.name = 'G_ellone_printer'
-            E = T.abs_((G1 - G2)).sum(axis=1) + (G_ellone - G_ellone_printer)[:, None]
-        else:
-            E = T.abs_((G1 - G2)).sum(axis=1)
-
-        if T is theano.tensor:
-            E.name = 'E'
-
-        # Q is a constant that is the upper bound of E
-        #Q = 262144.0
-        #Q = 256 * (G.shape[1] * 2)
-        #Q = (G.shape[1] * 2)
-        #Q = (G.shape[1])
-        #Q = 1
-        if L1_NORMALIZE:
-            Q = 2
-        else:
-            Q = 20
-        # Contrastive loss function
-        genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
-        imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
-        loss = genuine_loss + imposter_loss
-        avg_loss = T.mean(loss)
-        #margin = 10
-        #loss = T.mean(Y * E + (1 - Y) * T.maximum(margin - E, 0))
-
-        if T is theano.tensor:
-            loss.name = 'loss'
-            avg_loss.name = 'avg_loss'
-
-        if False:
-            graph_dpath = '.'
-            graph_fname = 'symbolic_graph.png'
-            graph_fpath = ut.unixjoin(graph_dpath, graph_fname)
-            ut.ensuredir(graph_dpath)
-            theano.printing.pydotprint(avg_loss, outfile=graph_fpath, var_with_name_simple=True)
-            ut.startfile(graph_fpath)
-        #ut.embed()
-        #avg_loss = dbgfunc.outputs[0]
-
+        avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
         return avg_loss
 
 

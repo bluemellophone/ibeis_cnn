@@ -159,15 +159,13 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     utils._update(kwargs, 'best_valid_loss',     np.inf)
     utils._update(kwargs, 'best_valid_accuracy', 0.0)
     utils._update(kwargs, 'best_test_accuracy',  0.0)
-    training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_funcs, model, output_layer,
-                  results_dpath, weights_fpath,
+    training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
+                  theano_funcs, output_layer, results_dpath, weights_fpath,
                   learning_rate_theano, **kwargs)
 
 
-def training_loop(X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_funcs, model, output_layer,
-                  results_dpath, weights_fpath,
+def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
+                  theano_funcs, output_layer, results_dpath, weights_fpath,
                   learning_rate_theano, **kwargs):
     print('\n[train] --- TRAINING LOOP ---')
     # Begin training the neural network

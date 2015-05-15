@@ -12,7 +12,7 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
-                   center_mean=None, center_std=None, model=None, **kwargs):
+                   center_mean=None, center_std=None, model=None, X_is_cv2_native=True, **kwargs):
     r"""
     Args:
         X (ndarray):
@@ -28,7 +28,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         python -m ibeis_cnn.utils --test-batch_iterator
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.utils import *  # NOQA
         >>> # build test data
         >>> X = np.random.rand(64, 3, 5, 4)
@@ -62,7 +62,11 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
     num_batches = (X.shape[0] + batch_size - 1) // batch_size
     if verbose:
         print('[batchiter] num_batches = %r' % (num_batches,))
-    for batch_index in range(num_batches):
+
+    batch_index_iter = range(num_batches)
+    if ut.VERBOSE:
+        batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches, lbl='verbose unbuffered batch iteration')
+    for batch_index in batch_index_iter:
         # Get batch slice
         Xb, yb = utils.slice_data_labels(X, y, batch_size, batch_index, data_per_label)
         # Whiten
@@ -83,7 +87,8 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
                 yb = np.hstack((yb, yb_buffer))
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
-        Xb = Xb.transpose((0, 3, 1, 2))
+        if X_is_cv2_native:
+            Xb = Xb.transpose((0, 3, 1, 2))
         if verbose:
             print('[batchiter] Yielding batch:')
             print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
@@ -102,16 +107,16 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     """
     loss_list = []
     prob_list = []
-    albl_list = []  # [a]ugmented [l]a[b]e[l] list
     pred_list = []
     conf_list = []
+    auglbl_list = []  # augmented label list
     show = False
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
         loss_list.append(loss)
         prob_list.append(prob)
-        albl_list.append(yb)
+        auglbl_list.append(yb)
         pred_list.append(pred)
         conf_list.append(conf)
         if show:
@@ -126,16 +131,143 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
             show = False
     # Convert to numpy array
     prob_list = np.vstack(prob_list)
-    albl_list = np.hstack(albl_list)
+    auglbl_list = np.hstack(auglbl_list)
     pred_list = np.hstack(pred_list)
     conf_list = np.hstack(conf_list)
 
     # Calculate performance
     loss = np.mean(loss_list)
-    accu = np.mean(np.equal(albl_list, pred_list))
+    accu = np.mean(np.equal(auglbl_list, pred_list))
 
     # Return
-    return loss, accu, prob_list, albl_list, pred_list, conf_list
+    return loss, accu, prob_list, auglbl_list, pred_list, conf_list
+
+
+def process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs):
+    """
+    compute the loss over all training batches
+
+    Jon, if you get to this before I do, please fix. -J
+
+    CommandLine:
+        python -m ibeis_cnn.batch_processing --test-process_batch2 --verbose
+        python -m ibeis_cnn.batch_processing --test-process_batch2:0 --verbose
+        python -m ibeis_cnn.batch_processing --test-process_batch2:1 --verbose
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.DummyModel(batch_size=128)
+        >>> X_train, y_train = model.make_random_testdata(num=200000, seed=None)
+        >>> model.initialize_architecture()
+        >>> theano_fn = create_unbuffered_iter_funcs_train2(model)
+        >>> kwargs = {'X_is_cv2_native': False}
+        >>> batch_size = model.batch_size
+        >>> res = process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs)
+        >>> (loss, accu, prob_list, auglbl_list, pred_list, conf_list) = res
+        >>> result = str((loss, accu, prob_list, auglbl_list, pred_list, conf_list))
+        >>> #print(result)
+
+    Example1:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.DummyModel(batch_size=128)
+        >>> model.initialize_architecture()
+        >>> X_train, y_train = model.make_random_testdata(num=200000, seed=None)
+        >>> theano_fn = create_buffered_iter_funcs_train2(model, X_train, y_train)
+        >>> kwargs = {'X_is_cv2_native': False}
+        >>> batch_size = model.batch_size
+        >>> res = process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs)
+        >>> (loss, accu, prob_list, auglbl_list, pred_list, conf_list) = res
+        >>> result = str((loss, accu, prob_list, auglbl_list, pred_list, conf_list))
+        >>> #print(result)
+
+    Ignore:
+        Xb, yb = batch_iter.next()
+        assert Xb.shape == (8, 1, 4, 4)
+        yb.shape == (8,)
+    """
+    batch_output_list = []
+    output_names = [outexpr.variable.name for outexpr in theano_fn.outputs]
+    auglbl_list = []  # augmented label list
+    show = False
+
+    # HACK TO DO DIFFERENT KINDS OF BATCH ITERATION
+    if theano_fn.name.find(':indexed') != -1:
+        # preloaded gpu iteration
+        # generated data unbuffered iteration
+        num_batches = len(X_train) // batch_size
+        # FIXME: Hack
+        auglbl_list = y_train
+        batch_index_iter = range(num_batches)
+        if ut.VERBOSE:
+            batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches, lbl='verbose buffered batch iteration')
+        for index in batch_index_iter:
+            # Runs a batch through the network and updates the weights. Just
+            # returns what it did
+            batch_output = theano_fn(index)
+            #yb = None  # TODO: Figure out if labels were augmented
+            #auglbl_list.append(yb)
+            batch_output_list.append(batch_output)
+
+            if show:
+                # Print the network output for the first batch
+                print('--------------')
+                print(ut.list_str(zip(output_names, batch_output)))
+                #print('Correct: ', yb)
+                print('--------------')
+                show = False
+
+    else:
+        # generated data unbuffered iteration
+        batch_iter = batch_iterator(X_train, y_train, batch_size, **kwargs)
+        for Xb, yb in batch_iter:
+            # Runs a batch through the network and updates the weights. Just
+            # returns what it did
+            batch_output = theano_fn(Xb, yb)
+            auglbl_list.append(yb)
+            batch_output_list.append(batch_output)
+
+            if show:
+                # Print the network output for the first batch
+                print('--------------')
+                print(ut.list_str(zip(output_names, batch_output)))
+                print('Correct: ', yb)
+                print('--------------')
+                show = False
+
+    # get outputs of each type
+    unstacked_output_gen = ([bop[count] for bop in batch_output_list] for count, name in enumerate(output_names))
+    stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=-1) for _output_unstacked in unstacked_output_gen]
+    auglbl_list = np.hstack(auglbl_list)
+
+    # TODO: don't do this specific metric extraction here
+    #return stacked_output_list, auglbl_list, output_names
+
+    #ut.depth_profile(stacked_output_list)
+
+    # Calculate performance
+    loss_index = ut.listfind(output_names, 'loss_train')
+    if loss_index is not None:
+        loss_list = stacked_output_list[loss_index]
+        loss = np.mean(loss_list)
+
+    pred_index = ut.listfind(output_names, 'prediction')
+    if pred_index is not None:
+        pred_list = stacked_output_list[pred_index]
+        accu = np.mean(np.equal(auglbl_list, pred_list))
+
+    accu_index = ut.listfind(output_names, 'accuracy')
+    if accu_index is not None:
+        conf_list = stacked_output_list[accu_index]
+
+    pred_index = ut.listfind(output_names, 'network_output')
+    if pred_index is not None:
+        prob_list = stacked_output_list[pred_index]
+
+    return loss, accu, prob_list, auglbl_list, pred_list, conf_list
 
 
 def predict_batch(X_train, theano_fn, **kwargs):
@@ -164,7 +296,7 @@ def predict_batch(X_train, theano_fn, **kwargs):
 def process_train(X_train, y_train, theano_fn, **kwargs):
     """ compute the loss over all training batches """
     results = process_batch(X_train, y_train, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
+    loss, accu, prob_list, auglbl_list, pred_list, conf_list = results
     # Return whatever metrics we want
     return loss
 
@@ -172,7 +304,7 @@ def process_train(X_train, y_train, theano_fn, **kwargs):
 def process_valid(X_valid, y_valid, theano_fn, **kwargs):
     """ compute the loss over all validation batches """
     results = process_batch(X_valid, y_valid, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
+    loss, accu, prob_list, auglbl_list, pred_list, conf_list = results
     # rRturn whatever metrics we want
     return loss, accu
 
@@ -180,7 +312,7 @@ def process_valid(X_valid, y_valid, theano_fn, **kwargs):
 def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
     """ compute the loss over all test batches """
     results = process_batch(X_test, y_test, theano_fn, **kwargs)
-    loss, accu, prob_list, albl_list, pred_list, conf_list = results
+    loss, accu, prob_list, auglbl_list, pred_list, conf_list = results
     # Output confusion matrix
     if results_path is not None:
         # Grab model
@@ -195,7 +327,7 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
         if encoder is not None:
             label_list = encoder.inverse_transform(label_list)
         # Make confusion matrix (pass X to write out failed cases)
-        draw_net.show_confusion_matrix(albl_list, pred_list, label_list, results_path,
+        draw_net.show_confusion_matrix(auglbl_list, pred_list, label_list, results_path,
                                        mapping_fn, X_test)
     return accu
 
@@ -229,7 +361,8 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     y_batch = output_type('y_batch')
 
     # Defaults that are overwritable by a model
-    loss_function = utils.multinomial_nll
+    #loss_function = utils.multinomial_nll
+    loss_function = T.nnet.categorical_crossentropy
     if model is not None and hasattr(model, 'loss_function'):
         loss_function = model.loss_function
 
@@ -237,6 +370,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     print('Building symbolic loss function')
     objective = objectives.Objective(output_layer, loss_function=loss_function)
     loss = objective.get_loss(X_batch, target=y_batch)
+    loss.name = 'loss'
     print('Building symbolic loss function (determenistic)')
     loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
 
@@ -249,12 +383,15 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         L2 = lasagne.regularization.l2(output_layer)
         loss += L2 * regularization
 
-    # Run inference and get performance
+    # Run inference and get performance_outputs
     probabilities = output_layer.get_output(X_batch, deterministic=True)
+    probabilities.name = 'probabilities'
     predictions = T.argmax(probabilities, axis=1)
+    predictions.name = 'predictions'
     confidences = probabilities.max(axis=1)
+    confidences.name = 'confidences'
     # accuracy = T.mean(T.eq(predictions, y_batch))
-    performance = [probabilities, predictions, confidences]
+    performance_outputs = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
     parameters = layers.get_all_params(output_layer)
@@ -262,7 +399,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     theano_backprop = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss] + performance,
+        outputs=[loss] + performance_outputs,
         updates=updates,
         givens={
             X: X_batch,
@@ -272,7 +409,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss_determ] + performance,
+        outputs=[loss_determ] + performance_outputs,
         updates=None,
         givens={
             X: X_batch,
@@ -282,7 +419,7 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     theano_predict = theano.function(
         inputs=[theano.Param(X_batch)],
-        outputs=performance,
+        outputs=performance_outputs,
         updates=None,
         givens={
             X: X_batch,
@@ -292,54 +429,18 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     return theano_backprop, theano_forward, theano_predict
 
 
-def create_efficient_iter_funcs_train2(model, X_unshared, y_unshared):
-    """
-    WIP: NEW IMPLEMENTATION WITH PRELOADING GPU DATA
-
-    build the Theano functions (symbolic expressions) that will be used in the
-    optimization refer to this link for info on tensor types:
-
-    References:
-        http://deeplearning.net/software/theano/library/tensor/basic.html
-        http://deeplearning.net/software/theano/tutorial/aliasing.html#borrowing-when-creating-shared-variables
-        http://deeplearning.net/tutorial/lenet.html
-        # TODO: Deal with batching to the GPU by setting the value of the shared variables.
-
-    CommandLine:
-        python -m ibeis_cnn.batch_processing --test-create_efficient_iter_funcs_train2
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.batch_processing import *  # NOQA
-        >>> from ibeis_cnn import draw_net
-        >>> from ibeis_cnn import models
-        >>> model = models.DummyModel()
-        >>> output_layer = model.initialize_architecture()
-        >>> np.random.seed(0)
-        >>> X_unshared = np.random.rand(1000, * model.input_shape[1:]).astype(np.float32)
-        >>> y_unshared = (np.random.rand(1000) * model.output_dims).astype(np.int32)
-        >>> train_iter = create_efficient_iter_funcs_train2(model, X_unshared, y_unshared)
-        >>> print(train_iter)
-        >>> loss_train, newtork_output, prediction, accuracy = train_iter(0)
-        >>> print('loss = %r' % (loss,))
-        >>> print('net_out = %r' % (outvec,))
-        >>> print('newtork_output = %r' % (newtork_output,))
-        >>> print('accuracy = %r' % (accuracy,))
-        >>> #draw_net.draw_theano_symbolic_expression(train_iter)
-        >>> assert outvec.shape == (model.batch_size, model.output_dims)
-    """
-    # Attempt to load data on to the GPU
-    # Labels to go into the GPU as float32 and then cast to int32 once inside
-    X_unshared = np.asarray(X_unshared, dtype=theano.config.floatX)
-    y_unshared = np.asarray(y_unshared, dtype=theano.config.floatX)
-
-    X_shared = theano.shared(X_unshared, borrow=True)
-    y_shared = T.cast(theano.shared(y_unshared, borrow=True), 'int32')
-
+def create_unbuffered_iter_funcs_train2(model):
     # Initialize symbolic input variables
-    index = T.lscalar(name='index')
     X_batch = T.tensor4(name='X_batch')
     y_batch = T.ivector(name='y_batch')
+    # weird, idk why X and y exist
+    X = T.tensor4(name='X_batch')
+    y = T.ivector(name='y_batch')
+
+    givens = {
+        X: X_batch,
+        y: y_batch,
+    }
 
     output_layer = model.get_output_layer()
 
@@ -358,16 +459,77 @@ def create_efficient_iter_funcs_train2(model, X_unshared, y_unshared):
         all_params = layers.get_all_params(output_layer)
     updates = lasagne.updates.nesterov_momentum(loss_train, all_params, model.learning_rate, model.momentum)
 
+    # Get performance indicator outputs:
+
     # Build expression to convert network output into a prediction
     prediction = model.make_prediction_expr(newtork_output)
 
     # Build expression to compute accuracy
     accuracy = model.make_accuracy_expr(prediction, y_batch)
 
+    theano_backprop = theano.function(
+        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        outputs=[loss_train, newtork_output, prediction, accuracy],
+        updates=updates,
+        givens=givens
+    )
+    theano_backprop.name += ':theano_backprob:unbuffered'
+
+    # TODO: Rectify
+
+    return theano_backprop
+
+
+def create_buffered_iter_funcs_train2(model, X_unshared, y_unshared):
+    """
+    WIP: NEW IMPLEMENTATION WITH PRELOADING GPU DATA
+
+    build the Theano functions (symbolic expressions) that will be used in the
+    optimization refer to this link for info on tensor types:
+
+    References:
+        http://deeplearning.net/software/theano/library/tensor/basic.html
+        http://deeplearning.net/software/theano/tutorial/aliasing.html#borrowing-when-creating-shared-variables
+        http://deeplearning.net/tutorial/lenet.html
+        # TODO: Deal with batching to the GPU by setting the value of the shared variables.
+
+    CommandLine:
+        python -m ibeis_cnn.batch_processing --test-create_buffered_iter_funcs_train2
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
+        >>> from ibeis_cnn import draw_net
+        >>> from ibeis_cnn import models
+        >>> model = models.DummyModel(autoinit=True)
+        >>> X_unshared, y_unshared = model.make_random_testdata()
+        >>> train_iter = create_buffered_iter_funcs_train2(model, X_unshared, y_unshared)
+        >>> print(train_iter)
+        >>> loss_train, newtork_output, prediction, accuracy = train_iter(0)
+        >>> print('loss = %r' % (loss,))
+        >>> print('net_out = %r' % (outvec,))
+        >>> print('newtork_output = %r' % (newtork_output,))
+        >>> print('accuracy = %r' % (accuracy,))
+        >>> #draw_net.draw_theano_symbolic_expression(train_iter)
+        >>> assert outvec.shape == (model.batch_size, model.output_dims)
+    """
+    # Attempt to load data on to the GPU
+    # Labels to go into the GPU as float32 and then cast to int32 once inside
+    X_unshared = np.asarray(X_unshared, dtype=theano.config.floatX)
+    y_unshared = np.asarray(y_unshared, dtype=theano.config.floatX)
+
+    X_shared = theano.shared(X_unshared, borrow=True)
+    y_shared = T.cast(theano.shared(y_unshared, borrow=True), 'int32')
+
     # Build expressions which sample a batch
     batch_size = model.batch_size
 
-    WHITEN = True
+    # Initialize symbolic input variables
+    index = T.lscalar(name='index')
+    X_batch = T.tensor4(name='X_batch')
+    y_batch = T.ivector(name='y_batch')
+
+    WHITEN = False
     if WHITEN:
         # We might be able to perform some data augmentation here symbolicly
         data_mean = X_unshared.mean()
@@ -382,14 +544,71 @@ def create_efficient_iter_funcs_train2(model, X_unshared, y_unshared):
             y_batch: y_shared[index * batch_size: (index + 1) * batch_size],
         }
 
-    train_iter = theano.function(
+    output_layer = model.get_output_layer()
+
+    # Build expression to evalute network output without dropout
+    newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    newtork_output.name = 'network_output'
+
+    # Build expression to evaluate loss
+    objective = objectives.Objective(output_layer, loss_function=model.loss_function)
+    loss_train = objective.get_loss(X_batch, target=y_batch)  # + 0.0001 * lasagne.regularization.l2(output_layer)
+    loss_train.name = 'loss_train'
+
+    # Build expression to evaluate updates
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*topo.*')
+        all_params = layers.get_all_params(output_layer)
+    updates = lasagne.updates.nesterov_momentum(loss_train, all_params, model.learning_rate, model.momentum)
+
+    # Get performance indicator outputs:
+
+    # Build expression to convert network output into a prediction
+    prediction = model.make_prediction_expr(newtork_output)
+
+    # Build expression to compute accuracy
+    accuracy = model.make_accuracy_expr(prediction, y_batch)
+
+    theano_backprop = theano.function(
         inputs=[index],
         outputs=[loss_train, newtork_output, prediction, accuracy],
         updates=updates,
         givens=givens
     )
+    theano_backprop.name += ':theano_backprob:indexed'
 
-    return train_iter
+    #performance_outputs = [probabilities, predictions, confidences]
+
+    #theano_backprop = theano.function(
+    #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+    #    outputs=[loss] + performance_outputs,
+    #    updates=updates,
+    #    givens={
+    #        X: X_batch,
+    #        y: y_batch,
+    #    },
+    #)
+
+    #theano_forward = theano.function(
+    #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+    #    outputs=[loss_determ] + performance_outputs,
+    #    updates=None,
+    #    givens={
+    #        X: X_batch,
+    #        y: y_batch,
+    #    },
+    #)
+
+    #theano_predict = theano.function(
+    #    inputs=[theano.Param(X_batch)],
+    #    outputs=performance_outputs,
+    #    updates=None,
+    #    givens={
+    #        X: X_batch,
+    #    },
+    #)
+
+    return theano_backprop
 
 
 if __name__ == '__main__':
