@@ -450,7 +450,7 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list) = get_aidpairs_and_matches(ibs, 10)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list) = get_aidpairs_and_matches(ibs, 10, 3)
         >>> patch_size = 64
         >>> data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size)
         >>> ut.quit_if_noshow()
@@ -637,7 +637,7 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_and_matches(ibs, max_examples=None):
+def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
     """
     Returns:
         aid pairs and matching keypoint pairs as well as the original index of the feature matches
@@ -654,6 +654,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None):
     aid_list = ibs.get_valid_aids()
     if max_examples is not None:
         aid_list = aid_list[0:min(max_examples, len(aid_list))]
+    if num_top is None:
+        num_top = 3
     import utool as ut
     #from ibeis.model.hots import chip_match
     aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
@@ -666,7 +668,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None):
     #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
 
     # Get aid pairs and feature matches
-    num_top = 3
     aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
     aids1_list = [[qres.qaid] * len(aids2) for qres, aids2 in zip(qres_list, aids2_list)]
     fms_list = [ut.dict_take(qres.aid2_fm, aids2) for qres, aids2 in zip(qres_list, aids2_list)]
@@ -795,15 +796,16 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
-        >>> ibs = ibeis.opendb('PZ_MTEST')
-        >>> kwargs = {}
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> kwargs = ut.get_arg_dict({'max_examples': None, 'num_top': 3})
         >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs, **kwargs)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
     """
     print('\n\n[get_patchmetric_training_fpaths] START')
     max_examples = kwargs.get('max_examples', None)
-    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list = get_aidpairs_and_matches(ibs, max_examples)
+    num_top = kwargs.get('num_top', None)
+    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list = get_aidpairs_and_matches(ibs, max_examples, num_top)
     data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
         ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
     print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
