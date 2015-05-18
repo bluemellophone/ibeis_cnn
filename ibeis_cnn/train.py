@@ -348,6 +348,7 @@ def train_patchmatch_pz():
     model = models.SiameseCenterSurroundModel()
     config = dict(
         patience=100,
+        equal_batch_sizes=True,
         batch_size=ut.get_argval('--batch_size', type_=int, default=128),
         learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
         show_confusion=False,
@@ -398,6 +399,7 @@ def train_identification_pz():
 
     model = models.SiameseModel()
     config = dict(
+        equal_batch_sizes=True,
         patience=50,
         batch_size=32,
         learning_rate=.03,

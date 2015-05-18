@@ -13,6 +13,7 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
 VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERBOSE_CNN
+VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch'))
 
 
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
@@ -53,6 +54,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> print(result)
     """
     verbose = kwargs.get('verbose', VERBOSE_BATCH)
+    veryverbose = kwargs.get('veryverbose', ut.VERYVERBOSE)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
@@ -98,10 +100,11 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         # Convert cv2 format to Lasagne format for batching
         if X_is_cv2_native:
             Xb = Xb.transpose((0, 3, 1, 2))
-        if verbose:
-            print('[batchiter] Yielding batch:')
-            print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
-            print('[batchiter]   * yb.shape = %r' % (yb.shape,))
+        if verbose or veryverbose:
+            if veryverbose or (batch_index + 1) % num_batches <= 1:
+                print('[batchiter] Yielding batch: batch_index = %r ' % (batch_index,))
+                print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
+                print('[batchiter]   * yb.shape = %r' % (yb.shape,))
         # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
     if verbose:
@@ -119,7 +122,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     auglbl_list = []  # augmented label list
-    show = VERBOSE_BATCH
+    show = VERYVERBOSE_BATCH
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
