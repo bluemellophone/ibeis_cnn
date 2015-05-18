@@ -1,5 +1,294 @@
+from __future__ import absolute_import, division, print_function
 import numpy as np
 import lasagne
+import utool as ut
+import warnings
+import theano
+import theano.tensor as T
+import functools
+from ibeis_cnn import utils
+
+
+class L1NormalizeLayer(lasagne.layers.Layer):
+    def __init__(self, input_layer, *args, **kwargs):
+        super(L1NormalizeLayer, self).__init__(input_layer, *args, **kwargs)
+
+    def get_output_for(self, input_, *args, **kwargs):
+        ell1_norm = T.abs_(input_).sum(axis=1)
+        output_ = input_ / ell1_norm[:, None]
+        return output_
+
+
+class L2NormalizeLayer(lasagne.layers.Layer):
+    def __init__(self, input_layer, *args, **kwargs):
+        super(L2NormalizeLayer, self).__init__(input_layer, *args, **kwargs)
+
+    def get_output_for(self, input_, *args, **kwargs):
+        ell2_norm = T.sqrt(T.power(input_, 2).sum(axis=1))
+        output_ = input_ / ell2_norm[:, None]
+        return output_
+
+
+class L2SquaredDistanceLayer(lasagne.layers.Layer):
+    def __init__(self, input_layer, *args, **kwargs):
+        super(L2SquaredDistanceLayer, self).__init__(input_layer, *args, **kwargs)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0] // 2,) + input_shape[1:]
+
+    def get_output_for(self, input_, *args, **kwargs):
+        # Split batch into pairs
+        G1, G2 = input_[0::2], input_[1::2]
+        E = T.power((G1 - G2), 2).sum(axis=1)
+        return E
+
+
+class L1DistanceLayer(lasagne.layers.Layer):
+    def __init__(self, input_layer, *args, **kwargs):
+        super(L1DistanceLayer, self).__init__(input_layer, *args, **kwargs)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0] // 2,) + input_shape[1:]
+
+    def get_output_for(self, input_, *args, **kwargs):
+        # Split batch into pairs
+        G1, G2 = input_[0::2], input_[1::2]
+        E = T.abs_((G1 - G2)).sum(axis=1)
+        return E
+
+
+def testdata_input_layer(item_shape=(3, 32, 32)):
+    input_shape = (128,) + item_shape
+    input_layer = lasagne.layers.InputLayer(shape=input_shape)
+    return input_layer
+
+
+class SiameseConcatLayer(lasagne.layers.Layer):
+    """
+
+    TODO checkout layers.merge.ConcatLayer
+
+    Takes two network representations in the batch and combines them along an axis.
+    """
+    def __init__(self, input_layer, data_per_label=2, axis=1, **kwargs):
+        super(SiameseConcatLayer, self).__init__(input_layer, **kwargs)
+        self.data_per_label = data_per_label
+        self.axis = axis
+
+    def get_output_shape_for(self, input_shape, axis=None):
+        r"""
+
+        Args:
+            input_shape: shape being fed into this layer
+            axis: overrideable for tests
+
+        CommandLine:
+            python -m ibeis_cnn.custom_layers --test-get_output_shape_for
+
+        Example0:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> input_layer = testdata_input_layer(item_shape=(3, 8, 16))
+            >>> self = SiameseConcatLayer(input_layer)
+            >>> input_shape = input_layer.shape
+            >>> output_shape_list = [self.get_output_shape_for(input_shape, axis) for axis in [1, 2, 3, -3, -2, -1]]
+            >>> result = str(output_shape_list[0:3]) + '\n' + str(output_shape_list[3:])
+            >>> print(result)
+            [(64, 6, 8, 16), (64, 3, 16, 16), (64, 3, 8, 32)]
+            [(64, 6, 8, 16), (64, 3, 16, 16), (64, 3, 8, 32)]
+
+        Example1:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> input_layer = testdata_input_layer(item_shape=(1024,))
+            >>> self = SiameseConcatLayer(input_layer)
+            >>> input_shape = input_layer.shape
+            >>> output_shape_list = [self.get_output_shape_for(input_shape, axis) for axis in [1, -1]]
+            >>> result = output_shape_list
+            >>> print(result)
+            [(64, 2048), (64, 2048)]
+        """
+        if axis is None:
+            # allow override for tests
+            axis = self.axis
+        assert self.axis != 0, 'self.axis=%r cannot be 0' % (self.axis,)
+        new_batch_shape = (input_shape[0] // self.data_per_label,)
+        new_shape_middle = (input_shape[axis]  * self.data_per_label,)
+        if axis >= 0:
+            shape_front = input_shape[1:axis]
+            shape_end = input_shape[axis + 1:]
+        else:
+            shape_front = input_shape[1:axis]
+            shape_end = input_shape[len(input_shape) + axis + 1:]
+        output_shape = new_batch_shape + shape_front + new_shape_middle + shape_end
+        return output_shape
+
+    def get_output_for(self, input_, T=T, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn.custom_layers --test-SiameseConcatLayer.get_output_for:1 --show
+
+        Example0:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> #item_shape = (3, 32, 32,)
+            >>> input_shape = (128,) + item_shape
+            >>> input_layer = lasagne.layers.InputLayer(shape=input_shape)
+            >>> self = SiameseConcatLayer(input_layer)
+            >>> input_ = np.random.rand(128, *item_shape)
+            >>> T = np
+            >>> output_ = self.get_output_for(input_, T=T)
+            >>> target_shape = self.get_output_shape_for(input_shape)
+            >>> result = output_.shape
+            >>> print(result)
+            >>> assert target_shape == result
+            (64, 2048)
+
+        Example1:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> from ibeis_cnn import utils
+            >>> from ibeis_cnn import draw_net
+            >>> import theano
+            >>> import numpy as np
+            >>> input_layer = lasagne.layers.InputLayer(shape=(4, 3, 32, 32))
+            >>> cs_layer = CenterSurroundLayer(input_layer)
+            >>> # Make sure that this can concat center surround properly
+            >>> self = SiameseConcatLayer(cs_layer, axis=2, data_per_label=4)
+            >>> data = utils.testdata_imglist()[0]
+            >>> inputdata_ = utils.convert_cv2_images_to_theano_images(data)
+            >>> outputdata_ = cs_layer.get_output_for(inputdata_, T=np)
+            >>> input_ = outputdata_
+            >>> output_ = self.get_output_for(input_, T=np)
+            >>> ut.quit_if_noshow()
+            >>> img_list = utils.convert_theano_images_to_cv2_images(output_)
+            >>> interact_image_list(img_list, num_per_page=2)
+
+        """
+        data_per_label = self.data_per_label
+        split_inputs = [input_[count::data_per_label] for count in range(data_per_label)]
+        output_ =  T.concatenate(split_inputs, axis=self.axis)
+        #input1, input2 = input_[0::2], input_[1::2]
+        #output_ =  T.concatenate([input1, input2], axis=1)
+        return output_
+
+
+def interact_image_list(img_list, num_per_page=1):
+    #from ibeis.viz import viz_helpers as vh
+    import plottool as pt
+
+    nRows, nCols = pt.get_square_row_cols(num_per_page)
+    chunked_iter = list(ut.ichunks(img_list, num_per_page))
+    for img_chunks in ut.InteractiveIter(chunked_iter, display_item=False):
+        pnum_ = pt.make_pnum_nextgen(nRows, nCols)
+        pt.figure(fnum=1, doclf=True)
+        for img in img_chunks:
+            pt.imshow(img, pnum=pnum_())
+        #pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        #pt.imshow(patch2, pnum=(1, 2, 2))
+        #pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
+        pt.update()
+
+
+def testdata_centersurround(item_shape):
+    input_layer = testdata_input_layer(item_shape)
+    data = utils.testdata_imglist(item_shape)[0]
+    self = CenterSurroundLayer(input_layer)
+    inputdata_ = utils.convert_cv2_images_to_theano_images(data)
+    return self, inputdata_
+
+
+class CenterSurroundLayer(lasagne.layers.Layer):
+    def __init__(self, input_layer, *args, **kwargs):
+        super(CenterSurroundLayer, self).__init__(input_layer, *args, **kwargs)
+
+    def get_output_shape_for(self, input_shape):
+        batch_size, channels, height, width = input_shape
+        if height % 2 == 1 or width % 2 == 1:
+            warnings.warn("input layer to CenterSurroundLayer should ideally have an even width and height.")
+        output_shape = (batch_size * 2, channels, height // 2, width // 2)
+        return output_shape
+
+    def get_output_for(self, input_expr, T=T, **kwargs):
+        r"""
+        CommandLine:
+            python -m ibeis_cnn.custom_layers --test-CenterSurroundLayer.get_output_for:0 --show
+            python -m ibeis_cnn.custom_layers --test-CenterSurroundLayer.get_output_for:1 --show
+
+        Example0:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> import theano
+            >>> #item_shape = (32, 32, 3)
+            >>> item_shape = (41, 41, 3)
+            >>> self, inputdata_ = testdata_centersurround(item_shape)
+            >>> # Test the actual symbolic expression
+            >>> result_T = utils.evaluate_symbolic_layer(self.get_output_for, inputdata_, T.tensor4, T=theano.tensor)
+            >>> result_T = result_T.astype(np.uint8)
+            >>> ut.quit_if_noshow()
+            >>> img_list = utils.convert_theano_images_to_cv2_images(result_T)
+            >>> interact_image_list(img_list, num_per_page=8)
+
+        Example1:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> import numpy as np
+            >>> #item_shape = (32, 32, 3)
+            >>> item_shape = (41, 41, 3)
+            >>> self, input_expr = testdata_centersurround(item_shape)
+            >>> # Test using just numpy
+            >>> result_np = self.get_output_for(input_expr, T=np)
+            >>> print('results agree')
+            >>> ut.quit_if_noshow()
+            >>> img_list = utils.convert_theano_images_to_cv2_images(result_np)
+            >>> interact_image_list(img_list, num_per_page=8)
+
+        Ignore:
+            from ibeis_cnn import draw_net
+            #draw_net.draw_theano_symbolic_expression(result)
+            assert np.all(result_np == result_T)
+            np.stack = np.vstack
+            T = np
+        """
+        # Create a center and surround for each input patch
+        #return input_
+        input_shape = input_expr.shape
+        batch_size, channels, height, width = input_shape
+
+        left_h = height // 4
+        left_w = width // 4
+        right_h = left_h * 3
+        right_w = left_w * 3
+        # account for odd patches
+        total_h = left_h * 4
+        total_w = left_w * 4
+
+        center = input_expr[:, :, left_h:right_h, left_w:right_w]
+        surround = input_expr[:, :, 0:total_h:2, 0:total_w:2]
+
+        output_shape = self.get_output_shape_for(input_shape)
+
+        if T is theano.tensor:
+            center.name = 'center'
+            surround.name = 'surround'
+            # production theano version
+            output_expr = T.alloc(0.0, *output_shape)
+            output_expr.name = 'center_surround_alloc'
+            set_subtensor = functools.partial(T.set_subtensor)
+            #set_subtensor = functools.partial(T.set_subtensor, inplace=True, tolerate_inplace_aliasing=True)
+            output_expr = set_subtensor(output_expr[::2], center)
+            output_expr = set_subtensor(output_expr[1::2], surround)
+            output_expr.name = 'center_surround_output'
+            #from ibeis_cnn import draw_net
+            #draw_net.draw_theano_symbolic_expression(output_expr)
+        else:
+            # debugging numpy version
+            output_expr = np.empty(output_shape, dtype=input_expr.dtype)
+            output_expr[::2] =  center
+            output_expr[1::2] =  surround
+        #output_expr = T.concatenate([center, surround], axis=0)
+        return output_expr
 
 
 class MultiImageSliceLayer(lasagne.layers.Layer):
@@ -76,9 +365,6 @@ class MultiImageRollLayer(lasagne.layers.Layer):
         return lasagne.utils.concatenate(permuted_inputs, axis=1)  # concatenate long the channel axis
 
 
-import theano.tensor as T
-
-
 class CyclicPoolLayer(lasagne.layers.Layer):
     """
     Utility layer that unfolds the viewpoints dimension and pools over it.
@@ -95,3 +381,16 @@ class CyclicPoolLayer(lasagne.layers.Layer):
     def get_output_for(self, input_, *args, **kwargs):
         unfolded_input = input_.reshape((4, input_.shape[0] // 4, input_.shape[1]))
         return self.pool_function(unfolded_input, axis=0)
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.custom_layers
+        python -m ibeis_cnn.custom_layers --allexamples
+        python -m ibeis_cnn.custom_layers --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

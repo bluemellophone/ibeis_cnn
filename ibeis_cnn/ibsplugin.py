@@ -42,11 +42,12 @@ class NewConfigBase(object):
 
 
 class PatchMetricDataConfig(NewConfigBase):
-    def __init__(idcfg):
-        pass
+    def __init__(pmcfg):
+        pmcfg.patch_size = 64
 
-    def get_cfgstr(idcfg):
+    def get_cfgstr(pmcfg):
         cfgstr_list = [
+            'patch_size=%d' % (pmcfg.patch_size,),
         ]
         return ','.join(cfgstr_list)
 
@@ -276,7 +277,7 @@ def get_aidpair_identify_images(ibs, aid1_list, aid2_list, base_size=64, stacked
 #    #
 
 
-def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list):
+def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size):
     """
     CommandLine:
         python -m ibeis_cnn.ibsplugin --test-get_aidpair_patchmatch_training_data --show
@@ -368,7 +369,7 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
             if any(ismiss_list):
                 # +-- Custom evaluate misses
                 kpts_miss = kpts.compress(ismiss_list, axis=0)
-                miss_vals = vt.get_warped_patches(chip, kpts_miss)[0]
+                miss_vals = vt.get_warped_patches(chip, kpts_miss, patch_size=patch_size)[0]
                 # L__
                 idcache_save(ismiss_list, miss_vals, id_list, val_list, cache_)
             return val_list
@@ -390,8 +391,8 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
     else:
         warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list), nTotal=len(kpts1_m_list), lbl='warp1')
         warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list), nTotal=len(kpts2_m_list), lbl='warp2')
-        warped_patches1_list = [vt.get_warped_patches(chip1, kpts1)[0] for chip1, kpts1 in warp_iter1]
-        warped_patches2_list = [vt.get_warped_patches(chip2, kpts2)[0] for chip2, kpts2 in warp_iter2]
+        warped_patches1_list = [vt.get_warped_patches(chip1, kpts1, patch_size=patch_size)[0] for chip1, kpts1 in warp_iter1]
+        warped_patches2_list = [vt.get_warped_patches(chip2, kpts2, patch_size=patch_size)[0] for chip2, kpts2 in warp_iter2]
 
     del chip_list
     del chip1_list
@@ -433,7 +434,7 @@ def get_aidpair_training_data_and_labels(ibs, aid1_list, aid2_list, base_size=64
     return data, labels
 
 
-def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list):
+def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size):
     """
     Notes:
         # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT
@@ -450,8 +451,8 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list) = get_aidpairs_and_matches(ibs, 10)
-        >>> # execute function
-        >>> data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
+        >>> patch_size = 64
+        >>> data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_patches(labels, data)
         >>> ut.show_if_requested()
@@ -459,7 +460,7 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_
     # To the removal of unknown pairs before computing the data
 
     aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list = get_aidpair_patchmatch_training_data(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list)
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size)
     labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
     img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
     data = np.array(img_list)
@@ -596,6 +597,8 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             and ut.checkpath(labels_fpath, verbose=True)
     ):
         data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **cfg.kw())
+        ut.assert_eq(data.shape[1], cfg.patch_size)
+        ut.assert_eq(data.shape[2], cfg.patch_size)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
@@ -793,7 +796,8 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> ibs = ibeis.opendb('PZ_MTEST')
-        >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs)
+        >>> kwargs = {}
+        >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs, **kwargs)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
     """

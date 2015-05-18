@@ -8,6 +8,7 @@ CommandLine:
     python -m ibeis_cnn.train --test-train_patchmatch_pz
     python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
     python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 """
@@ -194,9 +195,11 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
                                              model=model, augment=augment_fn,
                                              rand=True, **kwargs)
 
+            # TODO: only check validation once every <valid_freq> epochs
             data_valid = batch.process_valid(X_valid, y_valid, theano_forward,
                                              model=model, augment=None,
                                              rand=False, **kwargs)
+
             valid_loss, valid_accuracy = data_valid
 
             # If the training loss is nan, the training has diverged
@@ -319,8 +322,9 @@ def train_patchmatch_pz():
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --nocache-train
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
     Example:
@@ -336,11 +340,12 @@ def train_patchmatch_pz():
         import ibeis
         ibs = ibeis.opendb(defaultdb='PZ_MTEST')
 
-    with ut.Indenter('[ENSURE TRAINING DATA]'):
+    with ut.Indenter('[CHECKDATA]'):
         pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
         data_fpath, labels_fpath, training_dpath = pathtup
 
-    model = models.SiameseModel()
+    #model = models.SiameseModel()
+    model = models.SiameseCenterSurroundModel()
     config = dict(
         patience=100,
         batch_size=ut.get_argval('--batch_size', type_=int, default=128),
@@ -352,6 +357,22 @@ def train_patchmatch_pz():
     ut.ensuredir(nets_dir)
     weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
     train(data_fpath, labels_fpath, model, weights_fpath, training_dpath, **config)
+
+
+def testdata_patchmatch():
+    """
+        >>> from ibeis_cnn.train import *  # NOQA
+    """
+    with ut.Indenter('[LOAD IBEIS DB]'):
+        import ibeis
+        ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+
+    with ut.Indenter('[ENSURE TRAINING DATA]'):
+        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=5)
+        data_fpath, labels_fpath, training_dpath = pathtup
+    data_cv2, labels = utils.load(data_fpath, labels_fpath)
+    data = utils.convert_cv2_images_to_theano_images(data_cv2)
+    return data, labels
 
 
 #@ibeis.register_plugin()

@@ -1,6 +1,7 @@
 # utils.py
 # provides utilities for learning a neural network model
 from __future__ import absolute_import, division, print_function
+import warnings
 import time
 import numpy as np
 import functools
@@ -10,7 +11,6 @@ import theano
 import theano.tensor as T
 from lasagne import layers
 from sklearn.cross_validation import StratifiedKFold
-#from sklearn.utils import shuffle
 import cv2
 import cPickle as pickle
 import utool as ut
@@ -18,6 +18,8 @@ import six
 #from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
+
+VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn'))
 
 RANDOM_SEED = None
 # RANDOM_SEED = 42
@@ -56,12 +58,30 @@ def _update(kwargs, key, value):
         kwargs[key] = value
 
 
-def testdata_imglist():
+def testdata_imglist(shape=(32, 32, 3)):
+    """
+    Returns 4 colored 32x32 test images, one is structured increasing numbers,
+    an images with lines of a cartoon face, and two complex images of people.
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-testdata_imglist --show
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> (img_list, width, height, channels) = testdata_imglist()
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> pt.imshow(img_list[0], pnum=(2, 2, 1))
+        >>> pt.imshow(img_list[1], pnum=(2, 2, 2))
+        >>> pt.imshow(img_list[2], pnum=(2, 2, 3))
+        >>> pt.imshow(img_list[3], pnum=(2, 2, 4))
+        >>> ut.show_if_requested()
+
+    """
     import vtool as vt
     x = 32
-    width = 32
-    height = 32
-    channels = 3
+    height, width, channels = shape
     img0 = np.arange(x ** 2 * 3, dtype=np.uint8).reshape(x, x, 3)
     img1 = vt.imread(ut.grab_test_imgpath('jeff.png'))
     img2 = vt.imread(ut.grab_test_imgpath('carl.jpg'))
@@ -111,13 +131,11 @@ def convert_cv2_images_to_theano_images(img_list):
     return data
 
 
-def convert_theano_images_to_cv2_images(data, width, height, channels):
+def convert_theano_images_to_cv2_images(data, *args):
+    #width, height, channels):
     r"""
     Args:
         data (ndarray): in the shape [b, (c x h x w)]
-        width (?):
-        height (?):
-        channels (?):
 
     Returns:
         img_list (list of ndarrays): a list of numpy arrays with shape [h, w, c]
@@ -141,14 +159,24 @@ def convert_theano_images_to_cv2_images(data, width, height, channels):
     return img_list
 
 
+def evaluate_symbolic_layer(get_output_for, inputdata_, input_type=T.tensor4, **kwargs):
+    """ helper for testing lasagne layers """
+    input_expr = input_type(name='test_input_expr')  # T.tensor4()
+    output_expr = get_output_for(input_expr, **kwargs)
+    func = theano.function(inputs=[input_expr], outputs=[output_expr])
+    result_T = func(inputdata_)[0]
+    return result_T
+
+
 def get_current_time():
     return time.strftime('%Y-%m-%d %H:%M:%S')
 
 
-def testdata_xy(data_per_label=2):
+def testdata_xy(data_per_label=2, factor=20, seed=0):
     img_list, width, height, channels = testdata_imglist()
-    data = np.array((img_list * 20))
-    labels = np.random.rand(len(data) / data_per_label) > .5
+    data = np.array((img_list * factor))
+    randstate = np.random.RandState(seed)
+    labels = randstate.rand(len(data) / data_per_label) > .5
     #data_per_label = 2
     return data, labels, data_per_label
 
@@ -397,23 +425,30 @@ def print_epoch_info(printcol_info, epoch_info):
 
 
 def print_layer_info(output_layer):
-    nn_layers = layers.get_all_layers(output_layer)
-    print('\n[info] Network Structure:')
-    for index, layer in enumerate(nn_layers):
-        #print([p.get_value().shape for p in layer.get_params()])
-        output_shape = layer.get_output_shape()
-        num_outputs = functools.reduce(operator.mul, output_shape[1:])
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*topo.*')
+        nn_layers = layers.get_all_layers(output_layer)
+        print('\n[info] Network Structure:')
 
-        print('[info]  {:>3}  {:<18}\t{:<20}\tproduces {:>7,} outputs'.format(
-            index,
-            layer.__class__.__name__,
-            str(output_shape),
-            int(num_outputs),
+        name_column = [layer.__class__.__name__ for layer in nn_layers]
+        max_namecol_len = max(list(map(len, name_column)))
+        fmtstr = '[info]  {:>3}  {:<' + str(max_namecol_len) + '}   {:<20}   produces {:>7,} outputs'
+
+        for index, layer in enumerate(nn_layers):
+            #print([p.get_value().shape for p in layer.get_params()])
+            output_shape = layers.get_output_shape(layer)  # .get_output_shape()
+            num_outputs = functools.reduce(operator.mul, output_shape[1:])
+            str_ = fmtstr.format(
+                index,
+                layer.__class__.__name__,
+                str(output_shape),
+                int(num_outputs),
+            )
+            print(str_)
+            #ut.embed()
+        print('[info] ...this model has {:,} learnable parameters\n'.format(
+            layers.count_params(output_layer)
         ))
-        #ut.embed()
-    print('[info] ...this model has {:,} learnable parameters\n'.format(
-        layers.count_params(output_layer)
-    ))
 
 
 def float32(k):
@@ -481,7 +516,26 @@ def data_label_shuffle(X, y, data_per_label=1, seed=RANDOM_SEED):
     return X, y
 
 
-def slice_data_labels(X, y, batch_size, batch_index, data_per_label, verbose=False):
+def slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=False, verbose=False):
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.utils --test-slice_data_labels
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> X = np.random.rand(67, 3, 5, 4)
+        >>> y = (np.random.rand(67) * 4).astype(np.int32)
+        >>> batch_size = 32
+        >>> batch_index = 2
+        >>> data_per_label = 1
+        >>> wraparound = True
+        >>> verbose = False
+        >>> Xb, yb = slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound, verbose)
+        >>> result = str(Xb.shape)
+        >>> print(result)
+        (32, 3, 5, 4)
+    """
     start_x = batch_index * batch_size
     end_x = (batch_index + 1) * batch_size
     #x_sl = slice(start_y * data_per_label, end_y * data_per_label)
@@ -494,6 +548,15 @@ def slice_data_labels(X, y, batch_size, batch_index, data_per_label, verbose=Fal
         yb = y[y_sl]
     else:
         yb = None
+    if wraparound:
+        if Xb.shape[0] != batch_size:
+            extra = batch_size - Xb.shape[0]
+            Xb_extra = X[slice(0, extra)]
+            Xb = np.concatenate([Xb, Xb_extra], axis=0)
+            if yb is not None:
+                yb_extra = y[slice(0, extra // data_per_label)]
+                yb = np.concatenate([yb, yb_extra], axis=0)
+            #print('WRAP')
     # Get corret dtype for X
     Xb = Xb.astype(np.float32)
     if verbose:

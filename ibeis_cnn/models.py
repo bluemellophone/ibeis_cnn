@@ -18,6 +18,7 @@ import six
 import theano.tensor as T
 import numpy as np
 from ibeis_cnn import utils
+from ibeis_cnn import custom_layers  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # from os.path import join
 # import cPickle as pickle
@@ -350,6 +351,155 @@ class DummyModel(BaseModel):
     #    pass
 
 
+class SiameseCenterSurroundModel(BaseModel):
+    """
+    Model for individual identification
+    """
+    def __init__(model, autoinit=False, batch_size=128, input_shape=(None, 3, 64, 64)):
+        super(SiameseCenterSurroundModel, model).__init__()
+        model.network_layers = None
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        model.output_dims = 1
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        model.data_per_label = 2
+        model.needs_padding = False
+        if autoinit:
+            model.initialize_architecture()
+
+    def build_model(model, batch_size, input_width, input_height,
+                    input_channels, output_dims, verbose=True):
+        r"""
+        CommandLine:
+            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.build_model
+            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.build_model --verbcnn
+            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> # build test data
+            >>> model = SiameseCenterSurroundModel()
+            >>> batch_size = 128
+            >>> input_width, input_height, input_channels = 64, 64, 3
+            >>> output_dims = None
+            >>> verbose = True
+            >>> # execute function
+            >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
+            >>> print('\n---- Arch Str')
+            >>> model.print_architecture_str(sep='\n')
+            >>> print('\n---- Layer Info')
+            >>> model.print_layer_info()
+            >>> print('\n---- HashID')
+            >>> print('hashid=%r' % (model.get_architecture_hashid()),)
+            >>> print('----')
+            >>> # verify results
+            >>> result = str(output_layer)
+            >>> print(result)
+        """
+        #print('build model may override settings')
+        input_shape = (batch_size, input_channels, input_width, input_height)
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        model.output_dims = 1
+        model.initialize_architecture(verbose=verbose)
+        output_layer = model.get_output_layer()
+        return output_layer
+
+    def initialize_architecture(model, verbose=True):
+        # TODO: remove output dims
+        _P = functools.partial
+        (_, input_channels, input_width, input_height) = model.input_shape
+        if verbose:
+            print('[model] Initialize siamese model architecture')
+            print('[model]   * batch_size     = %r' % (model.batch_size,))
+            print('[model]   * input_width    = %r' % (input_width,))
+            print('[model]   * input_height   = %r' % (input_height,))
+            print('[model]   * input_channels = %r' % (input_channels,))
+            print('[model]   * output_dims    = %r' % (model.output_dims,))
+
+        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
+
+        vggnet = PretrainedNetwork('vggnet')
+
+        network_layers_def = [
+            _P(layers.InputLayer, shape=model.input_shape),
+            _P(custom_layers.CenterSurroundLayer),
+
+            #layers.GaussianNoiseLayer,
+            vggnet.get_conv2d_layer(0, **leaky),
+
+            _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), **leaky_orthog),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **leaky_orthog),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **leaky_orthog),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
+            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+            _P(layers.DropoutLayer, p=0.5),
+            #_P(custom_layers.L2NormalizeLayer),
+            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
+            #_P(layers.DropoutLayer, p=0.5),
+            #_P(layers.merge.ConcatLayer),
+            _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
+            #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+            _P(layers.DropoutLayer, p=0.5),
+            _P(layers.DenseLayer, num_units=1, **leaky_orthog),
+        ]
+
+        # connect and record layers
+        network_layers = evaluate_layer_list(network_layers_def)
+        model.network_layers = network_layers
+        output_layer = model.network_layers[-1]
+        return output_layer
+
+    def loss_function(model, E, Y, T=T, verbose=True):
+        """
+
+        CommandLine:
+            python -m ibeis_cnn.models --test-loss_function
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> from ibeis_cnn import train
+            >>> from ibeis_cnn import batch_processing as batch
+            >>> data, labels = train.testdata_patchmatch()
+            >>> model = SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 41, 41))
+            >>> theano_forward = batch.create_unbuffered_network_output_func(model)
+            >>> batch_size = model.batch_size
+            >>> Xb, yb = data[0:batch_size], labels[0:batch_size // 2]
+            >>> network_output = theano_forward(Xb)[0]
+            >>> E = network_output
+            >>> Y = yb
+            >>> T = np
+            >>> # execute function
+            >>> verbose = True
+            >>> avg_loss = model.loss_function(E, Y, T=T)
+            >>> result = str(avg_loss)
+            >>> print(result)
+        """
+        if verbose:
+            print('[model] Build siamese loss function')
+        # Contrastive loss function
+        Q = 2
+        E = E.flatten()
+        genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
+        imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
+        loss = genuine_loss + imposter_loss
+        avg_loss = T.mean(loss)
+        loss.name = 'loss'
+        avg_loss.name = 'avg_loss'
+        return avg_loss
+
+        #avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
+        #return avg_loss
+
+
 class SiameseModel(BaseModel):
     """
     Model for individual identification
@@ -361,6 +511,7 @@ class SiameseModel(BaseModel):
         # 2*N images in a batch and N labels that map to
         # two images a piece
         model.data_per_label = 2
+        model.needs_padding = True
 
     def build_model(model, batch_size, input_width, input_height,
                     input_channels, output_dims, verbose=True):
@@ -374,18 +525,14 @@ class SiameseModel(BaseModel):
             >>> # build test data
             >>> model = SiameseModel()
             >>> batch_size = 128
-            >>> input_width = 64
-            >>> input_height = 64
-            >>> input_channels = 3
+            >>> input_width, input_height, input_channels  = 64, 64, 3
             >>> output_dims = None
             >>> verbose = True
-            >>> # execute function
             >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
             >>> print('----')
             >>> model.print_architecture_str(sep='\n')
             >>> print('hashid=%r' % (model.get_architecture_hashid()),)
             >>> print('----')
-            >>> # verify results
             >>> result = str(output_layer)
             >>> print(result)
         """
@@ -422,7 +569,7 @@ class SiameseModel(BaseModel):
         # variable batch size (None), channel, width, height
         #input_shape = (batch_size * model.data_per_label, input_channels, input_width, input_height)
 
-        vggnet = PretrainedNetwork('vggnet', show_network=True)
+        vggnet = PretrainedNetwork('vggnet')
 
         network_layers_def = [
             _P(layers.InputLayer, shape=model.input_shape),
@@ -464,7 +611,7 @@ class SiameseModel(BaseModel):
 
     def loss_function(self, G, Y_padded, T=T, verbose=True):
         if verbose:
-            print('[model] Build siamese loss function')
+            print('[model] Build center surround siamese loss function')
         avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
         return avg_loss
 

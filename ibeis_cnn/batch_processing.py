@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
-from ibeis_cnn import utils, draw_net
+from ibeis_cnn import utils
+from ibeis_cnn import draw_net
 import utool as ut
 import numpy as np
 import lasagne
@@ -9,6 +10,9 @@ from lasagne import layers
 import warnings
 import theano
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
+
+
+VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERBOSE_CNN
 
 
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
@@ -25,14 +29,14 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         center_std (None):
 
     CommandLine:
-        python -m ibeis_cnn.utils --test-batch_iterator
+        python -m ibeis_cnn.batch_processing --test-batch_iterator
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.utils import *  # NOQA
         >>> # build test data
-        >>> X = np.random.rand(64, 3, 5, 4)
-        >>> y = (np.random.rand(64) * 4).astype(np.int32)
+        >>> X = np.random.rand(67, 3, 5, 4)
+        >>> y = (np.random.rand(67) * 4).astype(np.int32)
         >>> batch_size = 16
         >>> encoder = None
         >>> rand = True
@@ -42,11 +46,13 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> data_per_label = 2
         >>> model = None
         >>> # execute function
-        >>> result = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
+        >>> iter_ = batch_iterator(X, y, batch_size, encoder, rand, augment, center_mean, center_std)
         >>> # verify results
-        >>> print(next(result))
+        >>> result_list = [(Xb, Yb) for Xb, Yb in iter_]
+        >>> result = ut.depth_profile(result_list, compress_consecutive=True)
+        >>> print(result)
     """
-    verbose = kwargs.get('verbose', ut.VERYVERBOSE)
+    verbose = kwargs.get('verbose', VERBOSE_BATCH)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
@@ -64,11 +70,12 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         print('[batchiter] num_batches = %r' % (num_batches,))
 
     batch_index_iter = range(num_batches)
+    equal_batch_sizes = kwargs.get('equal_batch_sizes', False)
     if ut.VERBOSE:
         batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches, lbl='verbose unbuffered batch iteration')
     for batch_index in batch_index_iter:
         # Get batch slice
-        Xb, yb = utils.slice_data_labels(X, y, batch_size, batch_index, data_per_label)
+        Xb, yb = utils.slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=equal_batch_sizes)
         # Whiten
         Xb = utils.whiten_data(Xb, center_mean, center_std)
         # Augment
@@ -83,8 +90,10 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
             # Get corret dtype for y (after encoding)
             if data_per_label > 1:
                 # TODO: FIX data_per_label ISSUES
-                yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
-                yb = np.hstack((yb, yb_buffer))
+                if getattr(model, 'needs_padding', False):
+                    # most models will do the padding implicitly in the layer architecture
+                    yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
+                    yb = np.hstack((yb, yb_buffer))
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
         if X_is_cv2_native:
@@ -110,7 +119,7 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     pred_list = []
     conf_list = []
     auglbl_list = []  # augmented label list
-    show = False
+    show = VERBOSE_BATCH
     for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
         # Runs a batch through the network and updates the weights. Just returns what it did
         loss, prob, pred, conf = theano_fn(Xb, yb)
@@ -177,7 +186,7 @@ def process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs):
         >>> model.initialize_architecture()
         >>> X_train, y_train = model.make_random_testdata(num=200000, seed=None)
         >>> theano_fn = create_buffered_iter_funcs_train2(model, X_train, y_train)
-        >>> kwargs = {'X_is_cv2_native': False}
+        >>> kwargs = {'X_is_cv2_native': False, 'equal_batch_sizes': True}
         >>> batch_size = model.batch_size
         >>> res = process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs)
         >>> (loss, accu, prob_list, auglbl_list, pred_list, conf_list) = res
@@ -368,11 +377,14 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     # we are minimizing the multi-class negative log-likelihood
     print('Building symbolic loss function')
-    objective = objectives.Objective(output_layer, loss_function=loss_function)
+    objective = objectives.Objective(output_layer, loss_function=loss_function, aggregation='mean')
     loss = objective.get_loss(X_batch, target=y_batch)
     loss.name = 'loss'
+
     print('Building symbolic loss function (determenistic)')
-    loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+    #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+    loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
+    loss_determ.name = 'loss_determ'
 
     #theano.printing.pydotprint(loss, outfile="./symbolic_graph_opt.png", var_with_name_simple=True)
     #ut.startfile('./symbolic_graph_opt.png')
@@ -384,7 +396,8 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         loss += L2 * regularization
 
     # Run inference and get performance_outputs
-    probabilities = output_layer.get_output(X_batch, deterministic=True)
+    #probabilities = output_layer.get_output(X_batch, deterministic=True)
+    probabilities = layers.get_output(output_layer, X_batch, deterministic=True)
     probabilities.name = 'probabilities'
     predictions = T.argmax(probabilities, axis=1)
     predictions.name = 'predictions'
@@ -394,7 +407,9 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     performance_outputs = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
-    parameters = layers.get_all_params(output_layer)
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*topo.*')
+        parameters = layers.get_all_params(output_layer)
     updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
 
     theano_backprop = theano.function(
@@ -417,14 +432,15 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         },
     )
 
-    theano_predict = theano.function(
-        inputs=[theano.Param(X_batch)],
-        outputs=performance_outputs,
-        updates=None,
-        givens={
-            X: X_batch,
-        },
-    )
+    #theano_predict = theano.function(
+    #    inputs=[theano.Param(X_batch)],
+    #    outputs=performance_outputs,
+    #    updates=None,
+    #    givens={
+    #        X: X_batch,
+    #    },
+    #)
+    theano_predict = None
 
     return theano_backprop, theano_forward, theano_predict
 
@@ -445,7 +461,8 @@ def create_unbuffered_iter_funcs_train2(model):
     output_layer = model.get_output_layer()
 
     # Build expression to evalute network output without dropout
-    newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    #newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    newtork_output = layers.get_output(output_layer, X_batch, deterministic=True)
     newtork_output.name = 'network_output'
 
     # Build expression to evaluate loss
@@ -476,7 +493,6 @@ def create_unbuffered_iter_funcs_train2(model):
     theano_backprop.name += ':theano_backprob:unbuffered'
 
     # TODO: Rectify
-
     return theano_backprop
 
 
@@ -547,7 +563,8 @@ def create_buffered_iter_funcs_train2(model, X_unshared, y_unshared):
     output_layer = model.get_output_layer()
 
     # Build expression to evalute network output without dropout
-    newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    #newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    newtork_output = layers.get_output(output_layer, X_batch, deterministic=True)
     newtork_output.name = 'network_output'
 
     # Build expression to evaluate loss
@@ -609,6 +626,30 @@ def create_buffered_iter_funcs_train2(model, X_unshared, y_unshared):
     #)
 
     return theano_backprop
+
+
+def create_unbuffered_network_output_func(model):
+    # Initialize symbolic input variables
+    X_batch = T.tensor4(name='X_batch')
+    # weird, idk why X and y exist
+    X = T.tensor4(name='X_batch')
+
+    output_layer = model.get_output_layer()
+
+    # Build expression to evalute network output without dropout
+    #newtork_output = output_layer.get_output(X_batch, deterministic=True)
+    newtork_output = layers.get_output(output_layer, X_batch, deterministic=True)
+    newtork_output.name = 'network_output'
+
+    theano_forward = theano.function(
+        inputs=[theano.Param(X_batch)],
+        outputs=[newtork_output],
+        givens={
+            X: X_batch,
+        }
+    )
+    theano_forward.name += ':theano_forward:unbuffered'
+    return theano_forward
 
 
 if __name__ == '__main__':
