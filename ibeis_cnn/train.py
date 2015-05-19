@@ -10,6 +10,7 @@ CommandLine:
     python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
     python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=5
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 """
 from __future__ import absolute_import, division, print_function
@@ -325,6 +326,7 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --nocache-train
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=20
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
     Example:
@@ -333,6 +335,7 @@ def train_patchmatch_pz():
         >>> train_patchmatch_pz()
     """
     max_examples = ut.get_argval('--max-examples', type_=int, default=None)
+    num_top = ut.get_argval('--num-top', type_=int, default=3)
     print('[train] train_patchmatch_pz')
     print('[train] max examples = {}'.format(max_examples))
 
@@ -341,7 +344,7 @@ def train_patchmatch_pz():
         ibs = ibeis.opendb(defaultdb='PZ_MTEST')
 
     with ut.Indenter('[CHECKDATA]'):
-        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples)
+        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples, num_top=num_top)
         data_fpath, labels_fpath, training_dpath = pathtup
 
     #model = models.SiameseModel()

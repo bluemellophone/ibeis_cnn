@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
+import six
 from ibeis_cnn import utils
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ibsplugin]')
 
@@ -585,10 +586,10 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
     """
     training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, 'train_patchmetric')
 
-    cfg = PatchMetricDataConfig()
+    pmcfg = PatchMetricDataConfig()
 
     fm_hashstr = ut.hashstr_arr(fm_list, lbl='fm')
-    data_fpath = ut.unixjoin(training_dpath, 'data_' + fm_hashstr + '_' + cfg.get_cfgstr() + '.pkl')
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + fm_hashstr + '_' + pmcfg.get_cfgstr() + '.pkl')
     labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
@@ -596,9 +597,18 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             ut.checkpath(data_fpath, verbose=True)
             and ut.checkpath(labels_fpath, verbose=True)
     ):
-        data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **cfg.kw())
-        ut.assert_eq(data.shape[1], cfg.patch_size)
-        ut.assert_eq(data.shape[2], cfg.patch_size)
+        # Estimate how big the patches will be
+        def estimate_data_bytes():
+            data_per_label = 2
+            num_data = sum(list(map(len, fm_list)))
+            item_shape = (3, pmcfg.patch_size, pmcfg.patch_size)
+            dtype_bytes = 1
+            estimated_bytes = np.prod(item_shape) * num_data * data_per_label * dtype_bytes
+            print('Estimated data size: ' + ut.byte_str2(estimated_bytes))
+        estimate_data_bytes()
+        data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, **pmcfg.kw())
+        ut.assert_eq(data.shape[1], pmcfg.patch_size)
+        ut.assert_eq(data.shape[2], pmcfg.patch_size)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
@@ -656,7 +666,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
         aid_list = aid_list[0:min(max_examples, len(aid_list))]
     if num_top is None:
         num_top = 3
-    import utool as ut
     #from ibeis.model.hots import chip_match
     aid_list = ut.list_compress(aid_list, ibs.get_annot_has_groundtruth(aid_list))
     qres_list, qreq_ = ibs.query_chips(aid_list, aid_list, return_request=True)
@@ -677,8 +686,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
 
     # Filter out bad training examples
     labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
-    from ibeis import const
-    isvalid = (labels != const.TRUTH_UNKNOWN)
+    isvalid = (labels != ibs.const.TRUTH_UNKNOWN)
     aid1_list = ut.list_compress(aid1_list, isvalid)
     aid2_list = ut.list_compress(aid2_list, isvalid)
     fm_list   = ut.list_compress(fm_list, isvalid)
@@ -689,7 +697,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
     if EQUALIZE_LABELS:
         #def equalize_labels(fm_list,
         import vtool as vt
-        import six
         print('flattening')
         #aid1_list_ = ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)])
         #aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
@@ -697,6 +704,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
         labels_ = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels)])
         labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels_, labels_))}
         print('[ibsplugin] original label histogram = \n' + ut.dict_str(labelhist))
+        print('[ibsplugin] total = %r' % (sum(list(labelhist.values()))))
         labels_ = np.array(labels_)
 
         allowed_ratio = ut.PHI
@@ -736,6 +744,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
         labels_ = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels)])
         labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels_, labels_))}
         print('[ibsplugin] equalized label histogram = \n' + ut.dict_str(labelhist))
+        print('[ibsplugin] total = %r' % (sum(list(labelhist.values()))))
+
+    print('Building feature indicies')
 
     fx1_list = [fm.T[0] for fm in fm_list]
     fx2_list = [fm.T[1] for fm in fm_list]
@@ -748,8 +759,17 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
     #    unique_ids = vt.compute_unique_data_ids_(aidfx_list)
     #    print(len(set(unique_ids)) / len(unique_ids))
 
-    kpts1_list = ibs.get_annot_kpts(aid1_list)
-    kpts2_list = ibs.get_annot_kpts(aid2_list)
+    #print('Reading keypoint sets')
+    #
+    # Hack: use the ibeis cache to make quick lookups
+    with ut.Timer('Reading keypoint sets (caching unique keypoints)'):
+        ibs.get_annot_kpts(list(set(aid1_list + aid2_list)))
+    with ut.Timer('Reading keypoint sets from cache'):
+        kpts1_list = ibs.get_annot_kpts(aid1_list)
+        kpts2_list = ibs.get_annot_kpts(aid2_list)
+    ibs.print_cachestats_str()
+    ibs.clear_table_cache(ibs.const.FEATURE_TABLE)
+    print('Taking matching keypoints')
     kpts1_m_list = [kpts1.take(fx1, axis=0) for kpts1, fx1 in zip(kpts1_list, fx1_list)]
     kpts2_m_list = [kpts2.take(fx2, axis=0) for kpts2, fx2 in zip(kpts2_list, fx2_list)]
     return aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list
@@ -797,7 +817,7 @@ def get_patchmetric_training_fpaths(ibs, **kwargs):
         >>> from ibeis_cnn.ibsplugin import *  # NOQA
         >>> import ibeis
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> kwargs = ut.get_arg_dict({'max_examples': None, 'num_top': 3})
+        >>> kwargs = ut.argparse_dict({'max_examples': None, 'num_top': 3})
         >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs, **kwargs)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
