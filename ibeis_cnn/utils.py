@@ -34,6 +34,32 @@ def concatenate_hack(sequence, axis=0):
     return res
 
 
+def multiaxis_reduce(ufunc, arr, startaxis=0):
+    """ todo: clean and move to vtool
+    used to get max/min over all axes after <startaxis>
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-multiaxis_reduce
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> np.random.seed(0)
+        >>> arr = (np.random.rand(4, 3, 2, 1) * 255).astype(np.uint8)
+        >>> ufunc = np.amax
+        >>> startaxis = 1
+        >>> out_ = multiaxis_reduce(ufunc, arr, startaxis)
+        >>> result = out_
+        >>> print(result)
+        [182 245 236 249]
+    """
+    num_iters = len(arr.shape) - startaxis
+    out_ = ufunc(arr, axis=startaxis)
+    for _ in range(num_iters - 1):
+        out_ = ufunc(out_, axis=1)
+    return out_
+
+
 def get_gpu_memory():
     """
     References:

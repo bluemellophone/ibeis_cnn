@@ -463,15 +463,16 @@ class SiameseCenterSurroundModel(BaseModel):
             #conv_pool(num_filters=32, filter_size=(3, 3), pool_size=(2, 2), stride=(2, 2)) +
             [
 
-                _P(custom_layers.L2NormalizeLayer, axis=2),
-                _P(layers.DenseLayer, num_units=256, name='D1', **leaky_orthog),
+                _P(layers.DropoutLayer, p=0.5),
+                #_P(custom_layers.L2NormalizeLayer, axis=2),
+                _P(layers.DenseLayer, num_units=64, name='D1', **leaky_orthog),
                 _P(layers.DropoutLayer, p=0.5),
                 #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
                 #_P(layers.DropoutLayer, p=0.5),
                 #_P(layers.merge.ConcatLayer),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=256, name='D2',  **leaky_orthog),
+                _P(layers.DenseLayer, num_units=64, name='D2',  **leaky_orthog),
                 _P(layers.DropoutLayer, p=0.5),
                 _P(layers.DenseLayer, num_units=1, name='D3', **leaky_orthog),
             ]

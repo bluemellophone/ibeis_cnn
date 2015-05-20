@@ -22,6 +22,7 @@ import cv2
 from os.path import join, exists
 import utool as ut
 from lasagne import layers
+from ibeis_cnn import utils
 
 
 def get_hex_color(layer_type):
@@ -283,7 +284,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     plt.savefig(join(results_path, 'confusion.png'))
 
 
-def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None, epoch=None):
+def show_convolutional_layers(output_layer, results_path, color=None, limit=150, target=None, epoch=None):
     r"""
     CommandLine:
         python -m ibeis_cnn.draw_net --test-show_convolutional_layers
@@ -313,10 +314,14 @@ def show_convolutional_layers(output_layer, results_path, color=False, limit=150
     #weights_list = [layer.W.get_value() for layer in cnn_layers]
 
     # hacky to maintain functionality
+    #print('target = %r' % (target,))
+    #print('len(cnn_layers) = %r' % (len(cnn_layers),))
+    #print('len(nn_layers) = %r' % (len(nn_layers),))
     if isinstance(target, list):
-        ut.list_take(cnn_layers, target)
+        cnn_layers = ut.list_take(cnn_layers, target)
     elif target is not None:
         cnn_layers = [cnn_layers[target]]
+    #print('len(nn_layers) = %r' % (len(nn_layers),))
 
     output_fpath_list = []
     for index, layer in enumerate(cnn_layers):
@@ -349,7 +354,7 @@ def show_convolutional_layers(output_layer, results_path, color=False, limit=150
     return output_fpath_list
 
 
-def draw_convolutional_features(all_weights, color=False, limit=150):
+def draw_convolutional_features(all_weights, color=None, limit=150):
     r"""
     Args:
         all_weights (?):
@@ -357,10 +362,8 @@ def draw_convolutional_features(all_weights, color=False, limit=150):
         limit (int):
 
     CommandLine:
-        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --color
         python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show
         python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --index=1
-        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --color
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -374,11 +377,12 @@ def draw_convolutional_features(all_weights, color=False, limit=150):
         >>> index = ut.get_argval('--index', type_=int, default=0)
         >>> all_weights = weighted_layers[index].W.get_value()
         >>> print('all_weights.shape = %r' % (all_weights.shape,))
-        >>> color = ut.get_argflag('--color')
-        >>> limit = 150
+        >>> color = None
+        >>> limit = 64
         >>> fig = draw_convolutional_features(all_weights, color, limit)
         >>> ut.show_if_requested()
     """
+    # TODO: draw dense layers
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1 import ImageGrid
     import matplotlib.cm as cm
@@ -388,12 +392,16 @@ def draw_convolutional_features(all_weights, color=False, limit=150):
     ax1.get_xaxis().set_visible(False)
     ax1.get_yaxis().set_visible(False)
     # Get shape of weights
+    #print('all_weights.shape = %r' % (all_weights.shape,))
     num, channels, height, width = all_weights.shape
+    if color is None:
+        # Try to infer if color should be shown
+        color = (channels == 3)
+        #print('color = %r' % (color,))
     # non-color features need to be flattened
     if not color:
         all_weights_ = all_weights.reshape(num * channels, height, width)
     else:
-        from ibeis_cnn import utils
         # convert from theano to cv2 BGR
         all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
         # convert from BGR to RGB
@@ -401,29 +409,20 @@ def draw_convolutional_features(all_weights, color=False, limit=150):
         #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
 
     # Limit all_weights_
+    num = all_weights_.shape[0]
     if limit is not None and num > limit:
         all_weights_ = all_weights_[:limit]
+        num = all_weights_.shape[0]
 
     # Find how many features and build grid
-    num = all_weights_.shape[0]
     dim = int(np.ceil(np.sqrt(num)))
     grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
 
     # Convert weight values to image values
 
     #ut.embed()
-    def multiaxis_reduce(func, arr, startaxis=0):
-        """ todo: clean and move to vtool
-        used to get max/min over all axes after <startaxis>
-        """
-        #func = np.amax
-        num_iters = len(arr.shape) - startaxis
-        out_ = func(arr, axis=startaxis)
-        for _ in range(num_iters - 1):
-            out_ = func(out_, axis=1)
-        return out_
-    all_max = multiaxis_reduce(np.amax, all_weights_, startaxis=1)
-    all_min = multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+    all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+    all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
     all_domain = all_max - all_min
 
     #all_weights_ - all_min[slice(None), *[None] * 2]
@@ -437,22 +436,6 @@ def draw_convolutional_features(all_weights, color=False, limit=150):
     else:
         for f, feature in enumerate(all_features):
             grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
-
-    #for f, feature in enumerate(all_features):
-    #    # get all the weights and scale them to dimensions that can be shown
-    #    #if color:
-    #    #    # convert from theano to cv2 and then to RGB
-    #    #    #feature = cv2.cvtColor(np.transpose(feature, (1, 2, 0)), cv2.COLOR_BGR2RGB)
-    #    #    #feature = cv2.cvtColor(feature, (1, 2, 0), cv2.COLOR_BGR2RGB)
-    #    #    #feature = cv2.merge(feature[::-1]) # Rotate BGR to RGB and merge
-    #    #fmin, fmax = np.min(feature), np.max(feature)
-    #    #domain = fmax - fmin
-    #    #feature = (feature - fmin) * (255. / domain)
-    #    #feature = feature.astype(np.uint8)
-    #    if color:
-    #        grid[f].imshow(feature, interpolation='nearest')
-    #    else:
-    #        grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
 
     for j in range(dim * dim):
         grid[j].get_xaxis().set_visible(False)
