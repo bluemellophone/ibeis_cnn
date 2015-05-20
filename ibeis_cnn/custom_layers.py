@@ -6,6 +6,7 @@ import warnings
 import theano
 import theano.tensor as T
 import functools
+#import six
 from ibeis_cnn import utils
 
 
@@ -19,13 +20,91 @@ class L1NormalizeLayer(lasagne.layers.Layer):
         return output_
 
 
+#@six.add_metaclass(ut.ReloadingMetaclass)
 class L2NormalizeLayer(lasagne.layers.Layer):
-    def __init__(self, input_layer, *args, **kwargs):
-        super(L2NormalizeLayer, self).__init__(input_layer, *args, **kwargs)
+    def __init__(self, input_layer, axis=1, **kwargs):
+        super(L2NormalizeLayer, self).__init__(input_layer, **kwargs)
+        self.axis = axis
 
-    def get_output_for(self, input_, *args, **kwargs):
-        ell2_norm = T.sqrt(T.power(input_, 2).sum(axis=1))
-        output_ = input_ / ell2_norm[:, None]
+    def get_output_for(self, input_, axis=None, T=T, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn.custom_layers --test-L2NormalizeLayer.get_output_for
+
+        Example0:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> # l2 normalization on batches of vector encodings
+            >>> input_layer = testdata_input_layer(item_shape=(8,), batch_size=4)
+            >>> inputdata_ = np.random.rand(*input_layer.shape).astype(np.float32)
+            >>> axis = 1
+            >>> self = L2NormalizeLayer(input_layer, axis=axis)
+            >>> # Test numpy version
+            >>> T = np
+            >>> input_ = inputdata_
+            >>> output_np = self.get_output_for(inputdata_, T=np)
+            >>> assert np.all(np.isclose(np.linalg.norm(output_np, axis=axis), 1.0))
+            >>> # Test theano version
+            >>> T = theano.tensor
+            >>> input_expr = input_ = T.matrix(name='vector_input')
+            >>> output_expr = self.get_output_for(input_expr, T=T)
+            >>> output_T = output_expr.eval({input_expr: inputdata_})
+            >>> print(output_T)
+            >>> assert np.all(np.isclose(output_T, output_np)), 'theano and numpy diagree'
+
+        Example1:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.custom_layers import *  # NOQA
+            >>> # l2 normalization on batches of image filters
+            >>> input_layer = testdata_input_layer(item_shape=(3, 2, 2), batch_size=4)
+            >>> inputdata_ = np.random.rand(*input_layer.shape).astype(np.float32)
+            >>> axis = 2
+            >>> self = L2NormalizeLayer(input_layer, axis=axis)
+            >>> # Test numpy version
+            >>> T = np
+            >>> input_ = inputdata_
+            >>> output_np = self.get_output_for(inputdata_, T=np)
+            >>> output_flat_np = output_np.reshape(np.prod(input_layer.shape[0:2]), np.prod(input_layer.shape[2:4]))
+            >>> assert np.all(np.isclose(np.linalg.norm(output_flat_np, axis=1), 1.0))
+            >>> # Test theano version
+            >>> T = theano.tensor
+            >>> input_expr = input_ = T.tensor4(name='image_filter_input')
+            >>> output_expr = self.get_output_for(input_expr, T=T)
+            >>> output_T = output_expr.eval({input_expr: inputdata_})
+            >>> print(output_T)
+            >>> assert np.all(np.isclose(output_T, output_np)), 'theano and numpy diagree'
+            >>> #output_T = utils.evaluate_symbolic_layer(self.get_output_for, inputdata_, T.tensor4, T=theano.tensor)
+        """
+        if axis is None:
+            axis = self.axis
+
+        input_shape = input_.shape
+        batch_shape = input_shape[0:axis]
+        rest_shape = input_shape[axis:]
+        batch_size = T.prod(batch_shape)
+        rest_size = T.prod(rest_shape)
+
+        # reshape to two dimensions
+        input_reshaped_ = input_.reshape((batch_size, rest_size))
+        #if T is np:
+        #    #input_reshaped_ = input_.reshape(batch_shape + (rest_size,))
+        #else:
+        #    # hack because I don't know how to get ndim yet
+        #    if axis == 1:
+        #        input_reshaped_ = input_.reshape(batch_shape + (rest_size,), ndim=2)
+        #    elif axis == 2:
+        #        input_reshaped_ = input_.reshape(batch_shape + (rest_size,), ndim=3)
+
+        ell2_norm = T.sqrt(T.power(input_reshaped_, 2).sum(axis=-1))
+        if T is np:
+            #outputreshaped_ = input_reshaped_ / ell2_norm[..., None]
+            outputreshaped_ = input_reshaped_ / ell2_norm[:, None]
+            output_ = outputreshaped_.reshape(input_shape)
+        else:
+            outputreshaped_ = input_reshaped_ / ell2_norm[:, None]
+            output_ = outputreshaped_.reshape(input_shape)
+            output_.name = 'l2normalized(%s)' % (input_.name)
+            #.dimshuffle(0, 'x', 1)
         return output_
 
 
@@ -57,8 +136,8 @@ class L1DistanceLayer(lasagne.layers.Layer):
         return E
 
 
-def testdata_input_layer(item_shape=(3, 32, 32)):
-    input_shape = (128,) + item_shape
+def testdata_input_layer(item_shape=(3, 32, 32), batch_size=128):
+    input_shape = (batch_size,) + item_shape
     input_layer = lasagne.layers.InputLayer(shape=input_shape)
     return input_layer
 
@@ -224,10 +303,10 @@ class CenterSurroundLayer(lasagne.layers.Layer):
             >>> item_shape = (41, 41, 3)
             >>> self, inputdata_ = testdata_centersurround(item_shape)
             >>> # Test the actual symbolic expression
-            >>> result_T = utils.evaluate_symbolic_layer(self.get_output_for, inputdata_, T.tensor4, T=theano.tensor)
-            >>> result_T = result_T.astype(np.uint8)
+            >>> output_T = utils.evaluate_symbolic_layer(self.get_output_for, inputdata_, T.tensor4, T=theano.tensor)
+            >>> output_T = output_T.astype(np.uint8)
             >>> ut.quit_if_noshow()
-            >>> img_list = utils.convert_theano_images_to_cv2_images(result_T)
+            >>> img_list = utils.convert_theano_images_to_cv2_images(output_T)
             >>> interact_image_list(img_list, num_per_page=8)
 
         Example1:
@@ -238,16 +317,16 @@ class CenterSurroundLayer(lasagne.layers.Layer):
             >>> item_shape = (41, 41, 3)
             >>> self, input_expr = testdata_centersurround(item_shape)
             >>> # Test using just numpy
-            >>> result_np = self.get_output_for(input_expr, T=np)
+            >>> output_np = self.get_output_for(input_expr, T=np)
             >>> print('results agree')
             >>> ut.quit_if_noshow()
-            >>> img_list = utils.convert_theano_images_to_cv2_images(result_np)
+            >>> img_list = utils.convert_theano_images_to_cv2_images(output_np)
             >>> interact_image_list(img_list, num_per_page=8)
 
         Ignore:
             from ibeis_cnn import draw_net
             #draw_net.draw_theano_symbolic_expression(result)
-            assert np.all(result_np == result_T)
+            assert np.all(output_np == output_T)
             np.stack = np.vstack
             T = np
         """

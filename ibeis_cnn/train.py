@@ -121,7 +121,13 @@ def train(data_fpath, labels_fpath, model, weights_fpath, results_dpath,
     output_layer = model.build_model(
         kwargs['batch_size'], input_width, input_height,
         input_channels, kwargs['output_dims'])
-    utils.print_layer_info(output_layer)
+
+    print('\n[train] --- MODEL INFO ---')
+    if hasattr(model, 'print_layer_info'):
+        model.print_architecture_str()
+        model.print_layer_info()
+    else:
+        utils.print_layer_info(output_layer)
 
     # Create the Theano primitives
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')

@@ -96,6 +96,7 @@ def make_layer_str(layer):
     Args:
         layer (lasange.Layer): a network layer
     """
+    # filter_size is a scalar in Conv2DLayers because non-uniform shapes is not supported
     common_attrs = ['shape', 'num_filters', 'num_units', 'ds', 'filter_shape', 'stride', 'strides', 'p']
     ignore_attrs = ['nonlinearity', 'b', 'W']
     #func_attrs = ['get_output_shape']
@@ -103,8 +104,8 @@ def make_layer_str(layer):
     layer_attrs_dict = {
         'DropoutLayer': ['p'],
         'InputLayer': ['shape'],
-        'Conv2DCCLayer': ['num_filters', 'stride'],
-        'MaxPool2DCCLayer': ['stride'],
+        'Conv2DCCLayer': ['num_filters', 'filter_size', 'stride'],
+        'MaxPool2DCCLayer': ['stride', 'pool_size'],
         'DenseLayer': ['num_units'],
     }
     layer_type = '{0}'.format(layer.__class__.__name__)
@@ -112,7 +113,7 @@ def make_layer_str(layer):
     isvalid_list = [hasattr(layer, attr) for attr in request_attrs]
     attr_key_list = ut.list_compress(request_attrs, isvalid_list)
 
-    DEBUG = False
+    DEBUG = True
     if DEBUG:
         #if layer_type == 'Conv2DCCLayer':
         #    ut.embed()
@@ -217,7 +218,11 @@ class PretrainedNetwork(object):
         return (height, width)
 
     def get_conv2d_layer(self, layer_index, **kwargs):
-        """ Assumes requested layer is convolutional """
+        """ Assumes requested layer is convolutional
+
+        Returns:
+            lasange.layers.Layer: Layer
+        """
         W = self.get_pretrained_layer(layer_index)
         num_filters = self.get_layer_num_filters(layer_index)
         filter_size = self.get_layer_filter_size(layer_index)
@@ -261,9 +266,9 @@ class BaseModel(object):
         architecture_str = sep.join(layer_str_list)
         return architecture_str
 
-    def print_architecture_str(self, sep='\n'):
+    def print_architecture_str(self, sep='\n  '):
         architecture_str = self.get_architecture_str(sep=sep)
-        print(architecture_str)
+        print('\nArchitecture:' + sep + architecture_str)
 
     def get_output_layer(self):
         assert self.network_layers is not None, 'need to initialize architecture first'
@@ -354,6 +359,9 @@ class DummyModel(BaseModel):
 class SiameseCenterSurroundModel(BaseModel):
     """
     Model for individual identification
+
+    TODO:
+        RBM / EBM  - http://deeplearning.net/tutorial/rbm.html
     """
     def __init__(model, autoinit=False, batch_size=128, input_shape=(None, 3, 64, 64)):
         super(SiameseCenterSurroundModel, model).__init__()
@@ -423,33 +431,41 @@ class SiameseCenterSurroundModel(BaseModel):
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         leaky_orthog = dict(W=init.Orthogonal(), **leaky)
 
-        vggnet = PretrainedNetwork('vggnet')
+        #vggnet = PretrainedNetwork('vggnet')
+        caffenet = PretrainedNetwork('caffenet')
 
-        network_layers_def = [
-            _P(layers.InputLayer, shape=model.input_shape),
-            _P(custom_layers.CenterSurroundLayer),
+        def conv_pool(num_filters, filter_size, pool_size, stride):
+            conv_ = _P(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, **leaky_orthog)
+            maxpool_ =  _P(MaxPool2DLayer, pool_size=pool_size, stride=stride)
+            return [conv_, maxpool_]
 
-            #layers.GaussianNoiseLayer,
-            vggnet.get_conv2d_layer(0, **leaky),
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+                _P(custom_layers.CenterSurroundLayer),
 
-            _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), **leaky_orthog),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **leaky_orthog),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), **leaky_orthog),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
-            _P(layers.DropoutLayer, p=0.5),
-            #_P(custom_layers.L2NormalizeLayer),
-            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
-            #_P(layers.merge.ConcatLayer),
-            _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
-            #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
-            _P(layers.DropoutLayer, p=0.5),
-            _P(layers.DenseLayer, num_units=1, **leaky_orthog),
-        ]
+                #layers.GaussianNoiseLayer,
+                caffenet.get_conv2d_layer(0, **leaky),
+                _P(MaxPool2DLayer, pool_size=(3, 3), stride=(1, 1)),
+                _P(Conv2DLayer, num_filters=16, filter_size=(6, 6), **leaky_orthog),
+            ] +
+            #conv_pool(num_filters=16, filter_size=(6, 6), pool_size=(2, 2), stride=(2, 2)) +
+            #conv_pool(num_filters=32, filter_size=(3, 3), pool_size=(2, 2), stride=(2, 2)) +
+            [
+
+                _P(custom_layers.L2NormalizeLayer),
+                _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+                _P(layers.DropoutLayer, p=0.5),
+                #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
+                #_P(layers.DropoutLayer, p=0.5),
+                #_P(layers.merge.ConcatLayer),
+                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
+                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+                _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+                _P(layers.DropoutLayer, p=0.5),
+                _P(layers.DenseLayer, num_units=1, **leaky_orthog),
+            ]
+        )
 
         # connect and record layers
         network_layers = evaluate_layer_list(network_layers_def)
@@ -570,6 +586,7 @@ class SiameseModel(BaseModel):
         #input_shape = (batch_size * model.data_per_label, input_channels, input_width, input_height)
 
         vggnet = PretrainedNetwork('vggnet')
+        #caffenet = PretrainedNetwork('caffenet')
 
         network_layers_def = [
             _P(layers.InputLayer, shape=model.input_shape),

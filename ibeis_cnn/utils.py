@@ -164,8 +164,8 @@ def evaluate_symbolic_layer(get_output_for, inputdata_, input_type=T.tensor4, **
     input_expr = input_type(name='test_input_expr')  # T.tensor4()
     output_expr = get_output_for(input_expr, **kwargs)
     func = theano.function(inputs=[input_expr], outputs=[output_expr])
-    result_T = func(inputdata_)[0]
-    return result_T
+    output_T = func(inputdata_)[0]
+    return output_T
 
 
 def get_current_time():
