@@ -184,6 +184,7 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
     theano_backprop, theano_forward, theano_predict = theano_funcs
     epoch = 0
     epoch_marker = epoch
+    show_times = kwargs.get('print_timing', True)
     while True:
         try:
             # Start timer
@@ -191,21 +192,24 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
 
             # Show first weights before any training
             if kwargs.get('show_features'):
-                draw_net.show_convolutional_layers(output_layer, results_dpath,
-                                                   color=True, target=0, epoch=epoch)
+                with ut.Timer('show_features1', verbose=show_times):
+                    draw_net.show_convolutional_layers(output_layer, results_dpath,
+                                                       color=True, target=0, epoch=epoch)
 
             # Get the augmentation function, if there is one for this model
             augment_fn = getattr(model, 'augment', None)
 
-            # compute the loss over all training and validation batches
-            train_loss = batch.process_train(X_train, y_train, theano_backprop,
-                                             model=model, augment=augment_fn,
-                                             rand=True, **kwargs)
+            with ut.Timer('train', verbose=show_times):
+                # compute the loss over all training and validation batches
+                train_loss = batch.process_train(X_train, y_train, theano_backprop,
+                                                 model=model, augment=augment_fn,
+                                                 rand=True, **kwargs)
 
-            # TODO: only check validation once every <valid_freq> epochs
-            data_valid = batch.process_valid(X_valid, y_valid, theano_forward,
-                                             model=model, augment=None,
-                                             rand=False, **kwargs)
+            with ut.Timer('validate', verbose=show_times):
+                # TODO: only check validation once every <valid_freq> epochs
+                data_valid = batch.process_valid(X_valid, y_valid, theano_forward,
+                                                 model=model, augment=None,
+                                                 rand=False, **kwargs)
 
             valid_loss, valid_accuracy = data_valid
 
@@ -229,9 +233,10 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
             # compute the loss over all testing batches
             # if request_test or best_found:
             if request_test:
-                train_determ_loss = batch.process_train(X_train, y_train, theano_forward,
-                                                        model=model, augment=augment_fn,
-                                                        rand=True, **kwargs)
+                with ut.Timer('test', verbose=show_times):
+                    train_determ_loss = batch.process_train(X_train, y_train, theano_forward,
+                                                            model=model, augment=augment_fn,
+                                                            rand=True, **kwargs)
 
                 # If we want to output the confusion matrix, give the results path
                 results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
@@ -240,8 +245,9 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
                     model=model, augment=None, rand=False, **kwargs)
                 # Output the layer 1 features
                 if kwargs.get('show_features'):
-                    draw_net.show_convolutional_layers(output_layer, results_dpath,
-                                                       color=True, target=0, epoch=epoch)
+                    with ut.Timer('show_features2', verbose=show_times):
+                        draw_net.show_convolutional_layers(output_layer, results_dpath,
+                                                           color=True, target=0, epoch=epoch)
                     # draw_net.show_convolutional_layers(output_layer, results_dpath,
                     #                                 color=False, target=0, epoch=epoch)
             else:
@@ -361,7 +367,10 @@ def train_patchmatch_pz():
         batch_size=ut.get_argval('--batch_size', type_=int, default=128),
         learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
         show_confusion=False,
-        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration']
+        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
+        run_test=None,
+        show_features=False,
+        print_timing=False,
     )
     nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)
@@ -413,6 +422,9 @@ def train_identification_pz():
         batch_size=32,
         learning_rate=.03,
         show_confusion=False,
+        run_test=None,
+        show_features=False,
+        print_timing=False,
     )
     nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)

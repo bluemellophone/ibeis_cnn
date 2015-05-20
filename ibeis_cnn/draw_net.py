@@ -15,6 +15,7 @@ Examples:
         return Image(dot.create_png())
 """
 from __future__ import absolute_import, division, print_function
+import warnings
 from operator import itemgetter
 import numpy as np
 import cv2
@@ -283,79 +284,181 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
 
 
 def show_convolutional_layers(output_layer, results_path, color=False, limit=150, target=None, epoch=None):
-    nn_layers = layers.get_all_layers(output_layer)
-    cnn_layers = []
-    for layer in nn_layers:
-        layer_type = str(type(layer))
-        # Only print convolutional layers
-        if 'Conv2DCCLayer' not in layer_type:
-            continue
-        cnn_layers.append(layer)
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.draw_net --test-show_convolutional_layers
 
-    weights_list = [layer.W.get_value() for layer in cnn_layers]
-    show_convolutional_features(weights_list, results_path, color=color, limit=limit, target=target, epoch=epoch)
-
-
-def show_convolutional_features(weights_list, results_path, color=False, limit=150, target=None, epoch=None):
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
+        >>> output_layer = model.get_output_layer()
+        >>> results_path = ut.ensure_app_resource_dir('ibeis_cnn', 'testing', 'figs')
+        >>> # ut.vd(results_path)
+        >>> color = True
+        >>> limit = 150
+        >>> target = 1
+        >>> epoch = 0
+        >>> result = show_convolutional_layers(output_layer, results_path, color, limit, target, epoch)
+        >>> print('result = %r' % (result,))
+    """
     import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import ImageGrid
-    import matplotlib.cm as cm
-    for index, all_weights in enumerate(weights_list):
-        if target is not None and target != index:
-            continue
-        # re-use the same figure to save memory
-        fig = plt.figure(1)
-        ax1 = plt.axes(frameon=False)
-        ax1.get_xaxis().set_visible(False)
-        ax1.get_yaxis().set_visible(False)
-        # Get shape of weights
-        num, channels, height, width = all_weights.shape
-        # non-color features need to be flattened
-        if not color:
-            all_weights = all_weights.reshape(num * channels, height, width)
-            num, height, width = all_weights.shape
-        # Limit all_weights
-        if limit is not None and num > limit:
-            all_weights = all_weights[:limit]
-            if color:
-                num, channels, height, width = all_weights.shape
-            else:
-                num, height, width = all_weights.shape
-        # Find how many features and build grid
-        dim = int(np.ceil(np.sqrt(num)))
-        grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*topo.*')
+        nn_layers = layers.get_all_layers(output_layer)
+    # TODO: be able to visualize all layers
+    #cnn_layers = [layer for layer in nn_layers if 'Conv2DCCLayer' in str(type(layer))]
+    cnn_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]
+    #weights_list = [layer.W.get_value() for layer in cnn_layers]
 
-        # Build grid
-        for f, feature in enumerate(all_weights):
-            # get all the weights and scale them to dimensions that can be shown
-            if color:
-                feature = feature[::-1]  # Rotate BGR to RGB
-                feature = cv2.merge(feature)
-            fmin, fmax = np.min(feature), np.max(feature)
-            domain = fmax - fmin
-            feature = (feature - fmin) * (255. / domain)
-            feature = feature.astype(np.uint8)
-            if color:
-                grid[f].imshow(feature, interpolation='nearest')
-            else:
-                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+    # hacky to maintain functionality
+    if isinstance(target, list):
+        ut.list_take(cnn_layers, target)
+    elif target is not None:
+        cnn_layers = [cnn_layers[target]]
 
-        for j in range(dim * dim):
-            grid[j].get_xaxis().set_visible(False)
-            grid[j].get_yaxis().set_visible(False)
+    output_fpath_list = []
+    for index, layer in enumerate(cnn_layers):
+        #print('index = %r' % (index,))
+        all_weights = layer.W.get_value()
+        #ut.embed()
+        from ibeis_cnn import models
+        layername = models.make_layer_str(layer) + '_%d' % (index,)
+        #layername = 'conv%d' % (index,)
+        #print(layername)
+        #print('layername = %r' % (layername,))
+        output_fpath = draw_convolutional_features(all_weights, color=color, limit=limit)
+        #print('...NEXT\n')
 
+        # Save the figure
         color_str = 'color' if color else 'gray'
         if epoch is None:
             epoch = 'X'
-        output_fname = 'features_conv%d_epoch_%s_%s.png' % (index, epoch, color_str)
-        fig_dpath = join(results_path, 'feature_figures')
+        output_fname = 'features_%s_epoch_%s_%s.png' % (layername, epoch, color_str)
+        fig_dpath = join(results_path, 'layer_features_%s' % (layername,))
         ut.ensuredir(fig_dpath)
         output_fpath = join(fig_dpath, output_fname)
         plt.savefig(output_fpath, bbox_inches='tight')
 
-        output_fname = 'features_conv%d_%s.png' % (index, color_str)
-        output_fpath = join(results_path, output_fname)
-        plt.savefig(output_fpath, bbox_inches='tight')
+        output2_fname = 'features_%s_%s.png' % (layername, color_str)
+        output2_fpath = join(results_path, output2_fname)
+        ut.copy(output_fpath, output2_fpath, overwrite=True, verbose=ut.VERYVERBOSE)
+        #plt.savefig(output_fpath, bbox_inches='tight')
+        output_fpath_list.append(output_fpath)
+    return output_fpath_list
+
+
+def draw_convolutional_features(all_weights, color=False, limit=150):
+    r"""
+    Args:
+        all_weights (?):
+        color (bool):
+        limit (int):
+
+    CommandLine:
+        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --color
+        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show
+        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --index=1
+        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --color
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
+        >>> output_layer = model.get_output_layer()
+        >>> nn_layers = layers.get_all_layers(output_layer)
+        >>> weighted_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]
+        >>> index = ut.get_argval('--index', type_=int, default=0)
+        >>> all_weights = weighted_layers[index].W.get_value()
+        >>> print('all_weights.shape = %r' % (all_weights.shape,))
+        >>> color = ut.get_argflag('--color')
+        >>> limit = 150
+        >>> fig = draw_convolutional_features(all_weights, color, limit)
+        >>> ut.show_if_requested()
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import ImageGrid
+    import matplotlib.cm as cm
+    # re-use the samtargete figure to save memory
+    fig = plt.figure(1)
+    ax1 = plt.axes(frameon=False)
+    ax1.get_xaxis().set_visible(False)
+    ax1.get_yaxis().set_visible(False)
+    # Get shape of weights
+    num, channels, height, width = all_weights.shape
+    # non-color features need to be flattened
+    if not color:
+        all_weights_ = all_weights.reshape(num * channels, height, width)
+    else:
+        from ibeis_cnn import utils
+        # convert from theano to cv2 BGR
+        all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
+        # convert from BGR to RGB
+        all_weights_ = all_weights_[..., ::-1]
+        #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
+
+    # Limit all_weights_
+    if limit is not None and num > limit:
+        all_weights_ = all_weights_[:limit]
+
+    # Find how many features and build grid
+    num = all_weights_.shape[0]
+    dim = int(np.ceil(np.sqrt(num)))
+    grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+
+    # Convert weight values to image values
+
+    #ut.embed()
+    def multiaxis_reduce(func, arr, startaxis=0):
+        """ todo: clean and move to vtool
+        used to get max/min over all axes after <startaxis>
+        """
+        #func = np.amax
+        num_iters = len(arr.shape) - startaxis
+        out_ = func(arr, axis=startaxis)
+        for _ in range(num_iters - 1):
+            out_ = func(out_, axis=1)
+        return out_
+    all_max = multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+    all_min = multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+    all_domain = all_max - all_min
+
+    #all_weights_ - all_min[slice(None), *[None] * 2]
+    broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
+    all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
+
+    # Build grid
+    if color:
+        for f, feature in enumerate(all_features):
+            grid[f].imshow(feature, interpolation='nearest')
+    else:
+        for f, feature in enumerate(all_features):
+            grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+
+    #for f, feature in enumerate(all_features):
+    #    # get all the weights and scale them to dimensions that can be shown
+    #    #if color:
+    #    #    # convert from theano to cv2 and then to RGB
+    #    #    #feature = cv2.cvtColor(np.transpose(feature, (1, 2, 0)), cv2.COLOR_BGR2RGB)
+    #    #    #feature = cv2.cvtColor(feature, (1, 2, 0), cv2.COLOR_BGR2RGB)
+    #    #    #feature = cv2.merge(feature[::-1]) # Rotate BGR to RGB and merge
+    #    #fmin, fmax = np.min(feature), np.max(feature)
+    #    #domain = fmax - fmin
+    #    #feature = (feature - fmin) * (255. / domain)
+    #    #feature = feature.astype(np.uint8)
+    #    if color:
+    #        grid[f].imshow(feature, interpolation='nearest')
+    #    else:
+    #        grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+
+    for j in range(dim * dim):
+        grid[j].get_xaxis().set_visible(False)
+        grid[j].get_yaxis().set_visible(False)
+
+    return fig
 
 
 if __name__ == '__main__':

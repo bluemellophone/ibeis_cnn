@@ -97,7 +97,7 @@ def make_layer_str(layer):
         layer (lasange.Layer): a network layer
     """
     # filter_size is a scalar in Conv2DLayers because non-uniform shapes is not supported
-    common_attrs = ['shape', 'num_filters', 'num_units', 'ds', 'filter_shape', 'stride', 'strides', 'p']
+    common_attrs = ['shape', 'num_filters', 'num_units', 'ds', 'filter_shape', 'stride', 'strides', 'p', 'axis']
     ignore_attrs = ['nonlinearity', 'b', 'W']
     #func_attrs = ['get_output_shape']
     func_attrs = []
@@ -107,13 +107,14 @@ def make_layer_str(layer):
         'Conv2DCCLayer': ['num_filters', 'filter_size', 'stride'],
         'MaxPool2DCCLayer': ['stride', 'pool_size'],
         'DenseLayer': ['num_units'],
+        'L2NormalizeLayer': ['axis'],
     }
     layer_type = '{0}'.format(layer.__class__.__name__)
     request_attrs = sorted(list(set(layer_attrs_dict.get(layer_type, []) + common_attrs)))
     isvalid_list = [hasattr(layer, attr) for attr in request_attrs]
     attr_key_list = ut.list_compress(request_attrs, isvalid_list)
 
-    DEBUG = True
+    DEBUG = False
     if DEBUG:
         #if layer_type == 'Conv2DCCLayer':
         #    ut.embed()
@@ -129,6 +130,10 @@ def make_layer_str(layer):
     for func_attr in func_attrs:
         if hasattr(layer, func_attr):
             attr_str_list.append('%s=%r' % (func_attr, getattr(layer, func_attr).__call__()))
+
+    layer_name = getattr(layer, 'name', None)
+    if layer_name is not None:
+        attr_str_list = ['name=%s' % (layer_name,)] + attr_str_list
 
     if hasattr(layer, 'nonlinearity'):
         try:
@@ -196,6 +201,7 @@ class PretrainedNetwork(object):
     """
     def __init__(self, modelkey=None, show_network=False):
         from ibeis_cnn._plugin_grabmodels import ensure_model
+        self.modelkey = modelkey
         weights_path = ensure_model(modelkey)
         try:
             self.pretrained_weights = ut.load_cPkl(weights_path)
@@ -217,16 +223,20 @@ class PretrainedNetwork(object):
         fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
         return (height, width)
 
-    def get_conv2d_layer(self, layer_index, **kwargs):
+    def get_conv2d_layer(self, layer_index, name=None, trainable=True, **kwargs):
         """ Assumes requested layer is convolutional
 
         Returns:
             lasange.layers.Layer: Layer
         """
+        if name is None:
+            name = '%s_layer%r' % (self.modelkey, layer_index)
         W = self.get_pretrained_layer(layer_index)
         num_filters = self.get_layer_num_filters(layer_index)
         filter_size = self.get_layer_filter_size(layer_index)
-        Layer = functools.partial(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, W=W, **kwargs)
+        Layer = functools.partial(Conv2DLayer, num_filters=num_filters,
+                                  filter_size=filter_size, W=W, name=name,
+                                  trainable=trainable, **kwargs)
         return Layer
 
     def get_pretrained_layer(self, layer_index, rand=False):
@@ -434,10 +444,10 @@ class SiameseCenterSurroundModel(BaseModel):
         #vggnet = PretrainedNetwork('vggnet')
         caffenet = PretrainedNetwork('caffenet')
 
-        def conv_pool(num_filters, filter_size, pool_size, stride):
-            conv_ = _P(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, **leaky_orthog)
-            maxpool_ =  _P(MaxPool2DLayer, pool_size=pool_size, stride=stride)
-            return [conv_, maxpool_]
+        #def conv_pool(num_filters, filter_size, pool_size, stride):
+        #    conv_ = _P(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, **leaky_orthog)
+        #    maxpool_ =  _P(MaxPool2DLayer, pool_size=pool_size, stride=stride)
+        #    return [conv_, maxpool_]
 
         network_layers_def = (
             [
@@ -445,25 +455,25 @@ class SiameseCenterSurroundModel(BaseModel):
                 _P(custom_layers.CenterSurroundLayer),
 
                 #layers.GaussianNoiseLayer,
-                caffenet.get_conv2d_layer(0, **leaky),
-                _P(MaxPool2DLayer, pool_size=(3, 3), stride=(1, 1)),
-                _P(Conv2DLayer, num_filters=16, filter_size=(6, 6), **leaky_orthog),
+                caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                _P(MaxPool2DLayer, pool_size=(3, 3), stride=(1, 1), name='M0'),
+                _P(Conv2DLayer, num_filters=16, filter_size=(6, 6), name='C1', **leaky_orthog),
             ] +
             #conv_pool(num_filters=16, filter_size=(6, 6), pool_size=(2, 2), stride=(2, 2)) +
             #conv_pool(num_filters=32, filter_size=(3, 3), pool_size=(2, 2), stride=(2, 2)) +
             [
 
-                _P(custom_layers.L2NormalizeLayer),
-                _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+                _P(custom_layers.L2NormalizeLayer, axis=2),
+                _P(layers.DenseLayer, num_units=256, name='D1', **leaky_orthog),
                 _P(layers.DropoutLayer, p=0.5),
                 #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
                 #_P(layers.DropoutLayer, p=0.5),
                 #_P(layers.merge.ConcatLayer),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+                _P(layers.DenseLayer, num_units=256, name='D2',  **leaky_orthog),
                 _P(layers.DropoutLayer, p=0.5),
-                _P(layers.DenseLayer, num_units=1, **leaky_orthog),
+                _P(layers.DenseLayer, num_units=1, name='D3', **leaky_orthog),
             ]
         )
 

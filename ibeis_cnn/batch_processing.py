@@ -412,8 +412,10 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
     # Define how to update network parameters based on the training loss
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', '.*topo.*')
-        parameters = layers.get_all_params(output_layer)
-    updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
+        #l = lasagne.layers.get_all_layers(output_layer)[2]
+        parameters = lasagne.layers.get_all_params(output_layer, trainable=True)
+        updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
+        #ut.embed()
 
     theano_backprop = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
@@ -578,7 +580,7 @@ def create_buffered_iter_funcs_train2(model, X_unshared, y_unshared):
     # Build expression to evaluate updates
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', '.*topo.*')
-        all_params = layers.get_all_params(output_layer)
+        all_params = lasagne.layers.get_all_params(output_layer, trainable=True)
     updates = lasagne.updates.nesterov_momentum(loss_train, all_params, model.learning_rate, model.momentum)
 
     # Get performance indicator outputs:
