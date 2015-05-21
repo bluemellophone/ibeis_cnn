@@ -13,7 +13,7 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
 VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERBOSE_CNN
-VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch'))
+VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or ut.VERYVERBOSE
 
 
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
@@ -54,7 +54,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> print(result)
     """
     verbose = kwargs.get('verbose', VERBOSE_BATCH)
-    veryverbose = kwargs.get('veryverbose', ut.VERYVERBOSE)
+    veryverbose = kwargs.get('veryverbose', VERYVERBOSE_BATCH)
     data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
@@ -82,9 +82,14 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         Xb = utils.whiten_data(Xb, center_mean, center_std)
         # Augment
         if augment is not None:
-            Xb_ = np.copy(Xb)
-            yb_ = None if yb is None else np.copy(yb)
-            Xb, yb = augment(Xb_, yb_)
+            if verbose or veryverbose:
+                if veryverbose or (batch_index + 1) % num_batches <= 1:
+                    print('Augmenting Data')
+                Xb_ = np.copy(Xb)
+                yb_ = None if yb is None else np.copy(yb)
+                Xb, yb = augment(Xb_, yb_)
+                del Xb_
+                del yb_
         # Encode
         if yb is not None:
             if encoder is not None:
@@ -105,6 +110,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
                 print('[batchiter] Yielding batch: batch_index = %r ' % (batch_index,))
                 print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
                 print('[batchiter]   * yb.shape = %r' % (yb.shape,))
+                print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
         # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
     if verbose:
@@ -379,35 +385,37 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         loss_function = model.loss_function
 
     # we are minimizing the multi-class negative log-likelihood
-    print('Building symbolic loss function')
-    objective = objectives.Objective(output_layer, loss_function=loss_function, aggregation='mean')
-    loss = objective.get_loss(X_batch, target=y_batch)
-    loss.name = 'loss'
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', '.*topo.*')
+        print('Building symbolic loss function')
+        objective = objectives.Objective(output_layer, loss_function=loss_function, aggregation='mean')
+        loss = objective.get_loss(X_batch, target=y_batch)
+        loss.name = 'loss'
 
-    print('Building symbolic loss function (determenistic)')
-    #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-    loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
-    loss_determ.name = 'loss_determ'
+        print('Building symbolic loss function (determenistic)')
+        #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
+        loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
+        loss_determ.name = 'loss_determ'
 
-    #theano.printing.pydotprint(loss, outfile="./symbolic_graph_opt.png", var_with_name_simple=True)
-    #ut.startfile('./symbolic_graph_opt.png')
-    #ut.embed()
+        #theano.printing.pydotprint(loss, outfile="./symbolic_graph_opt.png", var_with_name_simple=True)
+        #ut.startfile('./symbolic_graph_opt.png')
+        #ut.embed()
 
-    # Regularize
-    if regularization is not None:
-        L2 = lasagne.regularization.l2(output_layer)
-        loss += L2 * regularization
+        # Regularize
+        if regularization is not None:
+            L2 = lasagne.regularization.l2(output_layer)
+            loss += L2 * regularization
 
-    # Run inference and get performance_outputs
-    #probabilities = output_layer.get_output(X_batch, deterministic=True)
-    probabilities = layers.get_output(output_layer, X_batch, deterministic=True)
-    probabilities.name = 'probabilities'
-    predictions = T.argmax(probabilities, axis=1)
-    predictions.name = 'predictions'
-    confidences = probabilities.max(axis=1)
-    confidences.name = 'confidences'
-    # accuracy = T.mean(T.eq(predictions, y_batch))
-    performance_outputs = [probabilities, predictions, confidences]
+        # Run inference and get performance_outputs
+        #probabilities = output_layer.get_output(X_batch, deterministic=True)
+        probabilities = layers.get_output(output_layer, X_batch, deterministic=True)
+        probabilities.name = 'probabilities'
+        predictions = T.argmax(probabilities, axis=1)
+        predictions.name = 'predictions'
+        confidences = probabilities.max(axis=1)
+        confidences.name = 'confidences'
+        # accuracy = T.mean(T.eq(predictions, y_batch))
+        performance_outputs = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
     with warnings.catch_warnings():

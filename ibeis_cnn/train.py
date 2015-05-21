@@ -185,14 +185,14 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
     epoch = 0
     epoch_marker = epoch
     show_times = kwargs.get('print_timing', False)
-    show_features = kwargs.get('show_features')
+    show_features = kwargs.get('show_features', False)
     while True:
         try:
             # Start timer
             t0 = time.time()
 
             # Show first weights before any training
-            if show_features is True or (isinstance(show_features, int) and epoch % show_features == 0):
+            if show_features is True or (ut.is_int(show_features) and epoch % show_features == 0):
                 with ut.Timer('show_features1', verbose=show_times):
                     draw_net.show_convolutional_layers(output_layer,
                                                        results_dpath, target=[0, 1],
@@ -240,11 +240,11 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
                                                             model=model, augment=augment_fn,
                                                             rand=True, **kwargs)
 
-                # If we want to output the confusion matrix, give the results path
-                results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
-                test_accuracy = batch.process_test(
-                    X_test, y_test, theano_forward, results_dpath_,
-                    model=model, augment=None, rand=False, **kwargs)
+                    # If we want to output the confusion matrix, give the results path
+                    results_dpath_ = results_dpath if kwargs.get('show_confusion', False) else None
+                    test_accuracy = batch.process_test(
+                        X_test, y_test, theano_forward, results_dpath_,
+                        model=model, augment=None, rand=False, **kwargs)
                 # Output the layer 1 features
                 if show_features is True or (isinstance(show_features, int) and epoch % show_features == 0):
                     with ut.Timer('show_features2', verbose=show_times):
@@ -368,12 +368,14 @@ def train_patchmatch_pz():
         equal_batch_sizes=True,
         batch_size=ut.get_argval('--batch_size', type_=int, default=128),
         learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
+        #learning_rate=ut.get_argval('--learning_rate', type_=float, default=1.0),
         show_confusion=False,
         requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
         run_test=None,
-        show_features=10,
+        show_features=False,
         print_timing=False,
-        regularization=0.0001,
+        momentum=.9,
+        regularization=0.0005,
     )
     nets_dir = ibs.get_neuralnet_dir()
     ut.ensuredir(nets_dir)

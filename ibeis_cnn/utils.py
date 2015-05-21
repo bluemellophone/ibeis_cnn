@@ -10,7 +10,7 @@ import operator
 import theano
 import theano.tensor as T
 from lasagne import layers
-from sklearn.cross_validation import StratifiedKFold
+import sklearn.cross_validation
 import cv2
 import cPickle as pickle
 import utool as ut
@@ -201,14 +201,17 @@ def get_current_time():
 def testdata_xy(data_per_label=2, factor=20, seed=0):
     img_list, width, height, channels = testdata_imglist()
     data = np.array((img_list * factor))
-    randstate = np.random.RandState(seed)
+    randstate = np.random.RandomState(seed)
     labels = randstate.rand(len(data) / data_per_label) > .5
     #data_per_label = 2
     return data, labels, data_per_label
 
 
-def train_test_split(X, y, eval_size, data_per_label=1):
+def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
     r"""
+    used to split datasets into two parts.
+    Preserves class distributions using Stratified K-Fold sampling
+
     Args:
         X (ndarray):
         y (ndarray):
@@ -237,7 +240,7 @@ def train_test_split(X, y, eval_size, data_per_label=1):
     # take the data and label arrays, split them preserving the class distributions
     assert len(X) == len(y) * data_per_label
     nfolds = round(1. / eval_size)
-    kf = StratifiedKFold(y, nfolds)
+    kf = sklearn.cross_validation.StratifiedKFold(y, nfolds, shuffle=shuffle)
     train_indices, valid_indices = six.next(iter(kf))
     data_train_indicies = expand_data_indicies(train_indices, data_per_label)
     data_valid_indicies = expand_data_indicies(valid_indices, data_per_label)
