@@ -6,6 +6,7 @@ for nonlinearities: Lasagne/lasagne/nonlinearities.py
 for layers: Lasagne/lasagne/layers/
 """
 from __future__ import absolute_import, division, print_function
+import lasagne  # NOQA
 from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
@@ -13,12 +14,14 @@ from lasagne.utils import floatX
 from ibeis_cnn import lasange_ext
 import random
 import functools
-import utool as ut
 import six
 import theano.tensor as T
 import numpy as np
-from ibeis_cnn import utils
+#from ibeis_cnn import utils
+from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers  # NOQA
+import sklearn.preprocessing
+import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # from os.path import join
 # import cPickle as pickle
@@ -74,91 +77,27 @@ def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice
     sliced_pretrained_weights = pretrained_weights[slice_]
     ut.save_cPkl(sliced_weights_path, sliced_pretrained_weights)
     # print info
-    print_pretrained_weights(pretrained_weights, weights_path)
-    print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
+    net_strs.print_pretrained_weights(pretrained_weights, weights_path)
+    net_strs.print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
     return sliced_weights_path
-
-
-def print_pretrained_weights(pretrained_weights, lbl=''):
-    r"""
-    Args:
-        pretrained_weights (list of ndarrays): represents layer weights
-        lbl (str): label
-    """
-    print('Initialization network: %r' % (lbl))
-    print('Total memory: %s' % (ut.get_object_size_str(pretrained_weights)))
-    for index, layer_ in enumerate(pretrained_weights):
-        print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
-
-
-def make_layer_str(layer):
-    r"""
-    Args:
-        layer (lasange.Layer): a network layer
-    """
-    # filter_size is a scalar in Conv2DLayers because non-uniform shapes is not supported
-    common_attrs = ['shape', 'num_filters', 'num_units', 'ds', 'filter_shape', 'stride', 'strides', 'p', 'axis']
-    ignore_attrs = ['nonlinearity', 'b', 'W']
-    #func_attrs = ['get_output_shape']
-    func_attrs = []
-    layer_attrs_dict = {
-        'DropoutLayer': ['p'],
-        'InputLayer': ['shape'],
-        'Conv2DCCLayer': ['num_filters', 'filter_size', 'stride'],
-        'MaxPool2DCCLayer': ['stride', 'pool_size'],
-        'DenseLayer': ['num_units'],
-        'L2NormalizeLayer': ['axis'],
-    }
-    layer_type = '{0}'.format(layer.__class__.__name__)
-    request_attrs = sorted(list(set(layer_attrs_dict.get(layer_type, []) + common_attrs)))
-    isvalid_list = [hasattr(layer, attr) for attr in request_attrs]
-    attr_key_list = ut.list_compress(request_attrs, isvalid_list)
-
-    DEBUG = False
-    if DEBUG:
-        #if layer_type == 'Conv2DCCLayer':
-        #    ut.embed()
-        print('---')
-        print(' * ' + layer_type)
-        print(' * does not have keys: %r' % (ut.filterfalse_items(request_attrs, isvalid_list),))
-        print(' * missing keys: %r' % ((set(layer.__dict__.keys()) - set(ignore_attrs)) - set(attr_key_list),))
-        print(' * has keys: %r' % (attr_key_list,))
-
-    attr_val_list = [getattr(layer, attr) for attr in attr_key_list]
-    attr_str_list = ['%s=%r' % item for item in zip(attr_key_list, attr_val_list)]
-
-    for func_attr in func_attrs:
-        if hasattr(layer, func_attr):
-            attr_str_list.append('%s=%r' % (func_attr, getattr(layer, func_attr).__call__()))
-
-    layer_name = getattr(layer, 'name', None)
-    if layer_name is not None:
-        attr_str_list = ['name=%s' % (layer_name,)] + attr_str_list
-
-    if hasattr(layer, 'nonlinearity'):
-        try:
-            nonlinearity = layer.nonlinearity.__name__
-        except AttributeError:
-            nonlinearity = layer.nonlinearity.__class__.__name__
-        attr_str_list.append('nonlinearity={0}'.format(nonlinearity))
-    attr_str = ','.join(attr_str_list)
-
-    layer_str = layer_type + '(' + attr_str + ')'
-    return layer_str
 
 
 def evaluate_layer_list(network_layers_def):
     """ compiles a sequence of partial functions into a network """
     import warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
-        network_layers = []
-        layer_fn_iter = iter(network_layers_def)
-        prev_layer = six.next(layer_fn_iter)()
-        network_layers.append(prev_layer)
-        for layer_fn in layer_fn_iter:
-            prev_layer = layer_fn(prev_layer)
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
+            network_layers = []
+            layer_fn_iter = iter(network_layers_def)
+            prev_layer = six.next(layer_fn_iter)()
             network_layers.append(prev_layer)
+            for layer_fn in layer_fn_iter:
+                prev_layer = layer_fn(prev_layer)
+                network_layers.append(prev_layer)
+    except Exception as ex:
+        ut.printex(ex, 'Error buildling layers')
+        raise
     return network_layers
 
 
@@ -208,7 +147,7 @@ class PretrainedNetwork(object):
         except Exception:
             raise IOError('The specified model was not found: %r' % (weights_path, ))
         if show_network:
-            print_pretrained_weights(self.pretrained_weights, weights_path)
+            net_strs.print_pretrained_weights(self.pretrained_weights, weights_path)
 
     def get_num_layers(self):
         return len(self.pretrained_weights)
@@ -223,7 +162,7 @@ class PretrainedNetwork(object):
         fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
         return (height, width)
 
-    def get_conv2d_layer(self, layer_index, name=None, trainable=True, **kwargs):
+    def get_conv2d_layer(self, layer_index, name=None, **kwargs):
         """ Assumes requested layer is convolutional
 
         Returns:
@@ -235,8 +174,8 @@ class PretrainedNetwork(object):
         num_filters = self.get_layer_num_filters(layer_index)
         filter_size = self.get_layer_filter_size(layer_index)
         Layer = functools.partial(Conv2DLayer, num_filters=num_filters,
-                                  filter_size=filter_size, W=W, name=name,
-                                  trainable=trainable, **kwargs)
+                                  filter_size=filter_size, W=W, name=name, **kwargs)
+
         return Layer
 
     def get_pretrained_layer(self, layer_index, rand=False):
@@ -249,13 +188,18 @@ class PretrainedNetwork(object):
 
 
 class BaseModel(object):
+    """
+    Abstract model providing functionality for all other models to derive from
+    """
     def __init__(self):
         self.network_layers = None
+        self.output_layer = None
+        self.output_dims = None
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
         self.data_per_label = 1
-        self.net_dir = '.'
+        self.net_dir = '.'  # TODO
 
     def draw_architecture(self):
         from ibeis_cnn import draw_net
@@ -269,21 +213,34 @@ class BaseModel(object):
         return hashid
 
     def print_layer_info(self):
-        utils.print_layer_info(self.get_output_layer())
+        net_strs.print_layer_info(self.get_output_layer())
 
     def get_architecture_str(self, sep='_'):
-        layer_str_list = [make_layer_str(layer) for layer in self.network_layers]
+        # TODO: allow for removal of layers without any parameters
+        if getattr(self, 'network_layers', None) is None:
+            if getattr(self, 'output_layer', None) is None:
+                return None
+            else:
+                network_layers = lasagne.layers.get_all_layers(self.output_layer)
+        else:
+            network_layers = self.network_layers
+        layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
         architecture_str = sep.join(layer_str_list)
         return architecture_str
 
     def print_architecture_str(self, sep='\n  '):
         architecture_str = self.get_architecture_str(sep=sep)
+        if architecture_str is None:
+            architecture_str = 'UNMANGAGED'
         print('\nArchitecture:' + sep + architecture_str)
 
     def get_output_layer(self):
-        assert self.network_layers is not None, 'need to initialize architecture first'
-        output_layer = self.network_layers[-1]
-        return output_layer
+        if self.output_layer is not None:
+            return self.output_layer
+        else:
+            assert self.network_layers is not None, 'need to initialize architecture first'
+            output_layer = self.network_layers[-1]
+            return output_layer
 
     def learning_rate_update(model, x):
         return x / 2.0
@@ -292,8 +249,26 @@ class BaseModel(object):
         return x * 2.0
 
 
+class AbstractCategoricalModel(BaseModel):
+    """ base model for catagory classifiers """
+
+    def __init__(self):
+        super(AbstractCategoricalModel, self).__init__()
+        self.encoder = None
+
+    def initialize_encoder(self, labels):
+        print('[model] encoding labels')
+        self.encoder = sklearn.preprocessing.LabelEncoder()
+        self.encoder.fit(labels)
+        self.output_dims = len(list(np.unique(labels)))
+        print('[model] self.output_dims = %r' % (self.output_dims,))
+
+    def loss_function(model, output, truth):
+        return T.nnet.categorical_crossentropy(output, truth)
+
+
 @six.add_metaclass(ut.ReloadingMetaclass)
-class DummyModel(BaseModel):
+class DummyModel(AbstractCategoricalModel):
     def __init__(model, autoinit=False, batch_size=8, input_shape=(None, 1, 4, 4)):
         super(DummyModel, model).__init__()
         model.network_layers = None
@@ -315,9 +290,6 @@ class DummyModel(BaseModel):
             print('size(X_unshared) = %r' % (ut.get_object_size_str(X_unshared),))
             print('size(y_unshared) = %r' % (ut.get_object_size_str(y_unshared),))
         return X_unshared, y_unshared
-
-    def loss_function(model, output, truth):
-        return T.nnet.categorical_crossentropy(output, truth)
 
     def make_prediction_expr(model, newtork_output):
         prediction = T.argmax(newtork_output, axis=1)
@@ -498,7 +470,6 @@ class SiameseCenterSurroundModel(BaseModel):
         """
         raise NotImplementedError('The 2-channel part is not yet implemented')
         _P = functools.partial
-
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         leaky_orthog = dict(W=init.Orthogonal(), **leaky)
 
@@ -510,6 +481,7 @@ class SiameseCenterSurroundModel(BaseModel):
 
                 #layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                #lasange_ext.freeze_params,
                 _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **leaky_orthog),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=96, filter_size=(3, 3), name='C1', **leaky_orthog),
@@ -553,7 +525,7 @@ class SiameseCenterSurroundModel(BaseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 _P(custom_layers.CenterSurroundLayer),
 
-                #layers.GaussianNoiseLayer,
+                layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(4, 4), name='C0', **leaky_orthog),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
@@ -577,51 +549,28 @@ class SiameseCenterSurroundModel(BaseModel):
             http://arxiv.org/pdf/1504.03641.pdf
 
             Performance of several models on the local image patches benchmark.
-
             The shorthand notation used was the following.
-
             C(n, k, s) is a convolutional layer with n filters of spatial size k x k applied with stride s.
-
             P(k, s) is a max-pooling layer of size k x k applied with stride s.
-
             F(n) denotes a fully connected linear layer with n output
             units.
-
             The models architecture is as follows:
 
             (ii)
                 2ch-deep =
-                C(96, 4, 3)-
-                Stack(96)-
-                P(2, 2)-
-                Stack(192)-
-                F(1),
-
-                where
+                    C(96, 4, 3)- Stack(96)- P(2, 2)- Stack(192)- F(1),
                 Stack(n) =
-                C(n, 3, 1)- ReLU-
-                C(n, 3, 1)- ReLU-
-                C(n, 3, 1)- ReLU.
+                    C(n, 3, 1)- ReLU- C(n, 3, 1)- ReLU- C(n, 3, 1)- ReLU.
 
             (iii)
-                2ch = C(96, 7, 3)- ReLU-
-                P(2, 2)-
-                C(192, 5, 1)- ReLU-
-                P(2, 2)-
-                C(256, 3, 1)- ReLU-
-                F(256)- ReLU-
-                F(1)
+                2ch =
+                    C(96, 7, 3)- ReLU- P(2, 2)- C(192, 5, 1)- ReLU- P(2, 2)- C(256, 3, 1)- ReLU- F(256)- ReLU- F(1)
 
-            (iv) siam has two branches
-                C(96, 7, 3)- ReLU-
-                P(2, 2)-
-                C(192, 5, 1)- ReLU-
-                P(2, 2)-
-                C(256, 3, 1)- ReLU
-
+            (iv)
+                siam has two branches
+                    C(96, 7, 3)- ReLU- P(2, 2)- C(192, 5, 1)- ReLU- P(2, 2)- C(256, 3, 1)- ReLU
                 and decision layer
-                F(512)- ReLU-
-                F(1)
+                    F(512)- ReLU- F(1)
 
             (v) siam-l2 reduces to a single branch of siam
 
@@ -643,45 +592,6 @@ class SiameseCenterSurroundModel(BaseModel):
             print('[model]   * input_channels = %r' % (input_channels,))
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
-        #leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        #leaky_orthog = dict(W=init.Orthogonal(), **leaky)
-
-        #vggnet = PretrainedNetwork('vggnet')
-        #caffenet = PretrainedNetwork('caffenet')
-
-        #def conv_pool(num_filters, filter_size, pool_size, stride):
-        #    conv_ = _P(Conv2DLayer, num_filters=num_filters, filter_size=filter_size, **leaky_orthog)
-        #    maxpool_ =  _P(MaxPool2DLayer, pool_size=pool_size, stride=stride)
-        #    return [conv_, maxpool_]
-        #] +
-        ##conv_pool(num_filters=16, filter_size=(6, 6), pool_size=(2, 2), stride=(2, 2)) +
-        ##conv_pool(num_filters=32, filter_size=(3, 3), pool_size=(2, 2), stride=(2, 2)) +
-        #[
-
-        #network_layers_def = (
-        #    [
-        #        _P(layers.InputLayer, shape=model.input_shape),
-        #        _P(custom_layers.CenterSurroundLayer),
-
-        #        #layers.GaussianNoiseLayer,
-        #        #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(4, 4), name='C0', **leaky_orthog),
-        #        _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='M0'),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), name='C1', **leaky_orthog),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), name='C2', **leaky_orthog),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), name='C3', **leaky_orthog),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), name='C5', **leaky_orthog),
-        #        _P(Conv2DLayer, num_filters=32, filter_size=(3, 3), name='C6', **leaky_orthog),
-        #        #_P(custom_layers.L2NormalizeLayer, axis=2),
-        #        _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
-        #        #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-        #        _P(layers.DenseLayer, num_units=512, name='D1',  **leaky_orthog),
-        #        #_P(layers.DropoutLayer, p=0.5),
-        #        _P(layers.DenseLayer, num_units=512, name='D2',  **leaky_orthog),
-        #        #_P(layers.DropoutLayer, p=0.5),
-        #        _P(layers.DenseLayer, num_units=1, name='D3', **leaky_orthog),
-        #    ]
-        #)
         network_layers_def = model.get_siam2stream_def()
 
         # connect and record layers
@@ -721,13 +631,6 @@ class SiameseCenterSurroundModel(BaseModel):
         # Hinge-loss objective from Zagoruyko and Komodakis
         Y_ = (1 - (2 * Y))
         loss = T.maximum(0, 1 - (Y_ * E.T))
-
-        # Contrastive loss function from LeCunn 2005
-        #Q = 2
-        #E = E.flatten()
-        #genuine_loss = (1 - Y) * (2 / Q) * (E ** 2)
-        #imposter_loss = (Y) * 2 * Q * T.exp((-2.77 * E) / Q)
-        #loss = genuine_loss + imposter_loss
         avg_loss = T.mean(loss)
         loss.name = 'loss'
         avg_loss.name = 'avg_loss'
@@ -794,17 +697,8 @@ class SiameseModel(BaseModel):
             print('[model]   * input_channels = %r' % (input_channels,))
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
-        #num_filters=32,
-        #filter_size=(3, 3),
-        ## nonlinearity=nonlinearities.rectify,
-        #nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-
-        #rlu_glorot = dict(nonlinearity=nonlinearities.rectify, W=init.GlorotUniform())
-        #rlu_orthog = dict(nonlinearity=nonlinearities.rectify, W=init.Orthogonal())
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         leaky_orthog = dict(W=init.Orthogonal(), **leaky)
-        # variable batch size (None), channel, width, height
-        #input_shape = (batch_size * model.data_per_label, input_channels, input_width, input_height)
 
         vggnet = PretrainedNetwork('vggnet')
         #caffenet = PretrainedNetwork('caffenet')
@@ -812,7 +706,6 @@ class SiameseModel(BaseModel):
         network_layers_def = [
             _P(layers.InputLayer, shape=model.input_shape),
 
-            #layers.GaussianNoiseLayer,
             vggnet.get_conv2d_layer(0, **leaky),
 
             _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
@@ -822,29 +715,15 @@ class SiameseModel(BaseModel):
 
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
 
-            #_P(layers.DenseLayer, num_units=512, **leaky_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
             _P(layers.DenseLayer, num_units=256, **leaky_orthog),
             _P(layers.DropoutLayer, p=0.5),
-            #_P(lasange_ext.l1),  # TODO: make a layer
-
-            #_P(layers.DenseLayer, num_units=256, **leaky_orthog),
-            #_P(layers.DropoutLayer, p=0.5),
-            #_P(layers.FeaturePoolLayer, pool_size=2),
-
-            #_P(layers.DenseLayer, num_units=1024, **leaky_orthog),
-            #_P(layers.FeaturePoolLayer, pool_size=2,),
-            #_P(layers.DropoutLayer, p=0.5),
-
-            #_P(layers.DenseLayer, num_units=output_dims,
-            #   nonlinearity=nonlinearities.softmax,
-            #   W=init.Orthogonal(),),
         ]
 
         # connect and record layers
         network_layers = evaluate_layer_list(network_layers_def)
         model.network_layers = network_layers
         output_layer = model.network_layers[-1]
+        model.output_layer = output_layer
         return output_layer
 
     def loss_function(self, G, Y_padded, T=T, verbose=True):
@@ -854,7 +733,78 @@ class SiameseModel(BaseModel):
         return avg_loss
 
 
-class ViewpointModel(BaseModel):
+class MNISTModel(AbstractCategoricalModel):
+    """
+    Toy model for testing and playing with mnist
+    """
+    def __init__(self):
+        super(MNISTModel, self).__init__()
+
+    def get_mnist_model_def1(model, input_shape, output_dims):
+        _P = functools.partial
+        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        orthog = dict(W=init.Orthogonal())
+        leaky_orthog = ut.merge_dicts(orthog, leaky)
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=input_shape),
+                layers.GaussianNoiseLayer,
+
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **leaky_orthog),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **leaky_orthog),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
+
+                _P(layers.DenseLayer, num_units=256, name='F1',  **leaky_orthog),
+                _P(layers.FeaturePoolLayer, pool_size=2),  # maxout
+                _P(layers.DropoutLayer, p=0.5),
+
+                _P(layers.DenseLayer, num_units=output_dims, nonlinearity=nonlinearities.softmax, W=init.Orthogonal())
+            ]
+        )
+        return network_layers_def
+
+    def get_mnist_model_def2(model, input_shape, output_dims):
+        _P = functools.partial
+        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        orthog = dict(W=init.Orthogonal())
+        leaky_orthog = ut.merge_dicts(orthog, leaky)
+        initkw = leaky_orthog
+        #initkw = {}
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=input_shape),
+                #layers.GaussianNoiseLayer,
+
+                _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), stride=(1, 1), name='C0', **initkw),
+                _P(MaxPool2DLayer, pool_size=(3, 3), stride=(3, 3), name='P0'),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C1', **initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C2', **initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C3', **initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), stride=(1, 1), name='C4', **initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(1, 1), stride=(1, 1), name='C5', **initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), stride=(1, 1), name='C6', **initkw),
+
+                _P(layers.DenseLayer, num_units=32, name='F1',  **initkw),
+                _P(layers.DenseLayer, num_units=output_dims, nonlinearity=nonlinearities.softmax)
+            ]
+        )
+        return network_layers_def
+
+    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+        input_shape = (None, input_channels, input_width, input_height)
+        network_layers_def = self.get_mnist_model_def2(input_shape, output_dims)
+        network_layers = evaluate_layer_list(network_layers_def)
+        l_out = network_layers[-1]
+        self.output_layer = l_out
+        return l_out
+
+
+class ViewpointModel(AbstractCategoricalModel):
     def __init__(self):
         super(ViewpointModel, self).__init__()
 
@@ -1039,10 +989,11 @@ class ViewpointModel(BaseModel):
             W=init.Orthogonal(),
         )
 
+        self.output_layer = l_out
         return l_out
 
 
-class QualityModel(BaseModel):
+class QualityModel(AbstractCategoricalModel):
     def __init__(self):
         super(QualityModel, self).__init__()
 
@@ -1187,7 +1138,7 @@ class QualityModel(BaseModel):
             nonlinearity=nonlinearities.softmax,
             W=init.Orthogonal(),
         )
-
+        self.output_layer = l_out
         return l_out
 
 

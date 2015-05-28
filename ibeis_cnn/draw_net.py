@@ -23,6 +23,7 @@ from os.path import join, exists
 import utool as ut
 from lasagne import layers
 from ibeis_cnn import utils
+from ibeis_cnn import net_strs
 
 
 def get_hex_color(layer_type):
@@ -281,10 +282,12 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     plt.subplots_adjust(left=margin_small, right=margin_large, bottom=margin_small, top=margin_large)
     plt.xlabel('Predicted')
     plt.ylabel('Correct')
-    plt.savefig(join(results_path, 'confusion.png'))
+    output_fpath = join(results_path, 'confusion.png')
+    plt.savefig(output_fpath)
+    return output_fpath
 
 
-def show_convolutional_layers(output_layer, results_path, color=None, limit=150, target=None, epoch=None):
+def show_convolutional_layers(output_layer, results_path, color=None, limit=150, target=None, epoch=None, verbose=ut.VERYVERBOSE):
     r"""
     CommandLine:
         python -m ibeis_cnn.draw_net --test-show_convolutional_layers
@@ -328,8 +331,7 @@ def show_convolutional_layers(output_layer, results_path, color=None, limit=150,
         #print('index = %r' % (index,))
         all_weights = layer.W.get_value()
         #ut.embed()
-        from ibeis_cnn import models
-        layername = models.make_layer_str(layer) + '_%d' % (index,)
+        layername = net_strs.make_layer_str(layer) + '_%d' % (index,)
         #layername = 'conv%d' % (index,)
         #print(layername)
         #print('layername = %r' % (layername,))

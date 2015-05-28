@@ -18,7 +18,8 @@ def l1(layer, include_biases=False):
         if include_biases:
             all_params = layers.get_all_params(layer)
         else:
-            all_params = layers.get_all_non_bias_params(layer)
+            #all_params = layers.get_all_non_bias_params(layer)
+            all_params = layers.get_all_params(regularizable=True)
 
     return sum(T.sum(T.abs_(p)) for p in all_params)
 
@@ -117,3 +118,15 @@ def siamese_loss(G, Y_padded, data_per_label=2, T=T):
         loss.name = 'loss'
         avg_loss.name = 'avg_loss'
     return avg_loss
+
+
+def freeze_params(layer):
+    """
+    makes a layer untrainable
+
+    References:
+        https://github.com/Lasagne/Lasagne/pull/261
+    """
+    for param in layer.params:
+        layer.params[param].discard('trainable')
+    return layer

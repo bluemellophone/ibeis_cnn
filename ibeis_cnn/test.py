@@ -5,6 +5,7 @@ tests a test set of data using a specified, pre0trained model and weights
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import models
+from ibeis_cnn import net_strs
 from ibeis_cnn import batch_processing as batch
 
 import cPickle as pickle
@@ -17,6 +18,7 @@ import utool as ut
 import cv2
 import six  # NOQA
 from os.path import join, abspath
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.test]')
 
 
 def test(data_fpath, model, weights_fpath, results_dpath=None, labels_fpath=None, **kwargs):
@@ -37,7 +39,7 @@ def test(data_fpath, model, weights_fpath, results_dpath=None, labels_fpath=None
     print('data_fpath = %r' % (data_fpath,))
     X_test, y_test = utils.load(data_fpath, labels_fpath)
 
-    test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
+    return test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
 
 
 def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs):
@@ -45,10 +47,17 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     Driver function
 
     Args:
-        data_fpath (?):
-        labels_fpath (?):
-        model (?):
-        weights_fpath (?):
+        data_fpath (str):
+        labels_fpath (str):
+        model (Model):
+        weights_fpath (str):
+
+    CommandLine:
+        python -m ibeis_cnn.test --test-test_data
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.test import *  # NOQA
     """
 
     ######################################################################################
@@ -58,22 +67,27 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     pretrained_weights = None
     with open(weights_fpath, 'rb') as pfile:
         kwargs = pickle.load(pfile)
-        pretrained_weights = kwargs.pop('best_weights', None)
+        pretrained_weights = kwargs['best_weights']
 
-    print('test kwargs = \n' + (ut.dict_str(kwargs)))
+    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
 
     # Build and print the model
     print('\n[model] building model...')
-    input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
+    #input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
+    input_cases, input_height, input_width, input_channels = kwargs['model_shape']  # SHOULD ERROR IF NOT SET
     output_layer = model.build_model(
         kwargs.get('batch_size'), input_width, input_height,
         input_channels, kwargs.get('output_dims'))
-    utils.print_layer_info(output_layer)
+    net_strs.print_layer_info(output_layer)
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
-    theano_funcs = batch.create_theano_funcs(learning_rate_theano, output_layer, model, **kwargs)
+    theano_funcs = batch.create_theano_funcs(learning_rate_theano,
+                                             output_layer, model,
+                                             request_backprop=False,
+                                             request_predict=True,
+                                             **kwargs)
     theano_backprop, theano_forward, theano_predict = theano_funcs
 
     # Set weights to model
@@ -85,19 +99,55 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # Start timer
     t0 = time.time()
 
-    pred_list, label_list, conf_list = batch.process_predictions(X_test, theano_predict, **kwargs)
+    pred_list, label_list, conf_list, prob_list = batch.process_predictions(
+        X_test, theano_predict, model=model, showprog=True, **kwargs)
 
+    # TODO: Rectify this code with the request_test section in train_harness
+    # Maybe move all of test.py into train_harness.py
     if y_test is not None:
-        accu_test = batch.process_test(X_test, y_test, theano_forward,
-                                       results_dpath,
-                                       model=model, augment=None,
-                                       rand=False, **kwargs)
+        test_results = batch.process_test(X_test, y_test, theano_forward,
+                                          model=model, augment=None,
+                                          rand=False, **kwargs)
+        loss, accu_test, prob_list, auglbl_list, pred_list, conf_list = test_results
+        if results_dpath is not None:
+            #output_confusion_matrix(results_path, **kwargs)
+            batch.output_confusion_matrix(X_test, results_dpath, test_results, model=model, **kwargs)
         print('Test accuracy for %d examples: %0.2f' % (len(X_test), accu_test, ))
 
     # End timer
     t1 = time.time()
     print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
     return pred_list, label_list, conf_list
+
+
+def show_patchmatch_results():
+    pass
+
+
+def decode_siamse_output(network_output):
+    """
+    network_output = prob_list
+    """
+    pass
+
+
+def learn_siamese_thresholds(network_output, y_test):
+    from ibeis.model.hots import score_normalization
+    tp_support = network_output.T[0][y_test.astype(np.bool)].astype(np.float64)
+    tn_support = network_output.T[0][~(y_test.astype(np.bool))].astype(np.float64)
+    learnkw = dict()
+    learntup = score_normalization.learn_score_normalization(
+        tp_support, tn_support, return_all=False, **learnkw)
+    (score_domain, p_tp_given_score, clip_score) = learntup
+
+    # Plotting
+    import plottool as pt
+    fnum = 1
+    pt.figure(fnum=fnum, pnum=(2, 1, 1), doclf=True, docla=True)
+    score_normalization.plot_support(tn_support, tp_support, fnum=fnum, pnum=(2, 1, 1))
+    score_normalization.plot_postbayes_pdf(
+        score_domain, 1 - p_tp_given_score, p_tp_given_score, fnum=fnum, pnum=(2, 1, 2))
+    #pass
 
 
 def display_caffe_model(weights_model_path, results_path, **kwargs):

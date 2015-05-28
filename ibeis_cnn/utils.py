@@ -1,12 +1,11 @@
 # utils.py
 # provides utilities for learning a neural network model
 from __future__ import absolute_import, division, print_function
-import warnings
+#import warnings
 import time
 import numpy as np
-import functools
-import operator
-
+#import functools
+#import operator
 import theano
 import theano.tensor as T
 from lasagne import layers
@@ -23,6 +22,15 @@ VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn'))
 
 RANDOM_SEED = None
 # RANDOM_SEED = 42
+
+
+def checkfreq(freqlike_, count):
+    # checks frequency of param, also handles the case where it is specified
+    # as a bool
+    if ut.is_int(freqlike_):
+        return (count % freqlike_) == 0
+    else:
+        return freqlike_ is True
 
 
 def concatenate_hack(sequence, axis=0):
@@ -350,7 +358,6 @@ def print_header_columns(printcol_info):
 
 
 def print_epoch_info(printcol_info, epoch_info):
-
     requested_headers = printcol_info['requested_headers']
 
     (train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy,
@@ -451,33 +458,6 @@ def print_epoch_info(printcol_info, epoch_info):
     #)
     epoch_info_str = data_fmtstr.format(*fmttup)
     print(epoch_info_str)
-
-
-def print_layer_info(output_layer):
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', '.*topo.*')
-        nn_layers = layers.get_all_layers(output_layer)
-        print('\n[info] Network Structure:')
-
-        name_column = [layer.__class__.__name__ for layer in nn_layers]
-        max_namecol_len = max(list(map(len, name_column)))
-        fmtstr = '[info]  {:>3}  {:<' + str(max_namecol_len) + '}   {:<20}   produces {:>7,} outputs'
-
-        for index, layer in enumerate(nn_layers):
-            #print([p.get_value().shape for p in layer.get_params()])
-            output_shape = layers.get_output_shape(layer)  # .get_output_shape()
-            num_outputs = functools.reduce(operator.mul, output_shape[1:])
-            str_ = fmtstr.format(
-                index,
-                layer.__class__.__name__,
-                str(output_shape),
-                int(num_outputs),
-            )
-            print(str_)
-            #ut.embed()
-        print('[info] ...this model has {:,} learnable parameters\n'.format(
-            layers.count_params(output_layer)
-        ))
 
 
 def float32(k):

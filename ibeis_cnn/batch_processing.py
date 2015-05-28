@@ -16,8 +16,10 @@ VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERB
 VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or ut.VERYVERBOSE
 
 
+@profile
 def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
-                   center_mean=None, center_std=None, model=None, X_is_cv2_native=True, **kwargs):
+                   center_mean=None, center_std=None, model=None, X_is_cv2_native=True,
+                   verbose=VERBOSE_BATCH, showprog=ut.VERBOSE, **kwargs):
     r"""
     Args:
         X (ndarray):
@@ -34,7 +36,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
 
     Example:
         >>> # ENABLE_DOCTEST
-        >>> from ibeis_cnn.utils import *  # NOQA
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> # build test data
         >>> X = np.random.rand(67, 3, 5, 4)
         >>> y = (np.random.rand(67) * 4).astype(np.int32)
@@ -53,13 +55,15 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         >>> result = ut.depth_profile(result_list, compress_consecutive=True)
         >>> print(result)
     """
-    verbose = kwargs.get('verbose', VERBOSE_BATCH)
+    verbose = kwargs.get('verbose', verbose)
     veryverbose = kwargs.get('veryverbose', VERYVERBOSE_BATCH)
-    data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
+    #data_per_label = getattr(model, 'data_per_label', 1) if model is not None else 1
+    data_per_label = model.data_per_label
+    encoder = getattr(model, 'encoder', encoder)
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
         # Randomly shuffle data
-        X, y = utils.data_label_shuffle(X, y, data_per_label)
+        X, y = utils.data_label_shuffle(X, y, data_per_label)  # 0.079 mnist time fraction
     if verbose:
         print('[batchiter] BEGIN')
         print('[batchiter] X.shape %r' % (X.shape, ))
@@ -73,13 +77,16 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
 
     batch_index_iter = range(num_batches)
     equal_batch_sizes = kwargs.get('equal_batch_sizes', False)
-    if ut.VERBOSE:
-        batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches, lbl='verbose unbuffered batch iteration')
+    if showprog:
+        batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches,
+                                           lbl='verbose unbuffered batch iteration')
     for batch_index in batch_index_iter:
         # Get batch slice
-        Xb, yb = utils.slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=equal_batch_sizes)
+        Xb, yb = utils.slice_data_labels(
+            X, y, batch_size, batch_index,
+            data_per_label, wraparound=equal_batch_sizes)  # .113 time fraction
         # Whiten
-        Xb = utils.whiten_data(Xb, center_mean, center_std)
+        Xb = utils.whiten_data(Xb, center_mean, center_std)  # .563 time fraction
         # Augment
         if augment is not None:
             if verbose or veryverbose:
@@ -93,7 +100,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         # Encode
         if yb is not None:
             if encoder is not None:
-                yb = encoder.transform(yb)
+                yb = encoder.transform(yb)  # .201 time fraction
             # Get corret dtype for y (after encoding)
             if data_per_label > 1:
                 # TODO: FIX data_per_label ISSUES
@@ -117,6 +124,31 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         print('[batchiter] END')
 
 
+def predict_batch(X_train, theano_fn, **kwargs):
+    """
+        compute the loss over all training batches
+
+        Jon, if you get to this before I do, please fix. -J
+    """
+    prob_list = []
+    pred_list = []
+    conf_list = []
+    for Xb, _ in batch_iterator(X_train, None, **kwargs):
+        # TODO: Buffered batch iterator
+        # Runs a batch through the network and updates the weights. Just returns what it did
+        prob, pred, conf = theano_fn(Xb)
+        prob_list.append(prob)
+        pred_list.append(pred)
+        conf_list.append(conf)
+    # Convert to numpy array
+    prob_list = np.vstack(prob_list)
+    pred_list = np.hstack(pred_list)
+    conf_list = np.hstack(conf_list)
+    # Return
+    return prob_list, pred_list, conf_list
+
+
+@profile
 def process_batch(X_train, y_train, theano_fn, **kwargs):
     """
         compute the loss over all training batches
@@ -129,9 +161,11 @@ def process_batch(X_train, y_train, theano_fn, **kwargs):
     conf_list = []
     auglbl_list = []  # augmented label list
     show = VERYVERBOSE_BATCH
-    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):
+    for Xb, yb in batch_iterator(X_train, y_train, **kwargs):  # .036 mnist time fraction, .012 siamese
+        # TODO: Buffered batch iterator
+
         # Runs a batch through the network and updates the weights. Just returns what it did
-        loss, prob, pred, conf = theano_fn(Xb, yb)
+        loss, prob, pred, conf = theano_fn(Xb, yb)  # .963 mnist time fraction, .988 siamese
         loss_list.append(loss)
         prob_list.append(prob)
         auglbl_list.append(yb)
@@ -221,10 +255,12 @@ def process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs):
         auglbl_list = y_train
         batch_index_iter = range(num_batches)
         if ut.VERBOSE:
-            batch_index_iter = ut.ProgressIter(batch_index_iter, nTotal=num_batches, lbl='verbose buffered batch iteration')
+            batch_index_iter = ut.ProgressIter(
+                batch_index_iter, nTotal=num_batches,
+                lbl='verbose buffered batch iteration')
         for index in batch_index_iter:
-            # Runs a batch through the network and updates the weights. Just
-            # returns what it did
+            # Runs a batch through the network and updates the weights.
+            # Just returns what it did
             batch_output = theano_fn(index)
             #yb = None  # TODO: Figure out if labels were augmented
             #auglbl_list.append(yb)
@@ -288,29 +324,6 @@ def process_batch2(X_train, y_train, batch_size, theano_fn, **kwargs):
     return loss, accu, prob_list, auglbl_list, pred_list, conf_list
 
 
-def predict_batch(X_train, theano_fn, **kwargs):
-    """
-        compute the loss over all training batches
-
-        Jon, if you get to this before I do, please fix. -J
-    """
-    prob_list = []
-    pred_list = []
-    conf_list = []
-    for Xb, _ in batch_iterator(X_train, None, **kwargs):
-        # Runs a batch through the network and updates the weights. Just returns what it did
-        prob, pred, conf = theano_fn(Xb)
-        prob_list.append(prob)
-        pred_list.append(pred)
-        conf_list.append(conf)
-    # Convert to numpy array
-    prob_list = np.vstack(prob_list)
-    pred_list = np.hstack(pred_list)
-    conf_list = np.hstack(conf_list)
-    # Return
-    return prob_list, pred_list, conf_list
-
-
 def process_train(X_train, y_train, theano_fn, **kwargs):
     """ compute the loss over all training batches """
     results = process_batch(X_train, y_train, theano_fn, **kwargs)
@@ -331,41 +344,50 @@ def process_test(X_test, y_test, theano_fn, results_path=None, **kwargs):
     """ compute the loss over all test batches """
     results = process_batch(X_test, y_test, theano_fn, **kwargs)
     loss, accu, prob_list, auglbl_list, pred_list, conf_list = results
+    return loss, accu, prob_list, auglbl_list, pred_list, conf_list
+
+
+def output_confusion_matrix(X_test, results_path,  test_results, model, **kwargs):
+    """ currently hacky implementation, fix it later """
+    loss, accu_test, prob_list, auglbl_list, pred_list, conf_list = test_results
     # Output confusion matrix
-    if results_path is not None:
-        # Grab model
-        model = kwargs.get('model', None)
-        mapping_fn = None
-        if model is not None:
-            mapping_fn = getattr(model, 'label_order_mapping', None)
-        # TODO: THIS NEEDS TO BE FIXED
-        label_list = list(range(kwargs.get('output_dims')))
-        # Encode labels if avaialble
-        encoder = kwargs.get('encoder', None)
-        if encoder is not None:
-            label_list = encoder.inverse_transform(label_list)
-        # Make confusion matrix (pass X to write out failed cases)
-        draw_net.show_confusion_matrix(auglbl_list, pred_list, label_list, results_path,
-                                       mapping_fn, X_test)
-    return accu
+    # Grab model
+    #model = kwargs.get('model', None)
+    mapping_fn = None
+    if model is not None:
+        mapping_fn = getattr(model, 'label_order_mapping', None)
+    # TODO: THIS NEEDS TO BE FIXED
+    label_list = list(range(kwargs.get('output_dims')))
+    # Encode labels if avaialble
+    #encoder = kwargs.get('encoder', None)
+    encoder = getattr(model, 'encoder', None)
+    if encoder is not None:
+        label_list = encoder.inverse_transform(label_list)
+    # Make confusion matrix (pass X to write out failed cases)
+    draw_net.show_confusion_matrix(auglbl_list, pred_list, label_list, results_path,
+                                   mapping_fn, X_test)
 
 
-def process_predictions(X_test, theano_fn, **kwargs):
+def process_predictions(X_test, theano_fn, model, **kwargs):
     """ compute the loss over all test batches """
-    results = predict_batch(X_test, theano_fn, **kwargs)
+    results = predict_batch(X_test, theano_fn, model=model, **kwargs)
     prob_list, pred_list, conf_list = results
     # Find whatever metrics we want
-    encoder = kwargs.get('encoder', None)
+    #encoder = kwargs.get('encoder', None)
+    encoder = getattr(model, 'encoder', None)
     if encoder is not None:
         label_list = encoder.inverse_transform(pred_list)
     else:
         label_list = [None] * len(pred_list)
-    return pred_list, label_list, conf_list
+    return pred_list, label_list, conf_list, prob_list
 
 
 def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
-                          input_type=T.tensor4, output_type=T.ivector,
-                          regularization=None, **kwargs):
+                        input_type=T.tensor4, output_type=T.ivector,
+                        regularization=None,
+                        request_backprop=True,
+                        request_predict=False,
+                        **kwargs):
     """
     build the Theano functions (symbolic expressions) that will be used in the
     optimization refer to this link for info on tensor types:
@@ -380,9 +402,9 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
     # Defaults that are overwritable by a model
     #loss_function = utils.multinomial_nll
-    loss_function = T.nnet.categorical_crossentropy
-    if model is not None and hasattr(model, 'loss_function'):
-        loss_function = model.loss_function
+    #loss_function = T.nnet.categorical_crossentropy
+    #if model is not None and hasattr(model, 'loss_function'):
+    loss_function = model.loss_function
 
     # we are minimizing the multi-class negative log-likelihood
     with warnings.catch_warnings():
@@ -403,7 +425,9 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
 
         # Regularize
         if regularization is not None:
-            L2 = lasagne.regularization.l2(output_layer)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+                L2 = lasagne.regularization.l2(output_layer)
             loss += L2 * regularization
 
         # Run inference and get performance_outputs
@@ -418,22 +442,26 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         performance_outputs = [probabilities, predictions, confidences]
 
     # Define how to update network parameters based on the training loss
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', '.*topo.*')
-        #l = lasagne.layers.get_all_layers(output_layer)[2]
-        parameters = lasagne.layers.get_all_params(output_layer, trainable=True)
-        updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
-        #ut.embed()
+    if request_backprop:
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            #l = lasagne.layers.get_all_layers(output_layer)[2]
+            parameters = lasagne.layers.get_all_params(output_layer, trainable=True)
+            updates = lasagne.updates.nesterov_momentum(loss, parameters, learning_rate_theano, momentum)
+            #ut.embed()
 
-    theano_backprop = theano.function(
-        inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        outputs=[loss] + performance_outputs,
-        updates=updates,
-        givens={
-            X: X_batch,
-            y: y_batch,
-        },
-    )
+    if request_backprop:
+        theano_backprop = theano.function(
+            inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+            outputs=[loss] + performance_outputs,
+            updates=updates,
+            givens={
+                X: X_batch,
+                y: y_batch,
+            },
+        )
+    else:
+        theano_backprop = None
 
     theano_forward = theano.function(
         inputs=[theano.Param(X_batch), theano.Param(y_batch)],
@@ -445,15 +473,17 @@ def create_theano_funcs(learning_rate_theano, output_layer, model, momentum=0.9,
         },
     )
 
-    #theano_predict = theano.function(
-    #    inputs=[theano.Param(X_batch)],
-    #    outputs=performance_outputs,
-    #    updates=None,
-    #    givens={
-    #        X: X_batch,
-    #    },
-    #)
-    theano_predict = None
+    if request_predict:
+        theano_predict = theano.function(
+            inputs=[theano.Param(X_batch)],
+            outputs=performance_outputs,
+            updates=None,
+            givens={
+                X: X_batch,
+            },
+        )
+    else:
+        theano_predict = None
 
     return theano_backprop, theano_forward, theano_predict
 
