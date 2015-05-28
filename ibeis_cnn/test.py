@@ -125,13 +125,13 @@ def show_patchmatch_results():
 
 
 def decode_siamse_output(network_output):
-    """
-    network_output = prob_list
-    """
     pass
 
 
 def learn_siamese_thresholds(network_output, y_test):
+    """
+    network_output = prob_list
+    """
     from ibeis.model.hots import score_normalization
     tp_support = network_output.T[0][y_test.astype(np.bool)].astype(np.float64)
     tn_support = network_output.T[0][~(y_test.astype(np.bool))].astype(np.float64)

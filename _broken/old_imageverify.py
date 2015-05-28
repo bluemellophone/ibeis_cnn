@@ -350,3 +350,74 @@ def train_identification_pz():
     weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
     train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
     #X = k
+
+
+    # TODO: Finishme
+    #NODUP_KEYPOINT_WARP = True
+    #if NODUP_KEYPOINT_WARP:
+    #    # Prevent duplicate keypoint warping computations
+    #    fx1_list = [fm.T[0] for fm in fm_list]
+    #    fx2_list = [fm.T[1] for fm in fm_list]
+    #    aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+    #    aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+    #    iddict_ = {}
+    #    unique_feat_ids1 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx1_list]
+    #    unique_feat_ids2 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx2_list]
+    #    unique_feat_ids = ut.flatten(unique_feat_ids1) + ut.flatten(unique_feat_ids2)
+    #    print(len(set(unique_feat_ids)) / len(unique_feat_ids))
+
+
+    #if False:
+    #    aid_multilist = (np.array(aid1_list), np.array(aid2_list))
+    #    flat_unique_, flat_groupx_multilist = ut.inverable_group_multi_list()
+    #    fx1_list = [fm.T[0] for fm in fm_list]
+    #    fx2_list = [fm.T[1] for fm in fm_list]
+    #    fx_multilist = (fx1_list, fx2_list)
+    #    fx_groups = [[ut.list_take(fx_multilist[listx], groupx) for listx, groupx in enumerate(groupx_list)] for groupx_list in flat_groupx_multilist]
+
+    #    for fxgrp in fx_groups:
+    #        flat_list1, cumsum1 = ut.invertible_flatten2(fxgrp)
+    #        flat_list2, cumsum2 = ut.invertible_flatten2(flat_list1)
+    #        unique_fx, invert_fx3 = np.unique(flat_list2, return_inverse=True)
+    #        pass
+    #    #[[ut.list_take(aid_multilist[listx], groupx) for listx, groupx in enumerate(groupx_list)] for groupx_list in flat_groupx_multilist]
+
+
+            #patch_list = []
+            #for fx, kp in zip(fxs, kpts):
+            #    try:
+            #        patch = cache_[(aid, fxs)]
+            #    except KeyError:
+            #        patch = vt.get_warped_patches(chip, kpts)[0]
+            #        cache_[(aid, fx)] = patch
+            #    patch_list.append(patch)
+            #return patch_list
+
+
+
+#def get_unique_featureids(aid1_list, aid2_list, fm_list):
+#    import vtool as vt
+#    vt.group_indices(np.array(aid1_list))
+#    fx1_list = [fm.T[0] for fm in fm_list]
+#    fx2_list = [fm.T[1] for fm in fm_list]
+#    #aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+#    #aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+#    #iddict_ = {}
+#    #unique_feat_ids1 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx1_list]
+#    #unique_feat_ids2 = [vt.compute_unique_data_ids_(rows, iddict_=iddict_) for rows in aidfx2_list]
+#    #unique_feat_ids = ut.flatten(unique_feat_ids1) + ut.flatten(unique_feat_ids2)
+#    #return unique_feat_ids
+
+#    #
+
+    # check for any duplicates
+    #if False:
+    #    aidfx1_list = [zip([aid1] * len(fx1), fx1) for aid1, fx1 in zip(aid1_list, fx1_list)]
+    #    aidfx2_list = [zip([aid2] * len(fx2), fx2) for aid2, fx2 in zip(aid2_list, fx2_list)]
+    #    aidfx_list = ut.flatten(aidfx1_list) + ut.flatten(aidfx2_list)
+    #    import vtool as vt
+    #    unique_ids = vt.compute_unique_data_ids_(aidfx_list)
+    #    print(len(set(unique_ids)) / len(unique_ids))
+
+    #print('Reading keypoint sets')
+    #
