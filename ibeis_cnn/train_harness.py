@@ -121,9 +121,9 @@ def sample_train_valid_test(model, data, labels):
     memtrack = ut.MemoryTracker(disable=True)
     memtrack.report('sample_data0')
     data_per_label = getattr(model, 'data_per_label', 1)
-    #train_split = .2
+    train_split = .2
     #train_split = .4
-    train_split = .5
+    #train_split = .5
     _tup = utils.train_test_split(data, labels, eval_size=train_split, data_per_label=data_per_label)
     X_train, y_train, X_valid, y_valid = _tup
     memtrack.report('sample_data1')

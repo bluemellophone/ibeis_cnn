@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Defines the models and the data we will send to the train_harness
 
@@ -119,8 +120,32 @@ def train_patchmatch_liberty():
         >>> result = train_patchmatch_liberty()
         >>> print(result)
     """
-    liberty_dog_fpath = ut.grab_zipped_url('http://www.cs.ubc.ca/~mbrown/patchdata/liberty.zip')
-    liberty_harris_fpath = ut.grab_zipped_url('http://www.cs.ubc.ca/~mbrown/patchdata/liberty_harris.zip')
+    training_dpath = nets_dir = ut.truepath('liberty')
+    ut.ensuredir(nets_dir)
+    data_fpath, labels_fpath = ingest_data.grab_cached_liberty_data(nets_dir)
+    #model = models.SiameseModel()
+    model = models.SiameseCenterSurroundModel()
+    config = dict(
+        patience=100,
+        equal_batch_sizes=True,
+        batch_size=ut.get_argval('--batch_size', type_=int, default=128),
+        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
+        show_confusion=False,
+        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
+        run_test=None,
+        show_features=False,
+        print_timing=False,
+        momentum=.9,
+        regularization=0.0005,
+    )
+    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
+
+    #ut.embed()
+    if ut.get_argflag('--test'):
+        from ibeis_cnn import test
+        test.test(data_fpath, model, weights_fpath, labels_fpath, **config)
+    else:
+        train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
     pass
 
 

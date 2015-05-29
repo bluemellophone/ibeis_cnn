@@ -41,6 +41,7 @@ def init_theanorc():
         [global]
         floatX = float32
         device = gpu0
+        openmp = True
 
         [nvcc]
         fastmath = True

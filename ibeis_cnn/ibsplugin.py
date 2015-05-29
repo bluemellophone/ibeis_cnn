@@ -22,27 +22,28 @@ def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, fl
     import plottool as pt
     import vtool as vt
 
-    chunck_sizes = (6, 8)
-
     # Define order of iteration
     #index_list = list(range(len(label_list)))
-    index_list = ut.list_argsort(flat_metadata['fs'])[::-1]
     #index_list = ut.list_argsort(flat_metadata['fs'])[::1]
 
-    multi_chunked_indicies = list(ut.iter_multichunks(index_list, chunck_sizes))
-
     # Check out the score pdfs
+    if 'fs' in flat_metadata:
+        index_list = ut.list_argsort(flat_metadata['fs'])[::-1]
+        from vtool import score_normalization as scorenorm
+        tp_support = np.array(ut.list_compress(flat_metadata['fs'], label_list)).astype(np.float64)
+        tn_support = np.array(ut.list_compress(flat_metadata['fs'], ut.not_list(label_list))).astype(np.float64)
+        (score_domain, p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn,
+         p_score, clip_score) = scorenorm.learn_score_normalization(tp_support, tn_support, return_all=True)
+        scorenorm.inspect_pdfs(tn_support, tp_support, score_domain,
+                               p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn, p_score, with_scores=True)
 
-    from vtool import score_normalization as scorenorm
+        pt.set_figtitle('HotSpotter Patch Scores')
+    else:
+        index_list = ut.random_indexes(len(label_list))
+        #index_list = list(range(len(label_list)))
 
-    tp_support = np.array(ut.list_compress(flat_metadata['fs'], label_list)).astype(np.float64)
-    tn_support = np.array(ut.list_compress(flat_metadata['fs'], ut.not_list(label_list))).astype(np.float64)
-    (score_domain, p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn,
-     p_score, clip_score) = scorenorm.learn_score_normalization(tp_support, tn_support, return_all=True)
-    scorenorm.inspect_pdfs(tn_support, tp_support, score_domain,
-                           p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn, p_score, with_scores=True)
-
-    pt.set_figtitle('HotSpotter Patch Scores')
+    chunck_sizes = (6, 8)
+    multi_chunked_indicies = list(ut.iter_multichunks(index_list, chunck_sizes))
 
     green = tuple(pt.color_funcs.to_base255(pt.TRUE_GREEN)[0:3])
     red   = tuple(pt.color_funcs.to_base255(pt.FALSE_RED)[0:3])[::-1]
@@ -51,8 +52,8 @@ def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, fl
         indicies = chunked_indicies[0]
         """
         import utool as ut
-        patch1_list_subset = [patch.copy() for patch in ut.list_take(warped_patch1_list, indicies)]
-        patch2_list_subset = [patch.copy() for patch in ut.list_take(warped_patch2_list, indicies)]
+        patch1_list_subset = [np.tile(patch[None, :].T, 3) if len(patch.shape) == 2 else patch.copy() for patch in ut.list_take(warped_patch1_list, indicies)]
+        patch2_list_subset = [np.tile(patch[None, :].T, 3) if len(patch.shape) == 2 else patch.copy() for patch in ut.list_take(warped_patch2_list, indicies)]
         label_list_subset = ut.list_take(label_list, indicies)
         # Ipython embed hates dict comprehensions and locals
         flat_metadata_subset = dict([(key, ut.list_take(vals, indicies)) for key, vals in six.iteritems(flat_metadata)])
@@ -80,28 +81,31 @@ def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, fl
             stacked_patch1s, stacked_patch2s, offset_list1, sf_list1, offset_list2, sf_list2,
             vert=False, modifysize=False)
 
-        scores = flat_metadata_subset['fs']
-        score_texts = ['%.3f' % s for s in scores]
-        left_offsets = offset_list[:len(offset_list) // 2]
-        #right_offsets = offset_list[len(offset_list) // 2:]
+        if 'fs' in flat_metadata_subset:
+            scores = flat_metadata_subset['fs']
+            score_texts = ['%.3f' % s for s in scores]
+            left_offsets = offset_list[:len(offset_list) // 2]
+            #right_offsets = offset_list[len(offset_list) // 2:]
 
-        scale_up = 3
+            scale_up = 3
 
-        img = vt.resize_image_by_scale(stacked_patches, scale_up)
-        textcolor_rgb1 = pt.to_base255(pt.BLACK)[:3]
-        #textcolor_rgb2 = pt.to_base255(pt.ORANGE)[:3]
-        textcolor_rgb2 = pt.to_base255(pt.WHITE)[:3]
-        for offset, text in zip(left_offsets, score_texts):
-            #print(offset)
-            #print(s)
-            import cv2
-            scaled_offset = tuple(((np.array(offset) + thickness + 2) * scale_up).astype(np.int).tolist())
-            #fontFace = cv2.FONT_HERSHEY_COMPLEX_SMALL
-            fontFace = cv2.FONT_HERSHEY_PLAIN
-            fontkw = dict(bottomLeftOrigin=True, fontScale=2.5, fontFace=fontFace)
-            # Bordered text
-            vt.draw_text(img, text, scaled_offset, thickness=6, textcolor_rgb=textcolor_rgb1, **fontkw)
-            vt.draw_text(img, text, scaled_offset, thickness=2, textcolor_rgb=textcolor_rgb2, **fontkw)
+            img = vt.resize_image_by_scale(stacked_patches, scale_up)
+            textcolor_rgb1 = pt.to_base255(pt.BLACK)[:3]
+            #textcolor_rgb2 = pt.to_base255(pt.ORANGE)[:3]
+            textcolor_rgb2 = pt.to_base255(pt.WHITE)[:3]
+            for offset, text in zip(left_offsets, score_texts):
+                #print(offset)
+                #print(s)
+                import cv2
+                scaled_offset = tuple(((np.array(offset) + thickness + 2) * scale_up).astype(np.int).tolist())
+                #fontFace = cv2.FONT_HERSHEY_COMPLEX_SMALL
+                fontFace = cv2.FONT_HERSHEY_PLAIN
+                fontkw = dict(bottomLeftOrigin=True, fontScale=2.5, fontFace=fontFace)
+                # Bordered text
+                vt.draw_text(img, text, scaled_offset, thickness=6, textcolor_rgb=textcolor_rgb1, **fontkw)
+                vt.draw_text(img, text, scaled_offset, thickness=2, textcolor_rgb=textcolor_rgb2, **fontkw)
+        else:
+            img = stacked_patches
         return img, offset_list
         #pt.imshow(img)
         #ax = pt.gca()
