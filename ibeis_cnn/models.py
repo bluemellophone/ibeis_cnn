@@ -22,6 +22,7 @@ from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers  # NOQA
 import sklearn.preprocessing
 import utool as ut
+import cPickle as pickle
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # from os.path import join
 # import cPickle as pickle
@@ -200,6 +201,25 @@ class BaseModel(object):
         # two images a piece
         self.data_per_label = 1
         self.net_dir = '.'  # TODO
+
+    # --- initialization steps
+
+    def initialize_architecture(self):
+        raise NotImplementedError('reimlement')
+
+    def load_weights(self, weights_fpath):
+        print('[model] loading pretrained weights from %s' % (weights_fpath))
+        pretrained_weights = None
+        with open(weights_fpath, 'rb') as pfile:
+            kwargs = pickle.load(pfile)
+            pretrained_weights = kwargs['best_weights']
+        print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
+        # Set weights to model
+        if pretrained_weights is not None:
+            output_layer = self.get_output_layer()
+            layers.set_all_param_values(output_layer, pretrained_weights)
+
+    # --- utility
 
     def draw_architecture(self):
         from ibeis_cnn import draw_net

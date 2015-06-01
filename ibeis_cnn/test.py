@@ -133,15 +133,6 @@ def test_data2(X_test, y_test, model, weights_fpath, **kwargs):
 
     ######################################################################################
 
-    # Load the pretrained model if specified
-    print('[model] loading pretrained weights from %s' % (weights_fpath))
-    pretrained_weights = None
-    with open(weights_fpath, 'rb') as pfile:
-        kwargs = pickle.load(pfile)
-        pretrained_weights = kwargs['best_weights']
-
-    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
-
     # Build and print the model
     print('\n[model] building model...')
     #input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
@@ -151,8 +142,9 @@ def test_data2(X_test, y_test, model, weights_fpath, **kwargs):
         input_channels, kwargs.get('output_dims'))
     net_strs.print_layer_info(output_layer)
 
-    # Set weights to model
-    layers.set_all_param_values(output_layer, pretrained_weights)
+    model.load_weights(weights_fpath)
+
+    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
 
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
