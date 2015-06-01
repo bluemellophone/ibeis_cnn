@@ -58,3 +58,7 @@ data/
 *.zip
 
 test_times.txt
+
+clean_profile*
+raw_profile*
+*.lprof
