@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 tests a test set of data using a specified, pre0trained model and weights
 """
@@ -38,6 +39,9 @@ def test(data_fpath, model, weights_fpath, results_dpath=None, labels_fpath=None
     print('\n[data] loading data...')
     print('data_fpath = %r' % (data_fpath,))
     X_test, y_test = utils.load(data_fpath, labels_fpath)
+    if len(X_test.shape) == 3:
+        # add channel dimension for implicit grayscale
+        X_test.shape = X_test.shape + (1,)
 
     return test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
 
@@ -80,6 +84,9 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
         input_channels, kwargs.get('output_dims'))
     net_strs.print_layer_info(output_layer)
 
+    # Set weights to model
+    layers.set_all_param_values(output_layer, pretrained_weights)
+
     # Create the Theano primitives
     print('[model] creating Theano primitives...')
     learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
@@ -89,9 +96,6 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
                                              request_predict=True,
                                              **kwargs)
     theano_backprop, theano_forward, theano_predict = theano_funcs
-
-    # Set weights to model
-    layers.set_all_param_values(output_layer, pretrained_weights)
 
     # Begin testing with the neural network
     print('\n[test] starting testing with batch size %0.1f' % (kwargs.get('batch_size'), ))
@@ -117,36 +121,102 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     # End timer
     t1 = time.time()
     print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
-    return pred_list, label_list, conf_list
+    return pred_list, label_list, conf_list, prob_list
 
 
-def show_patchmatch_results():
-    pass
-
-
-def decode_siamse_output(network_output):
-    pass
-
-
-def learn_siamese_thresholds(network_output, y_test):
+def test_data2(X_test, y_test, model, weights_fpath, **kwargs):
     """
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.test import *  # NOQA
+    """
+
+    ######################################################################################
+
+    # Load the pretrained model if specified
+    print('[model] loading pretrained weights from %s' % (weights_fpath))
+    pretrained_weights = None
+    with open(weights_fpath, 'rb') as pfile:
+        kwargs = pickle.load(pfile)
+        pretrained_weights = kwargs['best_weights']
+
+    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
+
+    # Build and print the model
+    print('\n[model] building model...')
+    #input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
+    input_cases, input_height, input_width, input_channels = kwargs['model_shape']  # SHOULD ERROR IF NOT SET
+    output_layer = model.build_model(
+        kwargs.get('batch_size'), input_width, input_height,
+        input_channels, kwargs.get('output_dims'))
+    net_strs.print_layer_info(output_layer)
+
+    # Set weights to model
+    layers.set_all_param_values(output_layer, pretrained_weights)
+
+    # Create the Theano primitives
+    print('[model] creating Theano primitives...')
+    learning_rate_theano = theano.shared(utils.float32(kwargs.get('learning_rate')))
+    theano_funcs = batch.create_theano_funcs(learning_rate_theano,
+                                             output_layer, model,
+                                             request_backprop=False,
+                                             request_predict=True,
+                                             **kwargs)
+    theano_backprop, theano_forward, theano_predict = theano_funcs
+
+    # Begin testing with the neural network
+    print('\n[test] starting testing with batch size %0.1f' % (kwargs.get('batch_size'), ))
+
+    # Start timer
+    t0 = time.time()
+
+    pred_list, label_list, conf_list, prob_list = batch.process_predictions(
+        X_test, theano_predict, model=model, showprog=True, **kwargs)
+
+    # End timer
+    t1 = time.time()
+    print('\n[test] prediction took %0.2f seconds' % (t1 - t0, ))
+    return pred_list, label_list, conf_list, prob_list
+
+
+def test_siamese_thresholds(prob_list, y_test):
+    """
+    Test function to see how good of a threshold we can learn
+
     network_output = prob_list
     """
-    from ibeis.model.hots import score_normalization
+    import vtool as vt
+    # batch cycling may cause more outputs than test labels.
+    # should be able to just crop
+    network_output = prob_list[0:len(y_test)].copy()
     tp_support = network_output.T[0][y_test.astype(np.bool)].astype(np.float64)
     tn_support = network_output.T[0][~(y_test.astype(np.bool))].astype(np.float64)
-    learnkw = dict()
-    learntup = score_normalization.learn_score_normalization(
-        tp_support, tn_support, return_all=False, **learnkw)
-    (score_domain, p_tp_given_score, clip_score) = learntup
+    if tp_support.mean() < tn_support.mean():
+        print('need to invert scores')
+        tp_support *= -1
+        tn_support *= -1
+    bottom = min(tn_support.min(), tp_support.min())
+    if bottom < 0:
+        print('need to subtract from scores')
+        tn_support -= bottom
+        tp_support -= bottom
 
+    vt.score_normalization.rrr()
+    vt.score_normalization.test_score_normalization(tp_support, tn_support, with_scores=False)
+
+    #from ibeis.model.hots import score_normalization
+    #test_score_normalization
+    #learnkw = dict()
+    #learntup = score_normalization.learn_score_normalization(
+    #    tp_support, tn_support, return_all=False, **learnkw)
+    #(score_domain, p_tp_given_score, clip_score) = learntup
     # Plotting
-    import plottool as pt
-    fnum = 1
-    pt.figure(fnum=fnum, pnum=(2, 1, 1), doclf=True, docla=True)
-    score_normalization.plot_support(tn_support, tp_support, fnum=fnum, pnum=(2, 1, 1))
-    score_normalization.plot_postbayes_pdf(
-        score_domain, 1 - p_tp_given_score, p_tp_given_score, fnum=fnum, pnum=(2, 1, 2))
+    #import plottool as pt
+    #fnum = 1
+    #pt.figure(fnum=fnum, pnum=(2, 1, 1), doclf=True, docla=True)
+    #score_normalization.plot_support(tn_support, tp_support, fnum=fnum, pnum=(2, 1, 1))
+    #score_normalization.plot_postbayes_pdf(
+    #    score_domain, 1 - p_tp_given_score, p_tp_given_score, fnum=fnum, pnum=(2, 1, 2))
     #pass
 
 

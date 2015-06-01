@@ -33,7 +33,7 @@ TODO:
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import models
-from ibeis_cnn import ibsplugin
+from ibeis_cnn import ingest_ibeis
 from ibeis_cnn import ingest_data
 from ibeis_cnn import train_harness
 import utool as ut
@@ -81,7 +81,7 @@ def train_patchmatch_pz():
     #ut.embed()
 
     with ut.Indenter('[CHECKDATA]'):
-        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=max_examples, num_top=num_top)
+        pathtup = ingest_ibeis.get_patchmetric_training_fpaths(ibs, max_examples=max_examples, num_top=num_top)
         data_fpath, labels_fpath, training_dpath = pathtup
 
     #model = models.SiameseModel()
@@ -112,15 +112,18 @@ def train_patchmatch_pz():
 def train_patchmatch_liberty():
     r"""
     CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_liberty
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
         >>> result = train_patchmatch_liberty()
+        >>> ut.show_if_requested()
         >>> print(result)
     """
-    training_dpath = nets_dir = ut.truepath('liberty')
+    # TODO: move to standard path
+    training_dpath = nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'liberty')
     ut.ensuredir(nets_dir)
     data_fpath, labels_fpath = ingest_data.grab_cached_liberty_data(nets_dir)
     #model = models.SiameseModel()
@@ -143,7 +146,22 @@ def train_patchmatch_liberty():
     #ut.embed()
     if ut.get_argflag('--test'):
         from ibeis_cnn import test
-        test.test(data_fpath, model, weights_fpath, labels_fpath, **config)
+        data, labels = utils.load(data_fpath, labels_fpath)
+        train_split = .2
+        # Grab the validataion set
+        _, _, X_test_, y_test_ = utils.train_test_split(
+            data, labels, eval_size=train_split,
+            data_per_label=model.data_per_label)
+        # Grab a sample of that
+        _, _, X_test, y_test = utils.train_test_split(
+            X_test_, y_test_, eval_size=.1,
+            data_per_label=model.data_per_label)
+        if len(X_test.shape) == 3:
+            # add channel dimension for implicit grayscale
+            X_test.shape = X_test.shape + (1,)
+        (pred_list, label_list, conf_list, prob_list) = test.test_data2(
+            X_test, y_test, model, weights_fpath, **config)
+        test.test_siamese_thresholds(prob_list, y_test)
     else:
         train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
     pass
@@ -191,7 +209,7 @@ def testdata_patchmatch():
         ibs = ibeis.opendb(defaultdb='PZ_MTEST')
 
     with ut.Indenter('[ENSURE TRAINING DATA]'):
-        pathtup = ibsplugin.get_patchmetric_training_fpaths(ibs, max_examples=5)
+        pathtup = ingest_ibeis.get_patchmetric_training_fpaths(ibs, max_examples=5)
         data_fpath, labels_fpath, training_dpath = pathtup
     data_cv2, labels = utils.load(data_fpath, labels_fpath)
     data = utils.convert_cv2_images_to_theano_images(data_cv2)

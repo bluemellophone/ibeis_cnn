@@ -600,7 +600,7 @@ class SiameseCenterSurroundModel(BaseModel):
         output_layer = model.network_layers[-1]
         return output_layer
 
-    def loss_function(model, E, Y, T=T, verbose=True):
+    def loss_function(model, network_output, Y, T=T, verbose=True):
         """
 
         CommandLine:
@@ -615,9 +615,9 @@ class SiameseCenterSurroundModel(BaseModel):
             >>> model = SiameseCenterSurroundModel(autoinit=True, input_shape=(128,) + (data.shape[1:]))
             >>> theano_forward = batch.create_unbuffered_network_output_func(model)
             >>> batch_size = model.batch_size
-            >>> Xb, yb = data[0:batch_size], labels[0:batch_size // 2]
+            >>> Xb, yb = data[0:batch_size * model.data_per_label], labels[0:batch_size]
             >>> network_output = theano_forward(Xb)[0]
-            >>> E = network_output
+            >>> network_output = network_output
             >>> Y = yb
             >>> T = np
             >>> # execute function
@@ -628,13 +628,27 @@ class SiameseCenterSurroundModel(BaseModel):
         """
         if verbose:
             print('[model] Build SiameseCenterSurroundModel loss function')
-        # Hinge-loss objective from Zagoruyko and Komodakis
+        # make y_i in {-1, 1} where -1 denotes non-matching and +1 denotes matching
         Y_ = (1 - (2 * Y))
-        loss = T.maximum(0, 1 - (Y_ * E.T))
+        # Hinge-loss objective from Zagoruyko and Komodakis
+        loss = T.maximum(0, 1 - (Y_ * network_output.T))
         avg_loss = T.mean(loss)
         loss.name = 'loss'
         avg_loss.name = 'avg_loss'
         return avg_loss
+
+    #def build_objective(self):
+    #    pass
+
+    #def build_regularized_objective(self, loss, output_layer, regularization):
+    #    """ L2 weight decay """
+    #    import warnings
+    #    with warnings.catch_warnings():
+    #        warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+    #        L2 = lasagne.regularization.l2(output_layer)
+    #        regularized_loss = L2 * regularization
+    #        regularized_loss.name = 'regularized_loss'
+    #    return regularized_loss
 
         #avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
         #return avg_loss
@@ -665,7 +679,7 @@ class SiameseModel(BaseModel):
             >>> # build test data
             >>> model = SiameseModel()
             >>> batch_size = 128
-            >>> input_width, input_height, input_channels  = 64, 64, 3
+            >>> input_width, input_height, input_channels = 64, 64, 3
             >>> output_dims = None
             >>> verbose = True
             >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)

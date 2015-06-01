@@ -3,7 +3,7 @@ import utool as ut
 import numpy as np
 import six
 from ibeis_cnn import utils
-print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ibsplugin]')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
 
 
 def interact_view_data_fpath_patches(data_fpath, labels_fpath, flat_metadata):
@@ -17,7 +17,7 @@ def interact_view_data_patches(labels, data, flat_metadata):
     pass
 
 
-def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata):
+def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata, rand=True):
     #from ibeis.viz import viz_helpers as vh
     import plottool as pt
     import vtool as vt
@@ -32,15 +32,17 @@ def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, fl
         from vtool import score_normalization as scorenorm
         tp_support = np.array(ut.list_compress(flat_metadata['fs'], label_list)).astype(np.float64)
         tn_support = np.array(ut.list_compress(flat_metadata['fs'], ut.not_list(label_list))).astype(np.float64)
-        (score_domain, p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn,
-         p_score, clip_score) = scorenorm.learn_score_normalization(tp_support, tn_support, return_all=True)
-        scorenorm.inspect_pdfs(tn_support, tp_support, score_domain,
-                               p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn, p_score, with_scores=True)
-
+        scorenorm.test_score_normalization(tp_support, tn_support)
+        #(score_domain, p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn,
+        # p_score, clip_score) = scorenorm.learn_score_normalization(tp_support, tn_support, return_all=True)
+        #scorenorm.inspect_pdfs(tn_support, tp_support, score_domain,
+        #                       p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn, p_score, with_scores=True)
         pt.set_figtitle('HotSpotter Patch Scores')
     else:
-        index_list = ut.random_indexes(len(label_list))
-        #index_list = list(range(len(label_list)))
+        if rand:
+            index_list = ut.random_indexes(len(label_list))
+        else:
+            index_list = list(range(len(label_list)))
 
     chunck_sizes = (6, 8)
     multi_chunked_indicies = list(ut.iter_multichunks(index_list, chunck_sizes))
@@ -182,29 +184,39 @@ def interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, fl
     #    #pt.update()
 
 
-def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, patch_size):
+def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
+                                         kpts1_m_list, kpts2_m_list, fm_list,
+                                         metadata_lists, patch_size,
+                                         colorspace):
     """
     FIXME: errors on get_aidpairs_and_matches(ibs, 1)
 
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_aidpair_patchmatch_training_data --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpair_patchmatch_training_data --show
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = get_aidpairs_and_matches(ibs, 6)
-        >>> patch_size = 64
+        >>> tup = get_aidpairs_and_matches(ibs, 6)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = tup
+        >>> pmcfg = PatchMetricDataConfig()
+        >>> patch_size = pmcfg.patch_size
+        >>> colorspace = pmcfg.colorspace
         >>> # execute function
-        >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, patch_size)
+        >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list,
+        ...     aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists,
+        ...     patch_size, colorspace)
         >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata = tup
         >>> ut.quit_if_noshow()
         >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
         >>> interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata)
         >>> ut.show_if_requested()
     """
+    import vtool as vt
+    import itertools
     # Flatten to only apply chip operations once
     print('get_aidpair_patchmatch_training_data num_pairs = %r' % (len(aid1_list)))
     assert len(aid1_list) == len(aid2_list)
@@ -215,11 +227,10 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
     flat_unique, reconstruct_tup = ut.inverable_unique_two_lists(aid1_list, aid2_list)
     print('grabbing %d unique chips' % (len(flat_unique)))
     chip_list = ibs.get_annot_chips(flat_unique)  # TODO config2_
-
+    # convert to approprate colorspace
+    chip_list = vt.convert_image_list_colorspace(chip_list, colorspace)
     ut.print_object_size(chip_list, 'chip_list')
     chip1_list, chip2_list = ut.uninvert_unique_two_lists(chip_list, reconstruct_tup)
-    import vtool as vt
-    import itertools
     print('warping')
 
     USE_CACHEFUNC = True
@@ -290,7 +301,10 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list, kpts1_m_list
     return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata
 
 
-def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, patch_size):
+def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
+                                             kpts1_m_list, kpts2_m_list,
+                                             fm_list, metadata_lists,
+                                             patch_size, colorspace):
     """
     Notes:
         # FIXME: THERE ARE INCORRECT CORRESPONDENCES LABELED AS CORRECT THAT
@@ -298,25 +312,31 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_
         # SEGMENTATION MASKS
 
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_data_and_labels --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_patchmetric_training_data_and_labels --show
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = get_aidpairs_and_matches(ibs, 10, 3)
-        >>> patch_size = 64
-        >>> data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, patch_size)
+        >>> pmcfg = PatchMetricDataConfig()
+        >>> patch_size = pmcfg.patch_size
+        >>> colorspace = pmcfg.colorspace
+        >>> data, labels = get_patchmetric_training_data_and_labels(ibs,
+        ...     aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+        ...     metadata_lists, patch_size, colorspace)
         >>> ut.quit_if_noshow()
         >>> interact_view_data_patches(labels, data)
         >>> ut.show_if_requested()
     """
     # To the removal of unknown pairs before computing the data
 
-    aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata = get_aidpair_patchmatch_training_data(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, patch_size, metadata_lists)
+    tup = get_aidpair_patchmatch_training_data(
+        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+        metadata_lists, patch_size, colorspace)
+    aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata = tup
     labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
     img_list = ut.flatten(list(zip(warped_patch1_list, warped_patch2_list)))
     data = np.array(img_list)
@@ -345,7 +365,7 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
@@ -387,11 +407,11 @@ def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
         tuple: (data_fpath, labels_fpath)
 
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_identify_training_dname
+        python -m ibeis_cnn.ingest_ibeis --test-get_identify_training_dname
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb('testdb1')
@@ -413,11 +433,11 @@ def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
 def get_patchmetric_training_fpaths(ibs, **kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn.ibsplugin --test-get_patchmetric_training_fpaths --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_patchmetric_training_fpaths --show
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> kwargs = ut.argparse_dict({'max_examples': None, 'num_top': 3})
@@ -449,11 +469,15 @@ class NewConfigBase(object):
 class PatchMetricDataConfig(NewConfigBase):
     def __init__(pmcfg):
         pmcfg.patch_size = 64
+        #pmcfg.colorspace = 'bgr'
+        pmcfg.colorspace = 'gray'
 
     def get_cfgstr(pmcfg):
         cfgstr_list = [
             'patch_size=%d' % (pmcfg.patch_size,),
         ]
+        if pmcfg.colorspace != 'bgr':
+            cfgstr_list.append(pmcfg.colorspace)
         return ','.join(cfgstr_list)
 
 
@@ -484,7 +508,9 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             print('Estimated data size: ' + ut.byte_str2(estimated_bytes))
         estimate_data_bytes()
         # Extract the data and labels
-        data, labels = get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, **pmcfg.kw())
+        data, labels = get_patchmetric_training_data_and_labels(
+            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+            metadata_lists, **pmcfg.kw())
         # Save the data to cache
         ut.assert_eq(data.shape[1], pmcfg.patch_size)
         ut.assert_eq(data.shape[2], pmcfg.patch_size)
@@ -505,7 +531,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ibsplugin import *  # NOQA
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
@@ -578,8 +604,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
         #aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
         labelhist = ut.dict_hist(flat_labels)
         # Print input distribution of labels
-        print('[ibsplugin] original label histogram = \n' + ut.dict_str(labelhist))
-        print('[ibsplugin] total = %r' % (sum(list(labelhist.values()))))
+        print('[ingest_ibeis] original label histogram = \n' + ut.dict_str(labelhist))
+        print('[ingest_ibeis] total = %r' % (sum(list(labelhist.values()))))
         flat_labels = np.array(flat_labels)
 
         flat_fs = np.hstack(metadata_uneq['fs'])
@@ -645,8 +671,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
         len1_list = list(map(len, fm_list_eq))
         flat_labels_eq = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels_eq)])
         labelhist_eq = {key: len(val) for key, val in six.iteritems(ut.group_items(flat_labels_eq, flat_labels_eq))}
-        print('[ibsplugin] equalized label histogram = \n' + ut.dict_str(labelhist_eq))
-        print('[ibsplugin] total = %r' % (sum(list(labelhist_eq.values()))))
+        print('[ingest_ibeis] equalized label histogram = \n' + ut.dict_str(labelhist_eq))
+        print('[ingest_ibeis] total = %r' % (sum(list(labelhist_eq.values()))))
         # --
         return aid1_list_eq, aid2_list_eq, fm_list_eq, labels_eq, metadata_eq
 
@@ -686,9 +712,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
 if __name__ == '__main__':
     """
     CommandLine:
-        python -m ibeis_cnn.ibsplugin
-        python -m ibeis_cnn.ibsplugin --allexamples
-        python -m ibeis_cnn.ibsplugin --allexamples --noface --nosrc
+        python -m ibeis_cnn.ingest_ibeis
+        python -m ibeis_cnn.ingest_ibeis --allexamples
+        python -m ibeis_cnn.ingest_ibeis --allexamples --noface --nosrc
     """
     import multiprocessing
     multiprocessing.freeze_support()  # for win32
