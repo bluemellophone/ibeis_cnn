@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function
 from os.path import join
 import utool as ut
+from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_helpers]')
 
 
@@ -36,6 +37,11 @@ def open_mnist_files(labels_fpath, data_fpath):
 
 
 def extract_liberty_style_patches(ds_path, pairs):
+    """
+    CommandLine:
+        python -m ibeis_cnn.ingest_data --test-grab_cached_liberty_data --show
+
+    """
     from itertools import product
     import numpy as np
     from PIL import Image
@@ -66,21 +72,6 @@ def extract_liberty_style_patches(ds_path, pairs):
 
     #def read_patch_ids():
     #    pass
-
-    def _crop_to_numpy(patchfile):
-        """
-        Convert _patchfile_ to a numpy array with patches per row.
-        A _patchfile_ is a .bmp file.
-        """
-        pil_img = Image.open(patchfile)
-        ptch_list = [
-            pil_img.crop(
-                (col * patch_x, row * patch_y, (col + 1) * patch_x, (row + 1) * patch_y))
-            for row, col in product(range(rows), range(cols))
-        ]
-        patches = np.array([np.array(ptch) for ptch in ptch_list])
-        pil_img.close()
-        return patches
 
     def matches(ds_path, pairs):
         """Return _pairs_ many match/non-match pairs for _dataset_.
@@ -133,27 +124,70 @@ def extract_liberty_style_patches(ds_path, pairs):
 
         return match, non_match, patch_ids
 
-    per_bmp = rows * cols
-    total_num_patches = _available_patches(ds_path)
-    bmps, mod = divmod(total_num_patches, per_bmp)
+    def _crop_to_numpy(patchfile, requested_indicies):
+        """
+        Convert _patchfile_ to a numpy array with patches per row.
+        A _patchfile_ is a .bmp file.
+        """
+        pil_img = Image.open(patchfile)
+        ptch_iter = (
+            pil_img.crop(
+                (col * patch_x, row * patch_y, (col + 1) * patch_x, (row + 1) * patch_y))
+            for index, (row, col) in enumerate(product(range(rows), range(cols)))
+            if index in requested_indicies
+        )
+        patches = [np.array(ptch) for ptch in ptch_iter]
+        pil_img.close()
+        return patches
 
-    patchfile_list = [join(ds_path, ''.join(["patches", str(i).zfill(4), '.bmp']))
-                      for i in range(bmps)]
+    num_patch_per_bmp = rows * cols
+    total_num_patches = _available_patches(ds_path)
+    num_bmp_files, mod = divmod(total_num_patches, num_patch_per_bmp)
+
+    patchfile_list = [join(ds_path, ''.join(['patches', str(i).zfill(4), '.bmp']))
+                      for i in range(num_bmp_files)]
 
     # Build matching labels
-    match_pairs, non_match_pairs, patch_ids = matches(ds_path, pairs)
-    assert max(patch_ids) <= total_num_patches
+    match_pairs, non_match_pairs, all_requested_patch_ids = matches(ds_path, pairs)
+    all_requested_patch_ids = np.array(all_requested_patch_ids)
+    print('len(match_pairs) = %r' % (len(match_pairs,)))
+    print('len(non_match_pairs) = %r' % (len(non_match_pairs,)))
+    print('len(all_requested_patch_ids) = %r' % (len(all_requested_patch_ids,)))
+
+    assert len(list(set(ut.flatten(match_pairs) + ut.flatten(non_match_pairs)))) == len(all_requested_patch_ids)
+    assert max(all_requested_patch_ids) <= total_num_patches
 
     # Read all patches out of the bmp file store
-    patches_list = [_crop_to_numpy(patchfile) for patchfile in ut.ProgressIter(patchfile_list, lbl='Reading Patches')]
+    all_patches = {}
+    for pfx, patchfile in ut.ProgressIter(list(enumerate(patchfile_list)), lbl='Reading Patches'):
+        patch_id_offset = pfx * num_patch_per_bmp
+        # get local patch ids in this bmp file
+        patch_ids_ = np.arange(num_patch_per_bmp) + patch_id_offset
+        requested_patch_ids_ = np.intersect1d(patch_ids_, all_requested_patch_ids)
+        requested_indicies = requested_patch_ids_ - patch_id_offset
+        if len(requested_indicies) == 0:
+            continue
+        patches = _crop_to_numpy(patchfile, requested_indicies)
+        for idx, patch in zip(requested_patch_ids_, patches):
+            all_patches[idx] = patch
+
     # Read the last patches
     if mod > 0:
+        pfx += 1
+        patch_id_offset = pfx * num_patch_per_bmp
         patchfile = join(
-            ds_path, ''.join(["patches", str(bmps).zfill(4), ".bmp"]))
-        patches = _crop_to_numpy(patchfile)[:mod]
-        patches_list += [patches]
+            ds_path, ''.join(['patches', str(num_bmp_files).zfill(4), '.bmp']))
+        patch_ids_ = np.arange(mod) + patch_id_offset
+        requested_patch_ids_ = np.intersect1d(patch_ids_, all_requested_patch_ids)
+        requested_indicies = requested_patch_ids_ - patch_id_offset
+        patches = _crop_to_numpy(patchfile, requested_indicies)
+        for idx, patch in zip(requested_patch_ids_, patches):
+            all_patches[idx] = patch
 
-    all_patches = np.concatenate(patches_list, axis=0)
+    print('read %d patches ' % (len(all_patches)))
+    #patches_list += [patches]
+
+    #all_patches = np.concatenate(patches_list, axis=0)
 
     matching_patches1 = [all_patches[idx1] for idx1, idx2 in match_pairs]
     matching_patches2 = [all_patches[idx2] for idx1, idx2 in match_pairs]

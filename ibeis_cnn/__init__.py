@@ -1,7 +1,6 @@
 ### __init__.py ###
 # flake8: noqa
 from __future__ import absolute_import, division, print_function
-from ibeis_cnn import ibsplugin
 from ibeis_cnn import models
 from ibeis_cnn import process
 from ibeis_cnn import train
@@ -47,7 +46,6 @@ def reload_subs(verbose=True):
     def fbrrr(*args, **kwargs):
         """ fallback reload """
         pass
-    getattr(ibsplugin, 'rrr', fbrrr)(verbose=verbose)
     getattr(models, 'rrr', fbrrr)(verbose=verbose)
     getattr(process, 'rrr', fbrrr)(verbose=verbose)
     getattr(train, 'rrr', fbrrr)(verbose=verbose)

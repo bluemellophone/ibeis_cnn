@@ -285,7 +285,7 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     return output_fpath
 
 
-def show_convolutional_layers(output_layer, results_path, color=None, limit=150, target=None, epoch=None, verbose=ut.VERYVERBOSE):
+def show_convolutional_layers(output_layer, results_path, use_color=None, limit=150, target=None, epoch=None, verbose=ut.VERYVERBOSE):
     r"""
     CommandLine:
         python -m ibeis_cnn.draw_net --test-show_convolutional_layers --show
@@ -299,11 +299,11 @@ def show_convolutional_layers(output_layer, results_path, color=None, limit=150,
         >>> output_layer = model.get_output_layer()
         >>> results_path = ut.ensure_app_resource_dir('ibeis_cnn', 'testing', 'figs')
         >>> # ut.vd(results_path)
-        >>> color = True
+        >>> use_color = True
         >>> limit = 150
         >>> target = 0
         >>> epoch = 0
-        >>> result = show_convolutional_layers(output_layer, results_path, color, limit, target, epoch)
+        >>> result = show_convolutional_layers(output_layer, results_path, use_color, limit, target, epoch)
         >>> print('result = %r' % (result,))
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
@@ -338,11 +338,11 @@ def show_convolutional_layers(output_layer, results_path, color=None, limit=150,
         #layername = 'conv%d' % (index,)
         #print(layername)
         #print('layername = %r' % (layername,))
-        output_fpath = draw_convolutional_features(all_weights, color=color, limit=limit)
+        output_fpath = draw_convolutional_features(all_weights, use_color=use_color, limit=limit)
         #print('...NEXT\n')
 
         # Save the figure
-        color_str = 'color' if color else 'gray'
+        color_str = 'color' if use_color else 'gray'
         if epoch is None:
             epoch = 'X'
         output_fname = 'features_%s_epoch_%s_%s.png' % (layername, epoch, color_str)
@@ -359,11 +359,58 @@ def show_convolutional_layers(output_layer, results_path, color=None, limit=150,
     return output_fpath_list
 
 
-def draw_convolutional_features(all_weights, color=None, limit=150):
+def make_convlayer_vizimage(all_weights, limit=144):
+    # Try to infer if use_color should be shown
+    num, channels, height, width = all_weights.shape
+    # Try to infer if use_color should be shown
+    use_color = (channels == 3)
+    # non-use_color features need to be flattened
+    if not use_color:
+        all_weights_ = all_weights.reshape(num * channels, height, width, 1)
+    else:
+        # convert from theano to cv2 BGR
+        all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
+        # convert from BGR to RGB
+        all_weights_ = all_weights_[..., ::-1]
+        #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
+
+    # Limit all_weights_
+    #num = all_weights_.shape[0]
+    num, height, width, channels = all_weights_.shape
+    if limit is not None and num > limit:
+        all_weights_ = all_weights_[:limit]
+        num = all_weights_.shape[0]
+
+    # Convert weight values to image values
+    all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+    all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+    all_domain = all_max - all_min
+    broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
+    all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
+    #import scipy.misc
+    # resize feature, give them a border, and stack them together
+    new_height, new_width = max(32, height), max(32, width)
+    nbp_ = 1  # num border pixels
+    _resized_features = np.array([
+        cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+        for img in all_features
+    ])
+    resized_features = _resized_features.reshape(num, new_height, new_width, channels)
+    border_shape = (num, new_height + (nbp_ * 2), new_width + (nbp_ * 2), channels)
+    bordered_features = np.zeros(border_shape, dtype=resized_features.dtype)
+    bordered_features[:, nbp_:-nbp_, nbp_:-nbp_, :] = resized_features
+    #img_list = bordered_features
+    import plottool as pt
+    stacked_img = pt.stack_square_images(bordered_features)
+    return stacked_img
+    #pt.imshow(stacked_img)
+
+
+def draw_convolutional_features(all_weights, use_color=None, limit=144):
     r"""
     Args:
         all_weights (?):
-        color (bool):
+        use_color (bool):
         limit (int):
 
     CommandLine:
@@ -382,14 +429,14 @@ def draw_convolutional_features(all_weights, color=None, limit=150):
         >>> index = ut.get_argval('--index', type_=int, default=0)
         >>> all_weights = weighted_layers[index].W.get_value()
         >>> print('all_weights.shape = %r' % (all_weights.shape,))
-        >>> color = None
+        >>> use_color = None
         >>> limit = 64
-        >>> fig = draw_convolutional_features(all_weights, color, limit)
+        >>> fig = draw_convolutional_features(all_weights, use_color, limit)
         >>> ut.show_if_requested()
     """
     # TODO: draw dense layers
     import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import ImageGrid
+    #from mpl_toolkits.axes_grid1 import ImageGrid
     import matplotlib.cm as cm
     # re-use the samtargete figure to save memory
     fig = plt.figure(1)
@@ -399,53 +446,61 @@ def draw_convolutional_features(all_weights, color=None, limit=150):
     # Get shape of weights
     #print('all_weights.shape = %r' % (all_weights.shape,))
     num, channels, height, width = all_weights.shape
-    if color is None:
-        # Try to infer if color should be shown
-        color = (channels == 3)
-        #print('color = %r' % (color,))
-    # non-color features need to be flattened
-    if not color:
-        all_weights_ = all_weights.reshape(num * channels, height, width)
+    if use_color is None:
+        # Try to infer if use_color should be shown
+        use_color = (channels == 3)
+        #print('use_color = %r' % (use_color,))
+
+    stacked_img = make_convlayer_vizimage(all_weights, limit)
+    ax = fig.add_subplot(111)
+    if len(stacked_img.shape) == 3 and stacked_img.shape[-1] == 1:
+        stacked_img = stacked_img.reshape(stacked_img.shape[:-1])
+    if use_color:
+        ax.imshow(stacked_img, interpolation='nearest')
     else:
-        # convert from theano to cv2 BGR
-        all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
-        # convert from BGR to RGB
-        all_weights_ = all_weights_[..., ::-1]
-        #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
+        ax.imshow(stacked_img, cmap=cm.Greys_r, interpolation='nearest')
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
 
-    # Limit all_weights_
-    num = all_weights_.shape[0]
-    if limit is not None and num > limit:
-        all_weights_ = all_weights_[:limit]
-        num = all_weights_.shape[0]
+    ## non-use_color features need to be flattened
+    #if not use_color:
+    #    all_weights_ = all_weights.reshape(num * channels, height, width)
+    #else:
+    #    # convert from theano to cv2 BGR
+    #    all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
+    #    # convert from BGR to RGB
+    #    all_weights_ = all_weights_[..., ::-1]
+    #    #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
 
-    # Find how many features and build grid
-    dim = int(np.ceil(np.sqrt(num)))
-    grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
+    ## Limit all_weights_
+    #num = all_weights_.shape[0]
+    #if limit is not None and num > limit:
+    #    all_weights_ = all_weights_[:limit]
+    #    num = all_weights_.shape[0]
 
-    # Convert weight values to image values
+    ## Convert weight values to image values
+    #all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+    #all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+    #all_domain = all_max - all_min
+    #broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
+    #all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
 
-    #ut.embed()
-    all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
-    all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
-    all_domain = all_max - all_min
+    ## Find how many features and build grid
+    #dim = int(np.ceil(np.sqrt(num)))
+    #grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
 
-    #all_weights_ - all_min[slice(None), *[None] * 2]
-    broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
-    all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
+    ## Build grid
+    #with ut.embed_on_exception_context:
+    #    if use_color:
+    #        for f, feature in enumerate(all_features):
+    #            grid[f].imshow(feature, interpolation='nearest')
+    #    else:
+    #        for f, feature in enumerate(all_features):
+    #            grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
 
-    # Build grid
-    with ut.embed_on_exception_context:
-        if color:
-            for f, feature in enumerate(all_features):
-                grid[f].imshow(feature, interpolation='nearest')
-        else:
-            for f, feature in enumerate(all_features):
-                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
-
-    for j in range(dim * dim):
-        grid[j].get_xaxis().set_visible(False)
-        grid[j].get_yaxis().set_visible(False)
+    #for j in range(dim * dim):
+    #    grid[j].get_xaxis().set_visible(False)
+    #    grid[j].get_yaxis().set_visible(False)
 
     return fig
 

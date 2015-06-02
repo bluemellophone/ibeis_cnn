@@ -8,10 +8,10 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
 
 
-def grab_cached_mist_data(nets_dir):
+def grab_cached_mist_data(training_dpath):
     import numpy as np
-    data_fpath = join(nets_dir, 'mnist_data.cPkl')
-    labels_fpath = join(nets_dir, 'mnist_labels.cPkl')
+    data_fpath = join(training_dpath, 'mnist_data.cPkl')
+    labels_fpath = join(training_dpath, 'mnist_labels.cPkl')
     if not ut.checkpath(data_fpath):
         train_imgs_fpath = ut.grab_zipped_url(
             'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
@@ -32,7 +32,7 @@ def grab_cached_mist_data(nets_dir):
     return data_fpath, labels_fpath
 
 
-def grab_cached_liberty_data(nets_dir):
+def grab_cached_liberty_data(training_dpath, pairs=250000):
     """
     References:
         http://www.cs.ubc.ca/~mbrown/patchdata/patchdata.html
@@ -66,16 +66,17 @@ def grab_cached_liberty_data(nets_dir):
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
-        >>> nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'liberty')
-        >>> data_fpath, labels_fpath, data_shape = grab_cached_liberty_data(nets_dir)
+        >>> training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+        >>> pairs = 500
+        >>> data_fpath, labels_fpath, data_shape = grab_cached_liberty_data(training_dpath, pairs)
         >>> ut.quit_if_noshow()
-        >>> from ibeis_cnn import ibsplugin
+        >>> from ibeis_cnn import ingest_ibeis
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
         >>> data, labels = utils.load(data_fpath, labels_fpath)
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> ibsplugin.interact_view_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, rand=True)
+        >>> ingest_ibeis.interact_view_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, rand=True)
         >>> print(result)
         >>> ut.show_if_requested()
     """
@@ -85,14 +86,15 @@ def grab_cached_liberty_data(nets_dir):
     #    'http://www.cs.ubc.ca/~mbrown/patchdata/liberty_harris.zip')
     ds_path = liberty_dog_fpath
 
-    #nets_dir = '.'
+    #training_dpath = '.'
+    assert pairs in [500, 50000, 100000, 250000]
     #pairs = 500
     #pairs = 100000
-    pairs = 250000
+    #pairs = 250000
     #pairs = 50000
-    data_fpath = join(nets_dir, 'liberty_data_%d.cPkl' % (pairs,))
-    labels_fpath = join(nets_dir, 'liberty_labels_%d.cPkl' % (pairs,))
-    if not ut.checkpath(data_fpath):
+    data_fpath = join(training_dpath, 'liberty_data_%d.cPkl' % (pairs,))
+    labels_fpath = join(training_dpath, 'liberty_labels_%d.cPkl' % (pairs,))
+    if not ut.checkpath(data_fpath, verbose=True):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
         #data = np.vstack((train_images, test_images))
         #labels = np.append(train_labels, test_labels)

@@ -44,7 +44,7 @@ def train_patchmatch_pz():
     r"""
 
     CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_pz
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --show
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
 
@@ -77,9 +77,9 @@ def train_patchmatch_pz():
         ibs = ibeis.opendb(defaultdb='PZ_MTEST')
 
     # Nets dir is the root dir for all training
-    nets_dir = ibs.get_neuralnet_dir()
-    ut.ensuredir(nets_dir)
-    log_dir = join(nets_dir, 'logs')
+    training_dpath = ibs.get_neuralnet_dir()
+    ut.ensuredir(training_dpath)
+    log_dir = join(training_dpath, 'logs')
     ut.start_logging(log_dir=log_dir)
     #ut.embed()
 
@@ -87,8 +87,17 @@ def train_patchmatch_pz():
         data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths(ibs, **datakw)
 
     #model = models.SiameseModel()
-    batch_size = ut.get_argval('--batch_size', type_=int, default=128),
+    batch_size = ut.get_argval('--batch_size', type_=int, default=128)
     model = models.SiameseCenterSurroundModel(data_shape=data_shape, batch_size=batch_size)
+    model.initialize_architecture()
+
+    if not model.has_saved_state():
+        # initialize with liberty
+        extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+        model.load_extern_weights(dpath=extern_training_dpath)
+        #model.draw_convolutional_layers()
+        #ut.show_if_requested()
+
     config = dict(
         patience=100,
         equal_batch_sizes=True,
@@ -126,34 +135,39 @@ def train_patchmatch_liberty():
         >>> print(result)
     """
     # TODO: move to standard path
-    training_dpath = nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
     if ut.get_argflag('--vtd'):
         ut.vd(training_dpath)
-    ut.ensuredir(nets_dir)
-    data_fpath, labels_fpath, data_shape = ingest_data.grab_cached_liberty_data(nets_dir)
+    ut.ensuredir(training_dpath)
+
+    pairs = 500
+    data_fpath, labels_fpath, data_shape = ingest_data.grab_cached_liberty_data(training_dpath, pairs)
     #model = models.SiameseModel()
-    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
-    model = models.SiameseCenterSurroundModel(data_shape=data_shape)
+    model = models.SiameseCenterSurroundModel(data_shape=data_shape, training_dpath=training_dpath)
     model.initialize_architecture()
-    self = model
     # DO CONVERSION
-    if ut.checkpath(weights_fpath):
-        self.load_old_weights_kw()
+    if False:
+        old_weights_fpath = ut.truepath('~/Dropbox/ibeis_cnn_weights_liberty.pickle')
+        if ut.checkpath(old_weights_fpath, verbose=True):
+            self = model
+            self.load_old_weights_kw(old_weights_fpath)
+        self.save_model_state()
         #self.save_state()
+    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
 
     config = dict(
-        patience=100,
-        equal_batch_sizes=True,
-        batch_size=ut.get_argval('--batch_size', type_=int, default=128),
+        #patience=100,
+        #show_confusion=False,
+        #run_test=None,
+        #show_features=False,
+        #print_timing=False,
+        #requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
+        #equal_batch_sizes=True,
         learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
-        show_confusion=False,
-        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
-        run_test=None,
-        show_features=False,
-        print_timing=False,
         momentum=.9,
         regularization=0.0005,
     )
+    return
 
     #ut.embed()
     if ut.get_argflag('--test'):
@@ -197,18 +211,18 @@ def train_mnist():
         >>> result = train_mnist()
         >>> print(result)
     """
-    nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
-    #nets_dir = ut.truepath('mnist')
-    ut.ensuredir(nets_dir)
-    data_fpath, labels_fpath = ingest_data.grab_cached_mist_data(nets_dir)
+    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
+    #training_dpath = ut.truepath('mnist')
+    ut.ensuredir(training_dpath)
+    data_fpath, labels_fpath = ingest_data.grab_cached_mist_data(training_dpath)
 
     model                    = models.MNISTModel()
     #model                    = models.ViewpointModel()
     train_data_fpath         = data_fpath
     train_labels_fpath       = labels_fpath
-    results_dpath            = nets_dir
-    weights_fpath            = join(nets_dir, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(nets_dir, 'ibeis_cnn_weights.pickle')  # NOQA
+    results_dpath            = training_dpath
+    weights_fpath            = join(training_dpath, 'ibeis_cnn_weights.pickle')
+    pretrained_weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')  # NOQA
     config                   = {
         'patience': 10,
         'regularization': 0.0001,

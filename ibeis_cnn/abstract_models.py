@@ -12,7 +12,9 @@ from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
 import sklearn.preprocessing
 import utool as ut
+from os.path import join
 import warnings
+import cPickle as pickle
 ut.noinject('ibeis_cnn.abstract_models')
 
 
@@ -156,12 +158,15 @@ class BaseModel(object):
         self.output_dims = None
         self.input_shape = None
         self.batch_size = None
-        self.preproc_kw = None
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
         self.data_per_label = 1
         self.training_dpath = training_dpath  # TODO
+        # Training state
+        self.preproc_kw   = None
+        self.best_results = None
+        self.best_weights = None
 
     # --- initialization steps
 
@@ -169,6 +174,11 @@ class BaseModel(object):
         raise NotImplementedError('reimlement')
 
     # --- utility
+
+    def draw_convolutional_layers(self, target=[0]):
+        from ibeis_cnn import draw_net
+        output_files = draw_net.show_convolutional_layers(self.output_layer, self.training_dpath, target=target)
+        return output_files
 
     def draw_architecture(self):
         from ibeis_cnn import draw_net
@@ -184,30 +194,26 @@ class BaseModel(object):
     def print_layer_info(self):
         net_strs.print_layer_info(self.get_output_layer())
 
-    def load_old_weights_kw(self, weights_fpath):
-        import cPickle as pickle
-        with open(weights_fpath, 'rb') as pfile:
+    def load_old_weights_kw(self, old_weights_fpath):
+        with open(old_weights_fpath, 'rb') as pfile:
             oldkw = pickle.load(pfile)
         # Model architecture and weight params
         data_shape  = oldkw['model_shape'][1:]
         input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
         output_dims  = oldkw['output_dims']
 
+        # Perform checks
         assert input_shape[1:] == self.input_shape[1:], 'architecture disagreement'
         assert output_dims == self.output_dims, 'architecture disagreement'
 
-        best_weights = oldkw['best_weights']
-        self.set_all_param_values(best_weights)
+        # Set class attributes
+        self.best_weights = oldkw['best_weights']
 
-        batch_size   = oldkw['batch_size']
-
-        preproc_kw = {
+        self.preproc_kw = {
             'center_mean' : oldkw['center_mean'],
             'center_std'  : oldkw['center_std'],
         }
-        self.preproc_kw = preproc_kw
-
-        best_results = {
+        self.best_results = {
             'epoch'          : oldkw['best_epoch'],
             'test_accuracy'  : oldkw['best_test_accuracy'],
             'train_loss'     : oldkw['best_train_loss'],
@@ -215,20 +221,73 @@ class BaseModel(object):
             'valid_loss'     : oldkw['best_valid_loss'],
             'valid_loss'     : oldkw['best_valid_loss'],
         }
-        best_results
 
-        training_state = {
-            'regularization' : oldkw['best_valid_loss'],
-            'learning_rate'  : oldkw['learning_rate'],
-            'momentum'       : oldkw['momentum'],
+        # Set architecture weights
+        weights_list = self.best_weights
+        self.set_all_param_values(weights_list)
+        #training_state = {
+        #    'regularization' : oldkw['best_valid_loss'],
+        #    'learning_rate'  : oldkw['learning_rate'],
+        #    'momentum'       : oldkw['momentum'],
+        #}
+        #batch_size = oldkw['batch_size']
+
+    def has_saved_state(self):
+        return ut.checkpath(self.get_model_state_fpath())
+
+    def save_model_state(self, **kwargs):
+        model_state = {
+            'best_results': self.best_results,
+            'preproc_kw':   self.preproc_kw,
+            'best_weights': self.best_weights,
+            'input_shape':  self.input_shape,
+            'output_dims':  self.output_dims,
         }
-        training_state
+        model_state_fpath = self.get_model_state_fpath(**kwargs)
+        print('saving model state to: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'wb') as file_:
+            pickle.dump(model_state, file_, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def save_model_metadata():
-        pass
+    def load_model_state(self, **kwargs):
+        """
+        kwargs = {}
+        """
+        model_state_fpath = self.get_model_state_fpath(**kwargs)
+        print('loading model state from: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'rb') as file_:
+            model_state = pickle.load(file_)
+        assert model_state['input_shape'][1:] == self.input_shape[1:], 'architecture disagreement'
+        assert model_state['output_dims'] == self.output_dims, 'architecture disagreement'
+        self.best_results = model_state['best_results']
+        self.preproc_kw   = model_state['preproc_kw']
+        self.best_weights = model_state['best_weights']
+        self.input_shape  = model_state['input_shape']
+        self.output_dims  = model_state['output_dims']
+        self.set_all_param_values(self.best_weights)
+
+    def load_extern_weights(self, **kwargs):
+        """ load weights from another model """
+        model_state_fpath = self.get_model_state_fpath(**kwargs)
+        print('loading extern weights from: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'rb') as file_:
+            model_state = pickle.load(file_)
+        assert model_state['input_shape'][1:] == self.input_shape[1:], 'architecture disagreement'
+        assert model_state['output_dims'] == self.output_dims, 'architecture disagreement'
+        # Just set the weights, no other training state variables
+        self.set_all_param_values(model_state['best_weights'])
+
+    def get_model_state_fpath(self, fpath=None, dpath=None, fname=None):
+        if fpath is None:
+            fname = 'model_state.pkl' if fname is None else fname
+            dpath = self.training_dpath if dpath is None else dpath
+            model_state_fpath = join(dpath, fname)
+        else:
+            model_state_fpath = fpath
+        return model_state_fpath
 
     def set_all_param_values(self, weights_list):
-        with warnings.filterwarnings('ignore', '.*topo.*'):
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
             lasagne.layers.set_all_param_values(self.output_layer, weights_list)
 
     def get_architecture_str(self, sep='_'):
