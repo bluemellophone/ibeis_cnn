@@ -38,4 +38,4 @@ if __name__ == '__main__':
     python $CODE_DIR/ibeis_cnn/test_theano.py
     """
     test_theano()
-    theano.test()
+    #theano.test()

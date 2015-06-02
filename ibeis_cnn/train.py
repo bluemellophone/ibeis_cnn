@@ -178,13 +178,13 @@ def train_patchmatch_mnist():
         >>> result = train_patchmatch_mnist()
         >>> print(result)
     """
-
-    nets_dir = ut.truepath('mnist')
+    nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
+    #nets_dir = ut.truepath('mnist')
     ut.ensuredir(nets_dir)
     data_fpath, labels_fpath = ingest_data.grab_cached_mist_data(nets_dir)
 
-    #model                    = models.MNISTModel()
-    model                    = models.ViewpointModel()
+    model                    = models.MNISTModel()
+    #model                    = models.ViewpointModel()
     train_data_fpath         = data_fpath
     train_labels_fpath       = labels_fpath
     results_dpath            = nets_dir

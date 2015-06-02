@@ -809,6 +809,7 @@ class MNISTModel(AbstractCategoricalModel):
         initkw = leaky_orthog
         #initkw = {}
 
+        # def to test failures
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=input_shape),
@@ -831,7 +832,7 @@ class MNISTModel(AbstractCategoricalModel):
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
         input_shape = (None, input_channels, input_width, input_height)
-        network_layers_def = self.get_mnist_model_def2(input_shape, output_dims)
+        network_layers_def = self.get_mnist_model_def1(input_shape, output_dims)
         network_layers = evaluate_layer_list(network_layers_def)
         l_out = network_layers[-1]
         self.output_layer = l_out
