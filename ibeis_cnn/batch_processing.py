@@ -85,7 +85,7 @@ def batch_iterator(X, y, batch_size, encoder=None, rand=False, augment=None,
         Xb, yb = utils.slice_data_labels(
             X, y, batch_size, batch_index,
             data_per_label, wraparound=equal_batch_sizes)  # .113 time fraction
-        # Whiten
+        # Whiten (applies centering)
         Xb = utils.whiten_data(Xb, center_mean, center_std)  # .563 time fraction
         # Augment
         if augment is not None:

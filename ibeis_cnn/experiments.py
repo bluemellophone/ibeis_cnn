@@ -1,11 +1,13 @@
+import numpy as np
 
 
-def test_sift_patchmatch():
+def test_sift_patchmatch(data, labels):
     import pyhesaff
-    X_sift = pyhesaff.extract_desc_from_patches(X_test)
+    vecs_list = pyhesaff.extract_desc_from_patches(data)
     import numpy as np
-    sqrddist = ((X_sift[::2].astype(np.float32) - X_sift[1::2].astype(np.float32)) ** 2).sum(axis=1)
-    test.test_siamese_thresholds(sqrddist[None, :].T, y_test)
+    sqrddist = ((vecs_list[::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
+    sqrddist_ = sqrddist[None, :].T
+    test_siamese_thresholds(sqrddist_, labels)
 
 
 def test_siamese_thresholds(prob_list, y_test):

@@ -18,7 +18,7 @@ from lasagne import layers
 import utool as ut
 import six
 from os.path import join, abspath, dirname, exists
-print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train_harness]')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.harness]')
 
 
 def ensure_training_parameters(kwargs):
@@ -40,6 +40,14 @@ def ensure_training_parameters(kwargs):
     # Visualization params
     utils._update(kwargs, 'show_confusion',          True)
     utils._update(kwargs, 'show_features',           False)
+
+
+class TrainingState(object):
+    def __init__(self):
+        self.learning_rate  =  0.01
+        self.momentum       = 0.9
+        self.batch_size     = 128
+        self.regularization = None
 
 
 def ensure_training_state(X_train, kwargs):
@@ -199,7 +207,7 @@ def train(model, data_fpath, labels_fpath, weights_fpath, results_dpath,
     # TODO: pass in fresh_model=True if this model is being trained from scratch.
     output_layer = model.build_model(
         batch_size, input_width, input_height,
-        input_channels, output_dims, fresh_model=False)
+        input_channels, output_dims)
 
     print('\n[train] --- MODEL INFO ---')
     if hasattr(model, 'print_layer_info'):

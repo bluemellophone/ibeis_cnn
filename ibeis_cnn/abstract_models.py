@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import lasagne  # NOQA
+import lasagne
 from lasagne import init
 import functools
 import six
@@ -150,15 +150,18 @@ class BaseModel(object):
     """
     Abstract model providing functionality for all other models to derive from
     """
-    def __init__(self):
-        self.network_layers = None
+    def __init__(self, output_dims=None, input_shape=None, batch_size=None, training_dpath='.'):
+        self.network_layers = None  # We really don't need to save all of these
         self.output_layer = None
         self.output_dims = None
+        self.input_shape = None
+        self.batch_size = None
+        self.preproc_kw = None
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
         self.data_per_label = 1
-        self.net_dir = '.'  # TODO
+        self.training_dpath = training_dpath  # TODO
 
     # --- initialization steps
 
@@ -181,15 +184,63 @@ class BaseModel(object):
     def print_layer_info(self):
         net_strs.print_layer_info(self.get_output_layer())
 
+    def load_old_weights_kw(self, weights_fpath):
+        import cPickle as pickle
+        with open(weights_fpath, 'rb') as pfile:
+            oldkw = pickle.load(pfile)
+        # Model architecture and weight params
+        data_shape  = oldkw['model_shape'][1:]
+        input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
+        output_dims  = oldkw['output_dims']
+
+        assert input_shape[1:] == self.input_shape[1:], 'architecture disagreement'
+        assert output_dims == self.output_dims, 'architecture disagreement'
+
+        best_weights = oldkw['best_weights']
+        self.set_all_param_values(best_weights)
+
+        batch_size   = oldkw['batch_size']
+
+        preproc_kw = {
+            'center_mean' : oldkw['center_mean'],
+            'center_std'  : oldkw['center_std'],
+        }
+        self.preproc_kw = preproc_kw
+
+        best_results = {
+            'epoch'          : oldkw['best_epoch'],
+            'test_accuracy'  : oldkw['best_test_accuracy'],
+            'train_loss'     : oldkw['best_train_loss'],
+            'valid_accuracy' : oldkw['best_valid_accuracy'],
+            'valid_loss'     : oldkw['best_valid_loss'],
+            'valid_loss'     : oldkw['best_valid_loss'],
+        }
+        best_results
+
+        training_state = {
+            'regularization' : oldkw['best_valid_loss'],
+            'learning_rate'  : oldkw['learning_rate'],
+            'momentum'       : oldkw['momentum'],
+        }
+        training_state
+
+    def save_model_metadata():
+        pass
+
+    def set_all_param_values(self, weights_list):
+        with warnings.filterwarnings('ignore', '.*topo.*'):
+            lasagne.layers.set_all_param_values(self.output_layer, weights_list)
+
     def get_architecture_str(self, sep='_'):
         # TODO: allow for removal of layers without any parameters
-        if getattr(self, 'network_layers', None) is None:
-            if getattr(self, 'output_layer', None) is None:
-                return None
-            else:
-                network_layers = lasagne.layers.get_all_layers(self.output_layer)
-        else:
-            network_layers = self.network_layers
+        #if getattr(self, 'network_layers', None) is None:
+        #    if getattr(self, 'output_layer', None) is None:
+        #        return None
+        #    else:
+        #        network_layers = lasagne.layers.get_all_layers(self.output_layer)
+        #else:
+        #    network_layers = self.network_layers
+        network_layers = self.get_network_layers()
         layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
         architecture_str = sep.join(layer_str_list)
         return architecture_str
@@ -199,6 +250,11 @@ class BaseModel(object):
         if architecture_str is None:
             architecture_str = 'UNMANGAGED'
         print('\nArchitecture:' + sep + architecture_str)
+
+    def get_network_layers(self):
+        assert self.output_layer is not None
+        network_layers = lasagne.layers.get_all_layers(self.output_layer)
+        return network_layers
 
     def get_output_layer(self):
         if self.output_layer is not None:

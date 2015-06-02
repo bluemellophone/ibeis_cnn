@@ -101,6 +101,7 @@ class DummyModel(abstract_models.AbstractCategoricalModel):
     #    pass
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
 class SiameseCenterSurroundModel(abstract_models.BaseModel):
     """
     Model for individual identification
@@ -108,8 +109,12 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
     TODO:
         RBM / EBM  - http://deeplearning.net/tutorial/rbm.html
     """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=(None, 3, 64, 64)):
-        super(SiameseCenterSurroundModel, model).__init__()
+    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=None, **kwargs):
+        if data_shape is not None:
+            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
+        if input_shape is None:
+            (batch_size, 3, 64, 64)
+        super(SiameseCenterSurroundModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
         model.network_layers = None
         model.input_shape = input_shape
         model.batch_size = batch_size
@@ -439,8 +444,8 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
     """
     Toy model for testing and playing with mnist
     """
-    def __init__(self):
-        super(MNISTModel, self).__init__()
+    def __init__(self, **kwargs):
+        super(MNISTModel, self).__init__(**kwargs)
 
     def get_mnist_model_def1(model, input_shape, output_dims):
         _P = functools.partial

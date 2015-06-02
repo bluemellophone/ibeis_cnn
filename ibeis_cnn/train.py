@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Defines the models and the data we will send to the train_harness
+Defines the models and the data we will send to the harness
 
 CommandLine:
     python -m ibeis_cnn.train --test-train_patchmatch_pz
@@ -33,11 +33,10 @@ TODO:
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import models
-from ibeis_cnn import ingest_ibeis
 from ibeis_cnn import ingest_data
-from ibeis_cnn import train_harness
+from ibeis_cnn import harness
 import utool as ut
-from os.path import join, abspath
+from os.path import join
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
 
@@ -64,10 +63,14 @@ def train_patchmatch_pz():
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/arch_d788de3571330d42/training_state.cPkl'
 
     """
-    max_examples = ut.get_argval('--max-examples', type_=int, default=None)
-    num_top = ut.get_argval('--num-top', type_=int, default=3)
+    datakw = ut.parse_dict_from_argv(
+        {
+            #'db': 'PZ_MTEST',
+            'max_examples': None,
+            'num-top': 3,
+        }
+    )
     print('[train] train_patchmatch_pz')
-    print('[train] max examples = {}'.format(max_examples))
 
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
@@ -81,15 +84,15 @@ def train_patchmatch_pz():
     #ut.embed()
 
     with ut.Indenter('[CHECKDATA]'):
-        pathtup = ingest_ibeis.get_patchmetric_training_fpaths(ibs, max_examples=max_examples, num_top=num_top)
-        data_fpath, labels_fpath, training_dpath = pathtup
+        data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths(ibs, **datakw)
 
     #model = models.SiameseModel()
-    model = models.SiameseCenterSurroundModel()
+    batch_size = ut.get_argval('--batch_size', type_=int, default=128),
+    model = models.SiameseCenterSurroundModel(data_shape=data_shape, batch_size=batch_size)
     config = dict(
         patience=100,
         equal_batch_sizes=True,
-        batch_size=ut.get_argval('--batch_size', type_=int, default=128),
+        batch_size=batch_size,
         learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
         show_confusion=False,
         requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
@@ -103,9 +106,9 @@ def train_patchmatch_pz():
 
     #ut.embed()
     if ut.get_argflag('--test'):
-        train_harness.test(data_fpath, model, weights_fpath, labels_fpath, **config)
+        harness.test(data_fpath, model, weights_fpath, labels_fpath, **config)
     else:
-        train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
+        harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
 
 
 def train_patchmatch_liberty():
@@ -127,9 +130,17 @@ def train_patchmatch_liberty():
     if ut.get_argflag('--vtd'):
         ut.vd(training_dpath)
     ut.ensuredir(nets_dir)
-    data_fpath, labels_fpath = ingest_data.grab_cached_liberty_data(nets_dir)
+    data_fpath, labels_fpath, data_shape = ingest_data.grab_cached_liberty_data(nets_dir)
     #model = models.SiameseModel()
-    model = models.SiameseCenterSurroundModel()
+    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
+    model = models.SiameseCenterSurroundModel(data_shape=data_shape)
+    model.initialize_architecture()
+    self = model
+    # DO CONVERSION
+    if ut.checkpath(weights_fpath):
+        self.load_old_weights_kw()
+        #self.save_state()
+
     config = dict(
         patience=100,
         equal_batch_sizes=True,
@@ -143,7 +154,6 @@ def train_patchmatch_liberty():
         momentum=.9,
         regularization=0.0005,
     )
-    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
 
     #ut.embed()
     if ut.get_argflag('--test'):
@@ -170,21 +180,21 @@ def train_patchmatch_liberty():
         #
         (pred_list, label_list, conf_list, prob_list) = test.test_data2(
             X_test, y_test, model, weights_fpath, **config)
-        train_harness.test_siamese_thresholds(prob_list, y_test)
+        harness.test_siamese_thresholds(prob_list, y_test)
     else:
-        train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
+        harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
     pass
 
 
-def train_patchmatch_mnist():
+def train_mnist():
     r"""
     CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_mnist
+        python -m ibeis_cnn.train --test-train_mnist
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
-        >>> result = train_patchmatch_mnist()
+        >>> result = train_mnist()
         >>> print(result)
     """
     nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
@@ -205,105 +215,8 @@ def train_patchmatch_mnist():
         'learning_rate': 0.0001,
         'pretrained_weights_fpath': pretrained_weights_fpath,
     }
-    train_harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
+    harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
     #images, labels = open_mnist(train_imgs_fpath, train_lbls_fpath)
-
-
-def testdata_patchmatch():
-    """
-        >>> from ibeis_cnn.train import *  # NOQA
-    """
-    with ut.Indenter('[LOAD IBEIS DB]'):
-        import ibeis
-        ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-
-    with ut.Indenter('[ENSURE TRAINING DATA]'):
-        pathtup = ingest_ibeis.get_patchmetric_training_fpaths(ibs, max_examples=5)
-        data_fpath, labels_fpath, training_dpath = pathtup
-    data_cv2, labels = utils.load(data_fpath, labels_fpath)
-    data = utils.convert_cv2_images_to_theano_images(data_cv2)
-    return data, labels
-
-
-def train_viewpoint_pz():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_viewpoint_pz
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_viewpoint_pz()
-    """
-    project_name             = 'viewpoint_pz'
-    model                    = models.ViewpointModel()
-    root                     = abspath(join('..', 'data'))
-
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    train_harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
-
-
-def train_quality_pz():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_quality_pz
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_quality_pz()
-    """
-    project_name             = 'quality_pz'
-    model                    = models.QualityModel()
-    root                     = abspath(join('..', 'data'))
-
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    train_harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
-
-
-def train_viewpoint():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_viewpoint
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_viewpoint()
-    """
-    project_name             = 'viewpoint'
-    model                    = models.ViewpointModel()
-    root                     = abspath(join('..', 'data'))
-
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    train_harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
 
 
 if __name__ == '__main__':

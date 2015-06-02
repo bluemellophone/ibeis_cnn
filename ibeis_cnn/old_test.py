@@ -77,8 +77,8 @@ def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs
     pred_list, label_list, conf_list, prob_list = batch.process_predictions(
         X_test, theano_predict, model=model, showprog=True, **kwargs)
 
-    # TODO: Rectify this code with the request_test section in train_harness
-    # Maybe move all of test.py into train_harness.py
+    # TODO: Rectify this code with the request_test section in harness
+    # Maybe move all of test.py into harness.py
     if y_test is not None:
         test_results = batch.process_test(X_test, y_test, theano_forward,
                                           model=model, augment=None,

@@ -430,34 +430,6 @@ def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
     return training_dname
 
 
-def get_patchmetric_training_fpaths(ibs, **kwargs):
-    """
-    CommandLine:
-        python -m ibeis_cnn.ingest_ibeis --test-get_patchmetric_training_fpaths --show
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
-        >>> import ibeis
-        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> kwargs = ut.argparse_dict({'max_examples': None, 'num_top': 3})
-        >>> (data_fpath, labels_fpath, training_dpath) = get_patchmetric_training_fpaths(ibs, **kwargs)
-        >>> ut.quit_if_noshow()
-        >>> interact_view_data_fpath_patches(data_fpath, labels_fpath)
-    """
-    print('\n\n[get_patchmetric_training_fpaths] START')
-    max_examples = kwargs.get('max_examples', None)
-    num_top = kwargs.get('num_top', None)
-    # Get training data pairs
-    patchmatch_tup = get_aidpairs_and_matches(ibs, max_examples, num_top)
-    aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists = patchmatch_tup
-    # Extract and cache the data
-    data_fpath, labels_fpath, training_dpath = cached_patchmetric_training_data_fpaths(
-        ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists)
-    print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
-    return data_fpath, labels_fpath, training_dpath
-
-
 class NewConfigBase(object):
     def update(self, **kwargs):
         self.__dict__.update(**kwargs)
@@ -480,6 +452,10 @@ class PatchMetricDataConfig(NewConfigBase):
             cfgstr_list.append(pmcfg.colorspace)
         return ','.join(cfgstr_list)
 
+    def get_data_shape(pmcfg):
+        channels = 1 if pmcfg.colorspace == 'gray' else 3
+        return (pmcfg.patch_size, pmcfg.patch_size, channels)
+
 
 def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists):
     """
@@ -493,6 +469,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
     data_fpath = ut.unixjoin(training_dpath, 'data_' + fm_hashstr + '_' + pmcfg.get_cfgstr() + '.pkl')
     labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
+    data_shape = pmcfg.get_data_shape()
 
     if NOCACHE_TRAIN or not (
             ut.checkpath(data_fpath, verbose=True)
@@ -514,10 +491,11 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
         # Save the data to cache
         ut.assert_eq(data.shape[1], pmcfg.patch_size)
         ut.assert_eq(data.shape[2], pmcfg.patch_size)
+        # TODO; save metadata
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
     else:
         print('data and labels cache hit')
-    return data_fpath, labels_fpath, training_dpath
+    return data_fpath, labels_fpath, training_dpath, data_shape
 
 
 def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
