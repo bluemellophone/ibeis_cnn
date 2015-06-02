@@ -103,8 +103,7 @@ def train_patchmatch_pz():
 
     #ut.embed()
     if ut.get_argflag('--test'):
-        from ibeis_cnn import test
-        test.test(data_fpath, model, weights_fpath, labels_fpath, **config)
+        train_harness.test(data_fpath, model, weights_fpath, labels_fpath, **config)
     else:
         train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
 
@@ -171,7 +170,7 @@ def train_patchmatch_liberty():
         #
         (pred_list, label_list, conf_list, prob_list) = test.test_data2(
             X_test, y_test, model, weights_fpath, **config)
-        test.test_siamese_thresholds(prob_list, y_test)
+        train_harness.test_siamese_thresholds(prob_list, y_test)
     else:
         train_harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
     pass
