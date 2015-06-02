@@ -113,6 +113,7 @@ def train_patchmatch_liberty():
     r"""
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
 
     Example:
@@ -124,6 +125,8 @@ def train_patchmatch_liberty():
     """
     # TODO: move to standard path
     training_dpath = nets_dir = ut.get_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+    if ut.get_argflag('--vtd'):
+        ut.vd(training_dpath)
     ut.ensuredir(nets_dir)
     data_fpath, labels_fpath = ingest_data.grab_cached_liberty_data(nets_dir)
     #model = models.SiameseModel()
@@ -156,9 +159,16 @@ def train_patchmatch_liberty():
         _, _, X_test, y_test = utils.train_test_split(
             X_test_, y_test_, eval_size=.1,
             data_per_label=model.data_per_label)
+        ### Compare to SIFT descriptors
+        import pyhesaff
+        X_sift = pyhesaff.extract_desc_from_patches(X_test)
+        import numpy as np
+        sqrddist = ((X_sift[::2].astype(np.float32) - X_sift[1::2].astype(np.float32)) ** 2).sum(axis=1)
+        test.test_siamese_thresholds(sqrddist[None, :].T, y_test)
+        # add channel dimension for implicit grayscale
         if len(X_test.shape) == 3:
-            # add channel dimension for implicit grayscale
             X_test.shape = X_test.shape + (1,)
+        #
         (pred_list, label_list, conf_list, prob_list) = test.test_data2(
             X_test, y_test, model, weights_fpath, **config)
         test.test_siamese_thresholds(prob_list, y_test)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # utils.py
 # provides utilities for learning a neural network model
 from __future__ import absolute_import, division, print_function
@@ -14,11 +15,12 @@ import cv2
 import cPickle as pickle
 import utool as ut
 import six
+from ibeis_cnn import net_strs
 #from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
 
-VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn'))
+VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn')) or ut.VERBOSE
 
 RANDOM_SEED = None
 # RANDOM_SEED = 42
@@ -157,6 +159,9 @@ def convert_cv2_images_to_theano_images(img_list):
     """
     #[img.shape for img in img_list]
     # format to [b, c, h, w]
+    if len(img_list.shape) == 3:
+        # ensure 4 dimensions
+        img_list = img_list.reshape(img_list.shape + (1,))
     shape_list = [img.shape for img in img_list]
     assert ut.list_allsame(shape_list)
     theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
@@ -693,6 +698,45 @@ def set_learning_rate(learning_rate_theano, update):
     new_learning_rate_theano = update(learning_rate_theano.get_value())
     learning_rate_theano.set_value(float32(new_learning_rate_theano))
     print('\n[train] setting learning rate to %.9f' % (new_learning_rate_theano))
+
+
+def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice(None)):
+    """
+    Used to save a slice of pretrained weights. The doctest will publish a new set of weights
+
+    CommandLine:
+        python -m ibeis_cnn.utils --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.utils --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,30)'
+        python -m ibeis_cnn.utils --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,6)'
+        python -m ibeis_cnn.utils --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,?)'
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> # Build a new subset of an existing model
+        >>> from ibeis_cnn.models import *  # NOQA
+        >>> from ibeis_cnn._plugin_grabmodels import ensure_model
+        >>> # Get base model weights
+        >>> modelname = ut.get_argval('--net', type_=str, default='vggnet_full')
+        >>> weights_path = ensure_model(modelname)
+        >>> pretrained_weights = ut.load_cPkl(weights_path)
+        >>> # Get the slice you want
+        >>> slice_str = ut.get_argval('--slice', type_=str, default='slice(0, 6)')
+        >>> slice_ = eval(slice_str, globals(), locals())
+        >>> # execute function
+        >>> sliced_weights_path = save_pretrained_weights_slice(pretrained_weights, weights_path, slice_)
+        >>> # PUT YOUR PUBLISH PATH HERE
+        >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS')
+        >>> ut.copy(sliced_weights_path, publish_fpath)
+    """
+    # slice and save
+    suffix = '.slice_%r_%r_%r' % (slice_.start, slice_.stop, slice_.step)
+    sliced_weights_path = ut.augpath(weights_path, suffix)
+    sliced_pretrained_weights = pretrained_weights[slice_]
+    ut.save_cPkl(sliced_weights_path, sliced_pretrained_weights)
+    # print info
+    net_strs.print_pretrained_weights(pretrained_weights, weights_path)
+    net_strs.print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
+    return sliced_weights_path
 
 
 if __name__ == '__main__':

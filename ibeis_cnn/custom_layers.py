@@ -8,6 +8,24 @@ import theano.tensor as T
 import functools
 #import six
 from ibeis_cnn import utils
+ut.noinject('custom_layers')
+
+
+FORCE_CPU = False  # ut.get_argflag('--force-cpu')
+try:
+    if FORCE_CPU:
+        raise ImportError('GPU is forced off')
+    # use cuda_convnet for a speed improvement
+    # will not be available without a GPU
+    import lasagne.layers.cuda_convnet as convnet
+    Conv2DLayer = convnet.Conv2DCCLayer
+    MaxPool2DLayer = convnet.MaxPool2DCCLayer
+    USING_GPU = True
+except ImportError as ex:
+    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
+    Conv2DLayer = lasagne.layers.Conv2DLayer
+    MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
+    USING_GPU = False
 
 
 class L1NormalizeLayer(lasagne.layers.Layer):

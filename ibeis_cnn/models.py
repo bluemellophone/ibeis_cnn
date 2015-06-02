@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 file model.py
 allows the definition of different models to be trained
@@ -10,285 +11,28 @@ import lasagne  # NOQA
 from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
-from lasagne.utils import floatX
 from ibeis_cnn import lasange_ext
 import random
 import functools
 import six
 import theano.tensor as T
 import numpy as np
-#from ibeis_cnn import utils
-from ibeis_cnn import net_strs
-from ibeis_cnn import custom_layers  # NOQA
-import sklearn.preprocessing
+from ibeis_cnn import abstract_models
+from ibeis_cnn import custom_layers
 import utool as ut
-import cPickle as pickle
-print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models]')
+#from ibeis_cnn import utils
+#import sklearn.preprocessing
+#import cPickle as pickle
 # from os.path import join
 # import cPickle as pickle
 
-FORCE_CPU = False  # ut.get_argflag('--force-cpu')
-try:
-    if FORCE_CPU:
-        raise ImportError('GPU is forced off')
-    # use cuda_convnet for a speed improvement
-    # will not be available without a GPU
-    import lasagne.layers.cuda_convnet as convnet
-    Conv2DLayer = convnet.Conv2DCCLayer
-    MaxPool2DLayer = convnet.MaxPool2DCCLayer
-    USING_GPU = True
-except ImportError as ex:
-    ut.printex(ex, 'WARNING: GPU seems unavailable')
-    Conv2DLayer = layers.Conv2DLayer
-    MaxPool2DLayer = layers.MaxPool2DLayer
-    USING_GPU = False
-
-
-def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice(None)):
-    """
-    Used to save a slice of pretrained weights. The doctest will publish a new set of weights
-
-    CommandLine:
-        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,6)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='vggnet_full' --slice='slice(0,30)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,6)'
-        python -m ibeis_cnn.models --test-save_pretrained_weights_slice --net='caffenet_full' --slice='slice(0,?)'
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> # Build a new subset of an existing model
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> from ibeis_cnn._plugin_grabmodels import ensure_model
-        >>> # Get base model weights
-        >>> modelname = ut.get_argval('--net', type_=str, default='vggnet_full')
-        >>> weights_path = ensure_model(modelname)
-        >>> pretrained_weights = ut.load_cPkl(weights_path)
-        >>> # Get the slice you want
-        >>> slice_str = ut.get_argval('--slice', type_=str, default='slice(0, 6)')
-        >>> slice_ = eval(slice_str, globals(), locals())
-        >>> # execute function
-        >>> sliced_weights_path = save_pretrained_weights_slice(pretrained_weights, weights_path, slice_)
-        >>> # PUT YOUR PUBLISH PATH HERE
-        >>> publish_fpath = ut.truepath('~/Dropbox/IBEIS')
-        >>> ut.copy(sliced_weights_path, publish_fpath)
-    """
-    # slice and save
-    suffix = '.slice_%r_%r_%r' % (slice_.start, slice_.stop, slice_.step)
-    sliced_weights_path = ut.augpath(weights_path, suffix)
-    sliced_pretrained_weights = pretrained_weights[slice_]
-    ut.save_cPkl(sliced_weights_path, sliced_pretrained_weights)
-    # print info
-    net_strs.print_pretrained_weights(pretrained_weights, weights_path)
-    net_strs.print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
-    return sliced_weights_path
-
-
-def evaluate_layer_list(network_layers_def):
-    """ compiles a sequence of partial functions into a network """
-    import warnings
-    try:
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*The uniform initializer no longer uses Glorot.*')
-            network_layers = []
-            layer_fn_iter = iter(network_layers_def)
-            prev_layer = six.next(layer_fn_iter)()
-            network_layers.append(prev_layer)
-            for layer_fn in layer_fn_iter:
-                prev_layer = layer_fn(prev_layer)
-                network_layers.append(prev_layer)
-    except Exception as ex:
-        ut.printex(ex, 'Error buildling layers')
-        raise
-    return network_layers
-
-
-class _PretrainedLayerInitializer(init.Initializer):
-    def __init__(self, pretrained_layer):
-        self.pretrained_layer = pretrained_layer
-
-    def sample(self, shape):
-        fanout, fanin, height, width = shape
-        fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
-        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
-        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
-        assert height == height_, 'The height must be identical between the layer and weights'
-        assert width  == width_,  'The width must be identical between the layer and weights'
-        return floatX(self.pretrained_layer[:fanout, :fanin, :, :])
-
-
-class PretrainedNetwork(object):
-    """
-    Intialize weights from a specified (Caffe) pretrained network layers
-
-    Args:
-        layer (int) : int
-
-    CommandLine:
-        python -m ibeis_cnn.models --test-PretrainedNetwork:0
-        python -m ibeis_cnn.models --test-PretrainedNetwork:1
-
-    Example0:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = PretrainedNetwork('caffenet', show_network=True)
-        >>> print('done')
-
-    Example1:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models import *  # NOQA
-        >>> self = PretrainedNetwork('vggnet', show_network=True)
-        >>> print('done')
-    """
-    def __init__(self, modelkey=None, show_network=False):
-        from ibeis_cnn._plugin_grabmodels import ensure_model
-        self.modelkey = modelkey
-        weights_path = ensure_model(modelkey)
-        try:
-            self.pretrained_weights = ut.load_cPkl(weights_path)
-        except Exception:
-            raise IOError('The specified model was not found: %r' % (weights_path, ))
-        if show_network:
-            net_strs.print_pretrained_weights(self.pretrained_weights, weights_path)
-
-    def get_num_layers(self):
-        return len(self.pretrained_weights)
-
-    def get_layer_num_filters(self, layer_index):
-        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
-        return fanout
-
-    def get_layer_filter_size(self, layer_index):
-        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        fanout, fanin, height, width = self.pretrained_weights[layer_index].shape
-        return (height, width)
-
-    def get_conv2d_layer(self, layer_index, name=None, **kwargs):
-        """ Assumes requested layer is convolutional
-
-        Returns:
-            lasange.layers.Layer: Layer
-        """
-        if name is None:
-            name = '%s_layer%r' % (self.modelkey, layer_index)
-        W = self.get_pretrained_layer(layer_index)
-        num_filters = self.get_layer_num_filters(layer_index)
-        filter_size = self.get_layer_filter_size(layer_index)
-        Layer = functools.partial(Conv2DLayer, num_filters=num_filters,
-                                  filter_size=filter_size, W=W, name=name, **kwargs)
-
-        return Layer
-
-    def get_pretrained_layer(self, layer_index, rand=False):
-        assert layer_index <= len(self.pretrained_weights), 'Trying to specify a layer that does not exist'
-        pretrained_layer = self.pretrained_weights[layer_index]
-        weights_initializer = _PretrainedLayerInitializer(pretrained_layer)
-        if rand:
-            np.random.shuffle(weights_initializer)
-        return weights_initializer
-
-
-class BaseModel(object):
-    """
-    Abstract model providing functionality for all other models to derive from
-    """
-    def __init__(self):
-        self.network_layers = None
-        self.output_layer = None
-        self.output_dims = None
-        # bad name, says that this network will take
-        # 2*N images in a batch and N labels that map to
-        # two images a piece
-        self.data_per_label = 1
-        self.net_dir = '.'  # TODO
-
-    # --- initialization steps
-
-    def initialize_architecture(self):
-        raise NotImplementedError('reimlement')
-
-    def load_weights(self, weights_fpath):
-        print('[model] loading pretrained weights from %s' % (weights_fpath))
-        pretrained_weights = None
-        with open(weights_fpath, 'rb') as pfile:
-            kwargs = pickle.load(pfile)
-            pretrained_weights = kwargs['best_weights']
-        print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
-        # Set weights to model
-        if pretrained_weights is not None:
-            output_layer = self.get_output_layer()
-            layers.set_all_param_values(output_layer, pretrained_weights)
-
-    # --- utility
-
-    def draw_architecture(self):
-        from ibeis_cnn import draw_net
-        filename = 'tmp.png'
-        draw_net.draw_to_file(self.network_layers, filename)
-        ut.startfile(filename)
-
-    def get_architecture_hashid(self):
-        architecture_str = self.get_architecture_str()
-        hashid = ut.hashstr(architecture_str, alphabet=ut.ALPHABET_16, hashlen=16)
-        return hashid
-
-    def print_layer_info(self):
-        net_strs.print_layer_info(self.get_output_layer())
-
-    def get_architecture_str(self, sep='_'):
-        # TODO: allow for removal of layers without any parameters
-        if getattr(self, 'network_layers', None) is None:
-            if getattr(self, 'output_layer', None) is None:
-                return None
-            else:
-                network_layers = lasagne.layers.get_all_layers(self.output_layer)
-        else:
-            network_layers = self.network_layers
-        layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
-        architecture_str = sep.join(layer_str_list)
-        return architecture_str
-
-    def print_architecture_str(self, sep='\n  '):
-        architecture_str = self.get_architecture_str(sep=sep)
-        if architecture_str is None:
-            architecture_str = 'UNMANGAGED'
-        print('\nArchitecture:' + sep + architecture_str)
-
-    def get_output_layer(self):
-        if self.output_layer is not None:
-            return self.output_layer
-        else:
-            assert self.network_layers is not None, 'need to initialize architecture first'
-            output_layer = self.network_layers[-1]
-            return output_layer
-
-    def learning_rate_update(model, x):
-        return x / 2.0
-
-    def learning_rate_shock(model, x):
-        return x * 2.0
-
-
-class AbstractCategoricalModel(BaseModel):
-    """ base model for catagory classifiers """
-
-    def __init__(self):
-        super(AbstractCategoricalModel, self).__init__()
-        self.encoder = None
-
-    def initialize_encoder(self, labels):
-        print('[model] encoding labels')
-        self.encoder = sklearn.preprocessing.LabelEncoder()
-        self.encoder.fit(labels)
-        self.output_dims = len(list(np.unique(labels)))
-        print('[model] self.output_dims = %r' % (self.output_dims,))
-
-    def loss_function(model, output, truth):
-        return T.nnet.categorical_crossentropy(output, truth)
+Conv2DLayer = custom_layers.Conv2DLayer
+MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class DummyModel(AbstractCategoricalModel):
+class DummyModel(abstract_models.AbstractCategoricalModel):
     def __init__(model, autoinit=False, batch_size=8, input_shape=(None, 1, 4, 4)):
         super(DummyModel, model).__init__()
         model.network_layers = None
@@ -336,7 +80,7 @@ class DummyModel(AbstractCategoricalModel):
                nonlinearity=nonlinearities.softmax,
                W=init.Orthogonal(),),
         ]
-        network_layers = evaluate_layer_list(network_layers_def)
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
         model.network_layers = network_layers
         output_layer = model.network_layers[-1]
         if verbose:
@@ -358,7 +102,7 @@ class DummyModel(AbstractCategoricalModel):
     #    pass
 
 
-class SiameseCenterSurroundModel(BaseModel):
+class SiameseCenterSurroundModel(abstract_models.BaseModel):
     """
     Model for individual identification
 
@@ -379,16 +123,28 @@ class SiameseCenterSurroundModel(BaseModel):
         if autoinit:
             model.initialize_architecture()
 
+    def build_model(model, batch_size, input_width, input_height,
+                    input_channels, output_dims, verbose=True, **kwargs):
+        r"""
+        """
+        #print('build model may override settings')
+        input_shape = (batch_size, input_channels, input_width, input_height)
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        model.output_dims = 1
+        model.initialize_architecture(verbose=verbose, **kwargs)
+        output_layer = model.get_output_layer()
+        return output_layer
+
     def augment(self, Xb, yb=None):
         """
-
         CommandLine:
             python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.augment --show
 
         Example:
             >>> # DISABLE_DOCTEST
             >>> from ibeis_cnn.models import *  # NOQA
-            >>> from ibeis_cnn import train
+            >>> from ibeis_cnn import train, utils
             >>> data, labels = train.testdata_patchmatch()
             >>> cv2_data = utils.convert_theano_images_to_cv2_images(data)
             >>> batch_size = 128
@@ -432,47 +188,7 @@ class SiameseCenterSurroundModel(BaseModel):
                     Xb2[index] = func(Xb2[index])
         return Xb, yb
 
-    def build_model(model, batch_size, input_width, input_height,
-                    input_channels, output_dims, verbose=True):
-        r"""
-        CommandLine:
-            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.build_model
-            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.build_model --verbcnn
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
-
-        Example:
-            >>> # DISABLE_DOCTEST
-            >>> from ibeis_cnn.models import *  # NOQA
-            >>> # build test data
-            >>> model = SiameseCenterSurroundModel()
-            >>> batch_size = 128
-            >>> input_width, input_height, input_channels = 64, 64, 3
-            >>> output_dims = None
-            >>> verbose = True
-            >>> # execute function
-            >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
-            >>> print('\n---- Arch Str')
-            >>> model.print_architecture_str(sep='\n')
-            >>> print('\n---- Layer Info')
-            >>> model.print_layer_info()
-            >>> print('\n---- HashID')
-            >>> print('hashid=%r' % (model.get_architecture_hashid()),)
-            >>> print('----')
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
-        """
-        #print('build model may override settings')
-        input_shape = (batch_size, input_channels, input_width, input_height)
-        model.input_shape = input_shape
-        model.batch_size = batch_size
-        model.output_dims = 1
-        model.initialize_architecture(verbose=verbose)
-        output_layer = model.get_output_layer()
-        return output_layer
-
-    def get_2ch2stream_def(model, verbose=True):
+    def get_2ch2stream_def(model, verbose=True, **kwargs):
         """
         Notes:
 
@@ -490,8 +206,9 @@ class SiameseCenterSurroundModel(BaseModel):
         """
         raise NotImplementedError('The 2-channel part is not yet implemented')
         _P = functools.partial
-        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        orthog_kw = dict(W=init.Orthogonal())
+        neuron_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
 
         network_layers_def = (
             [
@@ -502,23 +219,23 @@ class SiameseCenterSurroundModel(BaseModel):
                 #layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 #lasange_ext.freeze_params,
-                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **neuron_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=96, filter_size=(3, 3), name='C1', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=96, filter_size=(3, 3), name='C1', **neuron_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **leaky_orthog),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C3', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C3', **neuron_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=768, name='F1',  **leaky_orthog),
+                _P(layers.DenseLayer, num_units=768, name='F1',  **neuron_initkw),
                 _P(layers.DropoutLayer, p=0.5),
-                _P(layers.DenseLayer, num_units=1, name='F2', **leaky_orthog),
+                _P(layers.DenseLayer, num_units=1, name='F2', **neuron_initkw),
             ]
         )
         return network_layers_def
 
-    def get_siam2stream_def(model, verbose=True):
+    def get_siam2stream_def(model, verbose=True, **kwargs):
         """
         Notes:
             (viii) siam-2stream has 4 branches
@@ -528,16 +245,22 @@ class SiameseCenterSurroundModel(BaseModel):
                 C(256, 3, 1)- ReLU-
                 C(256, 3, 1)- ReLU
 
-                (coupled in pairs for central and surround streams), and
-                decision layer
+                (coupled in pairs for central and surround streams, and decision layer)
 
                 F(512)-ReLU-
                 F(1)
         """
         _P = functools.partial
 
-        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        orthog_kw = dict(W=init.Orthogonal())
+        neuron_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        if not kwargs.get('fresh_model', False):
+            # FIXME: figure out better way of encoding that Orthogonal
+            # Initialization doesnt need to happen. Or do initialization of
+            # weights after the network has been built.
+            # don't do fancy initializating unless training from scratch
+            del neuron_initkw['W']
 
         network_layers_def = (
             [
@@ -547,24 +270,24 @@ class SiameseCenterSurroundModel(BaseModel):
 
                 layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
-                _P(Conv2DLayer, num_filters=96, filter_size=(4, 4), name='C0', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=96, filter_size=(4, 4), name='C0', **neuron_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **leaky_orthog),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **leaky_orthog),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **neuron_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=512, name='F1',  **leaky_orthog),
+                _P(layers.DenseLayer, num_units=512, name='F1',  **neuron_initkw),
                 _P(layers.DropoutLayer, p=0.5),
-                _P(layers.DenseLayer, num_units=1, name='F2', **leaky_orthog),
+                _P(layers.DenseLayer, num_units=1, name='F2', **neuron_initkw),
             ]
         )
         #raise NotImplementedError('The 2-channel part is not yet implemented')
         return network_layers_def
 
-    def initialize_architecture(model, verbose=True):
-        """
+    def initialize_architecture(model, verbose=True, **kwargs):
+        r"""
         Notes:
             http://arxiv.org/pdf/1504.03641.pdf
 
@@ -600,25 +323,64 @@ class SiameseCenterSurroundModel(BaseModel):
 
             (ix) siam-2stream-l2 consists of one central and one surround
                 branch of siam-2stream.
+
+        CommandLine:
+            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.initialize_architecture
+            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.initialize_architecture --verbcnn
+            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
+            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> # build test data
+            >>> batch_size = 128
+            >>> input_shape = (batch_size, 3, 64, 64)
+            >>> verbose = True
+            >>> model = SiameseCenterSurroundModel(batch_size=batch_size, input_shape=input_shape)
+            >>> # execute function
+            >>> output_layer = model.initialize_architecture()
+            >>> print('\n---- Arch Str')
+            >>> model.print_architecture_str(sep='\n')
+            >>> print('\n---- Layer Info')
+            >>> model.print_layer_info()
+            >>> print('\n---- HashID')
+            >>> print('hashid=%r' % (model.get_architecture_hashid()),)
+            >>> print('----')
+            >>> # verify results
+            >>> result = str(output_layer)
+            >>> print(result)
+
         """
         # TODO: remove output dims
         #_P = functools.partial
         (_, input_channels, input_width, input_height) = model.input_shape
         if verbose:
-            print('[model] Initialize siamese model architecture')
+            print('[model] Initialize center surround siamese model architecture')
             print('[model]   * batch_size     = %r' % (model.batch_size,))
             print('[model]   * input_width    = %r' % (input_width,))
             print('[model]   * input_height   = %r' % (input_height,))
             print('[model]   * input_channels = %r' % (input_channels,))
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
-        network_layers_def = model.get_siam2stream_def()
+        network_layers_def = model.get_siam2stream_def(verbose=verbose, **kwargs)
 
         # connect and record layers
-        network_layers = evaluate_layer_list(network_layers_def)
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
         model.network_layers = network_layers
         output_layer = model.network_layers[-1]
+        model.output_layer = output_layer
         return output_layer
+
+    def reinit_weights(model, W=init.Orthogonal()):
+        """
+        initailizes weights after the architecture has been defined.
+        """
+        weights_list = lasagne.layers.get_all_params(model.output_layer, regularizable=True, trainable=True)
+        for weights in weights_list:
+            shape = weights.get_value().shape
+            new_values = W.sample(shape)
+            weights.set_value(new_values)
 
     def loss_function(model, network_output, Y, T=T, verbose=True):
         """
@@ -642,7 +404,7 @@ class SiameseCenterSurroundModel(BaseModel):
             >>> T = np
             >>> # execute function
             >>> verbose = True
-            >>> avg_loss = model.loss_function(E, Y, T=T)
+            >>> avg_loss = model.loss_function(network_output, Y, T=T)
             >>> result = str(avg_loss)
             >>> print(result)
         """
@@ -674,7 +436,7 @@ class SiameseCenterSurroundModel(BaseModel):
         #return avg_loss
 
 
-class SiameseModel(BaseModel):
+class SiameseModel(abstract_models.BaseModel):
     """
     Model for individual identification
     """
@@ -732,29 +494,29 @@ class SiameseModel(BaseModel):
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        leaky_orthog = dict(W=init.Orthogonal(), **leaky)
+        neuron_initkw = dict(W=init.Orthogonal(), **leaky)
 
-        vggnet = PretrainedNetwork('vggnet')
-        #caffenet = PretrainedNetwork('caffenet')
+        vggnet = abstract_models.PretrainedNetwork('vggnet')
+        #caffenet = abstract_models.PretrainedNetwork('caffenet')
 
         network_layers_def = [
             _P(layers.InputLayer, shape=model.input_shape),
 
             vggnet.get_conv2d_layer(0, **leaky),
 
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **neuron_initkw),
 
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
-            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **leaky_orthog),
+            _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), **neuron_initkw),
 
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2)),
 
-            _P(layers.DenseLayer, num_units=256, **leaky_orthog),
+            _P(layers.DenseLayer, num_units=256, **neuron_initkw),
             _P(layers.DropoutLayer, p=0.5),
         ]
 
         # connect and record layers
-        network_layers = evaluate_layer_list(network_layers_def)
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
         model.network_layers = network_layers
         output_layer = model.network_layers[-1]
         model.output_layer = output_layer
@@ -767,7 +529,7 @@ class SiameseModel(BaseModel):
         return avg_loss
 
 
-class MNISTModel(AbstractCategoricalModel):
+class MNISTModel(abstract_models.AbstractCategoricalModel):
     """
     Toy model for testing and playing with mnist
     """
@@ -778,21 +540,21 @@ class MNISTModel(AbstractCategoricalModel):
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog = dict(W=init.Orthogonal())
-        leaky_orthog = ut.merge_dicts(orthog, leaky)
+        neuron_initkw = ut.merge_dicts(orthog, leaky)
 
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=input_shape),
                 layers.GaussianNoiseLayer,
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **neuron_initkw),
                 _P(layers.DropoutLayer, p=0.1),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **leaky_orthog),
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **neuron_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
 
-                _P(layers.DenseLayer, num_units=256, name='F1',  **leaky_orthog),
+                _P(layers.DenseLayer, num_units=256, name='F1',  **neuron_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),  # maxout
                 _P(layers.DropoutLayer, p=0.5),
 
@@ -805,8 +567,8 @@ class MNISTModel(AbstractCategoricalModel):
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog = dict(W=init.Orthogonal())
-        leaky_orthog = ut.merge_dicts(orthog, leaky)
-        initkw = leaky_orthog
+        neuron_initkw = ut.merge_dicts(orthog, leaky)
+        initkw = neuron_initkw
         #initkw = {}
 
         # def to test failures
@@ -833,13 +595,13 @@ class MNISTModel(AbstractCategoricalModel):
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
         input_shape = (None, input_channels, input_width, input_height)
         network_layers_def = self.get_mnist_model_def1(input_shape, output_dims)
-        network_layers = evaluate_layer_list(network_layers_def)
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
         l_out = network_layers[-1]
         self.output_layer = l_out
         return l_out
 
 
-class ViewpointModel(AbstractCategoricalModel):
+class ViewpointModel(abstract_models.AbstractCategoricalModel):
     def __init__(self):
         super(ViewpointModel, self).__init__()
 
@@ -899,7 +661,7 @@ class ViewpointModel(AbstractCategoricalModel):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        _CaffeNet = PretrainedNetwork('caffenet')
+        _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
 
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height
@@ -1028,7 +790,7 @@ class ViewpointModel(AbstractCategoricalModel):
         return l_out
 
 
-class QualityModel(AbstractCategoricalModel):
+class QualityModel(abstract_models.AbstractCategoricalModel):
     def __init__(self):
         super(QualityModel, self).__init__()
 
@@ -1049,7 +811,7 @@ class QualityModel(AbstractCategoricalModel):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        _CaffeNet = PretrainedNetwork('caffenet')
+        _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
 
         l_in = layers.InputLayer(
             # variable batch size (None), channel, width, height

@@ -195,9 +195,10 @@ def train(model, data_fpath, labels_fpath, weights_fpath, results_dpath,
     batch_size  = kwargs['batch_size']
     output_dims = kwargs['output_dims']
     # Build architectuer
+    # TODO: pass in fresh_model=True if this model is being trained from scratch.
     output_layer = model.build_model(
         batch_size, input_width, input_height,
-        input_channels, output_dims)
+        input_channels, output_dims, fresh_model=False)
 
     print('\n[train] --- MODEL INFO ---')
     if hasattr(model, 'print_layer_info'):

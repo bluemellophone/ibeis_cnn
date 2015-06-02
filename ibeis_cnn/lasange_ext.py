@@ -3,6 +3,8 @@ from lasagne import layers
 import warnings
 import theano
 import theano.tensor as T
+import utool as ut
+ut.noinject('lasange_ext')
 
 
 def l1(layer, include_biases=False):
