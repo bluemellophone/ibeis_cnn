@@ -151,7 +151,7 @@ class BaseModel(object):
     Abstract model providing functionality for all other models to derive from
     """
     def __init__(self, output_dims=None, input_shape=None, batch_size=None, training_dpath='.'):
-        self.network_layers = None  # We really don't need to save all of these
+        #self.network_layers = None  # We really don't need to save all of these
         self.output_layer = None
         self.output_dims = None
         self.input_shape = None
@@ -173,7 +173,7 @@ class BaseModel(object):
     def draw_architecture(self):
         from ibeis_cnn import draw_net
         filename = 'tmp.png'
-        draw_net.draw_to_file(self.network_layers, filename)
+        draw_net.draw_to_file(self.get_network_layers(), filename)
         ut.startfile(filename)
 
     def get_architecture_hashid(self):

@@ -34,7 +34,7 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 class DummyModel(abstract_models.AbstractCategoricalModel):
     def __init__(model, autoinit=False, batch_size=8, input_shape=(None, 1, 4, 4)):
         super(DummyModel, model).__init__()
-        model.network_layers = None
+        #model.network_layers = None
         model.data_per_label = 1
         model.input_shape = input_shape
         model.output_dims = 5
@@ -80,14 +80,14 @@ class DummyModel(abstract_models.AbstractCategoricalModel):
                W=init.Orthogonal(),),
         ]
         network_layers = abstract_models.evaluate_layer_list(network_layers_def)
-        model.network_layers = network_layers
-        output_layer = model.network_layers[-1]
+        #model.network_layers = network_layers
+        model.output_layer = network_layers[-1]
         if verbose:
             print('initialize_architecture')
         if ut.VERBOSE:
             model.print_architecture_str()
             model.print_layer_info()
-        return output_layer
+        return model.output_layer
 
     #def initialize_symbolic_inputs(model):
     #    model.symbolic_index = T.lscalar(name='index')
@@ -115,7 +115,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         if input_shape is None:
             (batch_size, 3, 64, 64)
         super(SiameseCenterSurroundModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
-        model.network_layers = None
+        #model.network_layers = None
         model.input_shape = input_shape
         model.batch_size = batch_size
         model.output_dims = 1
@@ -146,10 +146,10 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
             python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.augment --show
 
         Example:
-            >>> # DISABLE_DOCTEST
+            >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models import *  # NOQA
-            >>> from ibeis_cnn import train, utils
-            >>> data, labels = train.testdata_patchmatch()
+            >>> from ibeis_cnn import ingest_data, utils
+            >>> data, labels = ingest_data.testdata_patchmatch()
             >>> cv2_data = utils.convert_theano_images_to_cv2_images(data)
             >>> batch_size = 128
             >>> Xb, yb = cv2_data[0:batch_size], labels[0:batch_size // 2]
@@ -335,7 +335,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
             python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
 
         Example:
-            >>> # DISABLE_DOCTEST
+            >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models import *  # NOQA
             >>> # build test data
             >>> batch_size = 128
@@ -371,8 +371,8 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
 
         # connect and record layers
         network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
-        model.network_layers = network_layers
-        output_layer = model.network_layers[-1]
+        #model.network_layers = network_layers
+        output_layer = network_layers[-1]
         model.output_layer = output_layer
         return output_layer
 
@@ -393,11 +393,11 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
             python -m ibeis_cnn.models --test-loss_function
 
         Example:
-            >>> # DISABLE_DOCTEST
+            >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models import *  # NOQA
-            >>> from ibeis_cnn import train
+            >>> from ibeis_cnn import ingest_data
             >>> from ibeis_cnn import batch_processing as batch
-            >>> data, labels = train.testdata_patchmatch()
+            >>> data, labels = ingest_data.testdata_patchmatch()
             >>> model = SiameseCenterSurroundModel(autoinit=True, input_shape=(128,) + (data.shape[1:]))
             >>> theano_forward = batch.create_unbuffered_network_output_func(model)
             >>> batch_size = model.batch_size

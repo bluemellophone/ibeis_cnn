@@ -85,13 +85,12 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         python -m ibeis_cnn.draw_net --test-get_pydot_graph
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
         >>> # build test data
-        >>> self = models.IdentificationModel()
-        >>> output_layer = self.build_model(8, 256, 256, 3, 3)
-        >>> layers = self.network_layers
+        >>> self = models.DummyModel(autoinit=True)
+        >>> layers = self.get_network_layers()
         >>> output_shape = True
         >>> verbose = False
         >>> # execute function
@@ -162,17 +161,16 @@ def draw_to_file(layers, filename, **kwargs):
         python -m ibeis_cnn.draw_net --test-draw_to_file --show
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> self = models.IdentificationModel()
-        >>> output_layer = self.build_model(8, 256, 256, 3, 3)
-        >>> layers = layers = self.network_layers
-        >>> filename = 'tmp.png'
+        >>> self = models.DummyModel(autoinit=True)
+        >>> layers = self.get_network_layers()
+        >>> filename = ut.unixjoin(ut.ensure_app_resource_dir('ibeis_cnn'), 'tmp.png')
         >>> # execute function
         >>> draw_to_file(layers, filename)
         >>> ut.quit_if_noshow()
-        >>> ut.start_file(filename)
+        >>> ut.startfile(filename)
     """
     dot = get_pydot_graph(layers, **kwargs)
 
@@ -290,22 +288,27 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
 def show_convolutional_layers(output_layer, results_path, color=None, limit=150, target=None, epoch=None, verbose=ut.VERYVERBOSE):
     r"""
     CommandLine:
+        python -m ibeis_cnn.draw_net --test-show_convolutional_layers --show
         python -m ibeis_cnn.draw_net --test-show_convolutional_layers
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
+        >>> model = models.DummyModel(autoinit=True, input_shape=(128, 3, 64, 64))
         >>> output_layer = model.get_output_layer()
         >>> results_path = ut.ensure_app_resource_dir('ibeis_cnn', 'testing', 'figs')
         >>> # ut.vd(results_path)
         >>> color = True
         >>> limit = 150
-        >>> target = 1
+        >>> target = 0
         >>> epoch = 0
         >>> result = show_convolutional_layers(output_layer, results_path, color, limit, target, epoch)
         >>> print('result = %r' % (result,))
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> pt.imshow(result[0])
+        >>> ut.show_if_requested()
     """
     import matplotlib.pyplot as plt
     with warnings.catch_warnings():
@@ -432,12 +435,13 @@ def draw_convolutional_features(all_weights, color=None, limit=150):
     all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
 
     # Build grid
-    if color:
-        for f, feature in enumerate(all_features):
-            grid[f].imshow(feature, interpolation='nearest')
-    else:
-        for f, feature in enumerate(all_features):
-            grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
+    with ut.embed_on_exception_context:
+        if color:
+            for f, feature in enumerate(all_features):
+                grid[f].imshow(feature, interpolation='nearest')
+        else:
+            for f, feature in enumerate(all_features):
+                grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
 
     for j in range(dim * dim):
         grid[j].get_xaxis().set_visible(False)
