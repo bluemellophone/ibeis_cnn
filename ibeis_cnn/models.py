@@ -388,9 +388,10 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         }
         tp_support = tp_support * multiplier
         tn_support = tn_support * multiplier
+        import plottool as pt
         pt.rrrr()
         vt.rrrr()
-        x = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
+        _ = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)  # NOQA
         score_domain, p_tp_given_score, clip_score = vt.learn_score_normalization(tp_support, tn_support, monotonize=False, clip_factor=None, adjust=8)
         probs = vt.normalize_scores(score_domain, p_tp_given_score, scores)
 
@@ -426,20 +427,20 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         hard_scores = scores[incorrect]
 
         is_hard_true = hard_labels
-        hard_true_indicies = hard_indiceis[is_hard_true]
+        hard_fp_indicies = hard_indiceis[is_hard_true]
         hard_true_scores = hard_scores[is_hard_true]
 
         is_hard_false = np.logical_not(hard_labels)
-        hard_false_indicies = hard_indiceis[is_hard_false]
+        hard_fn_indicies = hard_indiceis[is_hard_false]
         hard_false_scores = hard_scores[is_hard_false]
 
-        hard_true_indicies = hard_true_indicies[(hard_true_scores * encoder.multiplier).argsort()]
-        hard_false_indicies = hard_false_indicies[(hard_false_scores * encoder.multiplier).argsort()[::-1]]
+        hard_fp_indicies = hard_fp_indicies[(hard_true_scores * encoder.multiplier).argsort()]
+        hard_fn_indicies = hard_fn_indicies[(hard_false_scores * encoder.multiplier).argsort()[::-1]]
 
-        hard_falseneg_label_indicies = hard_false_indicies
-        hard_falseneg_data_indicies = utils.expand_data_indicies(hard_false_indicies, model.data_per_label)
-        hard_falsepos_label_indicies = hard_true_indicies
-        hard_falsepos_data_indicies = utils.expand_data_indicies(hard_true_indicies, model.data_per_label)
+        hard_falseneg_label_indicies = hard_fn_indicies
+        hard_falseneg_data_indicies = utils.expand_data_indicies(hard_fn_indicies, model.data_per_label)
+        hard_falsepos_label_indicies = hard_fp_indicies
+        hard_falsepos_data_indicies = utils.expand_data_indicies(hard_fp_indicies, model.data_per_label)
 
         hard_fn_X = X_test.take(hard_falsepos_data_indicies, axis=0)
         hard_fn_y = y_test.take(hard_falsepos_label_indicies, axis=0)
@@ -448,8 +449,9 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         hard_fp_y = y_test.take(hard_falseneg_label_indicies, axis=0)
 
         from ibeis_cnn import draw_results
-        draw_results.interact_siamsese_data_patches(hard_fp_y, hard_fp_X, {})
-        draw_results.interact_siamsese_data_patches(hard_fn_y, hard_fn_X, {})
+        draw_results.rrr()
+        draw_results.interact_siamsese_data_patches(hard_fp_y, hard_fp_X, {'fs': }, rand=False, figtitle='FP')
+        draw_results.interact_siamsese_data_patches(hard_fn_y, hard_fn_X, {}, rand=False, figtitle='FN')
 
         # TODO: look at the data belonging to these indiceis
         # these are the problem case false negatives and false positives
