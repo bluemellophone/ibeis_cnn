@@ -26,7 +26,7 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list, flat_me
     #index_list = ut.list_argsort(flat_metadata['fs'])[::1]
 
     # Check out the score pdfs
-    if 'fs' in flat_metadata:
+    if False and 'fs' in flat_metadata:
         index_list = ut.list_argsort(flat_metadata['fs'])[::-1]
         from vtool import score_normalization as scorenorm
         tp_support = np.array(ut.list_compress(flat_metadata['fs'], label_list)).astype(np.float64)
