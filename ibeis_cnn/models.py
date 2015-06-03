@@ -344,6 +344,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
     def learn_encoder(model, scores, labels):
         """
         Ignore:
+            import numpy as np
             scores = np.array([ -4.84478734e-02,  -8.03711891e-01,
                 -1.71556115e+00, -1.28013051e+00,  -2.41564944e-01,  -1.55335450e+00,
                 2.22851944e+01,  -3.40442210e-01,   1.05123577e+01, -6.63662374e-01,
@@ -377,13 +378,17 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         if tp_support.mean() < tn_support.mean():
             multiplier = -1.0
         import vtool as vt
+        vt.rrrr()
         normkw_varydict = {
             'monotonize': [False],  # [True, False],
             #'adjust': [1, 4, 8],
-            'adjust': [1],
+            'adjust': [8],
+            'clip_factor': [None],
             #'adjust': [8],
         }
-        vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
+        tp_support = tp_support * multiplier
+        tn_support = tn_support * multiplier
+        x = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
         vt.learn_score_normalization(tp_support, tn_support)
 
     #def build_objective(self):
