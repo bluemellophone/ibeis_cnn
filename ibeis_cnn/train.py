@@ -170,8 +170,8 @@ def train_patchmatch_liberty():
         test_outputs = harness.test_data2(model, X_test, y_test)
         #ut.embed()
         network_output = test_outputs['network_output']
-        scores = network_output.T[0]
         labels = y_test
+        scores = network_output.T[0][0:len(y_test)]
 
         experiments.test_siamese_thresholds(network_output, y_test, figtitle='CNN descriptor distances')
 

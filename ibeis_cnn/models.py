@@ -380,7 +380,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         import vtool as vt
         vt.rrrr()
         normkw_varydict = {
-            'monotonize': [False],  # [True, False],
+            'monotonize': [True, False],  # [True, False],
             #'adjust': [1, 4, 8],
             'adjust': [8],
             'clip_factor': [None],
@@ -388,8 +388,77 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         }
         tp_support = tp_support * multiplier
         tn_support = tn_support * multiplier
+        pt.rrrr()
+        vt.rrrr()
         x = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
-        vt.learn_score_normalization(tp_support, tn_support)
+        score_domain, p_tp_given_score, clip_score = vt.learn_score_normalization(tp_support, tn_support, monotonize=False, clip_factor=None, adjust=8)
+        probs = vt.normalize_scores(score_domain, p_tp_given_score, scores)
+
+        # select a cutoff threshold
+        import sklearn.metrics
+        fpr_curve, tpr_curve, thresholds = sklearn.metrics.roc_curve(labels, probs, pos_label=1)
+        # Select threshold that gives 95% recall (we should optimize this for a tradeoff)
+        index = np.where(tpr_curve > .95)[0][0]
+        learned_thresh = thresholds[index]
+
+        class BinaryEncoder(object):
+            def __init__(self, learned_thresh, score_domain, p_tp_given_score, multiplier):
+                self.learned_thresh = learned_thresh
+                self.score_domain = score_domain
+                self.p_tp_given_score = p_tp_given_score
+                self.multiplier = multiplier
+
+            def encode_scores(self, scores):
+                import vtool as vt
+                probs = vt.normalize_scores(score_domain, p_tp_given_score, scores * self.multiplier)
+                classifications = probs > self.learned_thresh
+                return classifications
+
+        encoder = BinaryEncoder(learned_thresh, score_domain, p_tp_given_score, multiplier)
+        classifications = encoder.encode_scores(scores)
+        is_correct = classifications == labels
+        accuracy = (is_correct).mean()
+        print('accuracy = %r' % (accuracy,))
+
+        incorrect = np.logical_not(is_correct)
+        hard_indiceis = np.where(incorrect)[0]
+        hard_labels = labels[incorrect]
+        hard_scores = scores[incorrect]
+
+        is_hard_true = hard_labels
+        hard_true_indicies = hard_indiceis[is_hard_true]
+        hard_true_scores = hard_scores[is_hard_true]
+
+        is_hard_false = np.logical_not(hard_labels)
+        hard_false_indicies = hard_indiceis[is_hard_false]
+        hard_false_scores = hard_scores[is_hard_false]
+
+        hard_true_indicies = hard_true_indicies[(hard_true_scores * encoder.multiplier).argsort()]
+        hard_false_indicies = hard_false_indicies[(hard_false_scores * encoder.multiplier).argsort()[::-1]]
+
+        hard_falseneg_label_indicies = hard_false_indicies
+        hard_falseneg_data_indicies = utils.expand_data_indicies(hard_false_indicies, model.data_per_label)
+        hard_falsepos_label_indicies = hard_true_indicies
+        hard_falsepos_data_indicies = utils.expand_data_indicies(hard_true_indicies, model.data_per_label)
+
+        hard_fn_X = X_test.take(hard_falsepos_data_indicies, axis=0)
+        hard_fn_y = y_test.take(hard_falsepos_label_indicies, axis=0)
+
+        hard_fp_X = X_test.take(hard_falseneg_data_indicies, axis=0)
+        hard_fp_y = y_test.take(hard_falseneg_label_indicies, axis=0)
+
+        from ibeis_cnn import draw_results
+        draw_results.interact_siamsese_data_patches(hard_fp_y, hard_fp_X, {})
+        draw_results.interact_siamsese_data_patches(hard_fn_y, hard_fn_X, {})
+
+        # TODO: look at the data belonging to these indiceis
+        # these are the problem case false negatives and false positives
+
+        #tp_support = probs[labels.astype(np.bool)].astype(np.float64)
+        #tn_support = probs[~(labels.astype(np.bool))].astype(np.float64)
+        #x = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
+
+        #confusions = vt.get_confusion_metrics(probs, labels)
 
     #def build_objective(self):
     #    pass
