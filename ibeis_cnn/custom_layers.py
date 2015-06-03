@@ -228,11 +228,11 @@ class SiameseConcatLayer(lasagne.layers.Layer):
         Example0:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.custom_layers import *  # NOQA
-            >>> #item_shape = (3, 32, 32,)
-            >>> input_shape = (128,) + item_shape
+            >>> input_shape = (128, 1024)
             >>> input_layer = lasagne.layers.InputLayer(shape=input_shape)
             >>> self = SiameseConcatLayer(input_layer)
-            >>> input_ = np.random.rand(128, *item_shape)
+            >>> np.random.seed(0)
+            >>> input_ = np.random.rand(*input_shape)
             >>> T = np
             >>> output_ = self.get_output_for(input_, T=T)
             >>> target_shape = self.get_output_shape_for(input_shape)

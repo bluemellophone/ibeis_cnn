@@ -187,8 +187,8 @@ def convert_theano_images_to_cv2_images(data, *args):
         >>> from ibeis_cnn.utils import *  # NOQA
         >>> # build test data
         >>> img_list, width, height, channels = testdata_imglist()
-        >>> data = convert_imagelist_to_data(img_list)
-        >>> img_list2 = convert_data_to_imglist(data, width, height, channels)
+        >>> data = convert_cv2_images_to_theano_images(np.array(img_list))
+        >>> img_list2 = convert_theano_images_to_cv2_images(data)
         >>> assert np.all(img_list == img_list2)
     """
     #num_imgs = data.shape[0]
@@ -208,7 +208,7 @@ def evaluate_symbolic_layer(get_output_for, inputdata_, input_type=T.tensor4, **
 
 
 def get_current_time():
-    return time.strftime('%Y-%m-%d %H:%M:%S')
+    return time.strftime('%Y-%m-%d %H:%M:%S') + ' ' + time.tzname[0]
 
 
 def testdata_xy(data_per_label=2, factor=20, seed=0):
@@ -264,6 +264,14 @@ def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
     return X_train, y_train, X_valid, y_valid
 
 
+def random_test_train_sample(X, y, size_, data_per_label, seed=0):
+    label_indicies =  ut.random_indexes(len(y), seed=seed)[0:size_]
+    data_indicies = expand_data_indicies(label_indicies, data_per_label)
+    X_subset = X.take(data_indicies, axis=0)
+    y_sbuset = y.take(label_indicies, axis=0)
+    return X_subset, y_sbuset
+
+
 def write_data_and_labels(data, labels, data_fpath, labels_fpath):
     print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
     print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
@@ -285,6 +293,11 @@ def load(data_fpath, labels_fpath=None):
     labels = None
     if labels_fpath is not None:
         labels = np.load(labels_fpath, mmap_mode='r')
+    # TODO: This should be part of data preprocessing
+    # Ensure that data is 4-dimensional
+    if len(data.shape) == 3:
+        # add channel dimension for implicit grayscale
+        data.shape = data.shape + (1,)
     # Return data
     return data, labels
 
@@ -296,16 +309,17 @@ def load_ids(id_fpath, labels_fpath=None):
     return ids
 
 
-def get_printcolinfo(requested_headers=None):
+def get_printcolinfo(requested_headers_):
     r"""
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.utils import *  # NOQA
-        >>> requested_headers = None
+        >>> requested_headers_ = None
         >>> printcol_info = get_printcolinfo(requested_headers)
     """
-    if requested_headers is None:
-        requested_headers = ['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'valid_acc', 'test_acc', 'duration']
+    if requested_headers_ is None:
+        requested_headers_ = ['train_loss', 'valid_loss', 'trainval_rat', 'valid_acc', 'test_acc']
+    requested_headers = ['epoch'] + requested_headers_ + ['duration']
     header_dict = {
         'epoch'        : '   Epoch ',
         'train_loss'   : '  Train Loss (determ)  ',
@@ -362,23 +376,9 @@ def print_header_columns(printcol_info):
     print(header_str)
 
 
-def print_epoch_info(printcol_info, epoch_info):
+def print_epoch_info(model, printcol_info, epoch_info):
     requested_headers = printcol_info['requested_headers']
-
-    (train_loss, train_determ_loss, valid_loss, valid_accuracy, test_accuracy,
-     epoch, duration, best_train_loss, best_valid_loss, best_valid_accuracy,
-     best_test_accuracy) = ut.dict_take(epoch_info, [
-         'train_loss', 'train_determ_loss', 'valid_loss', 'valid_accuracy',
-         'test_accuracy', 'epoch', 'duration', 'best_train_loss',
-         'best_valid_loss', 'best_valid_accuracy', 'best_test_accuracy'])
-
-    best_train      = train_loss == best_train_loss
-    best_valid      = valid_loss == best_valid_loss
-    best_valid_accuracy = valid_accuracy == best_valid_accuracy
-    best_train_accuracy = test_accuracy == best_test_accuracy
-    ratio           = train_loss / valid_loss
-    ratio_determ    = None if train_determ_loss is None else train_determ_loss / valid_loss
-    unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
+    keys = ut.setdiff_ordered(requested_headers, ['epoch', 'duration'])
     data_fmt_list = printcol_info['data_fmt_list']
     data_fmtstr = '[info] ' +  '|'.join(data_fmt_list)
     #data_fmtstr = ('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
@@ -404,37 +404,59 @@ def print_epoch_info(printcol_info, epoch_info):
         return (epoch_info['epoch'],)
 
     def train_loss_str():
-        train_loss = epoch_info['train_loss']
-        best_train_loss = epoch_info['best_train_loss']
-        train_determ_loss = epoch_info['train_determ_loss']
-        best_train      = train_loss == best_train_loss
+        key = 'train_loss'
+        isbest = epoch_info[key] == model.best_results[key]
         return (
-            ANSI.BLUE if best_train else '',
-            '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
-            ANSI.RESET if best_train else '',
+            ANSI.BLUE if isbest else '',
+            '%0.6f' % (epoch_info[key],),
+            ANSI.RESET if isbest else '',
         )
+        #train_loss = epoch_info['train_loss']
+        #best_train_loss = epoch_info['best_train_loss']
+        #train_determ_loss = epoch_info['train_determ_loss']
+        #best_train      = train_loss == best_train_loss
+        #return (
+        #    ANSI.BLUE if best_train else '',
+        #    '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
+        #    ANSI.RESET if best_train else '',
+        #)
 
     def valid_loss_str():
-        return (ANSI.GREEN if best_valid else '', valid_loss, ANSI.RESET if best_valid else '',)
+        key = 'valid_loss'
+        isbest = epoch_info[key] == model.best_results[key]
+        return (
+            ANSI.GREEN if isbest else '',
+            epoch_info[key],
+            ANSI.RESET if isbest else '',
+        )
 
     def trainval_rat_str():
+        ratio = epoch_info['trainval_rat']
+        unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
         return (
             ANSI.RED if unhealthy_ratio else '',
-            '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
-            ANSI.RESET if unhealthy_ratio else '',)
+            '%0.6f' % (ratio, ),
+            ANSI.RESET if unhealthy_ratio else '',
+        )
+        #return (
+        #    ANSI.RED if unhealthy_ratio else '',
+        #    '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
+        #    ANSI.RESET if unhealthy_ratio else '',)
 
     def valid_acc_str():
-        return (ANSI.MAGENTA if best_valid_accuracy else '',
-                '{:.2f}%'.format(valid_accuracy * 100),
-                ANSI.RESET if best_valid_accuracy else '',)
+        key = 'valid_acc'
+        isbest = epoch_info[key] == model.best_results[key]
+        return (ANSI.MAGENTA if isbest else '',
+                '{:.2f}%'.format(model.best_results[key] * 100),
+                ANSI.RESET if isbest else '',)
 
-    def test_acc_str():
-        return (ANSI.CYAN if best_train_accuracy else '',
-                '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
-                ANSI.RESET if best_train_accuracy else '',)
+    #def test_acc_str():
+    #    return (ANSI.CYAN if best_train_accuracy else '',
+    #            '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
+    #            ANSI.RESET if best_train_accuracy else '',)
 
     def duration_str():
-        return (duration,)
+        return (epoch_info['duration'],)
 
     # Hack to build up the format data
     locals_ = locals()
@@ -469,8 +491,9 @@ def float32(k):
     return np.cast['float32'](k)
 
 
-def expand_data_indicies(indices, data_per_label=1):
-    expanded_indicies = [indices * data_per_label + count for count in range(data_per_label)]
+def expand_data_indicies(label_indices, data_per_label=1):
+    """ when data_per_label > 1, gives the corresponding data indicies for the data indicies """
+    expanded_indicies = [label_indices * data_per_label + count for count in range(data_per_label)]
     data_indices = np.vstack(expanded_indicies).T.flatten()
     return data_indices
 
@@ -577,14 +600,6 @@ def slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=
         print('[batchiter]   * x_sl = %r' % (x_sl,))
         print('[batchiter]   * y_sl = %r' % (y_sl,))
     return Xb, yb
-
-
-def whiten_data(Xb, center_mean, center_std):
-    Xb = Xb.copy()
-    if center_mean is not None and center_std is not None and center_std != 0.0:
-        Xb -= center_mean
-        Xb /= center_std
-    return Xb
 
 
 def multinomial_nll(x, t):
@@ -731,6 +746,25 @@ def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice
     net_strs.print_pretrained_weights(pretrained_weights, weights_path)
     net_strs.print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
     return sliced_weights_path
+
+
+def print_data_label_info(data, labels, key=''):
+    # print('[load] adding channels...')
+    # data = utils.add_channels(data)
+    print('[train] %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
+    print('[train] %s_data.shape   = %r' % (key, data.shape,))
+    print('[train] %s_data.dtype   = %r' % (key, data.dtype,))
+    print('[train] %s_labels.shape = %r' % (key, labels.shape,))
+    print('[train] %s_labels.dtype = %r' % (key, labels.dtype,))
+    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
+    print('[train] %s_label histogram = \n%s' % (key, ut.dict_str(labelhist)))
+    print('[train] %s_label total = %d' % (key, sum(labelhist.values())))
+
+
+def load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, key):
+    data, labels = load(data_fpath_dict[key], label_fpath_dict[key])
+    print_data_label_info(data, labels, key)
+    return data, labels
 
 
 if __name__ == '__main__':

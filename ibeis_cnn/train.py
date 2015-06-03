@@ -36,7 +36,6 @@ from ibeis_cnn import models
 from ibeis_cnn import ingest_data
 from ibeis_cnn import harness
 import utool as ut
-from os.path import join
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
 
@@ -55,72 +54,59 @@ def train_patchmatch_pz():
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
+        >>> from ibeis_cnn.harness import *  # NOQA
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> train_patchmatch_pz()
 
     Ignore:
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/ibeis_cnn_weights.pickle'
-
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/arch_d788de3571330d42/training_state.cPkl'
-
     """
-    datakw = ut.parse_dict_from_argv(
+    train_params = ut.argparse_dict(
         {
-            #'db': 'PZ_MTEST',
-            'max_examples': None,
-            'num-top': 3,
+            'batch_size': 128,
+            'learning_rate': .001,
+            'momentum': .9,
+            'weight_decay': 0.0005,
         }
     )
     print('[train] train_patchmatch_pz')
+    # Choose data
+    data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths()
 
-    with ut.Indenter('[LOAD IBEIS DB]'):
-        import ibeis
-        ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+    # Choose model
+    # TODO: data will need to return info about number of labels in viewpoint models
+    model = models.SiameseCenterSurroundModel(data_shape=data_shape, training_dpath=training_dpath, **train_params)
 
-    # Nets dir is the root dir for all training
-    training_dpath = ibs.get_neuralnet_dir()
-    ut.ensuredir(training_dpath)
-    log_dir = join(training_dpath, 'logs')
-    ut.start_logging(log_dir=log_dir)
-    #ut.embed()
-
-    with ut.Indenter('[CHECKDATA]'):
-        data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths(ibs, **datakw)
-
-    #model = models.SiameseModel()
-    batch_size = ut.get_argval('--batch_size', type_=int, default=128)
-    model = models.SiameseCenterSurroundModel(data_shape=data_shape, batch_size=batch_size)
     model.initialize_architecture()
 
-    if not model.has_saved_state():
-        # initialize with liberty
+    if model.has_saved_state():
+        model.load_model_state()
+    else:
+        # Initialize with pretrained liberty weights
+        # TODO: do i need to take liberty data centering as well?
         extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
         model.load_extern_weights(dpath=extern_training_dpath)
-        #model.draw_convolutional_layers()
-        #ut.show_if_requested()
 
-    learning_state = dict(
-        momentum=.9,
-        regularization=0.0005,
-        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
-    )
-
-    config = dict(
-        patience=100,
-        equal_batch_sizes=True,
-        batch_size=batch_size,
-        show_confusion=False,
-        requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
-        run_test=None,
-        show_features=False,
-        print_timing=False,
-    )
-    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
+    # Split data into subsets
+    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
+        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1])
 
     #ut.embed()
-    if ut.get_argflag('--test'):
-        harness.test(data_fpath, model, weights_fpath, labels_fpath, **config)
+    if ut.get_argflag('--train'):
+        config = dict(
+            patience=100,
+        )
+        X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
+        X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+        #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+        harness.train(model, X_train, y_train, X_valid, y_valid, config)
+    elif ut.get_argflag('--test'):
+        assert model.best_results['epoch'] is not None
+        X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+        harness.test(model, X_test, y_test, **config)
     else:
-        harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
+        raise NotImplementedError('nothing here. need to train or test')
 
 
 def train_patchmatch_liberty():
@@ -137,16 +123,12 @@ def train_patchmatch_liberty():
         >>> ut.show_if_requested()
         >>> print(result)
     """
-    # TODO: move to standard path
-    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
-    if ut.get_argflag('--vtd'):
-        ut.vd(training_dpath)
-    ut.ensuredir(training_dpath)
-
-    pairs = 500
-    data_fpath, labels_fpath, data_shape = ingest_data.grab_cached_liberty_data(training_dpath, pairs)
+    #pairs = 500
+    pairs = 250000
+    data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.grab_cached_liberty_data(pairs)
     #model = models.SiameseModel()
     model = models.SiameseCenterSurroundModel(data_shape=data_shape, training_dpath=training_dpath)
+
     model.initialize_architecture()
     # DO CONVERSION
     if False:
@@ -156,50 +138,44 @@ def train_patchmatch_liberty():
             self.load_old_weights_kw(old_weights_fpath)
         self.save_model_state()
         #self.save_state()
-    weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
 
-    config = dict(
-        #patience=100,
-        #show_confusion=False,
-        #run_test=None,
-        #show_features=False,
-        #print_timing=False,
-        #requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
-        #equal_batch_sizes=True,
-        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
-        momentum=.9,
-        regularization=0.0005,
-    )
+    if model.has_saved_state():
+        model.load_model_state()
+        print(model.get_state_str())
+    else:
+        model.reinit_weights()
+
+    # Split data into subsets
+    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
+        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1])
 
     #ut.embed()
-    if ut.get_argflag('--test'):
-        from ibeis_cnn import test
-        data, labels = utils.load(data_fpath, labels_fpath)
-        train_split = .2
-        # Grab the validataion set
-        _, _, X_test_, y_test_ = utils.train_test_split(
-            data, labels, eval_size=train_split,
-            data_per_label=model.data_per_label)
-        # Grab a sample of that
-        _, _, X_test, y_test = utils.train_test_split(
-            X_test_, y_test_, eval_size=.1,
-            data_per_label=model.data_per_label)
-        ### Compare to SIFT descriptors
-        import pyhesaff
-        X_sift = pyhesaff.extract_desc_from_patches(X_test)
-        import numpy as np
-        sqrddist = ((X_sift[::2].astype(np.float32) - X_sift[1::2].astype(np.float32)) ** 2).sum(axis=1)
-        test.test_siamese_thresholds(sqrddist[None, :].T, y_test)
-        # add channel dimension for implicit grayscale
-        if len(X_test.shape) == 3:
-            X_test.shape = X_test.shape + (1,)
-        #
-        (pred_list, label_list, conf_list, prob_list) = test.test_data2(
-            X_test, y_test, model, weights_fpath, **config)
-        harness.test_siamese_thresholds(prob_list, y_test)
+    if ut.get_argflag('--train'):
+        config = dict(
+            patience=100,
+        )
+        X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
+        X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+        #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+        harness.train(model, X_train, y_train, X_valid, y_valid, config)
+    elif ut.get_argflag('--test'):
+        from ibeis_cnn import experiments
+
+        X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+        X_test, y_test = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+
+        # TEST SIFT DISTANCE
+        #experiments.test_sift_patchmatch(X_test, y_test)
+        # TEST CNN DISTANCE
+        test_outputs = harness.test_data2(model, X_test, y_test)
+        #ut.embed()
+        network_output = test_outputs['network_output']
+        experiments.test_siamese_thresholds(network_output, y_test, figtitle='CNN descriptor distances')
+
+        scores = network_output.T[0]
+        model.learn_encoder(scores, y_test)
     else:
-        harness.train(model, data_fpath, labels_fpath, weights_fpath, training_dpath, **config)
-    pass
+        raise NotImplementedError('nothing here. need to train or test')
 
 
 def train_mnist():
@@ -213,26 +189,46 @@ def train_mnist():
         >>> result = train_mnist()
         >>> print(result)
     """
-    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
-    #training_dpath = ut.truepath('mnist')
-    ut.ensuredir(training_dpath)
-    data_fpath, labels_fpath = ingest_data.grab_cached_mist_data(training_dpath)
+    train_params = ut.argparse_dict(
+        {
+            'batch_size': 128,
+            'learning_rate': .001,
+            'momentum': .9,
+            'weight_decay': 0.0005,
+        }
+    )
+    data_fpath, labels_fpath, training_dpath, data_shape, output_dims = ingest_data.grab_cached_mist_data()
+    input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 
-    model                    = models.MNISTModel()
-    #model                    = models.ViewpointModel()
-    train_data_fpath         = data_fpath
-    train_labels_fpath       = labels_fpath
-    results_dpath            = training_dpath
-    weights_fpath            = join(training_dpath, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'learning_rate': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
-    #images, labels = open_mnist(train_imgs_fpath, train_lbls_fpath)
+    # Choose model
+    model = models.MNISTModel(
+        input_shape=input_shape, output_dims=output_dims,
+        training_dpath=training_dpath, **train_params)
+
+    # Initialize architecture
+    model.initialize_architecture()
+
+    # Load previously learned weights or initialize new weights
+    if model.has_saved_state():
+        model.load_model_state()
+    else:
+        model.reinit_weights()
+
+    config = dict(
+        patience=100,
+        show_confusion=False,
+        run_test=None,
+        show_features=False,
+        print_timing=False,
+    )
+    # Split data into subsets
+    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
+        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.5, .5])
+
+    X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
+    X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+    #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+    harness.train(model, X_train, y_train, X_valid, y_valid, config)
 
 
 if __name__ == '__main__':

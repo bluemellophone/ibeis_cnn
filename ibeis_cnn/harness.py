@@ -7,28 +7,10 @@ optionally by initializing the network with pre-trained weights.
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import batch_processing as batch
-from ibeis_cnn import net_strs
-from ibeis_cnn import draw_net
 from six.moves import input
-import sys
 import numpy as np
-import cPickle as pickle
-from lasagne import layers
 import utool as ut
-import six
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.harness]')
-
-
-def print_data_label_info(data, labels):
-    # print('[load] adding channels...')
-    # data = utils.add_channels(data)
-    print('[train] memory(data) = %r' % (ut.get_object_size_str(data),))
-    print('[train] data.shape   = %r' % (data.shape,))
-    print('[train] data.dtype   = %r' % (data.dtype,))
-    print('[train] labels.shape = %r' % (labels.shape,))
-    print('[train] labels.dtype = %r' % (labels.dtype,))
-    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
-    print('[train] label histogram = \n' + ut.dict_str(labelhist))
 
 
 def sample_train_valid_test(model, data, labels):
@@ -58,46 +40,21 @@ def sample_train_valid_test(model, data, labels):
 
 # ---------------
 
-
-def train(model, data_fpath, labels_fpath, **kwargs):
+@profile
+def train(model, X_train, y_train, X_valid, y_valid, config):
     r"""
-    Driver function
-
-    Args:
-        data_fpath (str):
-        labels_fpath (str):
-        model (Model class):
-        weights_fpath (str):
-        pretrained_weights_fpath (None):
-        pretrained_kwargs (bool):
-
     CommandLine:
         python -m ibeis_cnn.harness --test-train
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.harness import *  # NOQA
+        >>> result = train(model, X_train, y_train, X_valid, y_valid, config)
+        >>> print(result)
     """
-
-    ######################################################################################
-
-    # Load the data
-    print('\n[train] --- LOADING DATA ---')
-    sys.stdout.flush()
-    print('data_fpath = %r' % (data_fpath,))
-    print('labels_fpath = %r' % (labels_fpath,))
-    # TODO: preprocessing and manual train / validate split
-    data, labels = utils.load(data_fpath, labels_fpath)
-
-    print_data_label_info(data, labels)
-
-    # TODO: This should be part of data preprocessing
-    if len(data.shape) == 3:
-        # add channel dimension for implicit grayscale
-        data.shape = data.shape + (1,)
-    # Encoding labels
-    if hasattr(model, 'initialize_encoder'):
-        model.initialize_encoder(labels)
+    print('\n[train] --- TRAINING LOOP ---')
+    # Center the data by subtracting the mean
+    model.ensure_training_state(X_train, y_train)
 
     print('\n[train] --- MODEL INFO ---')
     model.print_architecture_str()
@@ -108,155 +65,135 @@ def train(model, data_fpath, labels_fpath, **kwargs):
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
     theano_funcs = model.build_theano_funcs()
+    theano_backprop, theano_forward, theano_predict = theano_funcs
 
-    # draw_net.show_image_from_data(data)
-    # TODO: Change this to use indices, this causes too much data copying
-    # Split the dataset into training and validation
-    print('\n[train] --- SAMPLING DATA ---')
-    X_train, y_train, X_valid, y_valid, X_test, y_test = sample_train_valid_test(model, data, labels)
+    patience = config.get('patience')
+    max_epochs = config.get('max_epochs', None)
+    test_freq = config.get('test_freq', None)
+    #show_times    = kwargs.get('print_timing', False)
+    #show_features = kwargs.get('show_features', False)
+    #test_freq      = kwargs.get('test_freq', None)
 
-    # Center the data by subtracting the mean (AFTER KWARGS UPDATE)
-    model.ensure_training_state(X_train)
+    epoch = model.best_results['epoch']
+    if epoch is None:
+        epoch = 0
+    epoch_marker  = epoch
 
-    # Start the main training loop
-    training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_funcs, kwargs)
+    # number of non-best iterations after, that triggers a best save
+    save_after_best_wait_epochs = 5
+    save_after_best_countdown = None
 
-
-@profile
-def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
-                  theano_funcs, output_layer, results_dpath, weights_fpath,
-                  kwargs={}):
-    print('\n[train] --- TRAINING LOOP ---')
     # Begin training the neural network
     print('\n[train] starting training at %s with learning rate %.9f' %
           (utils.get_current_time(), model.learning_rate))
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
-    theano_backprop, theano_forward, theano_predict = theano_funcs
-    epoch = 0
-    epoch_marker  = epoch
-    #show_times    = kwargs.get('print_timing', False)
-    #show_features = kwargs.get('show_features', False)
-    #run_test      = kwargs.get('run_test', None)
-    # Get the augmentation function, if there is one for this model
-    augment_fn = getattr(model, 'augment', None)
-    #draw_target_layers = [0, 1]
-    draw_target_layers = [0]
 
-    #save_on_best = True
-    #show_on_best = True
+    batchiter_kw = dict(
+        showprog=False,
+        time_thresh=10,
+    )
 
-    #training_state = {}
-    # number of non-best iterations after, that triggers a best save
-    save_after_best_wait_epochs = 5
-    save_after_best_countdown = None
     tt = ut.Timer(verbose=False)
-
     while True:
         try:
+            # Begin epoch
+
+            epoch_info = {
+                'epoch': epoch,
+            }
+
             tt.tic()
+
             # ---------------------------------------
-
-            # Show first weights before any training
-            #if utils.checkfreq(show_features, epoch):
-            #    with ut.Timer('show_features1', verbose=show_times):
-            #        model.draw_convolutional_layers(target=draw_target_layers, epoch=epoch)
-            # compute the loss over all training and validation batches
-            #with ut.Timer('train', verbose=show_times):
-            train_outputs = batch.process_batch2(
-                model, X_train, y_train, theano_backprop,
-                augment=augment_fn, rand=True, **kwargs)
-            train_loss = train_outputs['loss_regularized'].mean()
-
-            # TODO: only check validation once every <valid_freq> epochs
-            #with ut.Timer('validate', verbose=show_times):
-            # TODO: generalize accuracy to arbitrary metrics
-            valid_outputs = batch.process_batch2(
-                model, X_valid, y_valid, theano_forward, augment=None,
-                rand=False, **kwargs)
-            valid_loss = valid_outputs['loss_determ'].mean()
+            # Run training set
+            """
+            X_train = X_train[0:128 * 10]
+            y_train = y_train[0:128 * 5]
+            X = X_train
+            y = y_train
+            theano_fn = theano_backprop
+            """
+            train_outputs = batch.process_batch(
+                model, X_train, y_train, theano_backprop, augment_on=True,
+                rand=True, **batchiter_kw)
+            # compute the loss over all testing batches
+            epoch_info['train_loss'] = train_outputs['loss_regularized'].mean()
+            #if 'valid_acc' in model.requested_headers:
+            #    epoch_info['test_acc']  = train_outputs['accuracy']
 
             # If the training loss is nan, the training has diverged
-            if np.isnan(train_loss):
+            if np.isnan(epoch_info['train_loss']):
                 print('\n[train] training diverged\n')
                 break
 
-            # ---------------------------------------
+            # Run validation set
+            valid_outputs = batch.process_batch(
+                model, X_valid, y_valid, theano_forward, augment_on=False,
+                rand=False, **batchiter_kw)
+            epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
+            if 'valid_acc' in model.requested_headers:
+                # bit of a hack to bring accuracy back in
+                #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
+                epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
 
-            # Increment the epoch
-            epoch += 1
-
-            # Is this model the best we've ever seen?
-            best_found = valid_loss < model.best_results['best_valid_loss']
-            if best_found:
-                epoch_marker = epoch
-                model.best_weights = model.get_all_param_values()
-                save_after_best_countdown = save_after_best_wait_epochs
-                model.best_results['epoch'] = epoch
-
-            # compute the loss over all testing batches
-            # if request_test or best_found:
             # Calculate request_test before adding to the epoch counter
-            #request_test = utils.checkfreq(run_test, epoch - 1)
-            #if request_test:
-            #    pass
-            #    ## TODO: rectify this code with that in test.py
-            #    #with ut.Timer('test', verbose=show_times):
-            #    #    train_determ_loss = batch.process_train(X_train, y_train, theano_forward,
-            #    #                                            model=model, augment=augment_fn,
-            #    #                                            rand=False, **kwargs)
+            request_test = utils.checkfreq(test_freq, epoch)
+            if request_test:
+                raise NotImplementedError('not done yet')
+                test_outputs = batch.process_batch(
+                    model, X_train, y_train, theano_forward, augment_on=False,
+                    rand=False, **batchiter_kw)
+                test_loss = test_outputs['loss_determ'].mean()  # NOQA
+                #if kwargs.get('show_confusion', False):
+                #    #output_confusion_matrix(results_path, **kwargs)
+                #    batch.output_confusion_matrix(X_test, results_dpath, test_results, model=model, **kwargs)
 
-            #    #    # If we want to output the confusion matrix, give the results path
-            #    #    test_results = batch.process_test(
-            #    #        X_test, y_test, theano_forward,
-            #    #        model=model, augment=None, rand=False, **kwargs)
-            #    #    #loss, test_accuracy, prob_list, auglbl_list, pred_list, conf_list = test_results
-            #    #    #if kwargs.get('show_confusion', False):
-            #    #    #    #output_confusion_matrix(results_path, **kwargs)
-            #    #    #    batch.output_confusion_matrix(X_test, results_dpath, test_results, model=model, **kwargs)
-            #else:
-            #    train_determ_loss = None
+            # ---------------------------------------
+            # Summarize the epoch
 
-            # TODO: allow for general metrics beyond train loss and valid loss
-            # Running tab for what the best model
-            if train_loss < kwargs.get('best_train_loss'):
-                kwargs['best_train_loss'] = train_loss
-            if valid_loss < kwargs.get('best_valid_loss'):
-                kwargs['best_valid_loss'] = valid_loss
+            duration = tt.toc()
+            epoch_info['duration'] = duration
+            epoch_info['trainval_rat'] = epoch_info['train_loss'] / epoch_info['valid_loss']
 
-            # Learning rate schedule update
-            if epoch >= epoch_marker + kwargs.get('patience'):
+            # ---------------------------------------
+            # Check how we are learning
+            best_found = epoch_info['valid_loss'] < model.best_results['valid_loss']
+            if best_found:
+                model.best_weights = model.get_all_param_values()
+                model.best_results['epoch'] = epoch_info['epoch']
+                for key in model.requested_headers:
+                    model.best_results[key] = epoch_info[key]
+                save_after_best_countdown = save_after_best_wait_epochs
                 epoch_marker = epoch
-                model.learning_rate = model.learning_rate_update(model.learning_rate)
-                utils.print_header_columns(printcol_info)
 
             # Print the epoch
-            duration = tt.toc()
-            epoch_info = {
-                'train_loss'          : train_loss,
-                'valid_loss'          : valid_loss,
-                'epoch'               : epoch,
-                'duration'            : duration,
-            }
-            keys_ = ['best_train_loss', 'best_valid_loss', 'best_valid_accuracy', 'best_test_accuracy']
-            epoch_info.update(ut.dict_subset(kwargs, keys_))
+            utils.print_epoch_info(model, printcol_info, epoch_info)
 
-            utils.print_epoch_info(printcol_info, epoch_info)
-
+            # Output any diagnostics
             if save_after_best_countdown is not None:
                 if save_after_best_countdown == 0:
                     ## Callbacks on best found
-                    utils.save_model(kwargs, weights_fpath)
-                    draw_net.show_convolutional_layers(output_layer, results_dpath, target=draw_target_layers, epoch=epoch)
+                    model.save_model_state()
+                    model.draw_convolutional_layers(epoch=epoch)
                     save_after_best_countdown = None
                 else:
                     save_after_best_countdown -= 1
 
+            # Learning rate schedule update
+            if epoch >= epoch_marker + patience:
+                epoch_marker = epoch
+                model.learning_rate = model.learning_rate_update(model.learning_rate)
+                utils.print_header_columns(printcol_info)
+
             # Break on max epochs
-            if epoch >= kwargs.get('max_epochs'):
+            if max_epochs is not None and epoch >= max_epochs:
                 print('\n[train] maximum number of epochs reached\n')
                 break
+
+            # Increment the epoch
+            epoch += 1
+
         except KeyboardInterrupt:
             # We have caught the Keyboard Interrupt, figure out what resolution mode
             print('\n[train] Caught CRTL+C')
@@ -278,73 +215,57 @@ def training_loop(model, X_train, y_train, X_valid, y_valid, X_test, y_test,
                 print('resuming training...')
             elif resolution == 1:
                 # Shock the weights of the network
-                utils.shock_network(output_layer)
+                utils.shock_network(model.output_layer)
                 epoch_marker = epoch
                 model.learning_rate = model.learning_rate_shock(model.learning_rate)
                 utils.print_header_columns(printcol_info)
             elif resolution == 2:
                 # Save the weights of the network
-                #ut.save_cPkl(weights_fpath, kwargs)
-                utils.save_model(kwargs, weights_fpath)
+                model.save_model_state()
             elif resolution == 3:
-                ut.view_directory(results_dpath)
+                ut.view_directory(model.training_dpath)
             elif resolution == 4:
                 ut.embed()
             elif resolution == 5:
-                output_fpath_list = model.draw_convolutional_layers(target=draw_target_layers)
+                output_fpath_list = model.draw_convolutional_layers()
                 for fpath in output_fpath_list:
                     ut.startfile(fpath)
             elif resolution == 6:
-                print(ut.dict_str(kwargs, truncate=True, sorted_=True))
+                print(model.get_state_str())
             else:
                 # Terminate the network training
                 raise
-
     # Save the best network
-    utils.save_model(kwargs, weights_fpath)
+    model.save_model_state()
 
 
-def test_data2(X_test, y_test, model, weights_fpath, **kwargs):
+def test_data2(model, X_test, y_test):
     """
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.test import *  # NOQA
     """
 
-    ######################################################################################
-
-    print('[model] loading pretrained weights from %s' % (weights_fpath))
-    pretrained_weights = None
-    with open(weights_fpath, 'rb') as pfile:
-        kwargs = pickle.load(pfile)
-        pretrained_weights = kwargs['best_weights']
-
-    # Build and print the model
-    print('\n[model] building model...')
-    #input_cases, input_height, input_width, input_channels = kwargs.get('model_shape', None)  # SHOULD ERROR IF NOT SET
-    input_cases, input_height, input_width, input_channels = kwargs['model_shape']  # SHOULD ERROR IF NOT SET
-    output_layer = model.build_model(
-        kwargs.get('batch_size'), input_width, input_height,
-        input_channels, kwargs.get('output_dims'))
-    net_strs.print_layer_info(output_layer)
-
-    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
-    # Set weights to model
-    if pretrained_weights is not None:
-        layers.set_all_param_values(output_layer, pretrained_weights)
-
-    print('test kwargs = \n' + (ut.dict_str(kwargs, truncate=True)))
+    print('\n[train] --- MODEL INFO ---')
+    model.print_architecture_str()
+    model.print_layer_info()
 
     # Create the Theano primitives
-    theano_funcs = model.build_theano_funcs(request_backprop=False, request_predict=True)
+    # create theano symbolic expressions that define the network
+    print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
+    print('[model] creating Theano primitives...')
+    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
     theano_backprop, theano_forward, theano_predict = theano_funcs
 
     # Begin testing with the neural network
-    print('\n[test] starting testing with batch size %0.1f' % (kwargs.get('batch_size'), ))
+    print('\n[test] starting testing with batch size %0.1f' % (model.batch_size))
 
+    batchiter_kw = dict(
+        showprog=True,
+        time_thresh=10,
+    )
+
+    #X_test = X_test[0:259]
     # Start timer
-
-    with ut.Timer('predicting'):
-        pred_list, label_list, conf_list, prob_list = batch.process_predictions(
-            X_test, theano_predict, model=model, showprog=True, **kwargs)
-    return pred_list, label_list, conf_list, prob_list
+    test_outputs = batch.process_batch(model, X_test, None, theano_predict, **batchiter_kw)
+    return test_outputs

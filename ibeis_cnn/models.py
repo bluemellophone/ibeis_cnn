@@ -52,7 +52,6 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         # 2*N images in a batch and N labels that map to
         # two images a piece
         model.data_per_label = 2
-        model.needs_padding = False
         if autoinit:
             model.initialize_architecture()
 
@@ -141,7 +140,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         _P = functools.partial
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog_kw = dict(W=init.Orthogonal())
-        neuron_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
 
         network_layers_def = (
             [
@@ -152,18 +151,18 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
                 #layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 #lasange_ext.freeze_params,
-                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=96, filter_size=(3, 3), name='C1', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=96, filter_size=(3, 3), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **neuron_initkw),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C3', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C3', **hidden_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=768, name='F1',  **neuron_initkw),
+                _P(layers.DenseLayer, num_units=768, name='F1',  **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5),
-                _P(layers.DenseLayer, num_units=1, name='F2', **neuron_initkw),
+                _P(layers.DenseLayer, num_units=1, name='F2', **hidden_initkw),
             ]
         )
         return network_layers_def
@@ -187,13 +186,13 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
 
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog_kw = dict(W=init.Orthogonal())
-        neuron_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
         if not kwargs.get('fresh_model', False):
             # FIXME: figure out better way of encoding that Orthogonal
             # Initialization doesnt need to happen. Or do initialization of
             # weights after the network has been built.
             # don't do fancy initializating unless training from scratch
-            del neuron_initkw['W']
+            del hidden_initkw['W']
 
         network_layers_def = (
             [
@@ -203,17 +202,17 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
 
                 layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
-                _P(Conv2DLayer, num_filters=96, filter_size=(4, 4), name='C0', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=96, filter_size=(4, 4), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **neuron_initkw),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **neuron_initkw),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-                _P(layers.DenseLayer, num_units=512, name='F1',  **neuron_initkw),
+                _P(layers.DenseLayer, num_units=512, name='F1',  **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5),
-                _P(layers.DenseLayer, num_units=1, name='F2', **neuron_initkw),
+                _P(layers.DenseLayer, num_units=1, name='F2', **hidden_initkw),
             ]
         )
         #raise NotImplementedError('The 2-channel part is not yet implemented')
@@ -305,16 +304,6 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         model.output_layer = output_layer
         return output_layer
 
-    def reinit_weights(model, W=init.Orthogonal()):
-        """
-        initailizes weights after the architecture has been defined.
-        """
-        weights_list = lasagne.layers.get_all_params(model.output_layer, regularizable=True, trainable=True)
-        for weights in weights_list:
-            shape = weights.get_value().shape
-            new_values = W.sample(shape)
-            weights.set_value(new_values)
-
     def loss_function(model, network_output, Y, T=T, verbose=True):
         """
 
@@ -352,6 +341,51 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         avg_loss.name = 'avg_loss'
         return avg_loss
 
+    def learn_encoder(model, scores, labels):
+        """
+        Ignore:
+            scores = np.array([ -4.84478734e-02,  -8.03711891e-01,
+                -1.71556115e+00, -1.28013051e+00,  -2.41564944e-01,  -1.55335450e+00,
+                2.22851944e+01,  -3.40442210e-01,   1.05123577e+01, -6.63662374e-01,
+                -4.32385027e-01,   2.24306011e+01, -1.54293704e+00,   1.85957890e+01,
+                -1.35197163e+00, -1.12233353e+00,  -8.02797675e-02,   1.29864693e+01,
+                7.53257704e+00,  -1.61929798e+00,  -1.84785068e+00, -6.82370603e-01,
+                -1.43809414e+00,  -1.87730587e+00, 8.46333885e+00,  -8.85956407e-01,
+                -1.81989300e+00, 1.01771545e+01,   5.67635965e+00,  -1.31687367e+00,
+                -1.53751099e+00,  -1.94870377e+00,  -2.23792672e+00, 7.28253126e+00,
+                5.13839293e+00,  -2.10990563e-01, -6.48893356e-01,   2.68981018e+01,
+                -7.12943614e-01, 6.81060076e+00,   7.25014544e+00,  -4.34370488e-01,
+                -1.65016448e+00,  -2.07774162e+00,   8.14857292e+00, -1.11546910e+00,
+                -1.43292630e+00,   4.51150465e+00, 2.10417557e+00,  -1.13995469e+00,
+                -2.48406386e+00, -8.18589747e-01,  -1.46702492e+00,   1.05021267e+01,
+                4.21967649e+00,  -2.98667001e-04,  -1.12431061e+00, -1.41546834e+00,
+                1.60706091e+00,  -1.01541436e+00, -1.72732067e+00,  -2.75193596e+00,
+                2.29057980e+01, -1.49098313e+00], dtype=np.float32)
+
+            labels = np.array([ True,  True,  True,  True, False,  True, False,  True, False,
+                   False,  True, False,  True, False,  True,  True, False, False,
+                   False,  True,  True,  True,  True,  True, False,  True,  True,
+                   False, False,  True,  True,  True,  True, False, False, False,
+                   False, False,  True, False, False,  True,  True,  True, False,
+                    True,  True, False, False,  True,  True, False,  True, False,
+                   False, False,  True,  True, False,  True,  True,  True, False,  True], dtype=np.bool)
+
+        """
+        tp_support = scores[labels.astype(np.bool)].astype(np.float64)
+        tn_support = scores[~(labels.astype(np.bool))].astype(np.float64)
+        multiplier = 1.0
+        if tp_support.mean() < tn_support.mean():
+            multiplier = -1.0
+        import vtool as vt
+        normkw_varydict = {
+            'monotonize': [False],  # [True, False],
+            #'adjust': [1, 4, 8],
+            'adjust': [1],
+            #'adjust': [8],
+        }
+        vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
+        vt.learn_score_normalization(tp_support, tn_support)
+
     #def build_objective(self):
     #    pass
 
@@ -379,36 +413,40 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
     def get_mnist_model_def1(model, input_shape, output_dims):
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        orthog = dict(W=init.Orthogonal())
-        neuron_initkw = ut.merge_dicts(orthog, leaky)
+        #orthog = dict(W=init.Orthogonal())
+        weight_initkw = dict()
+        output_initkw = weight_initkw
+        hidden_initkw = ut.merge_dicts(weight_initkw, leaky)
 
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=input_shape),
                 layers.GaussianNoiseLayer,
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.1),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **neuron_initkw),
+                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
 
-                _P(layers.DenseLayer, num_units=256, name='F1',  **neuron_initkw),
+                _P(layers.DenseLayer, num_units=256, name='F1',  **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),  # maxout
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(layers.DenseLayer, num_units=output_dims, nonlinearity=nonlinearities.softmax, W=init.Orthogonal())
+                _P(layers.DenseLayer, num_units=output_dims,
+                   nonlinearity=nonlinearities.softmax, **output_initkw)
             ]
         )
         return network_layers_def
 
-    def get_mnist_model_def2(model, input_shape, output_dims):
+    def get_mnist_model_def_failure(model, input_shape, output_dims):
+        # causes failure in building model
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog = dict(W=init.Orthogonal())
-        neuron_initkw = ut.merge_dicts(orthog, leaky)
-        initkw = neuron_initkw
+        hidden_initkw = ut.merge_dicts(orthog, leaky)
+        initkw = hidden_initkw
         #initkw = {}
 
         # def to test failures
@@ -432,13 +470,13 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         )
         return network_layers_def
 
-    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
-        input_shape = (None, input_channels, input_width, input_height)
+    def initialize_architecture(self):
+        input_shape = self.input_shape
+        output_dims = self.output_dims
         network_layers_def = self.get_mnist_model_def1(input_shape, output_dims)
         network_layers = abstract_models.evaluate_layer_list(network_layers_def)
-        l_out = network_layers[-1]
-        self.output_layer = l_out
-        return l_out
+        self.output_layer = network_layers[-1]
+        return self.output_layer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
