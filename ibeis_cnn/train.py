@@ -98,18 +98,21 @@ def train_patchmatch_pz():
         #model.draw_convolutional_layers()
         #ut.show_if_requested()
 
+    learning_state = dict(
+        momentum=.9,
+        regularization=0.0005,
+        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
+    )
+
     config = dict(
         patience=100,
         equal_batch_sizes=True,
         batch_size=batch_size,
-        learning_rate=ut.get_argval('--learning_rate', type_=float, default=.001),
         show_confusion=False,
         requested_headers=['epoch', 'train_loss', 'valid_loss', 'trainval_rat', 'duration'],
         run_test=None,
         show_features=False,
         print_timing=False,
-        momentum=.9,
-        regularization=0.0005,
     )
     weights_fpath = join(training_dpath, 'ibeis_cnn_weights.pickle')
 
@@ -167,7 +170,6 @@ def train_patchmatch_liberty():
         momentum=.9,
         regularization=0.0005,
     )
-    return
 
     #ut.embed()
     if ut.get_argflag('--test'):

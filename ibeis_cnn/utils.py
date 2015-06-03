@@ -694,12 +694,6 @@ def shock_network(output_layer, voltage=0.10):
     print('[model] ...shocked')
 
 
-def set_learning_rate(learning_rate_theano, update):
-    new_learning_rate_theano = update(learning_rate_theano.get_value())
-    learning_rate_theano.set_value(float32(new_learning_rate_theano))
-    print('\n[train] setting learning rate to %.9f' % (new_learning_rate_theano))
-
-
 def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice(None)):
     """
     Used to save a slice of pretrained weights. The doctest will publish a new set of weights
