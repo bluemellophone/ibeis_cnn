@@ -267,5 +267,5 @@ def test_data2(model, X_test, y_test):
 
     #X_test = X_test[0:259]
     # Start timer
-    test_outputs = batch.process_batch(model, X_test, None, theano_predict, **batchiter_kw)
+    test_outputs = batch.process_batch(model, X_test, None, theano_predict, fix_output=True, **batchiter_kw)
     return test_outputs

@@ -35,6 +35,7 @@ from ibeis_cnn import utils
 from ibeis_cnn import models
 from ibeis_cnn import ingest_data
 from ibeis_cnn import harness
+from ibeis_cnn import experiments
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
@@ -43,7 +44,7 @@ def train_patchmatch_pz():
     r"""
 
     CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --show
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --show --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
 
@@ -102,9 +103,15 @@ def train_patchmatch_pz():
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         harness.train(model, X_train, y_train, X_valid, y_valid, config)
     elif ut.get_argflag('--test'):
-        assert model.best_results['epoch'] is not None
+        #assert model.best_results['epoch'] is not None
         X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        harness.test(model, X_test, y_test, **config)
+        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+        dataname = 'PZ'
+        experiments.test_siamese_performance(model, data, labels, dataname)
+        #test_outputs = harness.test_data2(model, X_test, y_test)
+        #network_output = test_outputs['network_output']
+        #scores = network_output.T[0]
+        #harness.test(model, X_test, y_test, **config)
     else:
         raise NotImplementedError('nothing here. need to train or test')
 
@@ -159,23 +166,13 @@ def train_patchmatch_liberty():
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         harness.train(model, X_train, y_train, X_valid, y_valid, config)
     elif ut.get_argflag('--test'):
-        from ibeis_cnn import experiments
 
         X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        X_test, y_test = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
 
-        # TEST SIFT DISTANCE
-        #experiments.test_sift_patchmatch(X_test, y_test)
-        # TEST CNN DISTANCE
-        test_outputs = harness.test_data2(model, X_test, y_test)
-        #ut.embed()
-        network_output = test_outputs['network_output']
-        labels = y_test
-        scores = network_output.T[0][0:len(y_test)]
+        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+        dataname = 'liberty'
+        experiments.test_siamese_performance(model, data, labels, dataname)
 
-        experiments.test_siamese_thresholds(network_output, y_test, figtitle='CNN descriptor distances')
-
-        model.learn_encoder(scores, y_test)
     else:
         raise NotImplementedError('nothing here. need to train or test')
 

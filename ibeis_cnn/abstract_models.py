@@ -183,6 +183,9 @@ class BaseModel(object):
         assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
         # Just set the weights, no other training state variables
         model.set_all_param_values(model_state['best_weights'])
+        # also need to make sure the same preprocessing is used
+        # TODO make this a layer?
+        model.preproc_kw = model_state['preproc_kw']
 
     def load_old_weights_kw(model, old_weights_fpath):
         with open(old_weights_fpath, 'rb') as pfile:

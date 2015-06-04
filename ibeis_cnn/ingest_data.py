@@ -169,6 +169,16 @@ def testdata_patchmatch():
     return data, labels
 
 
+def testdata_patchmatch2():
+    """
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+    """
+    pathtup = get_patchmetric_training_fpaths(max_examples=5)
+    data_fpath, labels_fpath, training_dpath, data_shape = pathtup
+    data, labels = utils.load(data_fpath, labels_fpath)
+    return data, labels
+
+
 def ondisk_data_split(model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]):
     """
     splits into train / validation datasets on disk
@@ -179,7 +189,6 @@ def ondisk_data_split(model, data_fpath, labels_fpath, split_names=['train', 'va
     """
     from os.path import dirname, join, exists, basename
     assert len(split_names) == len(fraction_list) + 1, 'must have one less fraction then split names'
-    model.data_per_label
     USE_FILE_UUIDS = False
     if USE_FILE_UUIDS:
         # Get uuid based on the data, so different data makes different validation paths
@@ -226,6 +235,9 @@ def ondisk_data_split(model, data_fpath, labels_fpath, split_names=['train', 'va
 
     data_fpath_dict = dict(zip(split_names, split_data_fpaths))
     label_fpath_dict = dict(zip(split_names, split_labels_fpaths))
+
+    label_fpath_dict['all'] = labels_fpath
+    data_fpath_dict['all'] = data_fpath
     return data_fpath_dict, label_fpath_dict
 
 

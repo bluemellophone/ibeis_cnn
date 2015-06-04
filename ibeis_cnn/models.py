@@ -341,127 +341,13 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         avg_loss.name = 'avg_loss'
         return avg_loss
 
-    def learn_encoder(model, scores, labels):
-        """
-        Ignore:
-            import numpy as np
-            scores = np.array([ -4.84478734e-02,  -8.03711891e-01,
-                -1.71556115e+00, -1.28013051e+00,  -2.41564944e-01,  -1.55335450e+00,
-                2.22851944e+01,  -3.40442210e-01,   1.05123577e+01, -6.63662374e-01,
-                -4.32385027e-01,   2.24306011e+01, -1.54293704e+00,   1.85957890e+01,
-                -1.35197163e+00, -1.12233353e+00,  -8.02797675e-02,   1.29864693e+01,
-                7.53257704e+00,  -1.61929798e+00,  -1.84785068e+00, -6.82370603e-01,
-                -1.43809414e+00,  -1.87730587e+00, 8.46333885e+00,  -8.85956407e-01,
-                -1.81989300e+00, 1.01771545e+01,   5.67635965e+00,  -1.31687367e+00,
-                -1.53751099e+00,  -1.94870377e+00,  -2.23792672e+00, 7.28253126e+00,
-                5.13839293e+00,  -2.10990563e-01, -6.48893356e-01,   2.68981018e+01,
-                -7.12943614e-01, 6.81060076e+00,   7.25014544e+00,  -4.34370488e-01,
-                -1.65016448e+00,  -2.07774162e+00,   8.14857292e+00, -1.11546910e+00,
-                -1.43292630e+00,   4.51150465e+00, 2.10417557e+00,  -1.13995469e+00,
-                -2.48406386e+00, -8.18589747e-01,  -1.46702492e+00,   1.05021267e+01,
-                4.21967649e+00,  -2.98667001e-04,  -1.12431061e+00, -1.41546834e+00,
-                1.60706091e+00,  -1.01541436e+00, -1.72732067e+00,  -2.75193596e+00,
-                2.29057980e+01, -1.49098313e+00], dtype=np.float32)
-
-            labels = np.array([ True,  True,  True,  True, False,  True, False,  True, False,
-                   False,  True, False,  True, False,  True,  True, False, False,
-                   False,  True,  True,  True,  True,  True, False,  True,  True,
-                   False, False,  True,  True,  True,  True, False, False, False,
-                   False, False,  True, False, False,  True,  True,  True, False,
-                    True,  True, False, False,  True,  True, False,  True, False,
-                   False, False,  True,  True, False,  True,  True,  True, False,  True], dtype=np.bool)
-
-        """
-        tp_support = scores[labels.astype(np.bool)].astype(np.float64)
-        tn_support = scores[~(labels.astype(np.bool))].astype(np.float64)
-        multiplier = 1.0
-        if tp_support.mean() < tn_support.mean():
-            multiplier = -1.0
+    def learn_encoder(model, labels, scores, **kwargs):
         import vtool as vt
-        vt.rrrr()
-        normkw_varydict = {
-            'monotonize': [True, False],  # [True, False],
-            #'adjust': [1, 4, 8],
-            'adjust': [8],
-            'clip_factor': [None],
-            #'adjust': [8],
-        }
-        tp_support = tp_support * multiplier
-        tn_support = tn_support * multiplier
-        import plottool as pt
-        pt.rrrr()
-        vt.rrrr()
-        _ = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)  # NOQA
-        score_domain, p_tp_given_score, clip_score = vt.learn_score_normalization(tp_support, tn_support, monotonize=False, clip_factor=None, adjust=8)
-        probs = vt.normalize_scores(score_domain, p_tp_given_score, scores)
-
-        # select a cutoff threshold
-        import sklearn.metrics
-        fpr_curve, tpr_curve, thresholds = sklearn.metrics.roc_curve(labels, probs, pos_label=1)
-        # Select threshold that gives 95% recall (we should optimize this for a tradeoff)
-        index = np.where(tpr_curve > .95)[0][0]
-        learned_thresh = thresholds[index]
-
-        class BinaryEncoder(object):
-            def __init__(self, learned_thresh, score_domain, p_tp_given_score, multiplier):
-                self.learned_thresh = learned_thresh
-                self.score_domain = score_domain
-                self.p_tp_given_score = p_tp_given_score
-                self.multiplier = multiplier
-
-            def encode_scores(self, scores):
-                import vtool as vt
-                probs = vt.normalize_scores(score_domain, p_tp_given_score, scores * self.multiplier)
-                classifications = probs > self.learned_thresh
-                return classifications
-
-        encoder = BinaryEncoder(learned_thresh, score_domain, p_tp_given_score, multiplier)
-        classifications = encoder.encode_scores(scores)
-        is_correct = classifications == labels
-        accuracy = (is_correct).mean()
-        print('accuracy = %r' % (accuracy,))
-
-        incorrect = np.logical_not(is_correct)
-        hard_indiceis = np.where(incorrect)[0]
-        hard_labels = labels[incorrect]
-        hard_scores = scores[incorrect]
-
-        # find incorreclty labeld true positives and false positives
-        is_hard_tp = hard_labels
-        hard_fn_indicies = hard_indiceis[is_hard_tp]
-        hard_fn_scores = hard_scores[is_hard_tp]
-
-        is_hard_tn = np.logical_not(hard_labels)
-        hard_fp_indicies = hard_indiceis[is_hard_tn]
-        hard_fp_scores = hard_scores[is_hard_tn]
-
-        hard_fp_label_indicies = hard_fp_indicies[(hard_fp_scores * encoder.multiplier).argsort()]
-        hard_fn_label_indicies = hard_fn_indicies[(hard_fn_scores * encoder.multiplier).argsort()[::-1]]
-        hard_fn_data_indicies = utils.expand_data_indicies(hard_fn_indicies, model.data_per_label)
-        hard_fp_data_indicies = utils.expand_data_indicies(hard_fp_indicies, model.data_per_label)
-
-        hard_fn_scores = scores.take(hard_fn_label_indicies)
-        hard_fp_scores = scores.take(hard_fp_label_indicies)
-
-        hard_fn_X = X_test.take(hard_fn_data_indicies, axis=0)
-        hard_fn_y = y_test.take(hard_fn_label_indicies, axis=0)
-
-        hard_fp_X = X_test.take(hard_fp_data_indicies, axis=0)
-        hard_fp_y = y_test.take(hard_fp_label_indicies, axis=0)
-
-        from ibeis_cnn import draw_results
-        draw_results.rrr()
-        draw_results.interact_siamsese_data_patches(hard_fp_y, hard_fp_X, {'fs': hard_fp_scores}, rand=False, figtitle='FP')
-        draw_results.interact_siamsese_data_patches(hard_fn_y, hard_fn_X, {'fs': hard_fn_scores}, rand=False, figtitle='FN')
-
-        # TODO: look at the data belonging to these indiceis
-        # these are the problem case false negatives and false positives
-
-        #tp_support = probs[labels.astype(np.bool)].astype(np.float64)
-        #tn_support = probs[~(labels.astype(np.bool))].astype(np.float64)
-        #x = vt.test_score_normalization(tp_support, tn_support, normkw_varydict=normkw_varydict)
-
-        #confusions = vt.get_confusion_metrics(probs, labels)
+        encoder = vt.ScoreNormalizer(**kwargs)
+        encoder.fit(scores, labels)
+        print('[model] learned encoder accuracy = %r' % (encoder.get_accuracy(scores, labels)))
+        model.encoder = encoder
+        return encoder
 
     #def build_objective(self):
     #    pass

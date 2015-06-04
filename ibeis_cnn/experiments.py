@@ -1,10 +1,94 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
+from ibeis_cnn import draw_results
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.experiments]')
 
 
-def test_sift_patchmatch(data, labels):
+def test_siamese_performance(model, data, labels, dataname=''):
+    """
+    python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
+    python -m ibeis_cnn.train --test-train_patchmatch_pz --show --test
+    """
+    import vtool as vt
+    from ibeis_cnn import harness
+
+    # Compute each type of score
+    test_outputs = harness.test_data2(model, data, labels)
+    cnn_scores = test_outputs['network_output'].T[0]
+    sift_scores = test_sift_patchmatch_scores(data, labels)
+
+    # Learn encoders
+    cnn_encoder = vt.ScoreNormalizer()
+    cnn_encoder.fit(cnn_scores, labels)
+
+    sift_encoder = vt.ScoreNormalizer()
+    sift_encoder.fit(sift_scores, labels)
+
+    # Visualize
+    inter_cnn = cnn_encoder.visualize(figtitle=dataname + ' CNN scores. #data=' + str(len(data)), fnum=1)
+    inter_sift = sift_encoder.visualize(figtitle=dataname + ' SIFT scores. #data=' + str(len(data)), fnum=2)
+
+    # Save
+    import plottool as pt
+    pt.save_figure(fig=inter_cnn.fig)
+    pt.save_figure(fig=inter_sift.fig)
+
+    # Save out examples of hard errors
+    cnn_fp_label_indicies, cnn_fn_label_indicies = cnn_encoder.get_error_indicies(cnn_scores, labels)
+    sift_fp_label_indicies, sift_fn_label_indicies = sift_encoder.get_error_indicies(sift_scores, labels)
+
+    warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
+    cnn_fp_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': cnn_scores}, cnn_fp_label_indicies)[0]
+    cnn_fn_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': cnn_scores}, cnn_fn_label_indicies)[0]
+    sift_fp_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': sift_scores}, sift_fp_label_indicies)[0]
+    sift_fn_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': sift_scores}, sift_fn_label_indicies)[0]
+
+    #if ut.show_was_requested():
+    fig, ax = pt.imshow(cnn_fp_img, figtitle=dataname + '_' + 'cnn_fp_img', fnum=3)
+    pt.save_figure(fig=fig)
+    fig, ax = pt.imshow(cnn_fn_img, figtitle=dataname + '_' + 'cnn_fn_img', fnum=4)
+    pt.save_figure(fig=fig)
+    fig, ax = pt.imshow(sift_fp_img, figtitle=dataname + '_' + 'sift_fp_img', fnum=5)
+    pt.save_figure(fig=fig)
+    fig, ax = pt.imshow(sift_fn_img, figtitle=dataname + '_' + 'sift_fn_img', fnum=6)
+    pt.save_figure(fig=fig)
+    #def rectify(arr):
+    #    return np.flipud(arr)
+    #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', rectify(cnn_fp_img))
+    #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', rectify(cnn_fn_img))
+    #vt.imwrite(dataname + '_' + 'sift_fp_img.png', rectify(sift_fp_img))
+    #vt.imwrite(dataname + '_' + 'sift_fn_img.png', rectify(sift_fn_img))
+
+
+def show_hard_cases(model, data, labels, scores):
+    from ibeis_cnn import utils
+    encoder = model.learn_encoder(labels, scores)
+    encoder.visualize()
+
+    #x = encoder.inverse_normalize(np.cast['float32'](encoder.learned_thresh))
+    #encoder.normalize_scores(x)
+    #encoder.inverse_normalize(np.cast['float32'](encoder.learned_thresh))
+
+    fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores, labels)
+    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies, model.data_per_label)
+    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies, model.data_per_label)
+
+    fn_data   = data.take(fn_data_indicies, axis=0)
+    fn_labels = labels.take(fn_label_indicies, axis=0)
+    fn_scores = scores.take(fn_label_indicies, axis=0)
+
+    fp_data   = data.take(fp_data_indicies, axis=0)
+    fp_labels = labels.take(fp_label_indicies, axis=0)
+    fp_scores = scores.take(fp_label_indicies, axis=0)
+
+    from ibeis_cnn import draw_results
+    draw_results.rrr()
+    draw_results.interact_siamsese_data_patches(fn_labels, fn_data, {'fs': fn_scores}, figtitle='FN')
+    draw_results.interact_siamsese_data_patches(fp_labels, fp_data, {'fs': fp_scores}, figtitle='FP')
+
+
+def test_sift_patchmatch_scores(data, labels):
     """
     data = X_test
     labels = y_test
@@ -16,7 +100,10 @@ def test_sift_patchmatch(data, labels):
     vecs_list = pyhesaff.extract_desc_from_patches(data)
     sqrddist = ((vecs_list[::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T
-    test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
+    VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
+    sift_scores = sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD
+    return sift_scores
+    #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
 
 
 def test_siamese_thresholds(network_output, y_test, **kwargs):

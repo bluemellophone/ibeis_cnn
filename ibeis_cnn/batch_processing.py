@@ -16,6 +16,92 @@ VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERB
 VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or ut.VERYVERBOSE
 
 
+def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
+    """
+    compute the loss over all training batches
+
+    CommandLine:
+        python -m ibeis_cnn.batch_processing --test-process_batch --verbose
+        python -m ibeis_cnn.batch_processing --test-process_batch:0 --verbose
+        python -m ibeis_cnn.batch_processing --test-process_batch:1 --verbose
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.DummyModel(batch_size=128)
+        >>> X, y = model.make_random_testdata(num=2000, seed=None)
+        >>> model.initialize_architecture()
+        >>> theano_funcs = model.build_theano_funcs(request_predict=True)
+        >>> theano_fn = theano_funcs[1]
+        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'rand': True}
+        >>> outputs_ = process_batch(model, X_train, y_train, theano_fn, **kwargs)
+        >>> result = ut.dict_str(outputs_)
+        >>> print(result)
+
+    Ignore:
+        Xb, yb = batch_iter.next()
+        assert Xb.shape == (8, 1, 4, 4)
+        yb.shape == (8,)
+    """
+    batch_output_list = []
+    output_names = [
+        str(outexpr.variable) if outexpr.variable.name is None else outexpr.variable.name
+        for outexpr in theano_fn.outputs
+    ]
+    batch_target_list = []  # augmented label list
+    show = False
+
+    # Break data into generated batches
+    # generated data unbuffered iteration
+    batch_iter = batch_iterator(model, X, y, lbl=theano_fn.name, **kwargs)
+    if y is None:
+        # Labels are not known, only one argument
+        #for Xb, yb in batch_iter:
+        #    batch_output = theano_fn(Xb)
+        #    batch_output_list.append(batch_output)
+        batch_output_list = [theano_fn(Xb) for Xb, yb in batch_iter]
+    else:
+        # TODO: buffered batches
+        for Xb, yb in batch_iter:
+            # Runs a batch through the network and updates the weights. Just
+            # returns what it did
+            batch_output = theano_fn(Xb, yb)
+            batch_output_list.append(batch_output)
+            batch_target_list.append(yb)
+
+            if show:
+                # Print the network output for the first batch
+                print('--------------')
+                print(ut.list_str(zip(output_names, batch_output)))
+                print('Correct: ', yb)
+                print('--------------')
+                show = False
+
+    # get outputs of each type
+    unstacked_output_gen = ([bop[count] for bop in batch_output_list]
+                            for count, name in enumerate(output_names))
+    stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
+                            for _output_unstacked in unstacked_output_gen]
+
+    outputs_ = dict(zip(output_names, stacked_output_list))
+
+    if y  is not None:
+        auglbl_list = np.hstack(batch_target_list)
+        outputs_['auglbl_list'] = auglbl_list
+
+    if fix_output:
+        # batch iteration may wrap-around returned data. slice of the padding
+        num_inputs = X.shape[0] / model.data_per_label
+        import six
+        for key in six.iterkeys(outputs_):
+            outputs_[key] = outputs_[key][0:num_inputs]
+
+    if hasattr(model, 'encoder') and 'predictions' in outputs_:
+        outputs_['labeled_predictions'] = model.encoder.inverse_transform(outputs_['predictions'])
+    return outputs_
+
+
 @profile
 def batch_iterator(model, X, y, rand=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
@@ -61,23 +147,23 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         print('[batchiter] num_batches = %r' % (num_batches,))
 
     batch_index_iter = range(num_batches)
-    # FIXME
+    # FIXME: put in a layer?
     center_mean = None
     center_std  = None
     if model.preproc_kw is not None:
         center_std  = model.preproc_kw['center_std']
         center_mean = model.preproc_kw['center_mean']
+    do_whitening = center_mean is not None and center_std is not None and center_std != 0.0
 
     # need to be careful with batchsizes if directly specified to theano
     equal_batch_sizes = model.input_shape[0] is not None
+    augment_on = augment_on and hasattr(model, 'augment')
 
     if showprog:
         batch_index_iter = ut.ProgressIter(batch_index_iter,
                                            nTotal=num_batches, lbl=lbl,
                                            time_thresh=time_thresh)
 
-    augment_on = augment_on and hasattr(model, 'augment')
-    do_whitening = center_mean is not None and center_std is not None and center_std != 0.0
     for batch_index in batch_index_iter:
         # Get batch slice
         Xb, yb = utils.slice_data_labels(
@@ -125,80 +211,6 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         yield Xb, yb
     if verbose:
         print('[batchiter] END')
-
-
-def process_batch(model, X, y, theano_fn, **kwargs):
-    """
-    compute the loss over all training batches
-
-    CommandLine:
-        python -m ibeis_cnn.batch_processing --test-process_batch --verbose
-        python -m ibeis_cnn.batch_processing --test-process_batch:0 --verbose
-        python -m ibeis_cnn.batch_processing --test-process_batch:1 --verbose
-
-    Example0:
-        >>> # ENABLE_DOCTEST
-        >>> from ibeis_cnn.batch_processing import *  # NOQA
-        >>> from ibeis_cnn import models
-        >>> model = models.DummyModel(batch_size=128)
-        >>> X, y = model.make_random_testdata(num=2000, seed=None)
-        >>> model.initialize_architecture()
-        >>> theano_funcs = model.build_theano_funcs(request_predict=True)
-        >>> theano_fn = theano_funcs[1]
-        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'rand': True}
-        >>> outputs_ = process_batch(model, X_train, y_train, theano_fn, **kwargs)
-        >>> result = ut.dict_str(outputs_)
-        >>> print(result)
-
-    Ignore:
-        Xb, yb = batch_iter.next()
-        assert Xb.shape == (8, 1, 4, 4)
-        yb.shape == (8,)
-    """
-    batch_output_list = []
-    output_names = [
-        str(outexpr.variable) if outexpr.variable.name is None else outexpr.variable.name
-        for outexpr in theano_fn.outputs
-    ]
-    batch_target_list = []  # augmented label list
-    show = False
-
-    # generated data unbuffered iteration
-    batch_iter = batch_iterator(model, X, y, lbl=theano_fn.name, **kwargs)
-    if y is None:
-        # Labels are not known, only one argument
-        batch_output_list = [theano_fn(Xb) for Xb, yb in batch_iter]
-    else:
-        # TODO: buffered batches
-        for Xb, yb in batch_iter:
-            # Runs a batch through the network and updates the weights. Just
-            # returns what it did
-            batch_output = theano_fn(Xb, yb)
-            batch_target_list.append(yb)
-            batch_output_list.append(batch_output)
-
-            if show:
-                # Print the network output for the first batch
-                print('--------------')
-                print(ut.list_str(zip(output_names, batch_output)))
-                print('Correct: ', yb)
-                print('--------------')
-                show = False
-
-    # get outputs of each type
-    unstacked_output_gen = ([bop[count] for bop in batch_output_list]
-                            for count, name in enumerate(output_names))
-    stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
-                            for _output_unstacked in unstacked_output_gen]
-    outputs_ = dict(zip(output_names, stacked_output_list))
-
-    if y  is not None:
-        auglbl_list = np.hstack(batch_target_list)
-        outputs_['auglbl_list'] = auglbl_list
-
-    if hasattr(model, 'encoder') and 'predictions' in outputs_:
-        outputs_['labeled_predictions'] = model.encoder.inverse_transform(outputs_['predictions'])
-    return outputs_
 
 
 def build_theano_funcs(model,
