@@ -302,7 +302,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
         def estimate_data_bytes():
             data_per_label = 2
             num_data = sum(list(map(len, fm_list)))
-            item_shape = (3, pmcfg.patch_size, pmcfg.patch_size)
+            item_shape = pmcfg.get_data_shape()
             dtype_bytes = 1
             estimated_bytes = np.prod(item_shape) * num_data * data_per_label * dtype_bytes
             print('Estimated data size: ' + ut.byte_str2(estimated_bytes))
