@@ -107,7 +107,7 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
                    veryverbose=VERYVERBOSE_BATCH, showprog=ut.VERBOSE,
                    lbl='verbose unbuffered batch iteration',
-                   time_thresh=10):
+                   time_thresh=10, time_thresh_growth=1.0):
     r"""
     CommandLine:
         python -m ibeis_cnn.batch_processing --test-batch_iterator
@@ -162,7 +162,8 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
     if showprog:
         batch_index_iter = ut.ProgressIter(batch_index_iter,
                                            nTotal=num_batches, lbl=lbl,
-                                           time_thresh=time_thresh)
+                                           time_thresh=time_thresh,
+                                           time_thresh_growth=time_thresh_growth)
 
     for batch_index in batch_index_iter:
         # Get batch slice

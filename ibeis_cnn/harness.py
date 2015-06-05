@@ -90,8 +90,10 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
     utils.print_header_columns(printcol_info)
 
     batchiter_kw = dict(
-        showprog=False,
-        time_thresh=10,
+        #showprog=False,
+        showprog=True,
+        time_thresh=3,
+        time_thresh_growth=ut.PHI,
     )
 
     tt = ut.Timer(verbose=False)

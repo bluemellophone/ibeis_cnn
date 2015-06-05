@@ -13,6 +13,8 @@ def test_siamese_performance(model, data, labels, dataname=''):
     import vtool as vt
     from ibeis_cnn import harness
 
+    # TODO: save in model.trainind_dpath/diagnostics/figures
+
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
     cnn_scores = test_outputs['network_output'].T[0]
@@ -45,6 +47,9 @@ def test_siamese_performance(model, data, labels, dataname=''):
     sift_fn_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': sift_scores}, sift_fn_label_indicies)[0]
 
     #if ut.show_was_requested():
+    #def rectify(arr):
+    #    return np.flipud(arr)
+    # TODO: higher dpi and figsize
     fig, ax = pt.imshow(cnn_fp_img, figtitle=dataname + '_' + 'cnn_fp_img', fnum=3)
     pt.save_figure(fig=fig)
     fig, ax = pt.imshow(cnn_fn_img, figtitle=dataname + '_' + 'cnn_fn_img', fnum=4)
@@ -53,12 +58,10 @@ def test_siamese_performance(model, data, labels, dataname=''):
     pt.save_figure(fig=fig)
     fig, ax = pt.imshow(sift_fn_img, figtitle=dataname + '_' + 'sift_fn_img', fnum=6)
     pt.save_figure(fig=fig)
-    #def rectify(arr):
-    #    return np.flipud(arr)
-    #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', rectify(cnn_fp_img))
-    #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', rectify(cnn_fn_img))
-    #vt.imwrite(dataname + '_' + 'sift_fp_img.png', rectify(sift_fp_img))
-    #vt.imwrite(dataname + '_' + 'sift_fn_img.png', rectify(sift_fn_img))
+    #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', (cnn_fp_img))
+    #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', (cnn_fn_img))
+    #vt.imwrite(dataname + '_' + 'sift_fp_img.png', (sift_fp_img))
+    #vt.imwrite(dataname + '_' + 'sift_fn_img.png', (sift_fn_img))
 
 
 def show_hard_cases(model, data, labels, scores):

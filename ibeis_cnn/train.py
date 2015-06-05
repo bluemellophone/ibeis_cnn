@@ -45,6 +45,7 @@ def train_patchmatch_pz():
 
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz --show --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --train
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
 
@@ -52,12 +53,17 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=20
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --train
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test
+
+
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
         >>> from ibeis_cnn.harness import *  # NOQA
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> train_patchmatch_pz()
+        >>> ut.show_if_requested()
 
     Ignore:
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/ibeis_cnn_weights.pickle'
