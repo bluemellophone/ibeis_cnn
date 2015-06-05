@@ -41,7 +41,7 @@ def sample_train_valid_test(model, data, labels):
 # ---------------
 
 @profile
-def train(model, X_train, y_train, X_valid, y_valid, config):
+def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     r"""
     CommandLine:
         python -m ibeis_cnn.harness --test-train
@@ -88,6 +88,8 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
           (utils.get_current_time(), model.learning_rate))
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
+
+    model.start_new_era(X_train, y_train, trainset)
 
     batchiter_kw = dict(
         #showprog=False,
@@ -159,6 +161,15 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
             epoch_info['trainval_rat'] = epoch_info['train_loss'] / epoch_info['valid_loss']
 
             # ---------------------------------------
+            # Record this epoch in history
+            for key in epoch_info:
+                key_ = key + '_list'
+                if key_ not in model.current_era:
+                    model.current_era[key_] = []
+                model.current_era[key_].append(epoch_info[key])
+            #len(model.era_history)
+
+            # ---------------------------------------
             # Check how we are learning
             best_found = epoch_info['valid_loss'] < model.best_results['valid_loss']
             if best_found:
@@ -176,6 +187,7 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
             if save_after_best_countdown is not None:
                 if save_after_best_countdown == 0:
                     ## Callbacks on best found
+                    model.checkpoint_save_model_state()
                     model.save_model_state()
                     model.draw_convolutional_layers(epoch=epoch)
                     save_after_best_countdown = None
@@ -187,6 +199,7 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
                 epoch_marker = epoch
                 model.learning_rate = model.learning_rate_update(model.learning_rate)
                 utils.print_header_columns(printcol_info)
+                model.start_new_era(X_train, y_train, trainset)
 
             # Break on max epochs
             if max_epochs is not None and epoch >= max_epochs:
@@ -223,6 +236,7 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
                 utils.print_header_columns(printcol_info)
             elif resolution == 2:
                 # Save the weights of the network
+                model.checkpoint_save_model_state()
                 model.save_model_state()
             elif resolution == 3:
                 ut.view_directory(model.training_dpath)
@@ -238,6 +252,7 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
                 # Terminate the network training
                 raise
     # Save the best network
+    model.checkpoint_save_model_state()
     model.save_model_state()
 
 

@@ -60,6 +60,7 @@ def evaluate_layer_list(network_layers_def, verbose=None):
     return network_layers
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
 class BaseModel(object):
     """
     Abstract model providing functionality for all other models to derive from
@@ -77,6 +78,9 @@ class BaseModel(object):
         # two images a piece
         model.data_per_label = 1
         model.training_dpath = training_dpath  # TODO
+        # era=(group of epochs)
+        model.current_era = None
+        model.era_history = []
         # Training state
         model.requested_headers = ['train_loss', 'valid_loss', 'trainval_rat']
         model.preproc_kw   = None
@@ -100,13 +104,15 @@ class BaseModel(object):
 
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
-        if epoch is None:
-            # use best epoch if not specified
-            # (WARNING: Make sure the weights in the model are model.best_weights)
-            # they may be out of sync
-            epoch = model.best_results['epoch']
+        #if epoch is None:
+        #    # use best epoch if not specified
+        #    # (WARNING: Make sure the weights in the model are model.best_weights)
+        #    # they may be out of sync
+        #    epoch = model.best_results['epoch']
+        history_hashid = model.get_model_history_hashid()
         diagnostic_dpath = ut.ensuredir(ut.unixjoin(model.training_dpath, 'diagnostics'))
-        epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, 'epoch_%r' % (epoch,)))
+        #epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, 'epoch_%r' % (epoch,)))
+        epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, history_hashid))
         return epoch_dpath
 
     def initialize_architecture(model):
@@ -158,13 +164,27 @@ class BaseModel(object):
             model_state_fpath = fpath
         return model_state_fpath
 
+    def get_model_history_hashid(model):
+        era_history_hash = [ut.hashstr(repr(era), alphabet=ut.ALPHABET_27) for era in  model.era_history]
+        history_hashid = ut.hashstr_arr(era_history_hash, 'history', alphabet=ut.ALPHABET_27)
+        return history_hashid
+
+    def checkpoint_save_model_state(model):
+        checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'checkpoints'))
+        history_hashid = model.get_model_history_hashid()
+        dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
+        model.save_model_state(dpath=dpath)
+
     def save_model_state(model, **kwargs):
+        current_weights = model.get_all_param_values()
         model_state = {
             'best_results': model.best_results,
             'preproc_kw':   model.preproc_kw,
             'best_weights': model.best_weights,
+            'current_weights': current_weights,
             'input_shape':  model.input_shape,
             'output_dims':  model.output_dims,
+            'era_history':  model.era_history,
         }
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model state to: %s' % (model_state_fpath,))
@@ -187,6 +207,7 @@ class BaseModel(object):
         model.best_weights = model_state['best_weights']
         model.input_shape  = model_state['input_shape']
         model.output_dims  = model_state['output_dims']
+        model.era_history  = model_state.get('era_history', [None])
         model.set_all_param_values(model.best_weights)
 
     def load_extern_weights(model, **kwargs):
@@ -206,6 +227,7 @@ class BaseModel(object):
         # also need to make sure the same preprocessing is used
         # TODO make this a layer?
         model.preproc_kw = model_state['preproc_kw']
+        model.era_history = model_state['era_history']
 
     def load_old_weights_kw(model, old_weights_fpath):
         with open(old_weights_fpath, 'rb') as pfile:
@@ -246,6 +268,41 @@ class BaseModel(object):
         #batch_size = oldkw['batch_size']
 
     # --- utility
+
+    def historyfoohack(model, X_train, y_train, trainset):
+        #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
+        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
+        #
+        train_hashid =  trainset.alias_key + '_' + y_hashid
+        era_info = {
+            'train_hashid': train_hashid,
+            'valid_loss_list': [model.best_results['valid_loss']],
+            'train_loss_list': [model.best_results['train_loss']],
+            'epoch_list': [model.best_results['epoch']],
+            'learning_rate': [model.learning_rate],
+            'learning_state': [model.learning_state],
+        }
+        model.era_history = []
+        model.era_history.append(era_info)
+
+    def start_new_era(model, X_train, y_train, trainset):
+        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
+        train_hashid =  trainset.alias_key + '_' + y_hashid
+        era_info = {
+            'train_hashid': train_hashid,
+            'valid_loss_list': [],
+            'train_loss_list': [],
+            'epoch_list': [],
+            'learning_rate': [model.learning_rate],
+            'learning_state': [model.learning_state],
+        }
+        print('starting new era')
+        #if model.current_era is not None:
+        model.current_era = era_info
+        model.era_history.append(model.current_era)
+
+    def print_state_str(model, **kwargs):
+        print(model.get_state_str(**kwargs))
 
     def get_state_str(model, other_override_reprs={}):
         override_reprs = {

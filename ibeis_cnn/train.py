@@ -91,8 +91,8 @@ def train_patchmatch_pz():
 
     if True:
         # Use external state
-        #extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
-        extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
+        extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
+        #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
         model.load_extern_weights(dpath=extern_training_dpath)
     else:
         if model.has_saved_state():
@@ -103,7 +103,6 @@ def train_patchmatch_pz():
             extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
             model.load_extern_weights(dpath=extern_training_dpath)
 
-    #ut.embed()
     if ut.get_argflag('--train'):
         config = dict(
             patience=100,
@@ -111,12 +110,12 @@ def train_patchmatch_pz():
         X_train, y_train = trainset.load_subset('train')
         X_valid, y_valid = trainset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        harness.train(model, X_train, y_train, X_valid, y_valid, config)
+        harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
     elif ut.get_argflag('--test'):
         #assert model.best_results['epoch'] is not None
         X_test, y_test = trainset.load_subset('test')
-        #data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         data, labels = X_test, y_test
+        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
         #test_outputs = harness.test_data2(model, X_test, y_test)
@@ -133,7 +132,7 @@ def train_patchmatch_liberty():
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
-        python -m ibeis_cnn.train --test-train_patchmatch_liberty --test --vtd
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --test
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -169,7 +168,6 @@ def train_patchmatch_liberty():
         else:
             model.reinit_weights()
 
-    #ut.embed()
     if ut.get_argflag('--train'):
         config = dict(
             patience=100,
@@ -177,12 +175,12 @@ def train_patchmatch_liberty():
         X_train, y_train = trainset.load_subset('train')
         X_valid, y_valid = trainset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        harness.train(model, X_train, y_train, X_valid, y_valid, config)
+        harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
     elif ut.get_argflag('--test'):
 
         X_test, y_test = trainset.load_subset('test')
-        #data, labels = utils.random_test_train_sample(X_test, y_test, 2000, model.data_per_label)
         data, labels = X_test, y_test
+        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
 
@@ -234,12 +232,11 @@ def train_mnist():
         show_features=False,
         print_timing=False,
     )
-    # Split data into subsets
 
     X_train, y_train = trainset.load_subset('train')
     X_valid, y_valid = trainset.load_subset('valid')
     #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-    harness.train(model, X_train, y_train, X_valid, y_valid, config)
+    harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
 
 
 if __name__ == '__main__':

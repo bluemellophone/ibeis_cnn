@@ -16,6 +16,12 @@ def test_siamese_performance(model, data, labels, dataname=''):
     # TODO: save in model.trainind_dpath/diagnostics/figures
     epoch_dpath = model.get_epoch_diagnostic_dpath()
 
+    dataname += ' ' + model.get_model_history_hashid() + '\n'
+
+    history_text = ut.list_str(model.era_history, newlines=True)
+
+    ut.write_to(ut.unixjoin(epoch_dpath, 'era_history.txt'), history_text)
+
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
     cnn_scores = test_outputs['network_output'].T[0]
