@@ -93,7 +93,7 @@ def train(model, X_train, y_train, X_valid, y_valid, config):
         #showprog=False,
         showprog=True,
         time_thresh=3,
-        time_thresh_growth=ut.PHI,
+        time_thresh_growth=ut.PHI * 2,
     )
 
     tt = ut.Timer(verbose=False)

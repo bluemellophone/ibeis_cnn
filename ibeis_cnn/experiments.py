@@ -14,6 +14,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
     from ibeis_cnn import harness
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
+    epoch_dpath = model.get_epoch_diagnostic_dpath()
 
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
@@ -21,10 +22,13 @@ def test_siamese_performance(model, data, labels, dataname=''):
     sift_scores = test_sift_patchmatch_scores(data, labels)
 
     # Learn encoders
-    cnn_encoder = vt.ScoreNormalizer()
+    encoder_kw = {
+        'monotonize': False,
+    }
+    cnn_encoder = vt.ScoreNormalizer(**encoder_kw)
     cnn_encoder.fit(cnn_scores, labels)
 
-    sift_encoder = vt.ScoreNormalizer()
+    sift_encoder = vt.ScoreNormalizer(**encoder_kw)
     sift_encoder.fit(sift_scores, labels)
 
     # Visualize
@@ -33,35 +37,52 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Save
     import plottool as pt
-    pt.save_figure(fig=inter_cnn.fig)
-    pt.save_figure(fig=inter_sift.fig)
+    pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
+    pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
 
     # Save out examples of hard errors
     cnn_fp_label_indicies, cnn_fn_label_indicies = cnn_encoder.get_error_indicies(cnn_scores, labels)
     sift_fp_label_indicies, sift_fn_label_indicies = sift_encoder.get_error_indicies(sift_scores, labels)
 
     warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
-    cnn_fp_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': cnn_scores}, cnn_fp_label_indicies)[0]
-    cnn_fn_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': cnn_scores}, cnn_fn_label_indicies)[0]
-    sift_fp_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': sift_scores}, sift_fp_label_indicies)[0]
-    sift_fn_img = draw_results.get_patch_sample_img(warped_patch1_list, warped_patch2_list, labels, {'fs': sift_scores}, sift_fn_label_indicies)[0]
+    cnn_fp_img = draw_results.get_patch_sample_img(warped_patch1_list,
+                                                   warped_patch2_list, labels,
+                                                   {'fs': cnn_scores},
+                                                   cnn_fp_label_indicies)[0]
+    cnn_fn_img = draw_results.get_patch_sample_img(warped_patch1_list,
+                                                   warped_patch2_list, labels,
+                                                   {'fs': cnn_scores},
+                                                   cnn_fn_label_indicies)[0]
+    sift_fp_img = draw_results.get_patch_sample_img(warped_patch1_list,
+                                                    warped_patch2_list, labels,
+                                                    {'fs': sift_scores},
+                                                    sift_fp_label_indicies)[0]
+    sift_fn_img = draw_results.get_patch_sample_img(warped_patch1_list,
+                                                    warped_patch2_list, labels,
+                                                    {'fs': sift_scores},
+                                                    sift_fn_label_indicies)[0]
 
     #if ut.show_was_requested():
     #def rectify(arr):
     #    return np.flipud(arr)
     # TODO: higher dpi and figsize
     fig, ax = pt.imshow(cnn_fp_img, figtitle=dataname + '_' + 'cnn_fp_img', fnum=3)
-    pt.save_figure(fig=fig)
+    pt.save_figure(fig=fig, dpath=epoch_dpath)
     fig, ax = pt.imshow(cnn_fn_img, figtitle=dataname + '_' + 'cnn_fn_img', fnum=4)
-    pt.save_figure(fig=fig)
+    pt.save_figure(fig=fig, dpath=epoch_dpath)
     fig, ax = pt.imshow(sift_fp_img, figtitle=dataname + '_' + 'sift_fp_img', fnum=5)
-    pt.save_figure(fig=fig)
+    pt.save_figure(fig=fig, dpath=epoch_dpath)
     fig, ax = pt.imshow(sift_fn_img, figtitle=dataname + '_' + 'sift_fn_img', fnum=6)
-    pt.save_figure(fig=fig)
+    pt.save_figure(fig=fig, dpath=epoch_dpath)
     #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', (cnn_fp_img))
     #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', (cnn_fn_img))
     #vt.imwrite(dataname + '_' + 'sift_fp_img.png', (sift_fp_img))
     #vt.imwrite(dataname + '_' + 'sift_fn_img.png', (sift_fn_img))
+
+    # hack
+    model.draw_all_conv_layer_weights(fnum=7)
+    #model.save_model_layer_weights(1)
+    #model.save_model_layer_weights(2)
 
 
 def show_hard_cases(model, data, labels, scores):

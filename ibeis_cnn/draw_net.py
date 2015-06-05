@@ -24,6 +24,7 @@ import utool as ut
 from lasagne import layers
 from ibeis_cnn import utils
 from ibeis_cnn import net_strs
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.draw_net]')
 
 
 def get_hex_color(layer_type):
@@ -90,7 +91,7 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         >>> from ibeis_cnn import models
         >>> # build test data
         >>> self = models.DummyModel(autoinit=True)
-        >>> layers = self.get_network_layers()
+        >>> layers = self.get_all_layers()
         >>> output_shape = True
         >>> verbose = False
         >>> # execute function
@@ -165,7 +166,7 @@ def draw_to_file(layers, filename, **kwargs):
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
         >>> self = models.DummyModel(autoinit=True)
-        >>> layers = self.get_network_layers()
+        >>> layers = self.get_all_layers()
         >>> filename = ut.unixjoin(ut.ensure_app_resource_dir('ibeis_cnn'), 'tmp.png')
         >>> # execute function
         >>> draw_to_file(layers, filename)
@@ -285,7 +286,9 @@ def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
     return output_fpath
 
 
-def show_convolutional_layers(output_layer, results_path, use_color=None, limit=150, target=None, epoch=None, verbose=ut.VERYVERBOSE):
+def show_convolutional_layers(output_layer, results_path, use_color=None,
+                              limit=144, target=None, epoch=None,
+                              verbose=ut.VERYVERBOSE):
     r"""
     CommandLine:
         python -m ibeis_cnn.draw_net --test-show_convolutional_layers --show
@@ -338,7 +341,8 @@ def show_convolutional_layers(output_layer, results_path, use_color=None, limit=
         #layername = 'conv%d' % (index,)
         #print(layername)
         #print('layername = %r' % (layername,))
-        output_fpath = draw_convolutional_features(all_weights, use_color=use_color, limit=limit)
+        fig = show_convolutional_weights(all_weights, use_color=use_color, limit=limit)
+        fig
         #print('...NEXT\n')
 
         # Save the figure
@@ -359,7 +363,93 @@ def show_convolutional_layers(output_layer, results_path, use_color=None, limit=
     return output_fpath_list
 
 
-def make_convlayer_vizimage(all_weights, limit=144):
+def show_model_layer_weights(model, target, **kwargs):
+    nn_layers = model.get_all_layers()
+    cnn_layers = [layer_ for layer_ in nn_layers if hasattr(layer_, 'W')]
+    layer = cnn_layers[target]
+    all_weights = layer.W.get_value()
+    layername = net_strs.make_layer_str(layer) + '_%d' % (target,)
+    #layername = 'conv%d' % (index,)
+    #print('layername = %r' % (layername,))
+    import plottool as pt
+    fig = show_convolutional_weights(all_weights, **kwargs)
+    pt.set_figtitle(layername, subtitle='shape=%r' % (all_weights.shape,))
+    return fig
+
+
+def save_model_layer_weights(model, target, **kwargs):
+    import plottool as pt
+    fig = show_model_layer_weights(model, target, **kwargs)
+    output_fpath = pt.save_figure(fig=fig, dpath=model.get_epoch_diagnostic_dpath())
+    return output_fpath
+
+
+def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None, pnum=(1, 1, 1)):
+    r"""
+    Args:
+        all_weights (?):
+        use_color (bool):
+        limit (int):
+
+    CommandLine:
+        python -m ibeis_cnn.draw_net --test-show_convolutional_weights --show
+        python -m ibeis_cnn.draw_net --test-show_convolutional_weights --show --index=1
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
+        >>> output_layer = model.get_output_layer()
+        >>> nn_layers = layers.get_all_layers(output_layer)
+        >>> weighted_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]
+        >>> index = ut.get_argval('--index', type_=int, default=0)
+        >>> all_weights = weighted_layers[index].W.get_value()
+        >>> print('all_weights.shape = %r' % (all_weights.shape,))
+        >>> use_color = None
+        >>> limit = 64
+        >>> fig = show_convolutional_weights(all_weights, use_color, limit)
+        >>> ut.show_if_requested()
+    """
+    import plottool as pt
+    if fnum is None:
+        fnum = pt.next_fnum()
+    fig = pt.figure(fnum=fnum, pnum=pnum)
+    # TODO: draw dense layers
+    #import matplotlib.pyplot as plt
+    #from mpl_toolkits.axes_grid1 import ImageGrid
+    #import matplotlib.cm as cm
+    # re-use the samtargete figure to save memory
+    #fig = plt.figure(1)
+    #ax1 = plt.axes(frameon=False)
+    #ax1.get_xaxis().set_visible(False)
+    #ax1.get_yaxis().set_visible(False)
+    # Get shape of weights
+    #print('all_weights.shape = %r' % (all_weights.shape,))
+    num, channels, height, width = all_weights.shape
+    #print('all_weights.shape = %r' % (all_weights.shape,))
+    if use_color is None:
+        # Try to infer if use_color should be shown
+        use_color = (channels == 3)
+    #print('use_color = %r' % (use_color,))
+
+    stacked_img = make_conv_weight_image(all_weights, limit)
+    #ax = fig.add_subplot(111)
+    if len(stacked_img.shape) == 3 and stacked_img.shape[-1] == 1:
+        stacked_img = stacked_img.reshape(stacked_img.shape[:-1])
+    pt.imshow(stacked_img)
+    #if use_color:
+    #    #ax.imshow(stacked_img, interpolation='nearest')
+    #else:
+    #    #ax.imshow(stacked_img, cmap=cm.Greys_r, interpolation='nearest')
+    #ax.get_xaxis().set_visible(False)
+    #ax.get_yaxis().set_visible(False)
+    return fig
+
+
+def make_conv_weight_image(all_weights, limit=144):
+    """ just makes the image ndarray of the weights """
     # Try to infer if use_color should be shown
     num, channels, height, width = all_weights.shape
     # Try to infer if use_color should be shown
@@ -404,105 +494,6 @@ def make_convlayer_vizimage(all_weights, limit=144):
     stacked_img = pt.stack_square_images(bordered_features)
     return stacked_img
     #pt.imshow(stacked_img)
-
-
-def draw_convolutional_features(all_weights, use_color=None, limit=144):
-    r"""
-    Args:
-        all_weights (?):
-        use_color (bool):
-        limit (int):
-
-    CommandLine:
-        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show
-        python -m ibeis_cnn.draw_net --test-draw_convolutional_features --show --index=1
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.draw_net import *  # NOQA
-        >>> from ibeis_cnn.draw_net import *  # NOQA
-        >>> from ibeis_cnn import models
-        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
-        >>> output_layer = model.get_output_layer()
-        >>> nn_layers = layers.get_all_layers(output_layer)
-        >>> weighted_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]
-        >>> index = ut.get_argval('--index', type_=int, default=0)
-        >>> all_weights = weighted_layers[index].W.get_value()
-        >>> print('all_weights.shape = %r' % (all_weights.shape,))
-        >>> use_color = None
-        >>> limit = 64
-        >>> fig = draw_convolutional_features(all_weights, use_color, limit)
-        >>> ut.show_if_requested()
-    """
-    # TODO: draw dense layers
-    import matplotlib.pyplot as plt
-    #from mpl_toolkits.axes_grid1 import ImageGrid
-    import matplotlib.cm as cm
-    # re-use the samtargete figure to save memory
-    fig = plt.figure(1)
-    ax1 = plt.axes(frameon=False)
-    ax1.get_xaxis().set_visible(False)
-    ax1.get_yaxis().set_visible(False)
-    # Get shape of weights
-    #print('all_weights.shape = %r' % (all_weights.shape,))
-    num, channels, height, width = all_weights.shape
-    if use_color is None:
-        # Try to infer if use_color should be shown
-        use_color = (channels == 3)
-        #print('use_color = %r' % (use_color,))
-
-    stacked_img = make_convlayer_vizimage(all_weights, limit)
-    ax = fig.add_subplot(111)
-    if len(stacked_img.shape) == 3 and stacked_img.shape[-1] == 1:
-        stacked_img = stacked_img.reshape(stacked_img.shape[:-1])
-    if use_color:
-        ax.imshow(stacked_img, interpolation='nearest')
-    else:
-        ax.imshow(stacked_img, cmap=cm.Greys_r, interpolation='nearest')
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-
-    ## non-use_color features need to be flattened
-    #if not use_color:
-    #    all_weights_ = all_weights.reshape(num * channels, height, width)
-    #else:
-    #    # convert from theano to cv2 BGR
-    #    all_weights_ = utils.convert_theano_images_to_cv2_images(all_weights)
-    #    # convert from BGR to RGB
-    #    all_weights_ = all_weights_[..., ::-1]
-    #    #cv2.cvtColor(all_weights_[-1], cv2.COLOR_BGR2RGB)
-
-    ## Limit all_weights_
-    #num = all_weights_.shape[0]
-    #if limit is not None and num > limit:
-    #    all_weights_ = all_weights_[:limit]
-    #    num = all_weights_.shape[0]
-
-    ## Convert weight values to image values
-    #all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
-    #all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
-    #all_domain = all_max - all_min
-    #broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
-    #all_features = ((all_weights_ - all_min[broadcaster]) * (255.0 / all_domain[broadcaster])).astype(np.uint8)
-
-    ## Find how many features and build grid
-    #dim = int(np.ceil(np.sqrt(num)))
-    #grid = ImageGrid(fig, 111, nrows_ncols=(dim, dim))
-
-    ## Build grid
-    #with ut.embed_on_exception_context:
-    #    if use_color:
-    #        for f, feature in enumerate(all_features):
-    #            grid[f].imshow(feature, interpolation='nearest')
-    #    else:
-    #        for f, feature in enumerate(all_features):
-    #            grid[f].imshow(feature, cmap=cm.Greys_r, interpolation='nearest')
-
-    #for j in range(dim * dim):
-    #    grid[j].get_xaxis().set_visible(False)
-    #    grid[j].get_yaxis().set_visible(False)
-
-    return fig
 
 
 if __name__ == '__main__':

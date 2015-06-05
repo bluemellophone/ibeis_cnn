@@ -25,11 +25,6 @@ def interact_siamsese_data_patches(labels, data, flat_metadata, **kwargs):
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.draw_results import *  # NOQA
         >>> from ibeis_cnn import ingest_data
-        >>> #data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths()
-        >>> #model = ut.DynStruct()
-        >>> #model.data_per_label = 2
-        >>> #data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(model, data_fpath, labels_fpath)
-        >>> #data, labels = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         >>> data, labels = ingest_data.testdata_patchmatch2()
         >>> flat_metadata = {'fs': np.arange(len(labels))}
         >>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
@@ -55,9 +50,16 @@ def visualize_score_separability(label_list, warped_patch1_list, warped_patch2_l
 
 
 def get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, index_list, chunck_sizes=(6, 10)):
-    index_list
-    multiindices = six.next(ut.iter_multichunks(index_list, chunck_sizes))
-    return get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindices)
+    #with ut.eoxc
+    try:
+        multiindices = six.next(ut.iter_multichunks(index_list, chunck_sizes))
+        return get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindices)
+    except StopIteration:
+        if len(index_list) > 0:
+            raise
+        import vtool as vt
+        errorimg = vt.get_no_symbol()
+        return errorimg, [], []
 
 
 def get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindicies):

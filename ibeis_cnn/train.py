@@ -31,7 +31,7 @@ TODO:
     Show bad training examples
 """
 from __future__ import absolute_import, division, print_function
-from ibeis_cnn import utils
+from ibeis_cnn import utils  # NOQA
 from ibeis_cnn import models
 from ibeis_cnn import ingest_data
 from ibeis_cnn import harness
@@ -44,7 +44,7 @@ def train_patchmatch_pz():
     r"""
 
     CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --show --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --train
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
@@ -79,40 +79,45 @@ def train_patchmatch_pz():
     )
     print('[train] train_patchmatch_pz')
     # Choose data
-    data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.get_patchmetric_training_fpaths()
+    trainset = ingest_data.get_patchmetric_training_fpaths()
 
     # Choose model
     # TODO: data will need to return info about number of labels in viewpoint models
-    model = models.SiameseCenterSurroundModel(data_shape=data_shape, training_dpath=training_dpath, **train_params)
+    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape,
+                                              training_dpath=trainset.training_dpath,
+                                              **train_params)
 
     model.initialize_architecture()
 
-    if model.has_saved_state():
-        model.load_model_state()
-    else:
-        # Initialize with pretrained liberty weights
-        # TODO: do i need to take liberty data centering as well?
-        extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+    if True:
+        # Use external state
+        #extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
+        extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
         model.load_extern_weights(dpath=extern_training_dpath)
-
-    # Split data into subsets
-    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
-        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1])
+    else:
+        if model.has_saved_state():
+            model.load_model_state()
+        else:
+            # Initialize with pretrained liberty weights
+            # TODO: do i need to take liberty data centering as well?
+            extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+            model.load_extern_weights(dpath=extern_training_dpath)
 
     #ut.embed()
     if ut.get_argflag('--train'):
         config = dict(
             patience=100,
         )
-        X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
-        X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+        X_train, y_train = trainset.load_subset('train')
+        X_valid, y_valid = trainset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         harness.train(model, X_train, y_train, X_valid, y_valid, config)
     elif ut.get_argflag('--test'):
         #assert model.best_results['epoch'] is not None
-        X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
-        dataname = 'PZ'
+        X_test, y_test = trainset.load_subset('test')
+        #data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+        data, labels = X_test, y_test
+        dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
         #test_outputs = harness.test_data2(model, X_test, y_test)
         #network_output = test_outputs['network_output']
@@ -128,6 +133,7 @@ def train_patchmatch_liberty():
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --test --vtd
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -138,9 +144,9 @@ def train_patchmatch_liberty():
     """
     #pairs = 500
     pairs = 250000
-    data_fpath, labels_fpath, training_dpath, data_shape = ingest_data.grab_cached_liberty_data(pairs)
+    trainset = ingest_data.grab_cached_liberty_data(pairs)
     #model = models.SiameseModel()
-    model = models.SiameseCenterSurroundModel(data_shape=data_shape, training_dpath=training_dpath)
+    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath)
 
     model.initialize_architecture()
     # DO CONVERSION
@@ -152,31 +158,32 @@ def train_patchmatch_liberty():
         self.save_model_state()
         #self.save_state()
 
-    if model.has_saved_state():
-        model.load_model_state()
-        print(model.get_state_str())
+    if True:
+        # Use external state
+        extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
+        model.load_extern_weights(dpath=extern_training_dpath)
     else:
-        model.reinit_weights()
-
-    # Split data into subsets
-    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
-        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1])
+        if model.has_saved_state():
+            model.load_model_state()
+            print(model.get_state_str())
+        else:
+            model.reinit_weights()
 
     #ut.embed()
     if ut.get_argflag('--train'):
         config = dict(
             patience=100,
         )
-        X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
-        X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+        X_train, y_train = trainset.load_subset('train')
+        X_valid, y_valid = trainset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         harness.train(model, X_train, y_train, X_valid, y_valid, config)
     elif ut.get_argflag('--test'):
 
-        X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-
-        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
-        dataname = 'liberty'
+        X_test, y_test = trainset.load_subset('test')
+        #data, labels = utils.random_test_train_sample(X_test, y_test, 2000, model.data_per_label)
+        data, labels = X_test, y_test
+        dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
 
     else:
@@ -202,13 +209,14 @@ def train_mnist():
             'weight_decay': 0.0005,
         }
     )
-    data_fpath, labels_fpath, training_dpath, data_shape, output_dims = ingest_data.grab_cached_mist_data()
+    trainset = ingest_data.grab_cached_mist_data()
+    data_shape = trainset.data_shape
     input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 
     # Choose model
     model = models.MNISTModel(
-        input_shape=input_shape, output_dims=output_dims,
-        training_dpath=training_dpath, **train_params)
+        input_shape=input_shape, output_dims=trainset.output_dims,
+        training_dpath=trainset.training_dpath, **train_params)
 
     # Initialize architecture
     model.initialize_architecture()
@@ -227,11 +235,9 @@ def train_mnist():
         print_timing=False,
     )
     # Split data into subsets
-    data_fpath_dict, label_fpath_dict = ingest_data.ondisk_data_split(
-        model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.5, .5])
 
-    X_train, y_train = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'train')
-    X_valid, y_valid = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'valid')
+    X_train, y_train = trainset.load_subset('train')
+    X_valid, y_valid = trainset.load_subset('valid')
     #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
     harness.train(model, X_train, y_train, X_valid, y_valid, config)
 

@@ -12,6 +12,7 @@ from ibeis_cnn import net_strs
 from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
 from ibeis_cnn import batch_processing as batch
+from ibeis_cnn import draw_net
 import sklearn.preprocessing
 import utool as ut
 from os.path import join
@@ -24,8 +25,10 @@ Conv2DLayer = custom_layers.Conv2DLayer
 MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
-def evaluate_layer_list(network_layers_def, verbose=utils.VERBOSE_CNN):
+def evaluate_layer_list(network_layers_def, verbose=None):
     """ compiles a sequence of partial functions into a network """
+    if verbose is None:
+        verbose = utils.VERBOSE_CNN
     network_layers = []
     layer_fn_iter = iter(network_layers_def)
     with warnings.catch_warnings():
@@ -61,7 +64,9 @@ class BaseModel(object):
     """
     Abstract model providing functionality for all other models to derive from
     """
-    def __init__(model, output_dims=None, input_shape=None, batch_size=None, training_dpath='.', momentum=.9, weight_decay=.0005, learning_rate=.001):
+    def __init__(model, output_dims=None, input_shape=None, batch_size=None,
+                 training_dpath='.', momentum=.9, weight_decay=.0005,
+                 learning_rate=.001):
         #model.network_layers = None  # We really don't need to save all of these
         model.output_layer = None
         model.output_dims = output_dims
@@ -93,13 +98,24 @@ class BaseModel(object):
 
     # --- initialization steps
 
+    def get_epoch_diagnostic_dpath(model, epoch=None):
+        import utool as ut
+        if epoch is None:
+            # use best epoch if not specified
+            # (WARNING: Make sure the weights in the model are model.best_weights)
+            # they may be out of sync
+            epoch = model.best_results['epoch']
+        diagnostic_dpath = ut.ensuredir(ut.unixjoin(model.training_dpath, 'diagnostics'))
+        epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, 'epoch_%r' % (epoch,)))
+        return epoch_dpath
+
     def initialize_architecture(model):
         raise NotImplementedError('reimlement')
 
     def ensure_training_state(model, X_train, y_train):
         # Check to make sure data agrees with input
         # FIXME: This check should not be in this fuhnction
-        input_layer = model.get_network_layers()[0]
+        input_layer = model.get_all_layers()[0]
         expected_item_shape = tuple(ut.list_take(input_layer.shape[1:], [1, 2, 0]))
         given_item_shape = X_train.shape[1:]
         assert given_item_shape == expected_item_shape, (
@@ -161,7 +177,7 @@ class BaseModel(object):
         kwargs = {}
         """
         model_state_fpath = model.get_model_state_fpath(**kwargs)
-        print('loading model state from: %s' % (model_state_fpath,))
+        print('[model] loading model state from: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'rb') as file_:
             model_state = pickle.load(file_)
         assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
@@ -176,9 +192,13 @@ class BaseModel(object):
     def load_extern_weights(model, **kwargs):
         """ load weights from another model """
         model_state_fpath = model.get_model_state_fpath(**kwargs)
-        print('loading extern weights from: %s' % (model_state_fpath,))
+        print('[model] loading extern weights from: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'rb') as file_:
             model_state = pickle.load(file_)
+        if True or utils.VERBOSE_CNN:
+            print('External Model State:')
+            print(ut.dict_str(model_state, truncate=True))
+        # check compatibility with this architecture
         assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
         assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
         # Just set the weights, no other training state variables
@@ -247,14 +267,29 @@ class BaseModel(object):
         return state_str
 
     def draw_convolutional_layers(model, target=[0]):
-        from ibeis_cnn import draw_net
+        # DEPRICATE
         output_files = draw_net.show_convolutional_layers(model.output_layer, model.training_dpath, target=target)
         return output_files
 
+    def show_model_layer_weights(model, **kwargs):
+        # RENAME
+        draw_net.show_model_layer_weights(model, **kwargs)
+
+    def save_model_layer_weights(model, *args, **kwargs):
+        # RENAME
+        draw_net.save_model_layer_weights(model, *args, **kwargs)
+
+    def draw_all_conv_layer_weights(model, fnum=None):
+        import plottool as pt
+        if fnum is None:
+            fnum = pt.next_fnum()
+        conv_layers = [layer_ for layer_ in model.get_all_layers() if hasattr(layer_, 'W') and layer_.name.startswith('C')]
+        for index in range(len(conv_layers)):
+            model.save_model_layer_weights(index, fnum=fnum + index)
+
     def draw_architecture(model):
-        from ibeis_cnn import draw_net
         filename = 'tmp.png'
-        draw_net.draw_to_file(model.get_network_layers(), filename)
+        draw_net.draw_to_file(model.get_all_layers(), filename)
         ut.startfile(filename)
 
     def get_architecture_hashid(model):
@@ -289,7 +324,7 @@ class BaseModel(object):
         #        network_layers = lasagne.layers.get_all_layers(model.output_layer)
         #else:
         #    network_layers = model.network_layers
-        network_layers = model.get_network_layers()
+        network_layers = model.get_all_layers()
         layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
         architecture_str = sep.join(layer_str_list)
         return architecture_str
@@ -300,7 +335,7 @@ class BaseModel(object):
             architecture_str = 'UNMANGAGED'
         print('\nArchitecture:' + sep + architecture_str)
 
-    def get_network_layers(model):
+    def get_all_layers(model):
         assert model.output_layer is not None
         network_layers = lasagne.layers.get_all_layers(model.output_layer)
         return network_layers

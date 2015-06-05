@@ -3,9 +3,99 @@ from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import ingest_helpers
 from ibeis_cnn import ingest_ibeis
-from os.path import join
+from os.path import join, basename, splitext
+import six
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
+
+
+def get_alias_dict_fpath():
+    alias_fpath = join(ingest_helpers.get_juction_dpath(), 'alias_dict_v2.txt')
+    return alias_fpath
+
+
+def get_extern_training_dpath(alias_key):
+    return TrainingSet.from_alias_key(alias_key).training_dpath
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class TrainingSet(object):
+    def __init__(trainset, alias_key, training_dpath, data_fpath, labels_fpath, data_per_label, data_shape, output_dims):
+        # Constructor args is primary data
+        key_list = ut.get_func_argspec(trainset.__init__).args[1:]
+        locals_ = locals()
+        for key in key_list:
+            setattr(trainset, key, locals_[key])
+        # Define auxillary data
+        trainset.build_auxillary_data()
+
+    def build_auxillary_data(trainset):
+        data_fpath_dict, label_fpath_dict = ingest_helpers.ondisk_data_split(
+            trainset.data_fpath, trainset.labels_fpath, trainset.data_per_label,
+            split_names=['train', 'valid', 'test'],
+            fraction_list=[.2, .1])
+        trainset.data_fpath_dict = data_fpath_dict
+        trainset.label_fpath_dict = label_fpath_dict
+
+    def asdict(trainset):
+        # save all constructor arguments
+        key_list = ut.get_func_argspec(trainset.__init__).args[1:]
+        data_dict = ut.dict_subset(trainset.__dict__, key_list)
+        return data_dict
+
+    @classmethod
+    def from_alias_key(cls, alias_key):
+        USE_ALIAS = True
+        if not USE_ALIAS:
+            raise Exception('Aliasing Disabled')
+        # shortcut to the cached information so we dont need to
+        # compute hotspotter matching hashes. There is a change data
+        # can get out of date while this is enabled.
+        alias_fpath = get_alias_dict_fpath()
+        alias_dict = ut.text_dict_read(alias_fpath)
+        if alias_key in alias_dict:
+            data_dict = alias_dict[alias_key]
+            trainset = cls(**data_dict)
+            print('[get_patchmetric_training_fpaths] Returning aliased data alias_key=%r' % (alias_key,))
+            return trainset
+        raise Exception('Alias cache miss: alias_key=%r' % (alias_key,))
+
+    @classmethod
+    def new_training_set(cls, **kwargs):
+        trainset = cls(**kwargs)
+        ingest_helpers.register_training_dpath(trainset.training_dpath)
+        trainset.save_alias(trainset.alias_key)
+        return trainset
+
+    def save_alias(trainset, alias_key):
+        # shortcut to the cached information so we dont need to
+        # compute hotspotter matching hashes. There is a change data
+        # can get out of date while this is enabled.
+        alias_fpath = get_alias_dict_fpath()
+        alias_dict = ut.text_dict_read(alias_fpath)
+        data_dict = trainset.asdict()
+        alias_dict[alias_key] = data_dict
+        ut.text_dict_write(alias_fpath, alias_dict)
+
+    def load_subset(trainset, key):
+        data, labels = utils.load(trainset.data_fpath_dict[key], trainset.label_fpath_dict[key])
+        utils.print_data_label_info(data, labels, key)
+        #X, y = utils.load_from_fpath_dicts(trainset.data_fpath_dict, trainset.label_fpath_dict, key)
+        return data, labels
+
+
+def view_training_directories():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.ingest_data --test-view_training_directories
+
+    Example:
+        >>> # UTILITY_SCRIPT
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+        >>> result = view_training_directories()
+        >>> print(result)
+    """
+    ut.vd(ingest_ibeis.get_juction_dpath())
 
 
 def grab_cached_mist_data():
@@ -31,9 +121,19 @@ def grab_cached_mist_data():
         data = np.vstack((train_images, test_images))
         labels = np.append(train_labels, test_labels)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
-    data_shape = (28, 28, 1)
-    output_dims = 10
-    return data_fpath, labels_fpath, training_dpath, data_shape, output_dims
+
+    alias_key = 'mnist'
+
+    trainset = TrainingSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        training_dpath=training_dpath,
+        data_per_label=1,
+        data_shape=(28, 28, 1),
+        output_dims=10,
+    )
+    return trainset
 
 
 def grab_cached_liberty_data(pairs=250000):
@@ -71,44 +171,60 @@ def grab_cached_liberty_data(pairs=250000):
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> pairs = 500
-        >>> data_fpath, labels_fpath, data_shape = grab_cached_liberty_data(pairs)
+        >>> trainset = grab_cached_liberty_data(pairs)
         >>> ut.quit_if_noshow()
-        >>> from ibeis_cnn import ingest_ibeis
+        >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = utils.load(data_fpath, labels_fpath)
+        >>> data, labels = trainset.load_subset('all')
+        >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> ingest_ibeis.interact_view_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, rand=True)
+        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
         >>> print(result)
         >>> ut.show_if_requested()
     """
-    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+    datakw = {
+        'detector': 'dog',
+        'pairs': pairs,
+    }
+
+    assert datakw['detector'] in ['dog', 'harris']
+    assert pairs in [500, 50000, 100000, 250000]
+
+    liberty_urls = {
+        'dog': 'http://www.cs.ubc.ca/~mbrown/patchdata/liberty.zip',
+        'harris': 'http://www.cs.ubc.ca/~mbrown/patchdata/liberty_harris.zip',
+    }
+    url = liberty_urls[datakw['detector']]
+    ds_path = ut.grab_zipped_url(url)
+
+    ds_name = splitext(basename(ds_path))[0]
+    alias_key = 'liberty;' + ut.dict_str(datakw, nl=False, explicit=True)
+    cfgstr = ','.join([str(val) for key, val in ut.iteritems_sorted(datakw)])
+
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', ds_name)
     if ut.get_argflag('--vtd'):
         ut.vd(training_dpath)
     ut.ensuredir(training_dpath)
 
-    liberty_dog_fpath = ut.grab_zipped_url(
-        'http://www.cs.ubc.ca/~mbrown/patchdata/liberty.zip')
-    #liberty_harris_fpath = ut.grab_zipped_url(  # NOQA
-    #    'http://www.cs.ubc.ca/~mbrown/patchdata/liberty_harris.zip')
-    ds_path = liberty_dog_fpath
+    data_fpath = join(training_dpath, 'liberty_data_' + cfgstr + '.cPkl')
+    labels_fpath = join(training_dpath, 'liberty_labels_' + cfgstr  + '.cPkl')
 
-    #training_dpath = '.'
-    assert pairs in [500, 50000, 100000, 250000]
-    #pairs = 500
-    #pairs = 100000
-    #pairs = 250000
-    #pairs = 50000
-    data_fpath = join(training_dpath, 'liberty_data_%d.cPkl' % (pairs,))
-    labels_fpath = join(training_dpath, 'liberty_labels_%d.cPkl' % (pairs,))
     if not ut.checkpath(data_fpath, verbose=True):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
-        #data = np.vstack((train_images, test_images))
-        #labels = np.append(train_labels, test_labels)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
-    data_shape = (64, 64, 1)
-    return data_fpath, labels_fpath, training_dpath, data_shape
+
+    trainset = TrainingSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        training_dpath=training_dpath,
+        data_shape=(64, 64, 1),
+        data_per_label=2,
+        output_dims=1,
+    )
+    return trainset
 
 
 def get_patchmetric_training_fpaths(**kwargs):
@@ -117,21 +233,23 @@ def get_patchmetric_training_fpaths(**kwargs):
         python -m ibeis_cnn.ingest_data --test-get_patchmetric_training_fpaths --show
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
-        >>> from ibeis_cnn import ingest_ibeis
+        >>> from ibeis_cnn import draw_results
         >>> import ibeis
         >>> kwargs = {}  # ut.argparse_dict({'max_examples': None, 'num_top': 3})
-        >>> (data_fpath, labels_fpath, training_dpath, data_shape) = get_patchmetric_training_fpaths(**kwargs)
+        >>> trainset = get_patchmetric_training_fpaths(**kwargs)
+        >>> data_fpath = trainset.data_fpath
+        >>> labels_fpath = trainset.labels_fpath
         >>> ut.quit_if_noshow()
-        >>> ingest_ibeis.interact_view_data_fpath_patches(data_fpath, labels_fpath, {})
+        >>> draw_results.interact_siamese_data_fpath_patches(data_fpath, labels_fpath, {})
+        >>> ut.show_if_requested()
     """
-    #ut.embed()
     datakw = ut.argparse_dict(
         {
             #'db': 'PZ_MTEST',
             'max_examples': None,
-            'num-top': 3,
+            'num_top': 3,
         }
     )
     with ut.Indenter('[LOAD IBEIS DB]'):
@@ -142,28 +260,46 @@ def get_patchmetric_training_fpaths(**kwargs):
     ut.ensuredir(training_dpath)
     datakw.update(kwargs)
     print('\n\n[get_patchmetric_training_fpaths] START')
-    max_examples = datakw.get('max_examples', None)
-    num_top = datakw.get('num_top', None)
     #log_dir = join(training_dpath, 'logs')
     #ut.start_logging(log_dir=log_dir)
 
+    alias_key = ibs.get_dbname() + ';' + ut.dict_str(datakw, nl=False, explicit=True)
+    try:
+        # Try and short circut cached loading
+        trainset = TrainingSet.from_alias_key(alias_key)
+        return trainset
+    except Exception as ex:
+        ut.printex(ex, 'alias definitions have changed', iswarning=True)
+
     with ut.Indenter('[CHECKDATA]'):
         # Get training data pairs
-        patchmatch_tup = ingest_ibeis.get_aidpairs_and_matches(ibs, max_examples, num_top)
+        patchmatch_tup = ingest_ibeis.get_aidpairs_and_matches(ibs, **datakw)
         aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists = patchmatch_tup
         # Extract and cache the data
+        # TODO: metadata
         data_fpath, labels_fpath, training_dpath, data_shape = ingest_ibeis.cached_patchmetric_training_data_fpaths(
             ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists)
         print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
-    return data_fpath, labels_fpath, training_dpath, data_shape
+
+    trainset = TrainingSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        training_dpath=training_dpath,
+        data_shape=data_shape,
+        data_per_label=2,
+        output_dims=1,
+    )
+    return trainset
 
 
 def testdata_patchmatch():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    pathtup = get_patchmetric_training_fpaths(max_examples=5)
-    data_fpath, labels_fpath, training_dpath, data_shape = pathtup
+    trainset = get_patchmetric_training_fpaths(max_examples=5)
+    data_fpath = trainset.data_fpath
+    labels_fpath = trainset.labels_fpath
     data_cv2, labels = utils.load(data_fpath, labels_fpath)
     data = utils.convert_cv2_images_to_theano_images(data_cv2)
     return data, labels
@@ -173,72 +309,11 @@ def testdata_patchmatch2():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    pathtup = get_patchmetric_training_fpaths(max_examples=5)
-    data_fpath, labels_fpath, training_dpath, data_shape = pathtup
+    trainset = get_patchmetric_training_fpaths(max_examples=5)
+    data_fpath = trainset.data_fpath
+    labels_fpath = trainset.labels_fpath
     data, labels = utils.load(data_fpath, labels_fpath)
     return data, labels
-
-
-def ondisk_data_split(model, data_fpath, labels_fpath, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]):
-    """
-    splits into train / validation datasets on disk
-
-    # TODO: metadata fpath
-
-    split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]
-    """
-    from os.path import dirname, join, exists, basename
-    assert len(split_names) == len(fraction_list) + 1, 'must have one less fraction then split names'
-    USE_FILE_UUIDS = False
-    if USE_FILE_UUIDS:
-        # Get uuid based on the data, so different data makes different validation paths
-        data_uuid   = ut.get_file_uuid(data_fpath)
-        labels_uuid = ut.get_file_uuid(labels_fpath)
-        split_uuid = ut.augment_uuid(data_uuid, labels_uuid)
-        hashstr_ = ut.hashstr(str(split_uuid), alphabet=ut.ALPHABET_16)
-    else:
-        # Faster to base on the data fpath if that already has a uuid in it
-        hashstr_ = ut.hashstr(basename(data_fpath), alphabet=ut.ALPHABET_16)
-
-    splitdir = join(dirname(data_fpath), 'data_splits')
-    ut.ensuredir(splitdir)
-
-    # Get the total fraction of data for each subset
-    totalfrac_list = [1.0]
-    for fraction in fraction_list:
-        total = totalfrac_list[-1]
-        right = total * fraction
-        left = total * (1 - fraction)
-        totalfrac_list[-1] = left
-        totalfrac_list.append(right)
-
-    split_data_fpaths = [join(splitdir, name + '_data_%.2f_' % (frac,) + hashstr_ + '.pkl') for name, frac in zip(split_names, totalfrac_list)]
-    split_labels_fpaths = [join(splitdir, name + '_labels_%.2f_' % (frac,) + hashstr_ + '.pkl') for name, frac in zip(split_names, totalfrac_list)]
-
-    is_cache_hit = (all(map(exists, split_data_fpaths)) and all(map(exists, split_labels_fpaths)))
-
-    data_per_label = model.data_per_label
-
-    if not is_cache_hit:
-        print('Writing data splits')
-        X_left, y_left = utils.load(data_fpath, labels_fpath)
-        _iter = zip(fraction_list, split_data_fpaths, split_labels_fpaths)
-        for fraction, x_fpath, y_fpath in _iter:
-            _tup = utils.train_test_split(X_left, y_left, eval_size=fraction,
-                                          data_per_label=data_per_label,
-                                          shuffle=True)
-            X_left, y_left, X_right, y_right = _tup
-            utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
-        x_fpath  = split_data_fpaths[-1]
-        y_fpath = split_labels_fpaths[-1]
-        utils.write_data_and_labels(X_right, y_right, x_fpath, y_fpath)
-
-    data_fpath_dict = dict(zip(split_names, split_data_fpaths))
-    label_fpath_dict = dict(zip(split_names, split_labels_fpaths))
-
-    label_fpath_dict['all'] = labels_fpath
-    data_fpath_dict['all'] = data_fpath
-    return data_fpath_dict, label_fpath_dict
 
 
 if __name__ == '__main__':

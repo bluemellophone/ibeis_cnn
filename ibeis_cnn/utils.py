@@ -128,6 +128,8 @@ def testdata_imglist(shape=(32, 32, 3)):
 
 def convert_cv2_images_to_theano_images(img_list):
     """
+    Converts b01c to bc01
+
     Converts a list of cv2-style images into a single numpy array of nonflat
     theano-style images.
 
@@ -173,6 +175,8 @@ def convert_cv2_images_to_theano_images(img_list):
 def convert_theano_images_to_cv2_images(data, *args):
     #width, height, channels):
     r"""
+    Converts bc01 to b01c
+
     Args:
         data (ndarray): in the shape [b, (c x h x w)]
 
@@ -251,7 +255,7 @@ def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
         >>> print(result)
     """
     # take the data and label arrays, split them preserving the class distributions
-    assert len(X) == len(y) * data_per_label
+    assert len(X) == len(y) * data_per_label, 'len(X)=%r, len(y)=%r, data_per_label=%r' % (len(X), len(y), data_per_label)
     nfolds = round(1. / eval_size)
     kf = sklearn.cross_validation.StratifiedKFold(y, nfolds, shuffle=shuffle)
     train_indices, valid_indices = six.next(iter(kf))
@@ -761,10 +765,10 @@ def print_data_label_info(data, labels, key=''):
     print('[train] %s_label total = %d' % (key, sum(labelhist.values())))
 
 
-def load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, key):
-    data, labels = load(data_fpath_dict[key], label_fpath_dict[key])
-    print_data_label_info(data, labels, key)
-    return data, labels
+#def load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, key):
+#    data, labels = load(data_fpath_dict[key], label_fpath_dict[key])
+#    print_data_label_info(data, labels, key)
+#    return data, labels
 
 
 if __name__ == '__main__':

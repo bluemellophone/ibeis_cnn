@@ -2,8 +2,77 @@
 from __future__ import absolute_import, division, print_function
 from os.path import join
 import utool as ut
+from ibeis_cnn import utils
 from six.moves import range, zip
+from os.path import dirname, exists, basename
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_helpers]')
+
+
+NOCACHE_DATA_SPLIT = ut.get_argflag('--nocache-datasplit')
+
+
+def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1], nocache=None):
+    """
+    splits into train / validation datasets on disk
+
+    # TODO: metadata fpath
+
+    split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]
+    """
+    assert len(split_names) == len(fraction_list) + 1, 'must have one less fraction then split names'
+    USE_FILE_UUIDS = False
+    if USE_FILE_UUIDS:
+        # Get uuid based on the data, so different data makes different validation paths
+        data_uuid   = ut.get_file_uuid(data_fpath)
+        labels_uuid = ut.get_file_uuid(labels_fpath)
+        split_uuid = ut.augment_uuid(data_uuid, labels_uuid)
+        hashstr_ = ut.hashstr(str(split_uuid), alphabet=ut.ALPHABET_16)
+    else:
+        # Faster to base on the data fpath if that already has a uuid in it
+        hashstr_ = ut.hashstr(basename(data_fpath), alphabet=ut.ALPHABET_16)
+
+    splitdir = join(dirname(data_fpath), 'data_splits')
+    ut.ensuredir(splitdir)
+
+    # Get the total fraction of data for each subset
+    totalfrac_list = [1.0]
+    for fraction in fraction_list:
+        total = totalfrac_list[-1]
+        right = total * fraction
+        left = total * (1 - fraction)
+        totalfrac_list[-1] = left
+        totalfrac_list.append(right)
+
+    split_data_fpaths = [join(splitdir, name + '_data_%.2f_' % (frac,) + hashstr_ + '.pkl')
+                         for name, frac in zip(split_names, totalfrac_list)]
+    split_labels_fpaths = [join(splitdir, name + '_labels_%.2f_' % (frac,) + hashstr_ + '.pkl')
+                           for name, frac in zip(split_names, totalfrac_list)]
+
+    is_cache_hit = (all(map(exists, split_data_fpaths)) and all(map(exists, split_labels_fpaths)))
+
+    if nocache is None:
+        nocache = NOCACHE_DATA_SPLIT
+
+    if not is_cache_hit or nocache:
+        print('Writing data splits')
+        X_left, y_left = utils.load(data_fpath, labels_fpath)
+        _iter = zip(fraction_list, split_data_fpaths, split_labels_fpaths)
+        for fraction, x_fpath, y_fpath in _iter:
+            _tup = utils.train_test_split(X_left, y_left, eval_size=fraction,
+                                          data_per_label=data_per_label,
+                                          shuffle=True)
+            X_left, y_left, X_right, y_right = _tup
+            utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
+        x_fpath  = split_data_fpaths[-1]
+        y_fpath = split_labels_fpaths[-1]
+        utils.write_data_and_labels(X_right, y_right, x_fpath, y_fpath)
+
+    data_fpath_dict = dict(zip(split_names, split_data_fpaths))
+    label_fpath_dict = dict(zip(split_names, split_labels_fpaths))
+
+    data_fpath_dict['all']  = data_fpath
+    label_fpath_dict['all'] = labels_fpath
+    return data_fpath_dict, label_fpath_dict
 
 
 def open_mnist_files(labels_fpath, data_fpath):
@@ -204,3 +273,15 @@ def extract_liberty_style_patches(ds_path, pairs):
     #data_per_label = 2
     assert labels.shape[0] == data.shape[0] // 2
     return data, labels
+
+
+def get_juction_dpath():
+    junction_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training_junction')
+    return junction_dpath
+
+
+def register_training_dpath(training_dpath):
+    junction_dpath = get_juction_dpath()
+    training_dname = basename(training_dpath)
+    training_dlink = join(junction_dpath, training_dname)
+    ut.symlink(training_dpath, training_dlink)

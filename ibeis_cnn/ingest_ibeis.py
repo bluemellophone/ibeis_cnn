@@ -325,7 +325,7 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
+def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3):
     """
     Returns:
         aid pairs and matching keypoint pairs as well as the original index of the feature matches
@@ -342,8 +342,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=None):
     aid_list = ibs.get_valid_aids()
     if max_examples is not None:
         aid_list = aid_list[0:min(max_examples, len(aid_list))]
-    if num_top is None:
-        num_top = 3
     #from ibeis.model.hots import chip_match
     aid_list = ut.list_compress(aid_list,
                                 ibs.get_annot_has_groundtruth(aid_list))
