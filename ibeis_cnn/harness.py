@@ -189,7 +189,8 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                     ## Callbacks on best found
                     model.checkpoint_save_model_state()
                     model.save_model_state()
-                    model.draw_convolutional_layers(epoch=epoch)
+                    #model.draw_convolutional_layers(epoch=epoch)
+                    model.draw_convolutional_layers()
                     save_after_best_countdown = None
                 else:
                     save_after_best_countdown -= 1
