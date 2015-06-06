@@ -89,7 +89,7 @@ def train_patchmatch_pz():
 
     model.initialize_architecture()
 
-    if True:
+    if False:
         # Use external state
         extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
