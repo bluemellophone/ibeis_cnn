@@ -309,6 +309,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
 
         CommandLine:
             python -m ibeis_cnn.models --test-loss_function
+            python -m ibeis_cnn.models --test-loss_function:1 --show
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -329,16 +330,41 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
             >>> avg_loss = model.loss_function(network_output, Y, T=T)
             >>> result = str(avg_loss)
             >>> print(result)
+
+        Example1:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> network_output = np.linspace(-2, 2, 128)
+            >>> Y0 = np.zeros(len(network_output), np.float32)
+            >>> Y1 = np.ones(len(network_output), np.float32)
+            >>> verbose = False
+            >>> T = np
+            >>> Y = Y0
+            >>> loss0, Y0_ = ut.exec_func_sourcecode(SiameseCenterSurroundModel.loss_function, globals(), locals(), ['loss', 'Y_'])
+            >>> Y = Y1
+            >>> loss1, Y1_ = ut.exec_func_sourcecode(SiameseCenterSurroundModel.loss_function, globals(), locals(), ['loss', 'Y_'])
+            >>> assert np.all(Y1 == 1), 'bad label mapping'
+            >>> assert np.all(Y0 == 0), 'bad label mapping'
+            >>> assert np.all(Y0_ == -1), 'bad label mapping'
+            >>> assert np.all(Y1_ == 1), 'bad label mapping'
+            >>> ut.quit_if_noshow()
+            >>> import plottool as pt
+            >>> pt.plot2(network_output, loss0, '-', color=pt.TRUE_BLUE, label='imposter_loss', y_label='network output')
+            >>> pt.plot2(network_output, loss1, '-', color=pt.FALSE_RED, label='genuine_loss', y_label='network output')
+            >>> pt.legend()
+            >>> ut.show_if_requested()
         """
         if verbose:
             print('[model] Build SiameseCenterSurroundModel loss function')
         # make y_i in {-1, 1} where -1 denotes non-matching and +1 denotes matching
-        Y_ = (1 - (2 * Y))
+        #Y_ = (1 - (2 * Y))
+        Y_ = ((2 * Y) - 1)
         # Hinge-loss objective from Zagoruyko and Komodakis
         loss = T.maximum(0, 1 - (Y_ * network_output.T))
         avg_loss = T.mean(loss)
-        loss.name = 'loss'
-        avg_loss.name = 'avg_loss'
+        if T is not np:
+            loss.name = 'loss'
+            avg_loss.name = 'avg_loss'
         return avg_loss
 
     def learn_encoder(model, labels, scores, **kwargs):

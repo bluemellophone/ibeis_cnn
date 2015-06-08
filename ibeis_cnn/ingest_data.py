@@ -9,6 +9,10 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
 
 
+NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
+#NOCACHE_ALIAS = True
+
+
 def get_alias_dict_fpath():
     alias_fpath = join(ingest_helpers.get_juction_dpath(), 'alias_dict_v2.txt')
     return alias_fpath
@@ -45,8 +49,7 @@ class TrainingSet(object):
 
     @classmethod
     def from_alias_key(cls, alias_key):
-        USE_ALIAS = True
-        if not USE_ALIAS:
+        if NOCACHE_ALIAS:
             raise Exception('Aliasing Disabled')
         # shortcut to the cached information so we dont need to
         # compute hotspotter matching hashes. There is a change data
@@ -55,6 +58,9 @@ class TrainingSet(object):
         alias_dict = ut.text_dict_read(alias_fpath)
         if alias_key in alias_dict:
             data_dict = alias_dict[alias_key]
+            ut.assert_exists(data_dict['training_dpath'])
+            ut.assert_exists(data_dict['data_fpath'])
+            ut.assert_exists(data_dict['labels_fpath'])
             trainset = cls(**data_dict)
             print('[get_patchmetric_training_fpaths] Returning aliased data alias_key=%r' % (alias_key,))
             return trainset

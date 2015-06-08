@@ -72,13 +72,13 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #def rectify(arr):
     #    return np.flipud(arr)
     # TODO: higher dpi and figsize
-    fig, ax = pt.imshow(cnn_fp_img, figtitle=dataname + '_' + 'cnn_fp_img', fnum=3)
+    fig, ax = pt.imshow(cnn_fp_img, figtitle=dataname + ' ' + 'cnn_fp_img', fnum=3)
     pt.save_figure(fig=fig, dpath=epoch_dpath)
-    fig, ax = pt.imshow(cnn_fn_img, figtitle=dataname + '_' + 'cnn_fn_img', fnum=4)
+    fig, ax = pt.imshow(cnn_fn_img, figtitle=dataname + ' ' + 'cnn_fn_img', fnum=4)
     pt.save_figure(fig=fig, dpath=epoch_dpath)
-    fig, ax = pt.imshow(sift_fp_img, figtitle=dataname + '_' + 'sift_fp_img', fnum=5)
+    fig, ax = pt.imshow(sift_fp_img, figtitle=dataname + ' ' + 'sift_fp_img', fnum=5)
     pt.save_figure(fig=fig, dpath=epoch_dpath)
-    fig, ax = pt.imshow(sift_fn_img, figtitle=dataname + '_' + 'sift_fn_img', fnum=6)
+    fig, ax = pt.imshow(sift_fn_img, figtitle=dataname + ' ' + 'sift_fn_img', fnum=6)
     pt.save_figure(fig=fig, dpath=epoch_dpath)
     #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', (cnn_fp_img))
     #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', (cnn_fn_img))
@@ -131,7 +131,7 @@ def test_sift_patchmatch_scores(data, labels):
     sqrddist = ((vecs_list[::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T
     VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
-    sift_scores = sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD
+    sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
     return sift_scores
     #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
 

@@ -89,7 +89,7 @@ def train_patchmatch_pz():
 
     model.initialize_architecture()
 
-    if False:
+    if True:
         # Use external state
         extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
@@ -157,7 +157,7 @@ def train_patchmatch_liberty():
         self.save_model_state()
         #self.save_state()
 
-    if True:
+    if False:
         # Use external state
         extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         model.load_extern_weights(dpath=extern_training_dpath)
@@ -167,6 +167,8 @@ def train_patchmatch_liberty():
             print(model.get_state_str())
         else:
             model.reinit_weights()
+
+    ut.embed()
 
     if ut.get_argflag('--train'):
         config = dict(

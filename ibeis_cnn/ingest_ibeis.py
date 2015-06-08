@@ -7,6 +7,9 @@ from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
 
 
+FIX_HASH = True
+
+
 def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
                                          kpts1_m_list, kpts2_m_list, fm_list,
                                          metadata_lists, patch_size,
@@ -209,8 +212,16 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
 
 def get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl):
     nets_dir = ibs.get_neuralnet_dir()
-    training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl)
+    training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, False)
     training_dpath = ut.unixjoin(nets_dir, training_dname)
+
+    if FIX_HASH:
+        # use better hashing scheme
+        training_dpath_ = training_dpath
+        training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, True)
+        training_dpath = ut.unixjoin(nets_dir, training_dname)
+        if ut.checkpath(training_dpath_) and not ut.checkpath(training_dpath):
+            ut.move(training_dpath_, training_dpath)
     ut.ensuredir(nets_dir)
     ut.ensuredir(training_dpath)
     view_train_dir = ut.get_argflag('--vtd')
@@ -219,7 +230,7 @@ def get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl):
     return training_dpath
 
 
-def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
+def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, FIX_HASH):
     """
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -240,16 +251,21 @@ def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl):
         >>> ibs = ibeis.opendb('testdb1')
         >>> aid1_list = ibs.get_valid_aids()
         >>> aid2_list = ibs.get_valid_aids()
-        >>> training_dpath = get_identify_training_dname(ibs, aid1_list, aid2_list, 'training')
+        >>> training_dpath = get_identify_training_dname(ibs, aid1_list, aid2_list, 'training', True)
         >>> # verify results
         >>> result = str(training_dpath)
         >>> print(result)
+
         training((13)e%dn&kgqfibw7dbu)
     """
+    import utool as ut
     semantic_uuids1 = ibs.get_annot_semantic_uuids(aid1_list)
     semantic_uuids2 = ibs.get_annot_semantic_uuids(aid2_list)
     aidpair_hashstr_list = map(ut.hashstr, zip(semantic_uuids1, semantic_uuids2))
-    training_dname = ut.hashstr_arr(aidpair_hashstr_list, hashlen=16, lbl=lbl)
+    if FIX_HASH:
+        training_dname = ut.hashstr_arr27(aidpair_hashstr_list, lbl=lbl)
+    else:
+        training_dname = ut.hashstr_arr(aidpair_hashstr_list, hashlen=16, lbl=lbl)
     return training_dname
 
 
@@ -284,15 +300,31 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
     """
     todo use size in cfgstrings
     """
-    training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, 'train_patchmetric')
-
     pmcfg = PatchMetricDataConfig()
-
-    fm_hashstr = ut.hashstr_arr(fm_list, lbl='fm')
-    data_fpath = ut.unixjoin(training_dpath, 'data_' + fm_hashstr + '_' + pmcfg.get_cfgstr() + '.pkl')
-    labels_fpath = ut.unixjoin(training_dpath, 'labels.pkl')
-    NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
     data_shape = pmcfg.get_data_shape()
+
+    NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
+
+    training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl='train_patchmetric')
+    fm_hashstr = ut.hashstr_arr(fm_list, lbl='fm')
+    cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
+    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
+
+    # Change to use path friendlier hashes
+    if FIX_HASH:
+        # Old hashes
+        data_fpath_ = data_fpath
+        labels_fpath_ = labels_fpath
+        # New hashes
+        fm_hashstr = ut.hashstr_arr27(fm_list, lbl='fm')
+        cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
+        data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
+        labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
+        if ut.checkpath(data_fpath_, verbose=True):
+            ut.move(data_fpath_, data_fpath)
+        if ut.checkpath(labels_fpath_, verbose=True):
+            ut.move(labels_fpath_, labels_fpath)
 
     if NOCACHE_TRAIN or not (
             ut.checkpath(data_fpath, verbose=True)
