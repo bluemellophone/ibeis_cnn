@@ -205,8 +205,8 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         if verbose or veryverbose:
             if veryverbose or (batch_index + 1) % num_batches <= 1:
                 print('[batchiter] Yielding batch: batch_index = %r ' % (batch_index,))
-                print('[batchiter]   * Xb.shape = %r' % (Xb.shape,))
-                print('[batchiter]   * yb.shape = %r' % (yb.shape,))
+                print('[batchiter]   * Xb.shape = %r, Xb.dtype=%r' % (Xb.shape, Xb.dtype))
+                print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (yb.shape, yb.dtype))
                 print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
         # Ugg, we can't have data and labels of different lengths
         yield Xb, yb
