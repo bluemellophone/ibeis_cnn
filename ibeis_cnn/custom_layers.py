@@ -28,10 +28,10 @@ except ImportError as ex:
     USING_GPU = False
 
 if utils.VERBOSE_CNN:
-    print('lasagne.__version__ = %r' % (lasagne.__version__,))
-    print('lasagne.__file__ = %r' % (lasagne.__file__,))
-    print('theano.__version__ = %r' % (theano.__version__,))
-    print('theano.__file__ = %r' % (theano.__file__,))
+    print('lasagne.__version__ = %r' % getattr(lasagne, '__version__', None),)
+    print('lasagne.__file__ = %r' % (getattr(lasagne, '__file__', None),))
+    print('theano.__version__ = %r' % (getattr(theano, '__version__', None),))
+    print('theano.__file__ = %r' % (getattr(theano, '__file__', None),))
 
 
 class L1NormalizeLayer(lasagne.layers.Layer):
