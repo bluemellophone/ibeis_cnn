@@ -309,7 +309,7 @@ class BaseModel(object):
         override_reprs = {
             'best_results': ut.dict_str(model.best_results),
             'best_weights': ut.truncate_str(str(model.best_weights)),
-            'preproc_kw': ut.dict_str(model.preproc_kw, truncate=True),
+            'preproc_kw': 'None' if model.preproc_kw is None else ut.dict_str(model.preproc_kw, truncate=True),
             'learning_state': ut.dict_str(model.learning_state),
             'learning_rate': model.learning_rate,
         }
