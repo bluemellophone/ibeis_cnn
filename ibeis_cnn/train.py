@@ -72,7 +72,7 @@ def train_patchmatch_pz():
     train_params = ut.argparse_dict(
         {
             'batch_size': 128,
-            'learning_rate': .001,
+            'learning_rate': .01,
             'momentum': .9,
             'weight_decay': 0.0005,
         }
@@ -117,7 +117,7 @@ def train_patchmatch_pz():
         #assert model.best_results['epoch'] is not None
         X_test, y_test = trainset.load_subset('test')
         data, labels = X_test, y_test
-        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+        #data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
         #test_outputs = harness.test_data2(model, X_test, y_test)
@@ -144,11 +144,19 @@ def train_patchmatch_liberty():
         >>> ut.show_if_requested()
         >>> print(result)
     """
+    train_params = ut.argparse_dict(
+        {
+            'batch_size': 128,
+            'learning_rate': .01,
+            'momentum': .9,
+            'weight_decay': 0.0005,
+        }
+    )
     #pairs = 500
     pairs = 250000
     trainset = ingest_data.grab_cached_liberty_data(pairs)
     #model = models.SiameseModel()
-    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath)
+    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath, **train_params)
 
     model.initialize_architecture()
     # DO CONVERSION

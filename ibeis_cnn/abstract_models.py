@@ -231,8 +231,9 @@ class BaseModel(object):
         model.era_history = model_state['era_history']
 
     def load_old_weights_kw(model, old_weights_fpath):
-        with open(old_weights_fpath, 'rb') as pfile:
-            oldkw = pickle.load(pfile)
+        print('[model] loading old model state from: %s' % (old_weights_fpath,))
+        with open(old_weights_fpath, 'rb') as file_:
+            oldkw = pickle.load(file_)
         # Model architecture and weight params
         data_shape  = oldkw['model_shape'][1:]
         input_shape = (None, data_shape[2], data_shape[0], data_shape[1])

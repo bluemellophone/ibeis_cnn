@@ -27,6 +27,12 @@ except ImportError as ex:
     MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
     USING_GPU = False
 
+if utils.VERBOSE_CNN:
+    print('lasagne.__version__ = %r' % (lasagne.__version__,))
+    print('lasagne.__file__ = %r' % (lasagne.__file__,))
+    print('theano.__version__ = %r' % (theano.__version__,))
+    print('theano.__file__ = %r' % (theano.__file__,))
+
 
 class L1NormalizeLayer(lasagne.layers.Layer):
     def __init__(self, input_layer, *args, **kwargs):
