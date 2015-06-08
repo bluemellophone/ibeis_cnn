@@ -89,7 +89,7 @@ def train_patchmatch_pz():
 
     model.initialize_architecture()
 
-    if True:
+    if False:
         # Use external state
         extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
@@ -98,10 +98,12 @@ def train_patchmatch_pz():
         if model.has_saved_state():
             model.load_model_state()
         else:
+            model.reinit_weights()
+            print(model.get_state_str())
             # Initialize with pretrained liberty weights
             # TODO: do i need to take liberty data centering as well?
-            extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
-            model.load_extern_weights(dpath=extern_training_dpath)
+            #extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+            #model.load_extern_weights(dpath=extern_training_dpath)
 
     if ut.get_argflag('--train'):
         config = dict(
@@ -133,6 +135,7 @@ def train_patchmatch_liberty():
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
         python -m ibeis_cnn.train --test-train_patchmatch_liberty --test
+        python -m ibeis_cnn.train --test-train_patchmatch_liberty --train
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -167,8 +170,8 @@ def train_patchmatch_liberty():
             print(model.get_state_str())
         else:
             model.reinit_weights()
-
-    ut.embed()
+            print(model.get_state_str())
+    #ut.embed()
 
     if ut.get_argflag('--train'):
         config = dict(

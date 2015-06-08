@@ -142,6 +142,7 @@ class BaseModel(object):
         """
         initailizes weights after the architecture has been defined.
         """
+        print('Reinitializing all weights to %r' % (W,))
         weights_list = model.get_all_params(regularizable=True, trainable=True)
         #print(weights_list)
         for weights in weights_list:

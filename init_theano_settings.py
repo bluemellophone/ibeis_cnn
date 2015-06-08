@@ -25,6 +25,7 @@ PythonPrereqs:
     #pip install pylearn2
     git clone git://github.com/lisa-lab/pylearn2.git
     git clone https://github.com/Lasagne/Lasagne.git
+    git clone https://github.com/Erotemic/Lasagne.git
     cd pylearn2
     python setup.py develop
     cd ..
