@@ -116,7 +116,7 @@ class BaseModel(object):
         return epoch_dpath
 
     def initialize_architecture(model):
-        raise NotImplementedError('reimlement')
+        raise NotImplementedError('reimplement')
 
     def ensure_training_state(model, X_train, y_train):
         # Check to make sure data agrees with input
@@ -166,8 +166,37 @@ class BaseModel(object):
         return model_state_fpath
 
     def get_model_history_hashid(model):
-        era_history_hash = [ut.hashstr(repr(era), alphabet=ut.ALPHABET_27) for era in  model.era_history]
-        history_hashid = ut.hashstr_arr(era_history_hash, 'history', alphabet=ut.ALPHABET_27)
+        r"""
+        Returns:
+            str: history_hashid
+
+        CommandLine:
+            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.abstract_models import *  # NOQA
+            >>> model = BaseModel()
+            >>> # make a dummy history
+            >>> X_train, y_train = [1, 2, 3], [0, 0, 1]
+            >>> model.start_new_era(X_train, y_train, 'dummy_alias_key')
+            >>> model.record_epoch({'epoch': 1, 'valid_loss': .9, 'train_loss': .8})
+            >>> model.record_epoch({'epoch': 2, 'valid_loss': .7, 'train_loss': .7})
+            >>> model.start_new_era(X_train, y_train, 'dummy_alias_key')
+            >>> model.record_epoch({'epoch': 3, 'valid_loss': .8, 'train_loss': .6})
+            >>> model.record_epoch({'epoch': 4, 'valid_loss': .7, 'train_loss': .5})
+            >>> model.record_epoch({'epoch': 5, 'valid_loss': .6, 'train_loss': .2})
+            >>> # test the hashid
+            >>> history_hashid = model.get_model_history_hashid()
+            >>> result = str(history_hashid)
+            >>> print(result)
+            hist_eras2_epochs5_epdfcmhfkebiejte
+        """
+        era_history_hash = [ut.hashstr27(repr(era)) for era in  model.era_history]
+        hashid = ut.hashstr27(str(era_history_hash))
+        total_epochs = sum([len(era['epoch_list']) for era in model.era_history])
+        total_eras = len(model.era_history)
+        history_hashid = 'hist_eras%d_epochs%d_%s' % (total_eras, total_epochs, hashid)
         return history_hashid
 
     def checkpoint_save_model_state(model):
@@ -195,21 +224,27 @@ class BaseModel(object):
 
     def load_model_state(model, **kwargs):
         """
+        import cPickle as pickle
         kwargs = {}
         """
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('[model] loading model state from: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'rb') as file_:
             model_state = pickle.load(file_)
-        assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
-        assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
+        if model.__class__.__name__ != 'BaseModel':
+            assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
+            assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
+            model.preproc_kw   = model_state['preproc_kw']
+            model.best_weights = model_state['best_weights']
+        else:
+            # HACK TO LOAD ABSTRACT MODEL FOR DIAGNOSITIC REASONS
+            print("WARNING LOADING ABSTRACT MODEL")
         model.best_results = model_state['best_results']
-        model.preproc_kw   = model_state['preproc_kw']
-        model.best_weights = model_state['best_weights']
         model.input_shape  = model_state['input_shape']
         model.output_dims  = model_state['output_dims']
         model.era_history  = model_state.get('era_history', [None])
-        model.set_all_param_values(model.best_weights)
+        if model.__class__.__name__ != 'BaseModel':
+            model.set_all_param_values(model.best_weights)
 
     def load_extern_weights(model, **kwargs):
         """ load weights from another model """
@@ -287,9 +322,24 @@ class BaseModel(object):
         model.era_history = []
         model.era_history.append(era_info)
 
-    def start_new_era(model, X_train, y_train, trainset):
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
+
+    def start_new_era(model, X_train, y_train, alias_key):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
         y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-        train_hashid =  trainset.alias_key + '_' + y_hashid
+        train_hashid =  alias_key + '_' + y_hashid
         era_info = {
             'train_hashid': train_hashid,
             'valid_loss_list': [],
@@ -306,13 +356,47 @@ class BaseModel(object):
     def print_state_str(model, **kwargs):
         print(model.get_state_str(**kwargs))
 
+    def show_era_history(model, fnum=None, pnum=(1, 1, 1)):
+        import plottool as pt
+
+        fnum = pt.ensure_fnum(fnum)
+
+        fig = pt.figure(fnum, pnum)
+        colors = pt.distinct_colors(len(model.era_history))
+        for index, era in enumerate(model.era_history):
+            epochs = era['epoch_list']
+            train_loss = era['train_loss_list']
+            valid_loss = era['valid_loss_list']
+            era_color = colors[index]
+            if index == len(model.era_history) - 1:
+                pt.plot(epochs, valid_loss, '-x', color=era_color, label='valid_loss')
+                pt.plot(epochs, train_loss, '-o', color=era_color, label='train_loss')
+            else:
+                pt.plot(epochs, valid_loss, '-x', color=era_color)
+                pt.plot(epochs, train_loss, '-o', color=era_color)
+
+        #append_phantom_legend_label
+        pt.set_xlabel('epoch')
+        pt.set_ylabel('loss')
+
+        pt.legend()
+
+        pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
+        pt.dark_background()
+        return fig
+
     def get_state_str(model, other_override_reprs={}):
+        era_history_str = ut.list_str(
+            [ut.dict_str(era, truncate=True, sorted_=True)
+             for era in model.era_history], strvals=True)
+
         override_reprs = {
             'best_results': ut.dict_str(model.best_results),
             'best_weights': ut.truncate_str(str(model.best_weights)),
             'preproc_kw': 'None' if model.preproc_kw is None else ut.dict_str(model.preproc_kw, truncate=True),
             'learning_state': ut.dict_str(model.learning_state),
             'learning_rate': model.learning_rate,
+            'era_history': era_history_str,
         }
         override_reprs.update(other_override_reprs)
         keys = list(set(model.__dict__.keys()) - set(override_reprs.keys()))
@@ -604,3 +688,16 @@ class PretrainedNetwork(object):
         if rand:
             np.random.shuffle(weights_initializer)
         return weights_initializer
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.abstract_models
+        python -m ibeis_cnn.abstract_models --allexamples
+        python -m ibeis_cnn.abstract_models --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

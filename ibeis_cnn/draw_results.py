@@ -49,11 +49,21 @@ def visualize_score_separability(label_list, warped_patch1_list, warped_patch2_l
     pt.set_figtitle('HotSpotter Patch Scores')
 
 
+def get_sample_pairimg_from_X(Xb, index_list):
+    warped_patch1_list, warped_patch2_list = Xb[::2], Xb[1::2]
+    label_list = None
+    tup = get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list, {}, index_list, (len(index_list), 1))
+    stacked_img, stacked_offsets, stacked_sfs = tup
+    return stacked_img
+
+
 def get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, index_list, chunck_sizes=(6, 10)):
     #with ut.eoxc
     try:
         multiindices = six.next(ut.iter_multichunks(index_list, chunck_sizes))
-        return get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindices)
+        tup = get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindices)
+        stacked_img, stacked_offsets, stacked_sfs = tup
+        return stacked_img, stacked_offsets, stacked_sfs
     except StopIteration:
         if len(index_list) > 0:
             raise
@@ -85,17 +95,19 @@ def get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, fl
     multiimg_list = []
     offsets_list = []
     sfs_list = []
+    border_color = (100, 10, 10)  # bgr, darkblue
     for indicies in multiindicies:
         img, offset_list, sf_list = get_patch_chunk(warped_patch1_list,
                                                     warped_patch2_list, label_list,
-                                                    flat_metadata, indicies)
+                                                    flat_metadata, indicies, border_color)
         multiimg_list.append(img)
         offsets_list.append(offset_list)
         sfs_list.append(sf_list)
         # Add horizontal spacing
 
-        blackbar = np.zeros((img.shape[0], int(img.shape[1] * .1), 3), dtype=np.uint8)
-        multiimg_list.append(blackbar)
+        solidbar = np.zeros((img.shape[0], int(img.shape[1] * .1), 3), dtype=np.uint8)
+        solidbar[:, :, :] = np.array(border_color)[None, None]
+        multiimg_list.append(solidbar)
         offsets_list.append([(0, 0)])
         sfs_list.append([(1., 1.)])
 
@@ -111,7 +123,8 @@ def get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, fl
     # TODO; use offset_list for interaction
 
 
-def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, indicies):
+def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
+                    flat_metadata, indicies, border_color=(0, 0, 0)):
     """
     indicies = chunked_indicies[0]
 
@@ -161,40 +174,47 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list, flat_met
 
     patch1_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch1_list, indicies)]
     patch2_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch2_list, indicies)]
-    #patch2_list_subset[0] = np.zeros(patch2_list_subset[0].shape, patch2_list_subset[0].dtype)
-    label_list_subset = ut.list_take(label_list, indicies)
-    # Ipython embed hates dict comprehensions and locals
-    flat_metadata_subset = dict([(key, ut.list_take(vals, indicies)) for key, vals in six.iteritems(flat_metadata)])
-    # draw label border
-    #colorfn = lambda label: (green if label else red)
-    colorfn = [red, green]
+
     thickness = 2
-    patch1_list_subset = [
-        vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
-        for label, patch in zip(label_list_subset, patch1_list_subset)
-    ]
-    patch2_list_subset = [
-        vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
-        for label, patch in zip(label_list_subset, patch2_list_subset)
-    ]
+    if label_list is not None:
+        # draw label border
+        label_list_subset = ut.list_take(label_list, indicies)
+        colorfn = [red, green]
+        patch1_list_subset = [
+            vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
+            for label, patch in zip(label_list_subset, patch1_list_subset)
+        ]
+        patch2_list_subset = [
+            vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
+            for label, patch in zip(label_list_subset, patch2_list_subset)
+        ]
+
     # draw black border
-    patch1_list = [vt.draw_border(patch, color=(0, 0, 0), thickness=1, out=patch) for patch in patch1_list_subset]
-    patch2_list = [vt.draw_border(patch, color=(0, 0, 0), thickness=1, out=patch) for patch in patch2_list_subset]
+    patch1_list = [vt.draw_border(patch, color=border_color, thickness=1, out=patch) for patch in patch1_list_subset]
+    patch2_list = [vt.draw_border(patch, color=border_color, thickness=1, out=patch) for patch in patch2_list_subset]
     patchsize1_list = [vt.get_size(patch) for patch in patch1_list]
-    # stack and show
+
+    # stack into single image
     stack_kw = dict(modifysize=False, return_offset=True, return_sf=True)
     stacked_patch1s, offset_list1, sf_list1 = pt.stack_image_list(patch1_list, vert=True, **stack_kw)
     stacked_patch2s, offset_list2, sf_list2 = pt.stack_image_list(patch2_list, vert=True, **stack_kw)
-    #stacked_patches = pt.stack_images(stacked_patch1s, stacked_patch2s, vert=False)[0]
+
     stacked_patches, offset_list, sf_list = pt.stack_multi_images(
         stacked_patch1s, stacked_patch2s, offset_list1, sf_list1, offset_list2, sf_list2,
         vert=False, modifysize=False)
 
+    # Draw scores
+    # Ipython embed hates dict comprehensions and locals
+    flat_metadata_subset = dict([(key, ut.list_take(vals, indicies)) for key, vals in six.iteritems(flat_metadata)])
+    patch_texts = None
     if 'fs' in flat_metadata_subset:
         scores = flat_metadata_subset['fs']
-        score_texts = ['%.3f' % s for s in scores]
+        patch_texts = ['%.3f' % s for s in scores]
         #right_offsets = offset_list[len(offset_list) // 2:]
+    if 'text' in flat_metadata_subset:
+        patch_texts = flat_metadata_subset['text']
 
+    if patch_texts is not None:
         scale_up = 3
         img = vt.resize_image_by_scale(stacked_patches, scale_up)
         offset_list = np.array(offset_list) * scale_up
@@ -206,7 +226,7 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list, flat_met
         textcolor_rgb1 = pt.to_base255(pt.BLACK)[:3]
         #textcolor_rgb2 = pt.to_base255(pt.ORANGE)[:3]
         textcolor_rgb2 = pt.to_base255(pt.WHITE)[:3]
-        for offset, patchsize, sf, text in zip(left_offsets, patchsize1_list, left_sfs, score_texts):
+        for offset, patchsize, sf, text in zip(left_offsets, patchsize1_list, left_sfs, patch_texts):
             #print(offset)
             #print(s)
             import cv2

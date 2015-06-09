@@ -11,13 +11,13 @@ import lasagne  # NOQA
 from lasagne import layers
 from lasagne import nonlinearities
 from lasagne import init
-import random
 import functools
 import six
 import theano.tensor as T
 import numpy as np
 from ibeis_cnn import abstract_models
 from ibeis_cnn import custom_layers
+from ibeis_cnn import augment
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models]')
 #from ibeis_cnn import utils
@@ -69,56 +69,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
         return output_layer
 
     def augment(self, Xb, yb=None):
-        """
-        CommandLine:
-            python -m ibeis_cnn.models --test-SiameseCenterSurroundModel.augment --show
-
-        Example:
-            >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.models import *  # NOQA
-            >>> from ibeis_cnn import ingest_data, utils
-            >>> data, labels = ingest_data.testdata_patchmatch()
-            >>> cv2_data = utils.convert_theano_images_to_cv2_images(data)
-            >>> batch_size = 128
-            >>> Xb, yb = cv2_data[0:batch_size], labels[0:batch_size // 2]
-            >>> self = SiameseCenterSurroundModel()
-            >>> Xb1, yb1 = self.augment(Xb.copy(), yb.copy())
-            >>> modified_indexes = np.where((Xb1 != Xb).sum(-1).sum(-1).sum(-1) > 0)[0]
-            >>> ut.quit_if_noshow()
-            >>> import plottool as pt
-            >>> pt.imshow(Xb[modified_indexes[0]], pnum=(2, 2, 1))
-            >>> pt.imshow(Xb1[modified_indexes[0]], pnum=(2, 2, 2))
-            >>> pt.imshow(Xb[modified_indexes[1]], pnum=(2, 2, 3))
-            >>> pt.imshow(Xb1[modified_indexes[1]], pnum=(2, 2, 4))
-            >>> ut.show_if_requested()
-        """
-        import functools
-        #Xb = Xb.copy()
-        #if yb is not None:
-        #    yb = yb.copy()
-        Xb1, Xb2 = Xb[::2], Xb[1::2]
-        rot_transforms  = [functools.partial(np.rot90, k=k) for k in range(1, 4)]
-        flip_transforms = [np.fliplr, np.flipud]
-        prob_rotate = .3
-        prob_flip   = .3
-
-        num = len(Xb1)
-
-        # Determine which examples will be augmented
-        rotate_flags = [random.uniform(0.0, 1.0) <= prob_rotate for _ in range(num)]
-        flip_flags   = [random.uniform(0.0, 1.0) <= prob_flip for _ in range(num)]
-
-        # Determine which functions to use
-        rot_fn_list  = [random.choice(rot_transforms) if flag else None for flag in rotate_flags]
-        flip_fn_list = [random.choice(flip_transforms) if flag else None for flag in flip_flags]
-
-        for index, func_list in enumerate(zip(rot_fn_list, flip_fn_list)):
-            for func in func_list:
-                if func is not None:
-                    pass
-                    Xb1[index] = func(Xb1[index])
-                    Xb2[index] = func(Xb2[index])
-        return Xb, yb
+        Xb, yb = augment.augment_siamese_patches2(Xb, yb)
 
     def get_2ch2stream_def(model, verbose=True, **kwargs):
         """

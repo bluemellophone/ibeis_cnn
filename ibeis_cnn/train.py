@@ -6,8 +6,6 @@ Defines the models and the data we will send to the harness
 CommandLine:
     python -m ibeis_cnn.train --test-train_patchmatch_pz
     python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
-    python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001
-    python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=5
     python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
@@ -42,12 +40,11 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
 def train_patchmatch_pz():
     r"""
-
     CommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --train
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --learning_rate .0000001
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max_examples=3 --learning_rate .0000001 --train
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --nocache-train
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=20
@@ -89,9 +86,10 @@ def train_patchmatch_pz():
 
     model.initialize_architecture()
 
-    if False:
+    if ut.get_argflag('--test'):
         # Use external state
-        extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
+        extern_training_dpath = ingest_data.get_extern_training_dpath('PZ_MTEST;dict(max_examples=None, num_top=3,)')
+        #extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
         model.load_extern_weights(dpath=extern_training_dpath)
     else:
@@ -99,11 +97,12 @@ def train_patchmatch_pz():
             model.load_model_state()
         else:
             model.reinit_weights()
-            print(model.get_state_str())
-            # Initialize with pretrained liberty weights
-            # TODO: do i need to take liberty data centering as well?
-            #extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
-            #model.load_extern_weights(dpath=extern_training_dpath)
+        # Initialize with pretrained liberty weights
+        # TODO: do i need to take liberty data centering as well?
+        #extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
+        #model.load_extern_weights(dpath=extern_training_dpath)
+    print('MODEL STATE:')
+    print(model.get_state_str())
 
     if ut.get_argflag('--train'):
         config = dict(

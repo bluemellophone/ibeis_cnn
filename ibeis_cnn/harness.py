@@ -75,11 +75,16 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     #test_freq      = kwargs.get('test_freq', None)
 
     epoch = model.best_results['epoch']
+    #ut.embed()
     if epoch is None:
         epoch = 0
+        print('Initializng training at epoch=%r' % (epoch,))
+    else:
+        print('Resuming training at epoch=%r' % (epoch,))
     epoch_marker  = epoch
 
     # number of non-best iterations after, that triggers a best save
+    save_freq = 10
     save_after_best_wait_epochs = 5
     save_after_best_countdown = None
 
@@ -89,12 +94,12 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
 
-    model.start_new_era(X_train, y_train, trainset)
+    model.start_new_era(X_train, y_train, trainset.alias_key)
 
     batchiter_kw = dict(
         #showprog=False,
         showprog=True,
-        time_thresh=3,
+        time_thresh=4,
         time_thresh_growth=ut.PHI * 2,
     )
 
@@ -162,12 +167,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
 
             # ---------------------------------------
             # Record this epoch in history
-            for key in epoch_info:
-                key_ = key + '_list'
-                if key_ not in model.current_era:
-                    model.current_era[key_] = []
-                model.current_era[key_].append(epoch_info[key])
-            #len(model.era_history)
+            model.record_epoch(epoch_info)
 
             # ---------------------------------------
             # Check how we are learning
@@ -183,24 +183,29 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
             # Print the epoch
             utils.print_epoch_info(model, printcol_info, epoch_info)
 
-            # Output any diagnostics
+            # Check frequencies and countdowns
+            output_diagnostics = utils.checkfreq(save_freq, epoch)
             if save_after_best_countdown is not None:
                 if save_after_best_countdown == 0:
                     ## Callbacks on best found
-                    model.checkpoint_save_model_state()
-                    model.save_model_state()
-                    #model.draw_convolutional_layers(epoch=epoch)
-                    model.draw_convolutional_layers()
                     save_after_best_countdown = None
+                    output_diagnostics = True
                 else:
                     save_after_best_countdown -= 1
+
+            # Output any diagnostics
+            if output_diagnostics:
+                model.checkpoint_save_model_state()
+                model.save_model_state()
+                #model.draw_convolutional_layers(epoch=epoch)
+                model.draw_convolutional_layers()
 
             # Learning rate schedule update
             if epoch >= epoch_marker + patience:
                 epoch_marker = epoch
                 model.learning_rate = model.learning_rate_update(model.learning_rate)
                 utils.print_header_columns(printcol_info)
-                model.start_new_era(X_train, y_train, trainset)
+                model.start_new_era(X_train, y_train, trainset.alias_key)
 
             # Break on max epochs
             if max_epochs is not None and epoch >= max_epochs:
