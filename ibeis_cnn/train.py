@@ -158,27 +158,17 @@ def train_patchmatch_liberty():
     model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath, **train_params)
 
     model.initialize_architecture()
-    # DO CONVERSION
-    if False:
-        old_weights_fpath = ut.truepath('~/Dropbox/ibeis_cnn_weights_liberty.pickle')
-        if ut.checkpath(old_weights_fpath, verbose=True):
-            self = model
-            self.load_old_weights_kw(old_weights_fpath)
-        self.save_model_state()
-        #self.save_state()
 
-    if False:
+    if ut.get_argflag('--test'):
         # Use external state
         extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
         model.load_extern_weights(dpath=extern_training_dpath)
     else:
         if model.has_saved_state():
             model.load_model_state()
-            print(model.get_state_str())
         else:
             model.reinit_weights()
-            print(model.get_state_str())
-    #ut.embed()
+    print(model.get_state_str())
 
     if ut.get_argflag('--train'):
         config = dict(

@@ -46,3 +46,16 @@ def grab_model_from_dozer():
     remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state.pkl'
     local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state_dozer.pkl'
     ut.scp_pull(remote_path, local_path remote, user)
+
+
+def convert_old_weights():
+    ## DO CONVERSION
+    #if False:
+    #    old_weights_fpath = ut.truepath('~/Dropbox/ibeis_cnn_weights_liberty.pickle')
+    #    if ut.checkpath(old_weights_fpath, verbose=True):
+    #        self = model
+    #        self.load_old_weights_kw(old_weights_fpath)
+    #    self.save_model_state()
+    #    #self.save_state()
+    pass
+
