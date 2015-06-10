@@ -348,6 +348,7 @@ class BaseModel(object):
         train_hashid =  alias_key + '_' + y_hashid
         era_info = {
             'train_hashid': train_hashid,
+            'arch_hashid': model.get_architecture_hashid(),
             'valid_loss_list': [],
             'train_loss_list': [],
             'epoch_list': [],
