@@ -69,9 +69,9 @@ def train_patchmatch_pz():
     train_params = ut.argparse_dict(
         {
             'batch_size': 128,
-            'learning_rate': .01,
+            'learning_rate': .007,
             'momentum': .9,
-            'weight_decay': 0.0005,
+            'weight_decay': 0.005,
         }
     )
     print('[train] train_patchmatch_pz')
