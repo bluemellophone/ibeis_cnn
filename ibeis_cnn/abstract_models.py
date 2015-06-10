@@ -158,12 +158,18 @@ class BaseModel(object):
 
     def get_model_state_fpath(model, fpath=None, dpath=None, fname=None):
         if fpath is None:
-            fname = 'model_state.pkl' if fname is None else fname
+            default_fname = 'model_state_arch_%s' % (model.get_architecture_hashid())
+            fname = default_fname if fname is None else fname
             dpath = model.training_dpath if dpath is None else dpath
             model_state_fpath = join(dpath, fname)
         else:
             model_state_fpath = fpath
         return model_state_fpath
+
+    def get_architecture_hashid(model):
+        architecture_str = model.get_architecture_str()
+        hashid = ut.hashstr27(architecture_str)
+        return hashid
 
     def get_model_history_hashid(model):
         r"""
@@ -434,11 +440,6 @@ class BaseModel(object):
         filename = 'tmp.png'
         draw_net.draw_to_file(model.get_all_layers(), filename)
         ut.startfile(filename)
-
-    def get_architecture_hashid(model):
-        architecture_str = model.get_architecture_str()
-        hashid = ut.hashstr(architecture_str, alphabet=ut.ALPHABET_16, hashlen=16)
-        return hashid
 
     def print_layer_info(model):
         net_strs.print_layer_info(model.get_output_layer())
