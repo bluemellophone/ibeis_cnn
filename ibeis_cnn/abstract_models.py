@@ -439,11 +439,16 @@ class BaseModel(object):
 
     def draw_architecture(model):
         filename = 'tmp.png'
-        draw_net.draw_to_file(model.get_all_layers(), filename)
+        draw_net.draw_to_file(model, filename)
         ut.startfile(filename)
 
+    def make_architecture_image(model, **kwargs):
+        layers = model.get_all_layers()
+        img = draw_net.make_architecture_image(layers, **kwargs)
+        return img
+
     def print_layer_info(model):
-        net_strs.print_layer_info(model.get_output_layer())
+        net_strs.print_layer_info(model.get_all_layers())
 
     def set_all_param_values(model, weights_list):
         with warnings.catch_warnings():
@@ -481,8 +486,12 @@ class BaseModel(object):
         print('\nArchitecture:' + sep + architecture_str)
 
     def get_all_layers(model):
-        assert model.output_layer is not None
-        network_layers = lasagne.layers.get_all_layers(model.output_layer)
+        with warnings.catch_warnings():
+            #warnings.filterwarnings('ignore', '.*topo.*')
+            #warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+            warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
+            assert model.output_layer is not None
+            network_layers = lasagne.layers.get_all_layers(model.output_layer)
         return network_layers
 
     def get_output_layer(model):

@@ -198,7 +198,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 model.checkpoint_save_model_state()
                 model.save_model_state()
                 #model.draw_convolutional_layers(epoch=epoch)
-                model.draw_convolutional_layers()
+                #model.draw_convolutional_layers()
 
             # Learning rate schedule update
             if epoch >= epoch_marker + patience:

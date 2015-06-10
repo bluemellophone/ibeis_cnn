@@ -180,18 +180,45 @@ def draw_to_file(layers, filename, **kwargs):
         fid.write(dot.create(format=ext))
 
 
-def draw_to_notebook(layers, **kwargs):
+def make_architecture_image(layers, **kwargs):
     """
-    Draws a network diagram in an IPython notebook
-    :parameters:
+    Args:
         - layers : list
             List of the layers, as obtained from lasange.layers.get_all_layers
         - **kwargs: see docstring of get_pydot_graph for other options
-    """
-    from IPython.display import Image  # needed to render in notebook
 
+    References:
+        http://stackoverflow.com/questions/4596962/display-graph-without-saving-using-pydot
+
+    CommandLine:
+        python -m ibeis_cnn.draw_net --test-make_architecture_image --show
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> self = models.DummyModel(autoinit=True)
+        >>> layers = self.get_all_layers()
+        >>> # execute function
+        >>> img = make_architecture_image(layers)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> pt.imshow(img)
+        >>> ut.show_if_requested()
+    """
+    #from IPython.display import Image  # needed to render in notebook
+    from PIL import Image
+    from cStringIO import StringIO
     dot = get_pydot_graph(layers, **kwargs)
-    return Image(dot.create_png())
+    png_str = dot.create_png(prog='dot')
+    sio = StringIO()
+    sio.write(png_str)
+    sio.seek(0)
+    pil_img = Image.open(sio)
+    img = np.asarray(pil_img)
+    pil_img.close()
+    sio.close()
+    return img
 
 
 def show_confusion_matrix(correct_y, predict_y, category_list, results_path,

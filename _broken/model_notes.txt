@@ -10,3 +10,65 @@
         #    _P(layers.DenseLayer, num_units=50, **rlu_glorot),
         #]
 
+        Notes:
+            http://arxiv.org/pdf/1504.03641.pdf
+
+            Performance of several models on the local image patches benchmark.
+            The shorthand notation used was the following.
+            C(n, k, s) is a convolutional layer with n filters of spatial size k x k applied with stride s.
+            P(k, s) is a max-pooling layer of size k x k applied with stride s.
+            F(n) denotes a fully connected linear layer with n output
+            units.
+            The models architecture is as follows:
+
+            (ii)
+                2ch-deep =
+                    C(96, 4, 3)- Stack(96)- P(2, 2)- Stack(192)- F(1),
+                Stack(n) =
+                    C(n, 3, 1)- ReLU- C(n, 3, 1)- ReLU- C(n, 3, 1)- ReLU.
+
+            (iii)
+                2ch =
+                    C(96, 7, 3)- ReLU- P(2, 2)- C(192, 5, 1)- ReLU- P(2, 2)- C(256, 3, 1)- ReLU- F(256)- ReLU- F(1)
+
+            (iv)
+                siam has two branches
+                    C(96, 7, 3)- ReLU- P(2, 2)- C(192, 5, 1)- ReLU- P(2, 2)- C(256, 3, 1)- ReLU
+                and decision layer
+                    F(512)- ReLU- F(1)
+
+            (v) siam-l2 reduces to a single branch of siam
+
+            (vi) pseudo-siam is uncoupled version of siam
+
+            (vii) pseudo-siam-l2 reduces to a single branch of pseudo-siam
+
+            (ix) siam-2stream-l2 consists of one central and one surround
+                branch of siam-2stream.
+
+        Notes:
+            (viii) siam-2stream has 4 branches
+                C(96, 4, 2)- ReLU-
+                P(2, 2)-
+                C(192, 3, 1)- ReLU-
+                C(256, 3, 1)- ReLU-
+                C(256, 3, 1)- ReLU
+
+                (coupled in pairs for central and surround streams, and decision layer)
+
+                F(512)-ReLU-
+                F(1)
+
+        Notes:
+
+            (i) 2ch-2stream consists of two branches
+                C(95, 5, 1)- ReLU-
+                P(2, 2)-
+                C(96, 3, 1)- ReLU-
+                P(2, 2)-
+                C(192, 3, 1)- ReLU-
+                C(192, 3, 1)- ReLU,
+
+                one for central and one for surround parts, followed by
+                F(768)- ReLU-
+                F(1)
