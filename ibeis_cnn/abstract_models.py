@@ -2,7 +2,6 @@
 from __future__ import absolute_import, division, print_function
 import theano
 import lasagne
-from lasagne import init
 import functools
 import six
 import theano.tensor as T
@@ -138,7 +137,7 @@ class BaseModel(object):
         if hasattr(model, 'initialize_encoder'):
             model.initialize_encoder(y_train)
 
-    def reinit_weights(model, W=init.Orthogonal()):
+    def reinit_weights(model, W=lasagne.init.Orthogonal()):
         """
         initailizes weights after the architecture has been defined.
         """
@@ -608,7 +607,7 @@ class AbstractCategoricalModel(BaseModel):
         return labeled_outputs
 
 
-class _PretrainedLayerInitializer(init.Initializer):
+class _PretrainedLayerInitializer(lasagne.init.Initializer):
     def __init__(self, pretrained_layer):
         self.pretrained_layer = pretrained_layer
 
