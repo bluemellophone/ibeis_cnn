@@ -27,6 +27,24 @@ TODO:
     Allow multiple different datasets to train the same model
       * The adjustments that that model makes should be saved in a data-specific directory
     Show bad training examples
+
+    Model Weight Tags
+    Model Architecture Tags
+    Dataset Tags
+    Checkpoint Tag?
+
+    Data Metadata - Along with ability to go back and check the context of fail cases
+    - need to use original SIFT descriptors from ibeis db if available
+
+
+
+
+Ideas:
+    Neural Network Vocabulary?
+    Input a patch
+    Output a word
+    Training: unsupervised sparse autoencoder
+
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils  # NOQA
@@ -38,20 +56,53 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 
 
+# second level of alias indirection
+# This is more of a dataset tag
+weights_tag_alias2 = {
+    'nnp_master': 'NNP_Master3;dict(max_examples=None, num_top=3,)',
+    'pzmtest': 'PZ_MTEST;dict(max_examples=None, num_top=3,)',
+    'liberty': 'liberty;dict(detector=\'dog\', pairs=250000,)',
+}
+
+
+# This is more of a history tag
+checkpoint_tag_alias = {
+    '1': 'hist_eras1_epochs1_luhacgyiftsezrzi',
+    '11': 'hist_eras1_epochs11_anivdezohtrouieo',
+    '12': 'hist_eras1_epochs12_hmkamjjumeifwufs',
+    '21': 'hist_eras1_epochs21_cnsszjkathjbluos',
+
+    'lib30': 'hist_eras3_epochs30_zqwhqylxyihnknxc'
+}
+
+
 def train_patchmatch_pz():
     r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --test
+    TrainingCommandLine:
         python -m ibeis_cnn.train --test-train_patchmatch_pz --train
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max_examples=3 --learning_rate .0000001 --train
-
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --nocache-train
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --train
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --train
+
+    TestingCommandLine:
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --test='this'
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=20
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --train
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=this
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp_master
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp_master
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp_master --checkpoint=11
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp_master --checkpoint=12
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=new
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=new
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=liberty
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=liberty --checkpoint=lib30
 
 
     Example:
@@ -86,21 +137,24 @@ def train_patchmatch_pz():
 
     model.initialize_architecture()
 
-    if ut.get_argflag('--test'):
-        # Use external state
-        extern_training_dpath = ingest_data.get_extern_training_dpath('PZ_MTEST;dict(max_examples=None, num_top=3,)')
-        #extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
-        #extern_training_dpath = ingest_data.get_extern_training_dpath('liberty;dict(detector=\'dog\', pairs=250000,)')
-        model.load_extern_weights(dpath=extern_training_dpath)
-    else:
-        if model.has_saved_state():
-            model.load_model_state()
+    weights_tag = 'this'
+    weights_tag = ut.get_argval('--weights', type_=str, default=weights_tag)
+    weights_tag = weights_tag_alias2.get(weights_tag, weights_tag)
+
+    checkpoint_tag = ut.get_argval('--checkpoint', type_=str, default=None)
+    checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
+
+    if weights_tag == 'this':
+        if model.has_saved_state(checkpoint_tag=checkpoint_tag):
+            model.load_model_state(checkpoint_tag=checkpoint_tag)
         else:
             model.reinit_weights()
-        # Initialize with pretrained liberty weights
-        # TODO: do i need to take liberty data centering as well?
-        #extern_training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', 'liberty')
-        #model.load_extern_weights(dpath=extern_training_dpath)
+    elif weights_tag == 'new':
+        model.reinit_weights()
+    else:
+        extern_training_dpath = ingest_data.get_extern_training_dpath(weights_tag)
+        model.load_extern_weights(dpath=extern_training_dpath, checkpoint_tag=checkpoint_tag)
+
     print('MODEL STATE:')
     print(model.get_state_str())
 
@@ -119,10 +173,6 @@ def train_patchmatch_pz():
         #data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         dataname = trainset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
-        #test_outputs = harness.test_data2(model, X_test, y_test)
-        #network_output = test_outputs['network_output']
-        #scores = network_output.T[0]
-        #harness.test(model, X_test, y_test, **config)
     else:
         raise NotImplementedError('nothing here. need to train or test')
 

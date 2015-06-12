@@ -256,8 +256,8 @@ def get_patchmetric_training_fpaths(**kwargs):
             #'db': 'PZ_MTEST',
             'max_examples': None,
             'num_top': 3,
-        }
-    )
+            'controlled': True,
+        }, verbose=True)
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
         ibs = ibeis.opendb(defaultdb='PZ_MTEST')
@@ -275,7 +275,7 @@ def get_patchmetric_training_fpaths(**kwargs):
         trainset = TrainingSet.from_alias_key(alias_key)
         return trainset
     except Exception as ex:
-        ut.printex(ex, 'alias definitions have changed', iswarning=True)
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
 
     with ut.Indenter('[CHECKDATA]'):
         # Get training data pairs

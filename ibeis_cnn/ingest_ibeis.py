@@ -357,7 +357,7 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3):
+def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=False):
     """
     Returns:
         aid pairs and matching keypoint pairs as well as the original index of the feature matches
@@ -371,17 +371,28 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3):
         >>> max_examples = None
         >>> num_top = None
     """
-    aid_list = ibs.get_valid_aids()
+
+    from ibeis import ibsfuncs
+    if controlled:
+        qaid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=True)
+        daid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=False)
+    else:
+        qaid_list = ibs.get_valid_aids()
+        #from ibeis.model.hots import chip_match
+        qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
+        daid_list = qaid_list
+
     if max_examples is not None:
-        aid_list = aid_list[0:min(max_examples, len(aid_list))]
-    #from ibeis.model.hots import chip_match
-    aid_list = ut.list_compress(aid_list,
-                                ibs.get_annot_has_groundtruth(aid_list))
+        qaid_list = qaid_list[0:min(max_examples, len(qaid_list))]
+
     cfgdict = {
-        'affine_invariance': False,
+        #'affine_invariance': False,
     }
+
+    import ibeis.dev.dbinfo
+    ibeis.dev.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
     qres_list, qreq_ = ibs.query_chips(
-        aid_list, aid_list, return_request=True, cfgdict=cfgdict)
+        qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
     # TODO: Use ChipMatch2 instead of QueryResult
     #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
     #for cm in cm_list:

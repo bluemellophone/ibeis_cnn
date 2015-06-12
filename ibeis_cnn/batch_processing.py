@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import draw_net
@@ -129,6 +130,9 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         [[(16, 4, 1, 4), 16]] * 6 + [[(3, 4, 1, 4), 3]]
     """
     data_per_label = model.data_per_label
+    # need to be careful with batchsizes if directly specified to theano
+    equal_batch_sizes = model.input_shape[0] is not None
+    augment_on = augment_on and hasattr(model, 'augment')
     encoder = getattr(model, 'encoder', None)
     # divides X and y into batches of size bs for sending to the GPU
     if rand:
@@ -139,6 +143,10 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         print('[batchiter] X.shape %r' % (X.shape, ))
         if y is not None:
             print('[batchiter] y.shape %r' % (y.shape, ))
+        print('[batchiter] augment_on %r' % (augment_on, ))
+        print('[batchiter] encoder %r' % (encoder, ))
+        print('[batchiter] equal_batch_sizes %r' % (equal_batch_sizes, ))
+        print('[batchiter] data_per_label %r' % (data_per_label, ))
     if y is not None:
         assert X.shape[0] == (y.shape[0] * data_per_label), 'bad data / label alignment'
     batch_size = model.batch_size
@@ -154,10 +162,6 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         center_std  = model.preproc_kw['center_std']
         center_mean = model.preproc_kw['center_mean']
     do_whitening = center_mean is not None and center_std is not None and center_std != 0.0
-
-    # need to be careful with batchsizes if directly specified to theano
-    equal_batch_sizes = model.input_shape[0] is not None
-    augment_on = augment_on and hasattr(model, 'augment')
 
     if showprog:
         batch_index_iter = ut.ProgressIter(batch_index_iter,

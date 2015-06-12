@@ -43,9 +43,18 @@ def load_tmp_model():
 def grab_model_from_dozer():
     remote = 'dozer'
     user = 'joncrall'
-    remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state.pkl'
-    local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state_dozer.pkl'
-    ut.scp_pull(remote_path, local_path remote, user)
+    #remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state.pkl'
+    #local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/model_state_dozer.pkl'
+
+    remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/checkpoints/hist_eras3_epochs30_zqwhqylxyihnknxc/model_state_arch_tiloohclkatusmmp'
+    local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/checkpoints/hist_eras3_epochs30_zqwhqylxyihnknxc/model_state_arch_tiloohclkatusmmp.pkl'
+
+    from os.path import dirname
+    ut.ensuredir(dirname(local_path))
+
+    ut.scp_pull(remote_path, local_path, remote, user)
+
+    ut.vd(dirname(local_path))
 
 
 def convert_old_weights():

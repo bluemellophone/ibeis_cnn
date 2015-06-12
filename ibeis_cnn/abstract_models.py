@@ -14,7 +14,7 @@ from ibeis_cnn import batch_processing as batch
 from ibeis_cnn import draw_net
 import sklearn.preprocessing
 import utool as ut
-from os.path import join
+from os.path import join, dirname
 import warnings
 import cPickle as pickle
 ut.noinject('ibeis_cnn.abstract_models')
@@ -150,20 +150,7 @@ class BaseModel(object):
             new_values = W.sample(shape)
             weights.set_value(new_values)
 
-    # --- io
-
-    def has_saved_state(model):
-        return ut.checkpath(model.get_model_state_fpath())
-
-    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None):
-        if fpath is None:
-            default_fname = 'model_state_arch_%s' % (model.get_architecture_hashid())
-            fname = default_fname if fname is None else fname
-            dpath = model.training_dpath if dpath is None else dpath
-            model_state_fpath = join(dpath, fname)
-        else:
-            model_state_fpath = fpath
-        return model_state_fpath
+    # --- id
 
     def get_architecture_hashid(model):
         architecture_str = model.get_architecture_str()
@@ -204,11 +191,36 @@ class BaseModel(object):
         history_hashid = 'hist_eras%d_epochs%d_%s' % (total_eras, total_epochs, hashid)
         return history_hashid
 
+    # --- io
+
+    def has_saved_state(model, checkpoint_tag=None):
+        fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
+        if checkpoint_tag is not None:
+            ut.assertpath(fpath)
+        return ut.checkpath(fpath)
+
+    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None, checkpoint_tag=None):
+        if fpath is None:
+            default_fname = 'model_state_arch_%s.pkl' % (model.get_architecture_hashid())
+            fname = default_fname if fname is None else fname
+            dpath = model.training_dpath if dpath is None else dpath
+            if checkpoint_tag is not None:
+                dpath = join(dpath, 'checkpoints', checkpoint_tag)
+            model_state_fpath = join(dpath, fname)
+        else:
+            assert checkpoint_tag is None, 'fpath overrides all other settings'
+            assert dpath is None, 'fpath overrides all other settings'
+            assert fname is None, 'fpath overrides all other settings'
+            model_state_fpath = fpath
+        return model_state_fpath
+
     def checkpoint_save_model_state(model):
-        checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'checkpoints'))
         history_hashid = model.get_model_history_hashid()
-        dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
-        model.save_model_state(dpath=dpath)
+        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
+        ut.ensuredir(dirname(fpath))
+        model.save_model_state(fpath=fpath)
+        #checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'checkpoints'))
+        #dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
 
     def save_model_state(model, **kwargs):
         current_weights = model.get_all_param_values()
