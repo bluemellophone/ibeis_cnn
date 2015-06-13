@@ -193,6 +193,7 @@ def train_patchmatch_liberty():
         >>> ut.show_if_requested()
         >>> print(result)
     """
+    # TODO; integrate into data tagging system
     train_params = ut.argparse_dict(
         {
             #'learning_rate': .01,
