@@ -381,6 +381,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=False
         #from ibeis.model.hots import chip_match
         qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
         daid_list = qaid_list
+        if max_examples is not None:
+            daid_list = daid_list[0:min(max_examples, len(daid_list))]
 
     if max_examples is not None:
         qaid_list = qaid_list[0:min(max_examples, len(qaid_list))]

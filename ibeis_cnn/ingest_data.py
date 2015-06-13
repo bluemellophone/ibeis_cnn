@@ -299,6 +299,11 @@ def get_patchmetric_training_fpaths(**kwargs):
     return trainset
 
 
+def testdata_trainset():
+    trainset = get_patchmetric_training_fpaths(max_examples=5, controlled=False)
+    return trainset
+
+
 def testdata_patchmatch():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA

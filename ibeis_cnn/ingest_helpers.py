@@ -18,6 +18,30 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
     # TODO: metadata fpath
 
     split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]
+
+    CommandLine:
+        python -m ibeis_cnn.ingest_helpers --test-ondisk_data_split
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_helpers import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> trainset = ingest_data.testdata_trainset()
+        >>> data_fpath = trainset.data_fpath
+        >>> labels_fpath = trainset.labels_fpath
+        >>> data_per_label = trainset.data_per_label
+        >>> split_names = ['train', 'valid', 'test']
+        >>> fraction_list = [0.2, 0.1]
+        >>> nocache = True
+        >>> (data_fpath_dict, label_fpath_dict) = ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names, fraction_list, nocache)
+        >>> from os.path import basename
+        >>> data_bytes = ut.dict_map_apply_vals(data_fpath_dict, ut.get_file_nBytes_str)
+        >>> label_bytes = ut.dict_map_apply_vals(label_fpath_dict, ut.get_file_nBytes_str)
+        >>> data_fpath_dict = ut.dict_map_apply_vals(data_fpath_dict, basename)
+        >>> label_fpath_dict = ut.dict_map_apply_vals(label_fpath_dict, basename)
+        >>> print('(data_bytes, label_bytes) = %s' % (ut.list_str((data_bytes, label_bytes), nl=True),))
+        >>> result = ('(data_fpath_dict, label_fpath_dict) = %s' % (ut.list_str((data_fpath_dict, label_fpath_dict), nl=True),))
+        >>> print(result)
     """
     assert len(split_names) == len(fraction_list) + 1, 'must have one less fraction then split names'
     USE_FILE_UUIDS = False
@@ -43,9 +67,9 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
         totalfrac_list[-1] = left
         totalfrac_list.append(right)
 
-    split_data_fpaths = [join(splitdir, name + '_data_%.2f_' % (frac,) + hashstr_ + '.pkl')
+    split_data_fpaths = [join(splitdir, name + '_data_%.3f_' % (frac,) + hashstr_ + '.pkl')
                          for name, frac in zip(split_names, totalfrac_list)]
-    split_labels_fpaths = [join(splitdir, name + '_labels_%.2f_' % (frac,) + hashstr_ + '.pkl')
+    split_labels_fpaths = [join(splitdir, name + '_labels_%.3f_' % (frac,) + hashstr_ + '.pkl')
                            for name, frac in zip(split_names, totalfrac_list)]
 
     is_cache_hit = (all(map(exists, split_data_fpaths)) and all(map(exists, split_labels_fpaths)))
@@ -62,10 +86,18 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
                                           data_per_label=data_per_label,
                                           shuffle=True)
             X_left, y_left, X_right, y_right = _tup
+            #print('-----------')
+            #print(x_fpath)
+            #print(y_fpath)
+            #print(X_right.shape[0] / X_left.shape[0])
+            #print(y_right.shape[0] / y_left.shape[0])
+            #print('-----------')
             utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
+            X_left = X_right
+            y_left = y_right
         x_fpath  = split_data_fpaths[-1]
         y_fpath = split_labels_fpaths[-1]
-        utils.write_data_and_labels(X_right, y_right, x_fpath, y_fpath)
+        utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
 
     data_fpath_dict = dict(zip(split_names, split_data_fpaths))
     label_fpath_dict = dict(zip(split_names, split_labels_fpaths))
@@ -285,3 +317,16 @@ def register_training_dpath(training_dpath):
     training_dname = basename(training_dpath)
     training_dlink = join(junction_dpath, training_dname)
     ut.symlink(training_dpath, training_dlink)
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.ingest_helpers
+        python -m ibeis_cnn.ingest_helpers --allexamples
+        python -m ibeis_cnn.ingest_helpers --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
