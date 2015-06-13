@@ -122,7 +122,7 @@ def train_patchmatch_pz():
             'batch_size': 128,
             'learning_rate': .007,
             'momentum': .9,
-            'weight_decay': 0.005,
+            'weight_decay': 0.0008,
         }
     )
     print('[train] train_patchmatch_pz')
@@ -200,7 +200,7 @@ def train_patchmatch_liberty():
             'batch_size': 128,
             'learning_rate': .007,
             'momentum': .9,
-            'weight_decay': 0.005,
+            'weight_decay': 0.0008,
         }
     )
     #pairs = 500
