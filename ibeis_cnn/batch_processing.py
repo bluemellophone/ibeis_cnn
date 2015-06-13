@@ -186,11 +186,11 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
                 if veryverbose or (batch_index + 1) % num_batches <= 1:
                     print('Augmenting Data')
                     # only copy if we have't yet
-                Xb_ = np.copy(Xb) if not do_whitening else Xb
-                yb_ = None if yb is None else np.copy(yb)
-                Xb, yb = model.augment(Xb_, yb_)
-                del Xb_
-                del yb_
+            Xb_ = np.copy(Xb) if not do_whitening else Xb
+            yb_ = None if yb is None else np.copy(yb)
+            Xb, yb = model.augment(Xb_, yb_)
+            del Xb_
+            del yb_
         # Encode
         if yb is not None:
             if encoder is not None:

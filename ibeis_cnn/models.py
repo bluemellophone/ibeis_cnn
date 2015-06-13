@@ -70,6 +70,7 @@ class SiameseCenterSurroundModel(abstract_models.BaseModel):
 
     def augment(self, Xb, yb=None):
         Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+        return Xb, yb
 
     def get_2ch2stream_def(model, verbose=True, **kwargs):
         """
@@ -383,6 +384,7 @@ class SiameseL2(abstract_models.BaseModel):
 
     def augment(self, Xb, yb=None):
         Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+        return Xb, yb
 
     def get_siam2stream_l2_def(model, verbose=True, **kwargs):
         """
