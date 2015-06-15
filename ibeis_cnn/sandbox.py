@@ -11,6 +11,8 @@ def check_external_training_paths():
 
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/checkpoints'
 
+    checkpoints_dir = '.'
+
     import cPickle as pickle
     from ibeis_cnn import abstract_models
     from ibeis_cnn.abstract_models import *
@@ -19,6 +21,10 @@ def check_external_training_paths():
     tmp_model_list = []
     for fpath in model_fpaths:
         pass
+        model = tmp_model
+        model.rrr(verbose=False)
+
+    for fpath in model_fpaths:
         tmp_model = abstract_models.BaseModel()
         tmp_model.load_model_state(fpath=fpath)
         tmp_model_list.append(tmp_model)
@@ -27,7 +33,17 @@ def check_external_training_paths():
         #new_dpath = join(dirname(dpath), hashid)
         #ut.move(dpath, new_dpath)
 
+    for model in tmp_model_list:
+        model.rrr(verbose=False)
+    print(model.get_architecture_str())
+    print(model.get_architecture_hashid())
+
+    vallist_ = [tmp_model.get_total_epochs() for tmp_model in tmp_model_list]
+    tmp_model_list = ut.sortedby(tmp_model_list, vallist_)
+
+
     for tmp_model in tmp_model_list:
+        #tmp_model.checkpoint_save_model_info()
         print(tmp_model.best_results['train_loss'])
         print(tmp_model.best_results['valid_loss'])
         print('----')

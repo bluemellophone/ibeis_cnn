@@ -13,6 +13,17 @@ NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
 #NOCACHE_ALIAS = True
 
 
+def get_patchmatch_trainset():
+    dbname = ut.get_argval('--db')
+    if dbname == 'liberty':
+        pairs = 250000
+        trainset = grab_cached_liberty_data(pairs)
+        pass
+    else:
+        trainset = get_ibeis_patchmatch_trainset()
+    return trainset
+
+
 def get_alias_dict_fpath():
     alias_fpath = join(ingest_helpers.get_juction_dpath(), 'alias_dict_v2.txt')
     return alias_fpath
@@ -62,7 +73,7 @@ class TrainingSet(object):
             ut.assert_exists(data_dict['data_fpath'])
             ut.assert_exists(data_dict['labels_fpath'])
             trainset = cls(**data_dict)
-            print('[get_patchmetric_training_fpaths] Returning aliased data alias_key=%r' % (alias_key,))
+            print('[get_ibeis_patchmatch_trainset] Returning aliased data alias_key=%r' % (alias_key,))
             return trainset
         raise Exception('Alias cache miss: alias_key=%r' % (alias_key,))
 
@@ -233,10 +244,11 @@ def grab_cached_liberty_data(pairs=250000):
     return trainset
 
 
-def get_patchmetric_training_fpaths(**kwargs):
+def get_ibeis_patchmatch_trainset(**kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-get_patchmetric_training_fpaths --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patchmatch_trainset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patchmatch_trainset --show --db PZ_Master0
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -244,7 +256,7 @@ def get_patchmetric_training_fpaths(**kwargs):
         >>> from ibeis_cnn import draw_results
         >>> import ibeis
         >>> kwargs = {}  # ut.argparse_dict({'max_examples': None, 'num_top': 3})
-        >>> trainset = get_patchmetric_training_fpaths(**kwargs)
+        >>> trainset = get_ibeis_patchmatch_trainset(**kwargs)
         >>> data_fpath = trainset.data_fpath
         >>> labels_fpath = trainset.labels_fpath
         >>> ut.quit_if_noshow()
@@ -260,12 +272,14 @@ def get_patchmetric_training_fpaths(**kwargs):
         }, verbose=True)
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
-        ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        dbname = ut.get_argval('--db', default='PZ_MTEST')
+        ibs = ibeis.opendb(dbname=dbname)
+
     # Nets dir is the root dir for all training
     training_dpath = ibs.get_neuralnet_dir()
     ut.ensuredir(training_dpath)
     datakw.update(kwargs)
-    print('\n\n[get_patchmetric_training_fpaths] START')
+    print('\n\n[get_ibeis_patchmatch_trainset] START')
     #log_dir = join(training_dpath, 'logs')
     #ut.start_logging(log_dir=log_dir)
 
@@ -285,7 +299,7 @@ def get_patchmetric_training_fpaths(**kwargs):
         # TODO: metadata
         data_fpath, labels_fpath, training_dpath, data_shape = ingest_ibeis.cached_patchmetric_training_data_fpaths(
             ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists)
-        print('\n[get_patchmetric_training_fpaths] FINISH\n\n')
+        print('\n[get_ibeis_patchmatch_trainset] FINISH\n\n')
 
     trainset = TrainingSet.new_training_set(
         alias_key=alias_key,
@@ -300,7 +314,7 @@ def get_patchmetric_training_fpaths(**kwargs):
 
 
 def testdata_trainset():
-    trainset = get_patchmetric_training_fpaths(max_examples=5, controlled=False)
+    trainset = get_ibeis_patchmatch_trainset(max_examples=5, controlled=False)
     return trainset
 
 
@@ -308,7 +322,7 @@ def testdata_patchmatch():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    trainset = get_patchmetric_training_fpaths(max_examples=5)
+    trainset = get_ibeis_patchmatch_trainset(max_examples=5)
     data_fpath = trainset.data_fpath
     labels_fpath = trainset.labels_fpath
     data_cv2, labels = utils.load(data_fpath, labels_fpath)
@@ -320,7 +334,7 @@ def testdata_patchmatch2():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    trainset = get_patchmetric_training_fpaths(max_examples=5)
+    trainset = get_ibeis_patchmatch_trainset(max_examples=5)
     data_fpath = trainset.data_fpath
     labels_fpath = trainset.labels_fpath
     data, labels = utils.load(data_fpath, labels_fpath)

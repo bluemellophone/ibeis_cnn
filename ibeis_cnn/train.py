@@ -59,9 +59,10 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # second level of alias indirection
 # This is more of a dataset tag
 weights_tag_alias2 = {
-    'nnp_master': 'NNP_Master3;dict(max_examples=None, num_top=3,)',
-    'pzmtest': 'PZ_MTEST;dict(max_examples=None, num_top=3,)',
-    'liberty': 'liberty;dict(detector=\'dog\', pairs=250000,)',
+    'nnp'       : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
+    'pz_master' : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=3,)',
+    'pzmtest'   : 'PZ_MTEST;dict(max_examples=None, num_top=3,)',
+    'liberty'   : 'liberty;dict(detector=\'dog\', pairs=250000,)',
 }
 
 
@@ -72,19 +73,11 @@ checkpoint_tag_alias = {
     '12': 'hist_eras1_epochs12_hmkamjjumeifwufs',
     '21': 'hist_eras1_epochs21_cnsszjkathjbluos',
 
+    'master21': 'hist_eras1_epochs21_nojeaabxixicsmbx',
+    'master51': 'hist_eras1_epochs51_mmultbrafwbshlqc',
+
     'lib30': 'hist_eras3_epochs30_zqwhqylxyihnknxc'
 }
-
-
-def get_patchmatch_transet():
-    dbname = ut.get_argval('--db')
-    if dbname == 'liberty':
-        pairs = 250000
-        trainset = ingest_data.grab_cached_liberty_data(pairs)
-        pass
-    else:
-        trainset = ingest_data.get_patchmetric_training_fpaths()
-    return trainset
 
 
 def train_patchmatch_pz():
@@ -105,10 +98,10 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=this
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp_master
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp_master
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp_master --checkpoint=11
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp_master --checkpoint=12
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp --checkpoint=11
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp --checkpoint=12
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=new
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=new
 
@@ -117,6 +110,11 @@ def train_patchmatch_pz():
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --test --checkpoint=hist_eras1_epochs14_mzdgzqtjprzddqie
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --test --checkpoint master21
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --test --checkpoint master51
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --weights=pz_master --test --checkpoint master21
 
 
     Example:
@@ -133,8 +131,7 @@ def train_patchmatch_pz():
     """
     print('[train] train_patchmatch_pz')
     # Choose data
-    trainset = get_patchmatch_transet()
-    #trainset = ingest_data.get_patchmetric_training_fpaths()
+    trainset = ingest_data.get_patchmatch_trainset()
 
     # Choose model
     # TODO: data will need to return info about number of labels in viewpoint models
@@ -183,7 +180,8 @@ def train_patchmatch_pz():
         harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
     elif ut.get_argflag('--test'):
         #assert model.best_results['epoch'] is not None
-        X_test, y_test = trainset.load_subset('test')
+        X_test, y_test = trainset.load_subset('all')
+        #X_test, y_test = trainset.load_subset('test')
         data, labels = X_test, y_test
         #data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
         dataname = trainset.alias_key

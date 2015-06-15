@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
@@ -357,10 +358,15 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=False):
+def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True):
     """
     Returns:
         aid pairs and matching keypoint pairs as well as the original index of the feature matches
+
+    CommandLine:
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master0
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db NNP_Master3
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -370,6 +376,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=False
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> max_examples = None
         >>> num_top = None
+        >>> patchmatch_tup = get_aidpairs_and_matches(ibs, max_examples=None, num_top=num_top, controlled=True)
     """
 
     from ibeis import ibsfuncs
@@ -403,8 +410,10 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=False
     #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
 
     # Get aid pairs and feature matches
-    aids2_list = [qres.get_top_aids()[0:num_top]
-                  for qres in qres_list]
+    if num_top is None:
+        aids2_list = [qres.get_top_aids() for qres in qres_list]
+    else:
+        aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
     aids1_list = [[qres.qaid] * len(aids2)
                   for qres, aids2 in zip(qres_list, aids2_list)]
     aid1_list_all = np.array(ut.flatten(aids1_list))

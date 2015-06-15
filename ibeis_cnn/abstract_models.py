@@ -59,6 +59,20 @@ def evaluate_layer_list(network_layers_def, verbose=None):
     return network_layers
 
 
+def testdata_model_with_history():
+    model = BaseModel()
+    # make a dummy history
+    X_train, y_train = [1, 2, 3], [0, 0, 1]
+    model.start_new_era(X_train, y_train, 'dummy_alias_key')
+    model.record_epoch({'epoch': 1, 'valid_loss': .9, 'train_loss': .8})
+    model.record_epoch({'epoch': 2, 'valid_loss': .7, 'train_loss': .7})
+    model.start_new_era(X_train, y_train, 'dummy_alias_key')
+    model.record_epoch({'epoch': 3, 'valid_loss': .8, 'train_loss': .6})
+    model.record_epoch({'epoch': 4, 'valid_loss': .7, 'train_loss': .5})
+    model.record_epoch({'epoch': 5, 'valid_loss': .6, 'train_loss': .2})
+    return model
+
+
 @six.add_metaclass(ut.ReloadingMetaclass)
 class BaseModel(object):
     """
@@ -168,30 +182,40 @@ class BaseModel(object):
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.abstract_models import *  # NOQA
-            >>> model = BaseModel()
-            >>> # make a dummy history
-            >>> X_train, y_train = [1, 2, 3], [0, 0, 1]
-            >>> model.start_new_era(X_train, y_train, 'dummy_alias_key')
-            >>> model.record_epoch({'epoch': 1, 'valid_loss': .9, 'train_loss': .8})
-            >>> model.record_epoch({'epoch': 2, 'valid_loss': .7, 'train_loss': .7})
-            >>> model.start_new_era(X_train, y_train, 'dummy_alias_key')
-            >>> model.record_epoch({'epoch': 3, 'valid_loss': .8, 'train_loss': .6})
-            >>> model.record_epoch({'epoch': 4, 'valid_loss': .7, 'train_loss': .5})
-            >>> model.record_epoch({'epoch': 5, 'valid_loss': .6, 'train_loss': .2})
             >>> # test the hashid
+            >>> model = testdata_model_with_history()
             >>> history_hashid = model.get_model_history_hashid()
             >>> result = str(history_hashid)
             >>> print(result)
-            hist_eras2_epochs5_epdfcmhfkebiejte
+            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
+
         """
         era_history_hash = [ut.hashstr27(repr(era)) for era in  model.era_history]
         hashid = ut.hashstr27(str(era_history_hash))
-        total_epochs = sum([len(era['epoch_list']) for era in model.era_history])
+        total_epochs = model.get_total_epochs()
         total_eras = len(model.era_history)
-        history_hashid = 'hist_eras%d_epochs%d_%s' % (total_eras, total_epochs, hashid)
+        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (total_eras, total_epochs, hashid)
         return history_hashid
 
+    def get_total_epochs(model):
+        total_epochs = sum([len(era['epoch_list']) for era in model.era_history])
+        return total_epochs
+
     # --- io
+
+    def _get_model_file_fpath(model, default_fname, fpath, dpath, fname, checkpoint_tag):
+        """ helper """
+        if fpath is None:
+            fname = default_fname if fname is None else fname
+            dpath = model.training_dpath if dpath is None else dpath
+            if checkpoint_tag is not None:
+                dpath = join(dpath, 'checkpoints', checkpoint_tag)
+            fpath = join(dpath, fname)
+        else:
+            assert checkpoint_tag is None, 'fpath overrides all other settings'
+            assert dpath is None, 'fpath overrides all other settings'
+            assert fname is None, 'fpath overrides all other settings'
+        return fpath
 
     def has_saved_state(model, checkpoint_tag=None):
         fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
@@ -200,18 +224,13 @@ class BaseModel(object):
         return ut.checkpath(fpath)
 
     def get_model_state_fpath(model, fpath=None, dpath=None, fname=None, checkpoint_tag=None):
-        if fpath is None:
-            default_fname = 'model_state_arch_%s.pkl' % (model.get_architecture_hashid())
-            fname = default_fname if fname is None else fname
-            dpath = model.training_dpath if dpath is None else dpath
-            if checkpoint_tag is not None:
-                dpath = join(dpath, 'checkpoints', checkpoint_tag)
-            model_state_fpath = join(dpath, fname)
-        else:
-            assert checkpoint_tag is None, 'fpath overrides all other settings'
-            assert dpath is None, 'fpath overrides all other settings'
-            assert fname is None, 'fpath overrides all other settings'
-            model_state_fpath = fpath
+        default_fname = 'model_state_arch_%s.pkl' % (model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath, dpath, fname, checkpoint_tag)
+        return model_state_fpath
+
+    def get_model_info_fpath(model, fpath=None, dpath=None, fname=None, checkpoint_tag=None):
+        default_fname = 'model_info_arch_%s.pkl' % (model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath, dpath, fname, checkpoint_tag)
         return model_state_fpath
 
     def checkpoint_save_model_state(model):
@@ -222,7 +241,14 @@ class BaseModel(object):
         #checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'checkpoints'))
         #dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
 
+    def checkpoint_save_model_info(model):
+        history_hashid = model.get_model_history_hashid()
+        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
+        ut.ensuredir(dirname(fpath))
+        model.save_model_state(fpath=fpath)
+
     def save_model_state(model, **kwargs):
+        """ saves current model state """
         current_weights = model.get_all_param_values()
         model_state = {
             'best_results': model.best_results,
@@ -237,6 +263,20 @@ class BaseModel(object):
         print('saving model state to: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'wb') as file_:
             pickle.dump(model_state, file_, protocol=pickle.HIGHEST_PROTOCOL)
+        print('finished saving')
+
+    def save_model_info(model, **kwargs):
+        """ save model information (history and results but no weights) """
+        model_info = {
+            'best_results': model.best_results,
+            'input_shape':  model.input_shape,
+            'output_dims':  model.output_dims,
+            'era_history':  model.era_history,
+        }
+        model_info_fpath = model.get_model_state_fpath(**kwargs)
+        print('saving model info to: %s' % (model_info_fpath,))
+        with open(model_info_fpath, 'wb') as file_:
+            pickle.dump(model_info, file_, protocol=pickle.HIGHEST_PROTOCOL)
         print('finished saving')
 
     def load_model_state(model, **kwargs):
@@ -485,6 +525,8 @@ class BaseModel(object):
         #        network_layers = lasagne.layers.get_all_layers(model.output_layer)
         #else:
         #    network_layers = model.network_layers
+        if model.output_layer is None:
+            return ''
         network_layers = model.get_all_layers()
         layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
         architecture_str = sep.join(layer_str_list)
@@ -492,8 +534,8 @@ class BaseModel(object):
 
     def print_architecture_str(model, sep='\n  '):
         architecture_str = model.get_architecture_str(sep=sep)
-        if architecture_str is None:
-            architecture_str = 'UNMANGAGED'
+        if architecture_str is None or architecture_str == '':
+            architecture_str = 'UNDEFINED'
         print('\nArchitecture:' + sep + architecture_str)
 
     def get_all_layers(model):
@@ -508,10 +550,10 @@ class BaseModel(object):
     def get_output_layer(model):
         if model.output_layer is not None:
             return model.output_layer
-        else:
-            assert model.network_layers is not None, 'need to initialize architecture first'
-            output_layer = model.network_layers[-1]
-            return output_layer
+        #else:
+        #    assert model.network_layers is not None, 'need to initialize architecture first'
+        #    output_layer = model.network_layers[-1]
+        #    return output_layer
 
     def learning_rate_update(model, x):
         return x / 2.0
