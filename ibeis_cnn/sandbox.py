@@ -7,6 +7,13 @@ from ibeis_cnn.abstract_models import *
 def check_external_training_paths():
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/train_patchmetric((315)iofvvdflcllgjkyu)/checkpoints'
     #checkpoints_dir = '/media/raid/work/PZ_MTEST/_ibsdb/_ibeis_cache/nets/train_patchmetric((315)iofvvdflcllgjkyu)/checkpoints/hist_eras2_epochs23_aayzxkezpzjgwupd'
+    checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/train_patchmetric((1576)fxzkszaajypyzqne)/checkpoints'
+
+    checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/checkpoints'
+
+    import cPickle as pickle
+    from ibeis_cnn import abstract_models
+    from ibeis_cnn.abstract_models import *
     from os.path import *
     model_fpaths = ut.glob(checkpoints_dir, '*.pkl', recursive=True)
     tmp_model_list = []
@@ -20,6 +27,11 @@ def check_external_training_paths():
         #new_dpath = join(dirname(dpath), hashid)
         #ut.move(dpath, new_dpath)
 
+    for tmp_model in tmp_model_list:
+        print(tmp_model.best_results['train_loss'])
+        print(tmp_model.best_results['valid_loss'])
+        print('----')
+
     for tmp_model in ut.InteractiveIter(tmp_model_list):
         print(fpath)
         print(sum([len(era['epoch_list']) for era in tmp_model.era_history]))
@@ -30,7 +42,6 @@ def load_tmp_model():
     from ibeis_cnn import abstract_models
     fpath = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/model_state.pkl'
     fpath = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/model_state_dozer.pkl'
-
     fpath = '/home/joncrall/.config/ibeis_cnn/training_junction/train_patchmetric((15152)nunivgoaibmjsdbs)/model_state.pkl'
 
     tmp_model = abstract_models.BaseModel()
@@ -48,6 +59,9 @@ def grab_model_from_dozer():
 
     remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/checkpoints/hist_eras3_epochs30_zqwhqylxyihnknxc/model_state_arch_tiloohclkatusmmp'
     local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/checkpoints/hist_eras3_epochs30_zqwhqylxyihnknxc/model_state_arch_tiloohclkatusmmp.pkl'
+
+    remote_path = '/home/joncrall/.config/ibeis_cnn/training/liberty/checkpoints'
+    local_path = '/home/joncrall/.config/ibeis_cnn/training/liberty'
 
     from os.path import dirname
     ut.ensuredir(dirname(local_path))
