@@ -12,6 +12,7 @@ from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
 from ibeis_cnn import batch_processing as batch
 from ibeis_cnn import draw_net
+from ibeis_cnn import augment
 import sklearn.preprocessing
 import utool as ut
 from os.path import join, dirname
@@ -538,11 +539,21 @@ class BaseModel(object):
             architecture_str = 'UNDEFINED'
         print('\nArchitecture:' + sep + architecture_str)
 
+    def print_dense_architecture_str(model):
+        print('\n---- Arch Str')
+        model.print_architecture_str(sep='\n')
+        print('\n---- Layer Info')
+        model.print_layer_info()
+        print('\n---- HashID')
+        print('hashid=%r' % (model.get_architecture_hashid()),)
+        print('----')
+        # verify results
+
     def get_all_layers(model):
         with warnings.catch_warnings():
-            #warnings.filterwarnings('ignore', '.*topo.*')
-            #warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+            warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
+            #warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
             assert model.output_layer is not None
             network_layers = lasagne.layers.get_all_layers(model.output_layer)
         return network_layers
@@ -659,6 +670,36 @@ class AbstractCategoricalModel(BaseModel):
         accuracy.name = 'accuracy'
         labeled_outputs = [accuracy]
         return labeled_outputs
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class AbstractSiameseModel(BaseModel):
+    def __init__(model, *args, **kwargs):
+        super(AbstractSiameseModel, model).__init__(*args, **kwargs)
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        model.data_per_label = 2
+
+    def augment(model, Xb, yb=None):
+        Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+        return Xb, yb
+    pass
+    #def build_objective(model):
+    #    pass
+
+    #def build_regularized_objective(model, loss, output_layer, regularization):
+    #    """ L2 weight decay """
+    #    import warnings
+    #    with warnings.catch_warnings():
+    #        warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+    #        L2 = lasagne.regularization.l2(output_layer)
+    #        regularized_loss = L2 * regularization
+    #        regularized_loss.name = 'regularized_loss'
+    #    return regularized_loss
+
+    #avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
+    #return avg_loss
 
 
 class _PretrainedLayerInitializer(lasagne.init.Initializer):

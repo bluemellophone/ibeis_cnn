@@ -27,33 +27,6 @@ from ibeis_cnn import net_strs
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.draw_net]')
 
 
-def get_hex_color(layer_type):
-    """
-    Determines the hex color for a layer. Some classes are given
-    default values, all others are calculated pseudorandomly
-    from their name.
-    :parameters:
-        - layer_type : string
-            Class name of the layer
-    :returns:
-        - color : string containing a hex color.
-    :usage:
-        >>> color = get_hex_color('MaxPool2DDNN')
-        '#9D9DD2'
-    """
-
-    if 'Input' in layer_type:
-        return '#A2CECE'
-    if 'Conv' in layer_type:
-        return '#7C9ABB'
-    if 'Dense' in layer_type:
-        return '#6CCF8D'
-    if 'Pool' in layer_type:
-        return '#9D9DD2'
-    else:
-        return '#{0:x}'.format(hash(layer_type) % 2 ** 24)
-
-
 def draw_theano_symbolic_expression(thean_expr):
     import theano
     graph_dpath = '.'
@@ -90,8 +63,8 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
         >>> # build test data
-        >>> self = models.DummyModel(autoinit=True)
-        >>> layers = self.get_all_layers()
+        >>> model = models.DummyModel(autoinit=True)
+        >>> layers = model.get_all_layers()
         >>> output_shape = True
         >>> verbose = False
         >>> # execute function
@@ -104,6 +77,32 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
     pydot_graph = pydot.Dot('Network', graph_type='digraph')
     pydot_nodes = {}
     pydot_edges = []
+
+    def get_hex_color(layer_type):
+        """
+        Determines the hex color for a layer. Some classes are given
+        default values, all others are calculated pseudorandomly
+        from their name.
+        :parameters:
+            - layer_type : string
+                Class name of the layer
+        :returns:
+            - color : string containing a hex color.
+        :usage:
+            >>> color = get_hex_color('MaxPool2DDNN')
+            '#9D9DD2'
+        """
+        if 'Input' in layer_type:
+            return '#A2CECE'
+        if 'Conv' in layer_type:
+            return '#7C9ABB'
+        if 'Dense' in layer_type:
+            return '#6CCF8D'
+        if 'Pool' in layer_type:
+            return '#9D9DD2'
+        else:
+            return '#{0:x}'.format(hash(layer_type) % 2 ** 24)
+
     for i, layer in enumerate(layers):
         layer_type = '{0}'.format(layer.__class__.__name__)
         key = repr(layer)
@@ -124,7 +123,7 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
 
         if output_shape:
             label += '\n' + \
-                'Output shape: {0}'.format(layer.get_output_shape())
+                'Output shape: {0}'.format(layer.output_shape)
         pydot_nodes[key] = pydot.Node(key,
                                       label=label,
                                       shape='record',
@@ -165,8 +164,9 @@ def draw_to_file(layers, filename, **kwargs):
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> self = models.DummyModel(autoinit=True)
-        >>> layers = self.get_all_layers()
+        >>> #model = models.DummyModel(autoinit=True)
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
+        >>> layers = model.get_all_layers()
         >>> filename = ut.unixjoin(ut.ensure_app_resource_dir('ibeis_cnn'), 'tmp.png')
         >>> # execute function
         >>> draw_to_file(layers, filename)
@@ -183,9 +183,10 @@ def draw_to_file(layers, filename, **kwargs):
 def make_architecture_image(layers, **kwargs):
     """
     Args:
-        - layers : list
-            List of the layers, as obtained from lasange.layers.get_all_layers
-        - **kwargs: see docstring of get_pydot_graph for other options
+        layers (list): List of the layers, as obtained from lasange.layers.get_all_layers
+
+    Kwargs:
+        see docstring of get_pydot_graph for other options
 
     References:
         http://stackoverflow.com/questions/4596962/display-graph-without-saving-using-pydot
@@ -197,10 +198,13 @@ def make_architecture_image(layers, **kwargs):
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> self = models.DummyModel(autoinit=True)
-        >>> layers = self.get_all_layers()
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
+        >>> #model = models.DummyModel(autoinit=True)
+        >>> layers = model.get_all_layers()
         >>> # execute function
-        >>> img = make_architecture_image(layers)
+        >>> kwargs = {}
+        >>> img = make_architecture_image(layers, **kwargs)
+        >>> print(img.shape)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> pt.imshow(img)
@@ -215,7 +219,8 @@ def make_architecture_image(layers, **kwargs):
     sio.write(png_str)
     sio.seek(0)
     pil_img = Image.open(sio)
-    img = np.asarray(pil_img)
+    img = np.asarray(pil_img.convert('RGB'))
+    img = img[..., ::-1]  # to bgr
     pil_img.close()
     sio.close()
     return img
@@ -427,7 +432,7 @@ def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> model = models.SiameseCenterSurroundModel(autoinit=True, input_shape=(128, 3, 64, 64))
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
         >>> output_layer = model.get_output_layer()
         >>> nn_layers = layers.get_all_layers(output_layer)
         >>> weighted_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]

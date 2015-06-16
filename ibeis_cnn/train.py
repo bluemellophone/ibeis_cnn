@@ -143,9 +143,12 @@ def train_patchmatch_pz():
             'weight_decay': 0.0008,
         }
     )
-    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape,
-                                              training_dpath=trainset.training_dpath,
-                                              **train_params)
+    #model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape,
+    #                                          training_dpath=trainset.training_dpath,
+    #                                          **train_params)
+    model = models.SiameseL2(data_shape=trainset.data_shape,
+                             training_dpath=trainset.training_dpath,
+                             **train_params)
 
     model.initialize_architecture()
 
