@@ -60,6 +60,7 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.train]')
 # This is more of a dataset tag
 weights_tag_alias2 = {
     'nnp'       : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
+    'nnp2'      : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=None,)',
     'pz_master' : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=3,)',
     'pzmtest'   : 'PZ_MTEST;dict(max_examples=None, num_top=3,)',
     'liberty'   : 'liberty;dict(detector=\'dog\', pairs=250000,)',
@@ -91,13 +92,13 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --train
 
     TestingCommandLine:
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --test='this'
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --test='current'
         python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --num-top=20
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --vtd
 
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=this
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=current
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --test --weights=nnp
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --test --weights=nnp --checkpoint=11
@@ -116,6 +117,14 @@ def train_patchmatch_pz():
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --weights=pz_master --test --checkpoint master21
 
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db mnist --weights=new --train
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db mnist --weights=current --test
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --weights=new --train --arch=siaml2
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --weights=new --train --arch=siaml2 --num_top=None
+
+        --test --checkpoint master21
+
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -129,37 +138,43 @@ def train_patchmatch_pz():
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/ibeis_cnn_weights.pickle'
         weights_fpath = '/media/raid/work/NNP_Master3/_ibsdb/_ibeis_cache/nets/train_patchmetric((2462)&ju%uw7bta19cunw)/arch_d788de3571330d42/training_state.cPkl'
     """
-    print('[train] train_patchmatch_pz')
+    print('[train] train_siam')
     # Choose data
-    trainset = ingest_data.get_patchmatch_trainset()
+    trainset = ingest_data.grab_siam_trainset()
 
     # Choose model
     # TODO: data will need to return info about number of labels in viewpoint models
     train_params = ut.argparse_dict(
         {
             'batch_size': 128,
-            'learning_rate': .007,
+            'learning_rate': .005,
             'momentum': .9,
-            'weight_decay': 0.0008,
+            'weight_decay': 0.0005,
         }
     )
-    #model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape,
-    #                                          training_dpath=trainset.training_dpath,
-    #                                          **train_params)
-    model = models.SiameseL2(data_shape=trainset.data_shape,
-                             training_dpath=trainset.training_dpath,
-                             **train_params)
+
+    arch_tag = ut.get_argval('--arch', default='siam2stream')
+    if arch_tag == 'siam2stream':
+        model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape,
+                                                  training_dpath=trainset.training_dpath,
+                                                  **train_params)
+    elif arch_tag == 'siaml2':
+        model = models.SiameseL2(data_shape=trainset.data_shape,
+                                 training_dpath=trainset.training_dpath,
+                                 **train_params)
+    else:
+        assert False, 'Unknown arch_tag=%r' % (arch_tag,)
 
     model.initialize_architecture()
 
-    weights_tag = 'this'
+    weights_tag = 'current'
     weights_tag = ut.get_argval('--weights', type_=str, default=weights_tag)
     weights_tag = weights_tag_alias2.get(weights_tag, weights_tag)
 
     checkpoint_tag = ut.get_argval('--checkpoint', type_=str, default=None)
     checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
 
-    if weights_tag == 'this':
+    if weights_tag == 'current':
         if model.has_saved_state(checkpoint_tag=checkpoint_tag):
             model.load_model_state(checkpoint_tag=checkpoint_tag)
         else:
@@ -193,72 +208,6 @@ def train_patchmatch_pz():
         raise NotImplementedError('nothing here. need to train or test')
 
 
-#def train_patchmatch_liberty():
-#    r"""
-#    CommandLine:
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --test
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --train
-
-#    Example:
-#        >>> # ENABLE_DOCTEST
-#        >>> from ibeis_cnn.train import *  # NOQA
-#        >>> result = train_patchmatch_liberty()
-#        >>> ut.show_if_requested()
-#        >>> print(result)
-#    """
-#    # TODO; integrate into data tagging system
-#    train_params = ut.argparse_dict(
-#        {
-#            #'learning_rate': .01,
-#            #'weight_decay': 0.0005,
-#            'batch_size': 128,
-#            'learning_rate': .007,
-#            'momentum': .9,
-#            'weight_decay': 0.0008,
-#        }
-#    )
-#    #pairs = 500
-#    pairs = 250000
-#    trainset = ingest_data.grab_cached_liberty_data(pairs)
-#    #model = models.SiameseModel()
-#    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath, **train_params)
-
-#    model.initialize_architecture()
-
-#    if ut.get_argflag('--test'):
-#        # Use external state
-#        extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
-#        model.load_extern_weights(dpath=extern_training_dpath)
-#    else:
-#        if model.has_saved_state():
-#            model.load_model_state()
-#        else:
-#            model.reinit_weights()
-#    print(model.get_state_str())
-
-#    if ut.get_argflag('--train'):
-#        config = dict(
-#            patience=100,
-#        )
-#        X_train, y_train = trainset.load_subset('train')
-#        X_valid, y_valid = trainset.load_subset('valid')
-#        #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-#        harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
-#    elif ut.get_argflag('--test'):
-
-#        X_test, y_test = trainset.load_subset('test')
-#        data, labels = X_test, y_test
-#        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
-#        dataname = trainset.alias_key
-#        experiments.test_siamese_performance(model, data, labels, dataname)
-
-#    else:
-#        raise NotImplementedError('nothing here. need to train or test')
-
-
 def train_mnist():
     r"""
     CommandLine:
@@ -278,7 +227,7 @@ def train_mnist():
             'weight_decay': 0.0005,
         }
     )
-    trainset = ingest_data.grab_cached_mist_data()
+    trainset = ingest_data.grab_mnist_category_trainset()
     data_shape = trainset.data_shape
     input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 

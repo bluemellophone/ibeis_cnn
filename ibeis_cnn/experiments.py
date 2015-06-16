@@ -16,6 +16,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
     epoch_dpath = model.get_epoch_diagnostic_dpath()
+    ut.vd(epoch_dpath)
 
     dataname += ' ' + model.get_model_history_hashid() + '\n'
 
@@ -23,9 +24,32 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     ut.write_to(ut.unixjoin(epoch_dpath, 'era_history.txt'), history_text)
 
+    if True:
+        import matplotlib as mpl
+        mpl.rcParams['agg.path.chunksize'] = 100000
+
+    #data   = data[::50]
+    #labels = labels[::50]
+    from ibeis_cnn import utils
+    data, labels = utils.random_test_train_sample(data, labels, 10000, model.data_per_label_input)
+
+    #ut.embed()
+
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
-    cnn_scores = test_outputs['network_output'].T[0]
+    network_output = test_outputs['network_output']
+    # hack converting network output to distances for non-descriptor networks
+    if len(network_output.shape) == 2 and network_output.shape[1] == 1:
+        cnn_scores = network_output.T[0]
+    elif len(network_output.shape) == 1:
+        cnn_scores = network_output
+    elif len(network_output.shape) == 2 and network_output.shape[1] > 1:
+        assert model.data_per_label_output == 2
+        vecs1 = network_output[0::2]
+        vecs2 = network_output[1::2]
+        cnn_scores = vt.L2(vecs1, vecs2)
+    else:
+        assert False
     sift_scores = test_sift_patchmatch_scores(data, labels)
 
     # Learn encoders
@@ -110,15 +134,17 @@ def test_siamese_performance(model, data, labels, dataname=''):
         pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
     # hack
+    fig = model.show_model_layer_weights(target=0, fnum=fnum_gen())
+    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
     #model.draw_all_conv_layer_weights(fnum=fnum_gen())
-    #model.save_model_layer_weights(1)
-    #model.save_model_layer_weights(2)
+    #model.dump_model_layer_weights_img(1)
+    #model.dump_model_layer_weights_img(2)
 
     fig = model.show_era_history(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
     #ut.embed()
 
-    ut.vd(epoch_dpath)
+    #ut.vd(epoch_dpath)
 
 
 def show_hard_cases(model, data, labels, scores):
@@ -158,7 +184,7 @@ def test_sift_patchmatch_scores(data, labels):
     if len(data.shape) == 4 and data.shape[-1] == 1:
         data = data.reshape(data.shape[0:3])
     vecs_list = pyhesaff.extract_desc_from_patches(data)
-    sqrddist = ((vecs_list[::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
+    sqrddist = ((vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T
     VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
     sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)

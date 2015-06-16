@@ -2,14 +2,15 @@
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import draw_net
-import utool as ut
-import numpy as np
-import lasagne
-from lasagne import objectives
-import theano.tensor as T
 from lasagne import layers
-import warnings
+from lasagne import objectives
+import lasagne
+import numpy as np
+import six
 import theano
+import theano.tensor as T
+import utool as ut
+import warnings
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
@@ -51,7 +52,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
         for outexpr in theano_fn.outputs
     ]
     batch_target_list = []  # augmented label list
-    show = False
+    show = VERBOSE_BATCH
 
     # Break data into generated batches
     # generated data unbuffered iteration
@@ -80,8 +81,12 @@ def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
                 show = False
 
     # get outputs of each type
-    unstacked_output_gen = ([bop[count] for bop in batch_output_list]
-                            for count, name in enumerate(output_names))
+    if ut.inIPython():
+        unstacked_output_gen = [[bop[count] for bop in batch_output_list]
+                                for count, name in enumerate(output_names)]
+    else:
+        unstacked_output_gen = ([bop[count] for bop in batch_output_list]
+                                for count, name in enumerate(output_names))
     stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
                             for _output_unstacked in unstacked_output_gen]
 
@@ -93,10 +98,10 @@ def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
 
     if fix_output:
         # batch iteration may wrap-around returned data. slice of the padding
-        num_inputs = X.shape[0] / model.data_per_label
-        import six
+        num_inputs = X.shape[0] / model.data_per_label_input
+        num_outputs = num_inputs * model.data_per_label_output
         for key in six.iterkeys(outputs_):
-            outputs_[key] = outputs_[key][0:num_inputs]
+            outputs_[key] = outputs_[key][0:num_outputs]
 
     if hasattr(model, 'encoder') and 'predictions' in outputs_:
         outputs_['labeled_predictions'] = model.encoder.inverse_transform(outputs_['predictions'])

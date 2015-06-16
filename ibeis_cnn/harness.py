@@ -91,6 +91,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     # Begin training the neural network
     print('\n[train] starting training at %s with learning rate %.9f' %
           (utils.get_current_time(), model.learning_rate))
+    print('learning_state = %s' % ut.dict_str(model.learning_state))
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
 
@@ -195,6 +196,8 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
 
             # Output any diagnostics
             if output_diagnostics:
+                model.checkpoint_save_model_info()
+                model.save_model_info()
                 model.checkpoint_save_model_state()
                 model.save_model_state()
                 #model.draw_convolutional_layers(epoch=epoch)
@@ -242,6 +245,8 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 utils.print_header_columns(printcol_info)
             elif resolution == 2:
                 # Save the weights of the network
+                model.checkpoint_save_model_info()
+                model.save_model_info()
                 model.checkpoint_save_model_state()
                 model.save_model_state()
             elif resolution == 3:
@@ -266,7 +271,19 @@ def test_data2(model, X_test, y_test):
     """
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.test import *  # NOQA
+        >>> from ibeis_cnn.harness import *  # NOQA
+
+    Ignore:
+        # vars for process_batch
+        X = X_test = data
+        y = y_test = labels
+        y = None
+        theano_fn = theano_predict
+        fix_output=True
+        kwargs = batchiter_kw
+
+        f = list(batch_iter)
+        Xb, yb = f[0]
     """
 
     print('\n[train] --- MODEL INFO ---')

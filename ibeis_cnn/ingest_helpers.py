@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from os.path import join
+import numpy as np
 import utool as ut
 from ibeis_cnn import utils
 from six.moves import range, zip
@@ -312,11 +313,102 @@ def get_juction_dpath():
     return junction_dpath
 
 
-def register_training_dpath(training_dpath):
+def register_training_dpath(training_dpath, alias_key=None):
     junction_dpath = get_juction_dpath()
     training_dname = basename(training_dpath)
+    if alias_key is not None:
+        # hack for a bit more readable pathname
+        prefix = alias_key.split(';')[0].replace(' ', '')
+        training_dname = prefix + '_' + training_dname
     training_dlink = join(junction_dpath, training_dname)
     ut.symlink(training_dpath, training_dlink)
+
+
+def convert_category_to_siam_data(category_data, category_labels):
+    # CONVERT CATEGORY LABELS TO PAIR LABELS
+    # Make genuine imposter pairs
+    import vtool as vt
+    unique_labels, groupxs_list = vt.group_indices(category_labels)
+
+    num_categories = len(unique_labels)
+
+    num_geninue  = 10000 * num_categories
+    num_imposter = 10000 * num_categories
+
+    num_gen_per_category = int(num_geninue / len(unique_labels))
+    num_imp_per_category = int(num_imposter / len(unique_labels))
+
+    np.random.seed(0)
+    groupxs = groupxs_list[0]
+
+    def find_fix_flags(pairxs):
+        is_dup = vt.nonunique_row_flags(pairxs)
+        is_eye = pairxs.T[0] == pairxs.T[1]
+        needs_fix = np.logical_or(is_dup, is_eye)
+        #print(pairxs[needs_fix])
+        return needs_fix
+
+    def swap_undirected(pairxs):
+        """ ensure left indicies are lower """
+        needs_swap = pairxs.T[0] > pairxs.T[1]
+        arr = pairxs[needs_swap]
+        tmp = arr.T[0].copy()
+        arr.T[0, :] = arr.T[1]
+        arr.T[1, :] = tmp
+        pairxs[needs_swap] = arr
+        return pairxs
+
+    def sample_pairs(left_list, right_list, size):
+        # Sample initial random left and right indices
+        _index1 = np.random.choice(left_list, size=size, replace=True)
+        _index2 = np.random.choice(right_list, size=size, replace=True)
+        # stack
+        _pairxs = np.vstack((_index1, _index2)).T
+        # make undiractional
+        _pairxs = swap_undirected(_pairxs)
+        # iterate until feasible
+        needs_fix = find_fix_flags(_pairxs)
+        while np.any(needs_fix):
+            num_fix = needs_fix.sum()
+            print('fixing: %d' % num_fix)
+            _pairxs.T[1][needs_fix] = np.random.choice(right_list, size=num_fix, replace=True)
+            _pairxs = swap_undirected(_pairxs)
+            needs_fix = find_fix_flags(_pairxs)
+        return _pairxs
+
+    print('sampling genuine pairs')
+    genuine_pairx_list = []
+    for groupxs in groupxs_list:
+        left_list = groupxs
+        right_list = groupxs
+        size = num_gen_per_category
+        _pairxs = sample_pairs(left_list, right_list, size)
+        genuine_pairx_list.extend(_pairxs.tolist())
+
+    print('sampling imposter pairs')
+    imposter_pairx_list = []
+    for index in range(len(groupxs_list)):
+        # Pick random pairs of false matches
+        groupxs = groupxs_list[index]
+        bar_groupxs = np.hstack(groupxs_list[:index] + groupxs_list[index + 1:])
+        left_list = groupxs
+        right_list = bar_groupxs
+        size = num_imp_per_category
+        _pairxs = sample_pairs(left_list, right_list, size)
+        imposter_pairx_list.extend(_pairxs.tolist())
+
+    # We might have added duplicate imposters, just remove them for now
+    imposter_pairx_list = ut.list_take(imposter_pairx_list, vt.unique_row_indexes(np.array(imposter_pairx_list)))
+
+    # structure data for output
+    flat_data_pairxs = np.array(genuine_pairx_list + imposter_pairx_list)
+    assert np.all(flat_data_pairxs.T[0] < flat_data_pairxs.T[1])
+    assert find_fix_flags(flat_data_pairxs).sum() == 0
+    # TODO: batch should use indicies into data
+    flat_index_list = np.array(ut.flatten(list(zip(flat_data_pairxs.T[0], flat_data_pairxs.T[1]))))
+    data = np.array(category_data.take(flat_index_list, axis=0))
+    labels = np.array([True] * len(genuine_pairx_list) + [False] * len(imposter_pairx_list))
+    return data, labels
 
 
 if __name__ == '__main__':

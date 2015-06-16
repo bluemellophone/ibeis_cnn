@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
 import six
-from ibeis_cnn import utils
+#from ibeis_cnn import utils
 from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
 
@@ -151,7 +151,7 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
         >>> pmcfg = PatchMetricDataConfig()
         >>> patch_size = pmcfg.patch_size
         >>> colorspace = pmcfg.colorspace
-        >>> data, labels = get_patchmetric_training_data_and_labels(ibs,
+        >>> data, labels, flat_metadata = get_patchmetric_training_data_and_labels(ibs,
         ...     aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
         ...     metadata_lists, patch_size, colorspace)
         >>> ut.quit_if_noshow()
@@ -172,7 +172,7 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
     assert labels.shape[0] == data.shape[0] // 2
     from ibeis import const
     assert np.all(labels != const.TRUTH_UNKNOWN)
-    return data, labels
+    return data, labels, flat_metadata
 
 
 def mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list):
@@ -196,11 +196,15 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
+        >>> tup = get_aidpairs_and_matches(ibs)
+        >>> (aid1_list, aid2_list) = tup[0:2]
         >>> aid1_list = aid1_list[0:min(100, len(aid1_list))]
         >>> aid2_list = aid2_list[0:min(100, len(aid2_list))]
         >>> # execute function
         >>> labels = get_aidpair_training_labels(ibs, aid1_list, aid2_list)
+        >>> result = ('labels = %s' % (ut.numpy_str(labels, threshold=10),))
+        >>> print(result)
+        labels = np.array([1, 0, 0, ..., 0, 1, 0], dtype=np.int32)
     """
     from ibeis import const
     truth_list = ibs.get_aidpair_truths(aid1_list, aid2_list)
@@ -209,65 +213,6 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
     isinconsistent_list = mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list)
     labels[isinconsistent_list] = const.TRUTH_UNKNOWN
     return labels
-
-
-def get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl):
-    nets_dir = ibs.get_neuralnet_dir()
-    training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, False)
-    training_dpath = ut.unixjoin(nets_dir, training_dname)
-
-    if FIX_HASH:
-        # use better hashing scheme
-        training_dpath_ = training_dpath
-        training_dname = get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, True)
-        training_dpath = ut.unixjoin(nets_dir, training_dname)
-        if ut.checkpath(training_dpath_) and not ut.checkpath(training_dpath):
-            ut.move(training_dpath_, training_dpath)
-    ut.ensuredir(nets_dir)
-    ut.ensuredir(training_dpath)
-    view_train_dir = ut.get_argflag('--vtd')
-    if view_train_dir:
-        ut.view_directory(training_dpath)
-    return training_dpath
-
-
-def get_semantic_trainingpair_dname(ibs, aid1_list, aid2_list, lbl, FIX_HASH):
-    """
-    Args:
-        ibs (IBEISController):  ibeis controller object
-        aid1_list (list):
-        aid2_list (list):
-
-    Returns:
-        tuple: (data_fpath, labels_fpath)
-
-    CommandLine:
-        python -m ibeis_cnn.ingest_ibeis --test-get_identify_training_dname
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
-        >>> import ibeis
-        >>> # build test data
-        >>> ibs = ibeis.opendb('testdb1')
-        >>> aid1_list = ibs.get_valid_aids()
-        >>> aid2_list = ibs.get_valid_aids()
-        >>> training_dpath = get_identify_training_dname(ibs, aid1_list, aid2_list, 'training', True)
-        >>> # verify results
-        >>> result = str(training_dpath)
-        >>> print(result)
-
-        training((13)e%dn&kgqfibw7dbu)
-    """
-    import utool as ut
-    semantic_uuids1 = ibs.get_annot_semantic_uuids(aid1_list)
-    semantic_uuids2 = ibs.get_annot_semantic_uuids(aid2_list)
-    aidpair_hashstr_list = map(ut.hashstr, zip(semantic_uuids1, semantic_uuids2))
-    if FIX_HASH:
-        training_dname = ut.hashstr_arr27(aidpair_hashstr_list, lbl=lbl)
-    else:
-        training_dname = ut.hashstr_arr(aidpair_hashstr_list, hashlen=16, lbl=lbl)
-    return training_dname
 
 
 class NewConfigBase(object):
@@ -300,36 +245,54 @@ class PatchMetricDataConfig(NewConfigBase):
 def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists):
     """
     todo use size in cfgstrings
+
+    from ibeis_cnn.ingest_ibeis import *
     """
+    import utool as ut
     pmcfg = PatchMetricDataConfig()
     data_shape = pmcfg.get_data_shape()
 
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
-    training_dpath = get_semantic_trainingpair_dir(ibs, aid1_list, aid2_list, lbl='train_patchmetric')
-    fm_hashstr = ut.hashstr_arr(fm_list, lbl='fm')
+    semantic_uuids1 = ibs.get_annot_semantic_uuids(aid1_list)
+    semantic_uuids2 = ibs.get_annot_semantic_uuids(aid2_list)
+    aidpair_hashstr_list = list(map(ut.hashstr27, zip(semantic_uuids1, semantic_uuids2)))
+    training_dname = ut.hashstr_arr27(aidpair_hashstr_list, pathsafe=True, lbl='patchmatch')
+
+    nets_dir = ibs.get_neuralnet_dir()
+    training_dpath = ut.unixjoin(nets_dir, training_dname)
+
+    ut.ensuredir(nets_dir)
+    ut.ensuredir(training_dpath)
+    view_train_dir = ut.get_argflag('--vtd')
+    if view_train_dir:
+        ut.view_directory(training_dpath)
+
+    fm_hashstr = ut.hashstr_arr27(np.vstack(fm_list), pathsafe=True, lbl='fm')
     cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
     data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
     labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
+    metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.pkl')
 
     # Change to use path friendlier hashes
-    if FIX_HASH:
-        # Old hashes
-        data_fpath_ = data_fpath
-        labels_fpath_ = labels_fpath
-        # New hashes
-        fm_hashstr = ut.hashstr_arr27(fm_list, lbl='fm')
-        cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
-        data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
-        labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
-        if ut.checkpath(data_fpath_, verbose=True):
-            ut.move(data_fpath_, data_fpath)
-        if ut.checkpath(labels_fpath_, verbose=True):
-            ut.move(labels_fpath_, labels_fpath)
+    #if FIX_HASH:
+    #    # Old hashes
+    #    data_fpath_ = data_fpath
+    #    labels_fpath_ = labels_fpath
+    #    # New hashes
+    #    fm_hashstr = ut.hashstr_arr27(fm_list, lbl='fm')
+    #    cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
+    #    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
+    #    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
+    #    if ut.checkpath(data_fpath_, verbose=True):
+    #        ut.move(data_fpath_, data_fpath)
+    #    if ut.checkpath(labels_fpath_, verbose=True):
+    #        ut.move(labels_fpath_, labels_fpath)
 
     if NOCACHE_TRAIN or not (
             ut.checkpath(data_fpath, verbose=True)
             and ut.checkpath(labels_fpath, verbose=True)
+            and ut.checkpath(metadata_fpath, verbose=True)
     ):
         # Estimate how big the patches will be
         def estimate_data_bytes():
@@ -341,14 +304,18 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
             print('Estimated data size: ' + ut.byte_str2(estimated_bytes))
         estimate_data_bytes()
         # Extract the data and labels
-        data, labels = get_patchmetric_training_data_and_labels(
+        data, labels, flat_metadata = get_patchmetric_training_data_and_labels(
             ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
             metadata_lists, **pmcfg.kw())
         # Save the data to cache
         ut.assert_eq(data.shape[1], pmcfg.patch_size)
         ut.assert_eq(data.shape[2], pmcfg.patch_size)
         # TODO; save metadata
-        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
+        print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
+        print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
+        ut.save_cPkl(data_fpath, data)
+        ut.save_cPkl(labels_fpath, labels)
+        ut.save_cPkl(metadata_fpath, flat_metadata)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath, data_shape

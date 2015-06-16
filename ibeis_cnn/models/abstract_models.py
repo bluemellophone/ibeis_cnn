@@ -91,6 +91,8 @@ class BaseModel(object):
         # 2*N images in a batch and N labels that map to
         # two images a piece
         model.data_per_label = 1
+        model.data_per_label_input  = 1  # state when data goes into the network
+        model.data_per_label_output = 1  # state when data comes out of the network
         model.training_dpath = training_dpath  # TODO
         # era=(group of epochs)
         model.current_era = None
@@ -244,9 +246,9 @@ class BaseModel(object):
 
     def checkpoint_save_model_info(model):
         history_hashid = model.get_model_history_hashid()
-        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
+        fpath = model.get_model_info_fpath(checkpoint_tag=history_hashid)
         ut.ensuredir(dirname(fpath))
-        model.save_model_state(fpath=fpath)
+        model.save_model_info(fpath=fpath)
 
     def save_model_state(model, **kwargs):
         """ saves current model state """
@@ -473,13 +475,13 @@ class BaseModel(object):
         output_files = draw_net.show_convolutional_layers(model.output_layer, model.training_dpath, target=target)
         return output_files
 
-    def show_model_layer_weights(model, **kwargs):
+    def show_model_layer_weights(model, *args, **kwargs):
         # RENAME
-        draw_net.show_model_layer_weights(model, **kwargs)
+        draw_net.show_model_layer_weights(model, *args, **kwargs)
 
-    def save_model_layer_weights(model, *args, **kwargs):
+    def dump_model_layer_weights_img(model, *args, **kwargs):
         # RENAME
-        draw_net.save_model_layer_weights(model, *args, **kwargs)
+        return draw_net.dump_model_layer_weights_img(model, *args, **kwargs)
 
     def draw_all_conv_layer_weights(model, fnum=None):
         import plottool as pt
@@ -487,7 +489,10 @@ class BaseModel(object):
             fnum = pt.next_fnum()
         conv_layers = [layer_ for layer_ in model.get_all_layers() if hasattr(layer_, 'W') and layer_.name.startswith('C')]
         for index in range(len(conv_layers)):
-            model.save_model_layer_weights(index, fnum=fnum + index)
+            model.dump_model_layer_weights_img(index, fnum=fnum + index)
+
+    def draw_conv_layer_weights():
+        pass
 
     def draw_architecture(model):
         filename = 'tmp.png'
@@ -617,9 +622,10 @@ class BaseModel(object):
 
             # Regularize
             # TODO: L2 should be one of many available options for regularization
-            L2 = lasagne.regularization.l2(model.output_layer)
+            L2 = lasagne.regularization.regularize_network_params(model.output_layer, lasagne.regularization.l2)
+            #L2 = lasagne.regularization.l2(model.output_layer)
             weight_decay = model.learning_state['weight_decay']
-            loss_regularized = loss + L2 * weight_decay
+            loss_regularized = loss + weight_decay * L2
             loss_regularized.name = 'loss_regularized'
             return loss, loss_determ, loss_regularized
 

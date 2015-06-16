@@ -38,45 +38,48 @@ def draw_theano_symbolic_expression(thean_expr):
     return graph_fpath
 
 
-def get_pydot_graph(layers, output_shape=True, verbose=False):
+def get_pydot_graph(layers, output_shape=True, fullinfo=True):
     """
     Creates a PyDot graph of the network defined by the given layers.
 
     Args:
-        - layers : list
-            List of the layers, as obtained from lasange.layers.get_all_layers
-        - output_shape: (default `True`)
-            If `True`, the output shape of each layer will be displayed.
-        - verbose: (default `False`)
-            If `True`, layer attributes like filter shape, stride, etc.
-            will be displayed.
-        - verbose:
+        layers (list): List of the layers, as obtained from lasange.layers.get_all_layers
+        output_shape (bool): If `True`, the output shape of each layer will be displayed.
+            (default `True`)
+        fullinfo (bool): If `True`, layer attributes like filter shape, stride, etc.  will
+            be displayed.  (default `True`)
 
     Returns:
-        - pydot_graph : PyDot object containing the graph
+        PyDot : pydot_graph  object containing the graph
 
     CommandLine:
-        python -m ibeis_cnn.draw_net --test-get_pydot_graph
+        python -m ibeis_cnn.draw_net --test-get_pydot_graph --show
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
         >>> # build test data
-        >>> model = models.DummyModel(autoinit=True)
+        >>> #model = models.DummyModel(input_shape=(128, 1, 4, 4), autoinit=True)
+        >>> model = models.SiameseL2(input_shape=(128, 1, 4, 4), autoinit=True)
         >>> layers = model.get_all_layers()
         >>> output_shape = True
-        >>> verbose = False
+        >>> fullinfo = True
         >>> # execute function
-        >>> pydot_graph = get_pydot_graph(layers, output_shape, verbose)
+        >>> pydot_graph = get_pydot_graph(layers, output_shape, fullinfo)
         >>> # verify results
         >>> result = str(pydot_graph)
         >>> print(result)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> img = pydot_to_image(pydot_graph)
+        >>> pt.imshow(img)
+        >>> ut.show_if_requested()
     """
     import pydot
     pydot_graph = pydot.Dot('Network', graph_type='digraph')
-    pydot_nodes = {}
-    pydot_edges = []
+    node_dict = {}
+    edge_list = []
 
     def get_hex_color(layer_type):
         """
@@ -106,11 +109,12 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
     for i, layer in enumerate(layers):
         layer_type = '{0}'.format(layer.__class__.__name__)
         key = repr(layer)
-        label = layer_type
         color = get_hex_color(layer_type)
-        if verbose:
-            for attr in ['num_filters', 'num_units', 'ds',
-                         'filter_shape', 'stride', 'strides', 'p']:
+        # Make label
+        label = layer_type
+        if fullinfo:
+            for attr in ['num_filters', 'num_units', 'ds', 'axis'
+                         'filter_shape', 'stride', 'strides', 'p', 'shape', 'name']:
                 if hasattr(layer, attr):
                     label += '\n' + \
                         '{0}: {1}'.format(attr, getattr(layer, attr))
@@ -124,26 +128,77 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         if output_shape:
             label += '\n' + \
                 'Output shape: {0}'.format(layer.output_shape)
-        pydot_nodes[key] = pydot.Node(key,
-                                      label=label,
-                                      shape='record',
-                                      fillcolor=color,
-                                      style='filled',
-                                      )
+        # append node
+
+        node_dict[key] = pydot.Node(
+            key, label=label, shape='record',
+            fillcolor=color, style='filled',)
 
         if hasattr(layer, 'input_layers'):
             for input_layer in layer.input_layers:
-                pydot_edges.append([repr(input_layer), key])
+                edge_list.append([repr(input_layer), key])
 
         if hasattr(layer, 'input_layer'):
-            pydot_edges.append([repr(layer.input_layer), key])
+            edge_list.append([repr(layer.input_layer), key])
 
-    for node in pydot_nodes.values():
+    for node in node_dict.values():
         pydot_graph.add_node(node)
-    for edge in pydot_edges:
+
+    for edge in edge_list:
         pydot_graph.add_edge(
-            pydot.Edge(pydot_nodes[edge[0]], pydot_nodes[edge[1]]))
+            pydot.Edge(node_dict[edge[0]], node_dict[edge[1]]))
     return pydot_graph
+
+
+def pydot_to_image(dot):
+    from PIL import Image
+    from cStringIO import StringIO
+    png_str = dot.create_png(prog='dot')
+    sio = StringIO()
+    sio.write(png_str)
+    sio.seek(0)
+    pil_img = Image.open(sio)
+    img = np.asarray(pil_img.convert('RGB'))
+    img = img[..., ::-1]  # to bgr
+    pil_img.close()
+    sio.close()
+    return img
+
+
+def make_architecture_image(layers, **kwargs):
+    """
+    Args:
+        layers (list): List of the layers, as obtained from lasange.layers.get_all_layers
+
+    Kwargs:
+        see docstring of get_pydot_graph for other options
+
+    References:
+        http://stackoverflow.com/questions/4596962/display-graph-without-saving-using-pydot
+
+    CommandLine:
+        python -m ibeis_cnn.draw_net --test-make_architecture_image --show
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
+        >>> #model = models.DummyModel(autoinit=True)
+        >>> layers = model.get_all_layers()
+        >>> # execute function
+        >>> kwargs = {}
+        >>> img = make_architecture_image(layers, **kwargs)
+        >>> print(img.shape)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> pt.imshow(img)
+        >>> ut.show_if_requested()
+    """
+    #from IPython.display import Image  # needed to render in notebook
+    dot = get_pydot_graph(layers, **kwargs)
+    img = pydot_to_image(dot)
+    return img
 
 
 def draw_to_file(layers, filename, **kwargs):
@@ -178,52 +233,6 @@ def draw_to_file(layers, filename, **kwargs):
     ext = filename[filename.rfind('.') + 1:]
     with open(filename, 'w') as fid:
         fid.write(dot.create(format=ext))
-
-
-def make_architecture_image(layers, **kwargs):
-    """
-    Args:
-        layers (list): List of the layers, as obtained from lasange.layers.get_all_layers
-
-    Kwargs:
-        see docstring of get_pydot_graph for other options
-
-    References:
-        http://stackoverflow.com/questions/4596962/display-graph-without-saving-using-pydot
-
-    CommandLine:
-        python -m ibeis_cnn.draw_net --test-make_architecture_image --show
-
-    Example:
-        >>> # ENABLE_DOCTEST
-        >>> from ibeis_cnn.draw_net import *  # NOQA
-        >>> from ibeis_cnn import models
-        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
-        >>> #model = models.DummyModel(autoinit=True)
-        >>> layers = model.get_all_layers()
-        >>> # execute function
-        >>> kwargs = {}
-        >>> img = make_architecture_image(layers, **kwargs)
-        >>> print(img.shape)
-        >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> pt.imshow(img)
-        >>> ut.show_if_requested()
-    """
-    #from IPython.display import Image  # needed to render in notebook
-    from PIL import Image
-    from cStringIO import StringIO
-    dot = get_pydot_graph(layers, **kwargs)
-    png_str = dot.create_png(prog='dot')
-    sio = StringIO()
-    sio.write(png_str)
-    sio.seek(0)
-    pil_img = Image.open(sio)
-    img = np.asarray(pil_img.convert('RGB'))
-    img = img[..., ::-1]  # to bgr
-    pil_img.close()
-    sio.close()
-    return img
 
 
 def show_confusion_matrix(correct_y, predict_y, category_list, results_path,
@@ -409,10 +418,12 @@ def show_model_layer_weights(model, target, **kwargs):
     return fig
 
 
-def save_model_layer_weights(model, target, **kwargs):
+def dump_model_layer_weights_img(model, target, dpath=None, **kwargs):
     import plottool as pt
+    if dpath is None:
+        dpath = model.get_epoch_diagnostic_dpath()
     fig = show_model_layer_weights(model, target, **kwargs)
-    output_fpath = pt.save_figure(fig=fig, dpath=model.get_epoch_diagnostic_dpath())
+    output_fpath = pt.save_figure(fig=fig, dpath=dpath)
     return output_fpath
 
 
