@@ -375,6 +375,7 @@ class SiameseL2(abstract_models.BaseModel):
         model.input_shape = input_shape
         model.batch_size = batch_size
         model.output_dims = 1
+        model.name = 'siaml2'
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
@@ -475,10 +476,24 @@ class SiameseL2(abstract_models.BaseModel):
 
     def loss_function(model, network_output, Y, T=T, verbose=True):
         """
+        References:
+            http://www.commendo.at/references/files/paperCVWW08.pdf
+            https://tspace.library.utoronto.ca/bitstream/1807/43097/3/Liu_Chen_201311_MASc_thesis.pdf
+            http://arxiv.org/pdf/1412.6622.pdf
+            http://papers.nips.cc/paper/4314-extracting-speaker-specific-information-with-a-regularized-siamese-deep-network.pdf
+            http://machinelearning.wustl.edu/mlpapers/paper_files/NIPS2005_265.pdf
+            http://vision.ia.ac.cn/zh/senimar/reports/Siamese-Network-Architecture-and-Applications-in-Computer-Vision.pdf
+
+            https://groups.google.com/forum/#!topic/caffe-users/D-7sRDw9v8c
+            http://caffe.berkeleyvision.org/gathered/examples/siamese.html
+            https://groups.google.com/forum/#!topic/lasagne-users/N9zDNvNkyWY
+            http://www.cs.nyu.edu/~sumit/research/research.html
+            https://github.com/Lasagne/Lasagne/issues/168
+            https://groups.google.com/forum/#!topic/lasagne-users/7JX_8zKfDI0
 
         CommandLine:
-            python -m ibeis_cnn.models --test-loss_function
-            python -m ibeis_cnn.models --test-loss_function:1 --show
+            python -m ibeis_cnn.models --test-SiameseL2.loss_function
+            python -m ibeis_cnn.models --test-SiameseL2.loss_function:1 --show
 
         Example1:
             >>> # ENABLE_DOCTEST
