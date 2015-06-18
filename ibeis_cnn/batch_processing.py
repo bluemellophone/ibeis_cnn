@@ -36,7 +36,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
         >>> model.initialize_architecture()
         >>> theano_funcs = model.build_theano_funcs(request_predict=True)
         >>> theano_fn = theano_funcs[1]
-        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'rand': True}
+        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'randomize_batch_order': True}
         >>> outputs_ = process_batch(model, X_train, y_train, theano_fn, **kwargs)
         >>> result = ut.dict_str(outputs_)
         >>> print(result)
@@ -109,7 +109,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, **kwargs):
 
 
 @profile
-def batch_iterator(model, X, y, rand=False, augment_on=False,
+def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
                    veryverbose=VERYVERBOSE_BATCH, showprog=ut.VERBOSE,
                    lbl='verbose unbuffered batch iteration',
@@ -126,23 +126,23 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         >>> model = models.DummyModel(batch_size=16)
         >>> X, y = model.make_random_testdata(num=99, seed=None)
         >>> encoder = None
-        >>> rand = True
+        >>> randomize_batch_order = True
         >>> # execute function
-        >>> result_list = [(Xb, Yb) for Xb, Yb in batch_iterator(model, X, y, rand)]
+        >>> result_list = [(Xb, Yb) for Xb, Yb in batch_iterator(model, X, y, randomize_batch_order)]
         >>> # verify results
         >>> result = ut.depth_profile(result_list, compress_consecutive=True)
         >>> print(result)
         [[(16, 4, 1, 4), 16]] * 6 + [[(3, 4, 1, 4), 3]]
     """
-    data_per_label = model.data_per_label
+    data_per_label_input = model.data_per_label_input
     # need to be careful with batchsizes if directly specified to theano
     equal_batch_sizes = model.input_shape[0] is not None
     augment_on = augment_on and hasattr(model, 'augment')
     encoder = getattr(model, 'encoder', None)
     # divides X and y into batches of size bs for sending to the GPU
-    if rand:
+    if randomize_batch_order:
         # Randomly shuffle data
-        X, y = utils.data_label_shuffle(X, y, data_per_label)  # 0.079 mnist time fraction
+        X, y = utils.data_label_shuffle(X, y, data_per_label_input)  # 0.079 mnist time fraction
     if verbose:
         print('[batchiter] BEGIN')
         print('[batchiter] X.shape %r' % (X.shape, ))
@@ -151,9 +151,9 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
         print('[batchiter] augment_on %r' % (augment_on, ))
         print('[batchiter] encoder %r' % (encoder, ))
         print('[batchiter] equal_batch_sizes %r' % (equal_batch_sizes, ))
-        print('[batchiter] data_per_label %r' % (data_per_label, ))
+        print('[batchiter] data_per_label_input %r' % (data_per_label_input, ))
     if y is not None:
-        assert X.shape[0] == (y.shape[0] * data_per_label), 'bad data / label alignment'
+        assert X.shape[0] == (y.shape[0] * data_per_label_input), 'bad data / label alignment'
     batch_size = model.batch_size
     num_batches = (X.shape[0] + batch_size - 1) // batch_size
     if verbose:
@@ -164,9 +164,10 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
     center_mean = None
     center_std  = None
     if model.preproc_kw is not None:
-        center_std  = model.preproc_kw['center_std']
-        center_mean = model.preproc_kw['center_mean']
+        center_std  = np.array(model.preproc_kw['center_std'], dtype=np.float32)
+        center_mean = np.array(model.preproc_kw['center_mean'], dtype=np.float32)
     do_whitening = center_mean is not None and center_std is not None and center_std != 0.0
+    assert do_whitening, 'should be whitening'
 
     if showprog:
         batch_index_iter = ut.ProgressIter(batch_index_iter,
@@ -176,36 +177,43 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
 
     for batch_index in batch_index_iter:
         # Get batch slice
-        Xb, yb = utils.slice_data_labels(
+        Xb_orig, yb_orig = utils.slice_data_labels(
             X, y, batch_size, batch_index,
-            data_per_label, wraparound=equal_batch_sizes)  # .113 time fraction
+            data_per_label_input, wraparound=equal_batch_sizes)  # .113 time fraction
+        Xb = Xb_orig.copy().astype(np.float32)
+        if yb_orig is not None:
+            yb = yb_orig.copy()
         # Whiten (applies centering)
         if do_whitening:
             # .563 time fraction
-            Xb = Xb.copy().astype(np.float32)
-            Xb -= center_mean
-            Xb /= center_std
+            Xb = (Xb - center_mean) / center_std
         # Augment
         if augment_on:
             if verbose or veryverbose:
                 if veryverbose or (batch_index + 1) % num_batches <= 1:
                     print('Augmenting Data')
                     # only copy if we have't yet
-            Xb_ = np.copy(Xb) if not do_whitening else Xb
-            yb_ = None if yb is None else np.copy(yb)
-            Xb, yb = model.augment(Xb_, yb_)
-            del Xb_
-            del yb_
+            Xb, yb = model.augment(Xb, yb)
+            '''
+            ut.embed()
+            if False:
+                #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+                from ibeis_cnn import augment
+                import plottool as pt
+                import IPython; IPython.get_ipython().magic('pylab qt4')
+                augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb, center_mean, center_std)
+                pt.iup()
+            '''
         # Encode
         if yb is not None:
             if encoder is not None:
                 yb = encoder.transform(yb)  # .201 time fraction
             # Get corret dtype for y (after encoding)
-            if data_per_label > 1:
-                # TODO: FIX data_per_label ISSUES
+            if data_per_label_input > 1:
+                # TODO: FIX data_per_label_input ISSUES
                 if getattr(model, 'needs_padding', False):
                     # most models will do the padding implicitly in the layer architecture
-                    yb_buffer = -np.ones(len(yb) * (data_per_label - 1), np.int32)
+                    yb_buffer = -np.ones(len(yb) * (data_per_label_input - 1), np.int32)
                     yb = np.hstack((yb, yb_buffer))
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
@@ -218,6 +226,8 @@ def batch_iterator(model, X, y, rand=False, augment_on=False,
                 print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (yb.shape, yb.dtype))
                 print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
         # Ugg, we can't have data and labels of different lengths
+        del Xb_orig
+        del yb_orig
         yield Xb, yb
     if verbose:
         print('[batchiter] END')

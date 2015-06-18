@@ -32,6 +32,7 @@ import numpy as np
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn import custom_layers
 import utool as ut
+from ibeis_cnn import augment
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models]')
 
 
@@ -40,7 +41,22 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class SiameseCenterSurroundModel(abstract_models.AbstractSiameseModel):
+class AbstractSiameseModel(abstract_models.BaseModel):
+    def __init__(model, *args, **kwargs):
+        super(AbstractSiameseModel, model).__init__(*args, **kwargs)
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        model.data_per_label_input = 2
+        model.data_per_label_output = 2
+
+    def augment(model, Xb, yb=None):
+        Xb_, yb_ = augment.augment_siamese_patches2(Xb, yb)
+        return Xb_, yb_
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
+class SiameseCenterSurroundModel(AbstractSiameseModel):
     """
     Model for individual identification
     """
@@ -57,7 +73,6 @@ class SiameseCenterSurroundModel(abstract_models.AbstractSiameseModel):
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
-        model.data_per_label = 2
         model.data_per_label_input  = 2
         model.data_per_label_output = 1
         if autoinit:
@@ -90,8 +105,7 @@ class SiameseCenterSurroundModel(abstract_models.AbstractSiameseModel):
             >>> print(result)
             >>> ut.quit_if_noshow()
             >>> import plottool as pt
-            >>> img = model.make_architecture_image()
-            >>> pt.imshow(img)
+            >>> model.show_architecture_image()
             >>> ut.show_if_requested()
         """
         (_, input_channels, input_width, input_height) = model.input_shape
@@ -126,7 +140,7 @@ class SiameseCenterSurroundModel(abstract_models.AbstractSiameseModel):
             >>> model = SiameseCenterSurroundModel(autoinit=True, input_shape=(128,) + (data.shape[1:]))
             >>> theano_forward = batch.create_unbuffered_network_output_func(model)
             >>> batch_size = model.batch_size
-            >>> Xb, yb = data[0:batch_size * model.data_per_label], labels[0:batch_size]
+            >>> Xb, yb = data[0:batch_size * model.data_per_label_input], labels[0:batch_size]
             >>> network_output = theano_forward(Xb)[0]
             >>> network_output = network_output
             >>> Y = yb
@@ -306,7 +320,7 @@ class SiameseCenterSurroundModel(abstract_models.AbstractSiameseModel):
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class SiameseL2(abstract_models.AbstractSiameseModel):
+class SiameseL2(AbstractSiameseModel):
     """
     Model for individual identification
     """
@@ -324,7 +338,6 @@ class SiameseL2(abstract_models.AbstractSiameseModel):
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
-        model.data_per_label = 2
         model.data_per_label_input = 2
         model.data_per_label_output = 2
         if autoinit:
@@ -353,8 +366,10 @@ class SiameseL2(abstract_models.AbstractSiameseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.2),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
                 _P(layers.FlattenLayer, outdim=2)
@@ -409,7 +424,7 @@ class SiameseL2(abstract_models.AbstractSiameseModel):
             >>> from ibeis_cnn.models.siam import *  # NOQA
             >>> # build test data
             >>> verbose = True
-            >>> model = SiameseL2(batch_size=128, data_shape=(28, 28, 3))
+            >>> model = SiameseL2(batch_size=128, data_shape=(64, 64, 3))
             >>> # execute function
             >>> output_layer = model.initialize_architecture()
             >>> model.print_dense_architecture_str()
@@ -417,9 +432,7 @@ class SiameseL2(abstract_models.AbstractSiameseModel):
             >>> result = str(output_layer)
             >>> print(result)
             >>> ut.quit_if_noshow()
-            >>> import plottool as pt
-            >>> img = model.make_architecture_image()
-            >>> pt.imshow(img)
+            >>> model.show_architecture_image()
             >>> ut.show_if_requested()
 
         """

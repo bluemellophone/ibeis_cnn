@@ -4,7 +4,6 @@ import theano
 import lasagne
 import functools
 import six
-import theano.tensor as T
 import numpy as np
 #from lasagne import layers
 from ibeis_cnn import net_strs
@@ -12,7 +11,6 @@ from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
 from ibeis_cnn import batch_processing as batch
 from ibeis_cnn import draw_net
-from ibeis_cnn import augment
 import sklearn.preprocessing
 import utool as ut
 from os.path import join, dirname
@@ -23,6 +21,27 @@ ut.noinject('ibeis_cnn.abstract_models')
 
 Conv2DLayer = custom_layers.Conv2DLayer
 MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
+
+def imwrite_wrapper(show_func):
+    """ helper to convert show funcs into imwrite funcs """
+    def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True, ascheckpoint=None, verbose=1, **kwargs):
+        import plottool as pt
+        # Resolve path to save the image
+        if dpath is None:
+            if ascheckpoint is True:
+                history_hashid = model.get_model_history_hashid()
+                dpath = model._get_model_dpath(checkpoint_tag=history_hashid)
+            elif asdiagnostic is True:
+                dpath = model.get_epoch_diagnostic_dpath()
+            else:
+                dpath = model.training_dpath
+        # Make the image
+        fig = show_func(model, **kwargs)
+        # Save the image
+        output_fpath = pt.save_figure(fig=fig, dpath=dpath, dpi=dpi, verbose=verbose)
+        return output_fpath
+    return imwrite_func
 
 
 def evaluate_layer_list(network_layers_def, verbose=None):
@@ -64,10 +83,10 @@ def testdata_model_with_history():
     model = BaseModel()
     # make a dummy history
     X_train, y_train = [1, 2, 3], [0, 0, 1]
-    model.start_new_era(X_train, y_train, 'dummy_alias_key')
+    model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
     model.record_epoch({'epoch': 1, 'valid_loss': .9, 'train_loss': .8})
     model.record_epoch({'epoch': 2, 'valid_loss': .7, 'train_loss': .7})
-    model.start_new_era(X_train, y_train, 'dummy_alias_key')
+    model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
     model.record_epoch({'epoch': 3, 'valid_loss': .8, 'train_loss': .6})
     model.record_epoch({'epoch': 4, 'valid_loss': .7, 'train_loss': .5})
     model.record_epoch({'epoch': 5, 'valid_loss': .6, 'train_loss': .2})
@@ -90,7 +109,6 @@ class BaseModel(object):
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
-        model.data_per_label = 1
         model.data_per_label_input  = 1  # state when data goes into the network
         model.data_per_label_output = 1  # state when data comes out of the network
         model.training_dpath = training_dpath  # TODO
@@ -116,7 +134,7 @@ class BaseModel(object):
         }
         model.learning_rate = learning_rate
 
-    # --- initialization steps
+    # --- INITIALIZATION
 
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
@@ -167,10 +185,11 @@ class BaseModel(object):
             new_values = W.sample(shape)
             weights.set_value(new_values)
 
-    # --- id
+    # --- HASH ID
 
     def get_architecture_hashid(model):
-        architecture_str = model.get_architecture_str()
+        """ Returns a hash identifying the architecture of the determenistic net """
+        architecture_str = model.get_architecture_str(with_noise_layers=False)
         hashid = ut.hashstr27(architecture_str)
         return hashid
 
@@ -204,21 +223,43 @@ class BaseModel(object):
         total_epochs = sum([len(era['epoch_list']) for era in model.era_history])
         return total_epochs
 
-    # --- io
+    # --- Input/Output
+
+    def _get_model_dpath(model, dpath, checkpoint_tag):
+        dpath = model.training_dpath if dpath is None else dpath
+        if checkpoint_tag is not None:
+            dpath = join(dpath, 'checkpoints', checkpoint_tag)
+        return dpath
 
     def _get_model_file_fpath(model, default_fname, fpath, dpath, fname, checkpoint_tag):
         """ helper """
         if fpath is None:
             fname = default_fname if fname is None else fname
-            dpath = model.training_dpath if dpath is None else dpath
-            if checkpoint_tag is not None:
-                dpath = join(dpath, 'checkpoints', checkpoint_tag)
+            dpath = model._get_model_dpath(dpath, checkpoint_tag)
             fpath = join(dpath, fname)
         else:
             assert checkpoint_tag is None, 'fpath overrides all other settings'
             assert dpath is None, 'fpath overrides all other settings'
             assert fname is None, 'fpath overrides all other settings'
         return fpath
+
+    def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern, extern_dpath=None):
+        """ tries to find a matching checkpoint so you dont have to type a full hash """
+        dpath = model._get_model_dpath(extern_dpath, checkpoint_pattern)
+        from os.path import exists, dirname, basename
+        if exists(dpath):
+            checkpoint_tag = checkpoint_pattern
+        else:
+            checkpoint_dpath = dirname(dpath)
+            matching_dpaths = ut.glob(checkpoint_dpath, '*' + checkpoint_pattern + '*')
+            if len(matching_dpaths) == 0:
+                raise RuntimeError('Could not resolve checkpoint_pattern=%r. No Matches' % (checkpoint_pattern,))
+            elif len(matching_dpaths) > 1:
+                raise RuntimeError('Could not resolve checkpoint_pattern=%r. matching_dpaths=%r. Too many matches' % (checkpoint_pattern, matching_dpaths))
+            else:
+                checkpoint_tag = basename(matching_dpaths[0])
+                print('Resolved checkpoint pattern to checkpoint_tag=%r' % (checkpoint_tag,))
+        return checkpoint_tag
 
     def has_saved_state(model, checkpoint_tag=None):
         fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
@@ -286,6 +327,9 @@ class BaseModel(object):
         """
         import cPickle as pickle
         kwargs = {}
+        TODO: resolve load_model_state and load_extern_weights into a single
+            function that is less magic in what it does and more
+            straightforward
         """
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('[model] loading model state from: %s' % (model_state_fpath,))
@@ -304,7 +348,12 @@ class BaseModel(object):
         model.output_dims  = model_state['output_dims']
         model.era_history  = model_state.get('era_history', [None])
         if model.__class__.__name__ != 'BaseModel':
+            # hack for abstract model
             model.set_all_param_values(model.best_weights)
+
+    def load_state_from_dict(model, dict_):
+        # TODO: make this the general unserialize function that loads the model state
+        model.era_history  = dict_.get('era_history', model.era_history)
 
     def load_extern_weights(model, **kwargs):
         """ load weights from another model """
@@ -312,7 +361,7 @@ class BaseModel(object):
         print('[model] loading extern weights from: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'rb') as file_:
             model_state = pickle.load(file_)
-        if True or utils.VERBOSE_CNN:
+        if False or utils.VERBOSE_CNN:
             print('External Model State:')
             print(ut.dict_str(model_state, truncate=True))
         # check compatibility with this architecture
@@ -364,7 +413,7 @@ class BaseModel(object):
         #}
         #batch_size = oldkw['batch_size']
 
-    # --- utility
+    # --- HISTORY
 
     def historyfoohack(model, X_train, y_train, trainset):
         #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
@@ -394,7 +443,7 @@ class BaseModel(object):
                 model.current_era[key_] = []
             model.current_era[key_].append(epoch_info[key])
 
-    def start_new_era(model, X_train, y_train, alias_key):
+    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
         """
         Used to denote a change in hyperparameters during training.
         """
@@ -403,6 +452,8 @@ class BaseModel(object):
         era_info = {
             'train_hashid': train_hashid,
             'arch_hashid': model.get_architecture_hashid(),
+            'num_train': len(y_train),
+            'num_valid': len(y_valid),
             'valid_loss_list': [],
             'train_loss_list': [],
             'epoch_list': [],
@@ -414,37 +465,7 @@ class BaseModel(object):
         model.current_era = era_info
         model.era_history.append(model.current_era)
 
-    def print_state_str(model, **kwargs):
-        print(model.get_state_str(**kwargs))
-
-    def show_era_history(model, fnum=None, pnum=(1, 1, 1)):
-        import plottool as pt
-
-        fnum = pt.ensure_fnum(fnum)
-
-        fig = pt.figure(fnum, pnum)
-        colors = pt.distinct_colors(len(model.era_history))
-        for index, era in enumerate(model.era_history):
-            epochs = era['epoch_list']
-            train_loss = era['train_loss_list']
-            valid_loss = era['valid_loss_list']
-            era_color = colors[index]
-            if index == len(model.era_history) - 1:
-                pt.plot(epochs, valid_loss, '-x', color=era_color, label='valid_loss')
-                pt.plot(epochs, train_loss, '-o', color=era_color, label='train_loss')
-            else:
-                pt.plot(epochs, valid_loss, '-x', color=era_color)
-                pt.plot(epochs, train_loss, '-o', color=era_color)
-
-        #append_phantom_legend_label
-        pt.set_xlabel('epoch')
-        pt.set_ylabel('loss')
-
-        pt.legend()
-
-        pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
-        pt.dark_background()
-        return fig
+    # --- STRINGS
 
     def get_state_str(model, other_override_reprs={}):
         era_history_str = ut.list_str(
@@ -470,59 +491,12 @@ class BaseModel(object):
         state_str = ut.dict_str(override_reprs, sorted_=True, strvals=True)
         return state_str
 
-    def draw_convolutional_layers(model, target=[0]):
-        # DEPRICATE
-        output_files = draw_net.show_convolutional_layers(model.output_layer, model.training_dpath, target=target)
-        return output_files
-
-    def show_model_layer_weights(model, *args, **kwargs):
-        # RENAME
-        draw_net.show_model_layer_weights(model, *args, **kwargs)
-
-    def dump_model_layer_weights_img(model, *args, **kwargs):
-        # RENAME
-        return draw_net.dump_model_layer_weights_img(model, *args, **kwargs)
-
-    def draw_all_conv_layer_weights(model, fnum=None):
-        import plottool as pt
-        if fnum is None:
-            fnum = pt.next_fnum()
-        conv_layers = [layer_ for layer_ in model.get_all_layers() if hasattr(layer_, 'W') and layer_.name.startswith('C')]
-        for index in range(len(conv_layers)):
-            model.dump_model_layer_weights_img(index, fnum=fnum + index)
-
-    def draw_conv_layer_weights():
-        pass
-
-    def draw_architecture(model):
-        filename = 'tmp.png'
-        draw_net.draw_to_file(model, filename)
-        ut.startfile(filename)
-
-    def make_architecture_image(model, **kwargs):
-        layers = model.get_all_layers()
-        img = draw_net.make_architecture_image(layers, **kwargs)
-        return img
-
-    def print_layer_info(model):
-        net_strs.print_layer_info(model.get_all_layers())
-
-    def set_all_param_values(model, weights_list):
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            lasagne.layers.set_all_param_values(model.output_layer, weights_list)
-
-    def get_all_param_values(model):
-        weights_list = lasagne.layers.get_all_param_values(model.output_layer)
-        return weights_list
-
-    def get_all_params(model, **tags):
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            parameters = lasagne.layers.get_all_params(model.output_layer, **tags)
-            return parameters
-
-    def get_architecture_str(model, sep='_'):
+    def get_architecture_str(model, sep='_', with_noise_layers=True):
+        """
+        with_noise_layers is a boolean that specifies if layers that doesnt
+        affect the flow of information in the determenistic setting are to be
+        included.  Baseically it means get rid of dropout.
+        """
         # TODO: allow for removal of layers without any parameters
         #if getattr(model, 'network_layers', None) is None:
         #    if getattr(model, 'output_layer', None) is None:
@@ -534,9 +508,23 @@ class BaseModel(object):
         if model.output_layer is None:
             return ''
         network_layers = model.get_all_layers()
-        layer_str_list = [net_strs.make_layer_str(layer) for layer in network_layers]
+        if with_noise_layers:
+            #weighted_layers = [layer_ for layer_ in network_layers if hasattr(layer_, 'W')]
+            valid_layers = [layer_ for layer_ in network_layers]
+        else:
+            valid_layers = [layer_ for layer_ in network_layers if
+                            layer_.__class__.__name__ not in lasagne.layers.noise.__all__]
+        layer_str_list = [net_strs.make_layer_str(layer) for layer in valid_layers]
         architecture_str = sep.join(layer_str_list)
         return architecture_str
+
+    # --- PRINTING
+
+    def print_state_str(model, **kwargs):
+        print(model.get_state_str(**kwargs))
+
+    def print_layer_info(model):
+        net_strs.print_layer_info(model.get_all_layers())
 
     def print_architecture_str(model, sep='\n  '):
         architecture_str = model.get_architecture_str(sep=sep)
@@ -554,6 +542,152 @@ class BaseModel(object):
         print('----')
         # verify results
 
+    # --- IMAGE SHOW
+
+    def show_architecture_image(model, **kwargs):
+        import plottool as pt
+        layers = model.get_all_layers()
+        img = draw_net.make_architecture_image(layers, **kwargs)
+        pt.imshow(img)
+
+    def show_era_history(model, fnum=None):
+        import plottool as pt
+        fnum = pt.ensure_fnum(fnum)
+        fig = pt.figure(fnum=fnum, pnum=(1, 1, 1), doclf=True, docla=True)
+        next_pnum = pt.make_pnum_nextgen(nRows=2, nCols=2)
+        model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='log')
+        model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
+        model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
+
+        pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
+        return fig
+
+    def show_era_lossratio(model, fnum=None, pnum=(1, 1, 1)):
+        import plottool as pt
+
+        fnum = pt.ensure_fnum(fnum)
+
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        colors = pt.distinct_colors(len(model.era_history))
+        for index, era in enumerate(model.era_history):
+            epochs = era['epoch_list']
+            train_loss = np.array(era['train_loss_list'])
+            valid_loss = np.array(era['valid_loss_list'])
+            trainvalid_ratio = train_loss / valid_loss
+
+            era_color = colors[index]
+            #yscale = 'linear'
+            #yscale = 'log'
+            if index == len(model.era_history) - 1:
+                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color, label='train/valid')
+            else:
+                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color)
+
+        #append_phantom_legend_label
+        pt.set_xlabel('epoch')
+        pt.set_ylabel('train/valid ratio')
+
+        pt.legend()
+
+        pt.dark_background()
+        return fig
+
+    def show_era_loss(model, fnum=None, pnum=(1, 1, 1), yscale='log'):
+        import plottool as pt
+
+        fnum = pt.ensure_fnum(fnum)
+
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        colors = pt.distinct_colors(len(model.era_history))
+        for index, era in enumerate(model.era_history):
+            epochs = era['epoch_list']
+            train_loss = era['train_loss_list']
+            valid_loss = era['valid_loss_list']
+            if 'num_valid' in era:
+                valid_label = 'valid_loss ' + str(era['num_valid'])
+            if 'num_train' in era:
+                train_label = 'train_loss ' + str(era['num_train'])
+
+            era_color = colors[index]
+            #yscale = 'linear'
+            #yscale = 'log'
+            if index == len(model.era_history) - 1:
+                pt.plot(epochs, valid_loss, '-x', color=era_color, label=valid_label, yscale=yscale)
+                pt.plot(epochs, train_loss, '-o', color=era_color, label=train_label, yscale=yscale)
+            else:
+                pt.plot(epochs, valid_loss, '-x', color=era_color, yscale=yscale)
+                pt.plot(epochs, train_loss, '-o', color=era_color, yscale=yscale)
+
+        #append_phantom_legend_label
+        pt.set_xlabel('epoch')
+        pt.set_ylabel('loss')
+
+        pt.legend()
+
+        pt.dark_background()
+        return fig
+
+    def show_weights_image(model, index=0, *args, **kwargs):
+        import plottool as pt
+        network_layers = model.get_all_layers()
+        cnn_layers = [layer_ for layer_ in network_layers if hasattr(layer_, 'W')]
+        layer = cnn_layers[index]
+        all_weights = layer.W.get_value()
+        layername = net_strs.make_layer_str(layer)
+        fig = draw_net.show_convolutional_weights(all_weights, **kwargs)
+        history_hashid = model.get_model_history_hashid()
+        figtitle = layername + '\n' + history_hashid
+        pt.set_figtitle(figtitle, subtitle='shape=%r, sum=%.4f, l2=%.4f' % (all_weights.shape, all_weights.sum(), (all_weights ** 2).sum()))
+        return fig
+
+    # --- IMAGE WRITE
+
+    imwrite_era_history = imwrite_wrapper(show_era_history)
+
+    imwrite_weights = imwrite_wrapper(show_weights_image)
+
+    #imwrite_architecture = imwrite_wrapper(show_architecture_image)
+
+    def imwrite_architecture(model, fpath='arch_image.png'):
+        # FIXME
+        layers = model.get_all_layers()
+        draw_net.imwrite_architecture(layers, fpath)
+        ut.startfile(fpath)
+
+    #def imwrite_weights(model, index=0, dpath=None, **kwargs):
+    #    import plottool as pt
+    #    fig = model.show_weights_image(index, **kwargs)
+    #    if dpath is None:
+    #        dpath = model.get_epoch_diagnostic_dpath()
+    #    output_fpath = pt.save_figure(fig, dpath=dpath)
+    #    return output_fpath
+
+    #def imwrite_all_conv_layer_weights(model, fnum=None):
+    #    # DEPRICATE
+    #    import plottool as pt
+    #    if fnum is None:
+    #        fnum = pt.next_fnum()
+    #    conv_layers = [layer_ for layer_ in model.get_all_layers() if hasattr(layer_, 'W') and layer_.name.startswith('C')]
+    #    for index in range(len(conv_layers)):
+    #        model.imwrite_weights(index, fnum=fnum + index)
+
+    # ---- UTILITY
+
+    def set_all_param_values(model, weights_list):
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            lasagne.layers.set_all_param_values(model.output_layer, weights_list)
+
+    def get_all_param_values(model):
+        weights_list = lasagne.layers.get_all_param_values(model.output_layer)
+        return weights_list
+
+    def get_all_params(model, **tags):
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            parameters = lasagne.layers.get_all_params(model.output_layer, **tags)
+            return parameters
+
     def get_all_layers(model):
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
@@ -570,12 +704,6 @@ class BaseModel(object):
         #    assert model.network_layers is not None, 'need to initialize architecture first'
         #    output_layer = model.network_layers[-1]
         #    return output_layer
-
-    def learning_rate_update(model, x):
-        return x / 2.0
-
-    def learning_rate_shock(model, x):
-        return x * 2.0
 
     @property
     def learning_rate(model):
@@ -656,9 +784,11 @@ class AbstractCategoricalModel(BaseModel):
         print('[model] model.output_dims = %r' % (model.output_dims,))
 
     def loss_function(model, network_output, truth):
+        import theano.tensor as T
         return T.nnet.categorical_crossentropy(network_output, truth)
 
     def build_unlabeled_output_expressions(model, network_output):
+        import theano.tensor as T
         # Network outputs define category probabilities
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
@@ -669,6 +799,7 @@ class AbstractCategoricalModel(BaseModel):
         return unlabeled_outputs
 
     def build_labeled_output_expressions(model, network_output, y_batch):
+        import theano.tensor as T
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
         predictions.name = 'tmp_predictions'
@@ -676,21 +807,6 @@ class AbstractCategoricalModel(BaseModel):
         accuracy.name = 'accuracy'
         labeled_outputs = [accuracy]
         return labeled_outputs
-
-
-@six.add_metaclass(ut.ReloadingMetaclass)
-class AbstractSiameseModel(BaseModel):
-    def __init__(model, *args, **kwargs):
-        super(AbstractSiameseModel, model).__init__(*args, **kwargs)
-        # bad name, says that this network will take
-        # 2*N images in a batch and N labels that map to
-        # two images a piece
-        model.data_per_label = 2
-
-    def augment(model, Xb, yb=None):
-        Xb, yb = augment.augment_siamese_patches2(Xb, yb)
-        return Xb, yb
-    pass
     #def build_objective(model):
     #    pass
 

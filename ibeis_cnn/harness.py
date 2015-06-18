@@ -3,6 +3,8 @@
 """
 constructs the Theano optimization and trains a learning model,
 optionally by initializing the network with pre-trained weights.
+
+http://cs231n.github.io/neural-networks-3/#distr
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
@@ -60,6 +62,15 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     model.print_architecture_str()
     model.print_layer_info()
 
+    MONITOR_PROGRESS = ut.get_argflag('--monitor')
+    if MONITOR_PROGRESS:
+        progress_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'progress'))
+        history_progress_dir = ut.ensuredir(ut.get_nonconflicting_path(ut.unixjoin(progress_dir, 'history%02d')))
+        weights_progress_dir = ut.ensuredir(ut.get_nonconflicting_path(ut.unixjoin(progress_dir, 'weights%02d')))
+        #history_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'history'))
+        #weights_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'weights'))
+        ut.vd(progress_dir)
+
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
@@ -67,9 +78,9 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     theano_funcs = model.build_theano_funcs()
     theano_backprop, theano_forward, theano_predict = theano_funcs
 
-    patience = config.get('patience')
+    learning_rate_schedule = config.get('learning_rate_schedule')
     max_epochs = config.get('max_epochs', None)
-    test_freq = config.get('test_freq', None)
+    test_freq  = config.get('test_freq', None)
     #show_times    = kwargs.get('print_timing', False)
     #show_features = kwargs.get('show_features', False)
     #test_freq      = kwargs.get('test_freq', None)
@@ -81,7 +92,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
         print('Initializng training at epoch=%r' % (epoch,))
     else:
         print('Resuming training at epoch=%r' % (epoch,))
-    epoch_marker  = epoch
+    #epoch_marker  = epoch
 
     # number of non-best iterations after, that triggers a best save
     save_freq = 10
@@ -95,7 +106,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
 
-    model.start_new_era(X_train, y_train, trainset.alias_key)
+    model.start_new_era(X_train, y_train, X_valid, y_valid, trainset.alias_key)
 
     batchiter_kw = dict(
         #showprog=False,
@@ -126,7 +137,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
             """
             train_outputs = batch.process_batch(
                 model, X_train, y_train, theano_backprop, augment_on=True,
-                rand=True, **batchiter_kw)
+                randomize_batch_order=True, **batchiter_kw)
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss_regularized'].mean()
             #if 'valid_acc' in model.requested_headers:
@@ -140,12 +151,22 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
             # Run validation set
             valid_outputs = batch.process_batch(
                 model, X_valid, y_valid, theano_forward, augment_on=False,
-                rand=False, **batchiter_kw)
+                randomize_batch_order=True, **batchiter_kw)
             epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
             if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
                 epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
+
+            # TODO
+            request_determ_loss = False
+            if request_determ_loss:
+                train_determ_outputs = batch.process_batch(
+                    model, X_train, y_train, theano_forward, augment_on=False,
+                    randomize_batch_order=False, **batchiter_kw)
+                train_loss_determ = train_determ_outputs['loss_determ'].mean()  # NOQA
+            else:
+                train_loss_determ = None
 
             # Calculate request_test before adding to the epoch counter
             request_test = utils.checkfreq(test_freq, epoch)
@@ -153,7 +174,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 raise NotImplementedError('not done yet')
                 test_outputs = batch.process_batch(
                     model, X_train, y_train, theano_forward, augment_on=False,
-                    rand=False, **batchiter_kw)
+                    randomize_batch_order=False, **batchiter_kw)
                 test_loss = test_outputs['loss_determ'].mean()  # NOQA
                 #if kwargs.get('show_confusion', False):
                 #    #output_confusion_matrix(results_path, **kwargs)
@@ -179,10 +200,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 for key in model.requested_headers:
                     model.best_results[key] = epoch_info[key]
                 save_after_best_countdown = save_after_best_wait_epochs
-                epoch_marker = epoch
-
-            # Print the epoch
-            utils.print_epoch_info(model, printcol_info, epoch_info)
+                #epoch_marker = epoch
 
             # Check frequencies and countdowns
             output_diagnostics = utils.checkfreq(save_freq, epoch)
@@ -194,21 +212,46 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 else:
                     save_after_best_countdown -= 1
 
+            if duration < 60:
+                # dont show prog on short iterations
+                batchiter_kw['showprog'] = False
+
+            # ---------------------------------------
+            # Output Diagnostics
+
+            # Print the epoch
+            utils.print_epoch_info(model, printcol_info, epoch_info)
+
             # Output any diagnostics
             if output_diagnostics:
                 model.checkpoint_save_model_info()
                 model.save_model_info()
                 model.checkpoint_save_model_state()
                 model.save_model_state()
-                #model.draw_convolutional_layers(epoch=epoch)
-                #model.draw_convolutional_layers()
+
+            if MONITOR_PROGRESS:
+                def overwrite_latest_image(fpath, new_name):
+                    """ copies the new image to a path to be overwritten so new updates are shown """
+                    from os.path import split, join, splitext, dirname
+                    import shutil
+                    dpath, fname = split(fpath)
+                    ext = splitext(fpath)[1]
+                    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
+                    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
+                fpath = model.imwrite_era_history(dpath=history_progress_dir, fnum=1, verbose=0)
+                overwrite_latest_image(fpath, 'history')
+                fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2, verbose=0)
+                overwrite_latest_image(fpath, 'weights')
+                history_text = ut.list_str(model.era_history, newlines=True)
+                ut.write_to(ut.unixjoin(progress_dir, 'era_history.txt'), history_text)
+                #model.imwrite_weights(index=0)
 
             # Learning rate schedule update
-            if epoch >= epoch_marker + patience:
-                epoch_marker = epoch
-                model.learning_rate = model.learning_rate_update(model.learning_rate)
+            if epoch % learning_rate_schedule == (learning_rate_schedule - 1):
+                #epoch_marker = epoch
+                model.learning_rate = model.learning_rate * .8
+                model.start_new_era(X_train, y_train, X_valid, y_valid, trainset.alias_key)
                 utils.print_header_columns(printcol_info)
-                model.start_new_era(X_train, y_train, trainset.alias_key)
 
             # Break on max epochs
             if max_epochs is not None and epoch >= max_epochs:
@@ -240,8 +283,8 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
             elif resolution == 1:
                 # Shock the weights of the network
                 utils.shock_network(model.output_layer)
-                epoch_marker = epoch
-                model.learning_rate = model.learning_rate_shock(model.learning_rate)
+                model.learning_rate = model.learning_rate * 2
+                #epoch_marker = epoch
                 utils.print_header_columns(printcol_info)
             elif resolution == 2:
                 # Save the weights of the network
@@ -254,7 +297,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
             elif resolution == 4:
                 ut.embed()
             elif resolution == 5:
-                output_fpath_list = model.draw_convolutional_layers()
+                output_fpath_list = model.imwrite_weights(index=0)
                 for fpath in output_fpath_list:
                     ut.startfile(fpath)
             elif resolution == 6:

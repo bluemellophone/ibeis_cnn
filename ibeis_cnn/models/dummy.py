@@ -27,7 +27,6 @@ class DummyModel(abstract_models.AbstractCategoricalModel):
             input_shape = (None, 1, 4, 4)
         super(DummyModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
         #model.network_layers = None
-        model.data_per_label = 1
         model.input_shape = input_shape
         model.output_dims = 5
         #model.batch_size = 8

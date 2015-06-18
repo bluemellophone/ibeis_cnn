@@ -244,6 +244,7 @@ def stacked_img_pairs(Xb, modified_indexes, label_list=None, num=None):
     from ibeis_cnn import draw_results
     if num is None:
         num = len(modified_indexes)
+    #np.random.shuffle(modified_indexes)
     num = min(len(modified_indexes), num)
     patch_list1 = Xb[0::2]
     patch_list2 = Xb[1::2]
@@ -259,6 +260,44 @@ def stacked_img_pairs(Xb, modified_indexes, label_list=None, num=None):
     pass
 
 
+def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
+    """
+    from ibeis_cnn.augment import *  # NOQA
+    std_ = center_std
+    mean_ = center_mean
+    """
+    import plottool as pt
+
+    if ut.is_float(Xb):
+        if mean_ is None:
+            # I know its not actually std
+            std_ = 255 * (Xb.max() - Xb.min())
+            mean_ = (-Xb.min() * std_)
+        # unwhiten
+        Xb_ = np.clip(((std_ * Xb) + mean_), 0.0, 255.0).astype(np.uint8)
+    else:
+        Xb_ = Xb
+
+    #num_examples = len(Xb_orig) // 2
+    # only look at ones that were actually augmented
+    diff = (Xb_[::2] - Xb_orig[::2])
+    diff_batches = diff.sum(-1).sum(-1).sum(-1)
+    modified_indexes = np.where(diff_batches > 0)[0]
+    #import vtool as vt
+    #nonmodified_flags = ~vt.other.index_to_boolmask(modified_indexes_, num_examples)
+    #print(ut.debug_consec_list(modified_indexes_))
+    # hack
+    #modified_indexes = np.arange(num_examples)
+
+    orig_stack = stacked_img_pairs(Xb_orig, modified_indexes, None)
+    warp_stack = stacked_img_pairs(Xb_, modified_indexes, None)
+    fnum = None
+    fnum = pt.ensure_fnum(fnum)
+    pt.figure(fnum)
+    pt.imshow(orig_stack, pnum=(1, 2, 1), title='before')
+    pt.imshow(warp_stack, pnum=(1, 2, 2), title='after')
+
+
 def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     """
     CommandLine:
@@ -271,16 +310,13 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         >>> data, labels = ingest_data.testdata_patchmatch()
         >>> cv2_data = utils.convert_theano_images_to_cv2_images(data)
         >>> batch_size = 128
-        >>> Xb, yb = cv2_data[0:batch_size], labels[0:batch_size // 2]
+        >>> Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
+        >>> Xb_orig = Xb.copy()
+        >>> yb_orig = yb.copy()
         >>> rng = np.random.RandomState(0)
-        >>> Xb1, yb1 = augment_siamese_patches2(Xb.copy(), yb.copy(), rng=rng)
-        >>> modified_indexes = np.where((Xb1[::2] != Xb[::2]).sum(-1).sum(-1).sum(-1) > 0)[0]
+        >>> Xb, yb = augment_siamese_patches2(Xb.copy(), yb.copy(), rng=rng)
         >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> orig_stack = stacked_img_pairs(Xb, modified_indexes, None)
-        >>> warp_stack = stacked_img_pairs(Xb1, modified_indexes, None)
-        >>> pt.imshow(orig_stack, pnum=(1, 2, 1), title='before')
-        >>> pt.imshow(warp_stack, pnum=(1, 2, 2), title='after')
+        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
         >>> ut.show_if_requested()
     """
     import vtool as vt
@@ -304,14 +340,12 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     )
     perterb_ranges.update(
         dict(
-            #zoom_range=(1 / 1.1, 1.1),
-            max_tx=5,
-            max_ty=5,
-            #max_shear=TAU / 16,
-            max_shear=TAU / 32,
-            #max_theta=TAU / 32,
-            #max_theta=TAU / 32,
-            max_theta=TAU,
+            zoom_range=(1.0, 1.7),
+            #max_tx=5,
+            #max_ty=5,
+            #max_shear=TAU / 32,
+            #max_theta=TAU,
+            enable_stretch=True,
             enable_flip=True,
         )
     )
@@ -324,11 +358,12 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     ]
 
     import cv2
-    borderMode = cv2.BORDER_REFLECT101
-    borderMode = cv2.BORDER_REFLECT_101
-    borderMode = cv2.BORDER_WRAP
-    borderMode = cv2.BORDER_CONSTANT
+    #borderMode = cv2.BORDER_REFLECT101
+    #borderMode = cv2.BORDER_REFLECT_101
+    #borderMode = cv2.BORDER_WRAP
+    #borderMode = cv2.BORDER_CONSTANT
     borderMode = cv2.BORDER_REFLECT
+    borderMode = cv2.BORDER_CONSTANT
     #borderMode = cv2.BORDER_REPLICATE
     flags = cv2.INTER_LANCZOS4
 

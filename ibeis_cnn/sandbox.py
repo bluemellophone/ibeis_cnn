@@ -5,13 +5,17 @@ from ibeis_cnn.abstract_models import *
 
 
 def check_external_training_paths():
+    """
+    Notes:
+        http://cs231n.github.io/neural-networks-3/#distr
+    """
+    checkpoints_dir = '.'
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/train_patchmetric((315)iofvvdflcllgjkyu)/checkpoints'
     #checkpoints_dir = '/media/raid/work/PZ_MTEST/_ibsdb/_ibeis_cache/nets/train_patchmetric((315)iofvvdflcllgjkyu)/checkpoints/hist_eras2_epochs23_aayzxkezpzjgwupd'
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/train_patchmetric((1576)fxzkszaajypyzqne)/checkpoints'
 
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/checkpoints'
-
-    checkpoints_dir = '.'
+    checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/NNP_Master3_patchmatch-_24285_xatwrytpdbfttoax-/checkpoints'
 
     import cPickle as pickle
     from ibeis_cnn import abstract_models
@@ -19,11 +23,6 @@ def check_external_training_paths():
     from os.path import *
     model_fpaths = ut.glob(checkpoints_dir, '*.pkl', recursive=True)
     tmp_model_list = []
-    for fpath in model_fpaths:
-        pass
-        model = tmp_model
-        model.rrr(verbose=False)
-
     for fpath in model_fpaths:
         tmp_model = abstract_models.BaseModel()
         tmp_model.load_model_state(fpath=fpath)

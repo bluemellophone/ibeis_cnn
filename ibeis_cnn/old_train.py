@@ -147,7 +147,7 @@ def train_viewpoint():
 
 #        X_test, y_test = trainset.load_subset('test')
 #        data, labels = X_test, y_test
-#        data, labels = utils.random_test_train_sample(X_test, y_test, 1000, model.data_per_label)
+#        data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label)
 #        dataname = trainset.alias_key
 #        experiments.test_siamese_performance(model, data, labels, dataname)
 

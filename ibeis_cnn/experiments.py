@@ -30,8 +30,26 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     #data   = data[::50]
     #labels = labels[::50]
-    from ibeis_cnn import utils
-    data, labels = utils.random_test_train_sample(data, labels, 10000, model.data_per_label_input)
+    #from ibeis_cnn import utils
+    #data, labels = utils.random_xy_sample(data, labels, 10000, model.data_per_label_input)
+
+    import plottool as pt
+    fnum_gen = pt.make_fnum_nextgen()
+
+    fig = model.show_era_history(fnum=fnum_gen(), yscale='linear')
+    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
+
+    fig = model.show_era_history(fnum=fnum_gen(), yscale='log')
+    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
+
+    # hack
+    fig = model.show_weights_image(target=0, fnum=fnum_gen())
+    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
+    #model.draw_all_conv_layer_weights(fnum=fnum_gen())
+    #model.imwrite_weights(1)
+    #model.imwrite_weights(2)
+    return
+    #ut.embed()
 
     #ut.embed()
 
@@ -64,9 +82,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
     sift_encoder.fit(sift_scores, labels)
 
     #ut.embed()
-
-    import plottool as pt
-    fnum_gen = pt.make_fnum_nextgen()
 
     # Visualize
     inter_cnn = cnn_encoder.visualize(figtitle=dataname + ' CNN scores. #data=' + str(len(data)), fnum=fnum_gen())
@@ -133,17 +148,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
         pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
         pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
-    # hack
-    fig = model.show_model_layer_weights(target=0, fnum=fnum_gen())
-    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
-    #model.draw_all_conv_layer_weights(fnum=fnum_gen())
-    #model.dump_model_layer_weights_img(1)
-    #model.dump_model_layer_weights_img(2)
-
-    fig = model.show_era_history(fnum=fnum_gen())
-    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
-    #ut.embed()
-
     #ut.vd(epoch_dpath)
 
 
@@ -157,8 +161,8 @@ def show_hard_cases(model, data, labels, scores):
     #encoder.inverse_normalize(np.cast['float32'](encoder.learned_thresh))
 
     fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores, labels)
-    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies, model.data_per_label)
-    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies, model.data_per_label)
+    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies, model.data_per_label_input)
+    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies, model.data_per_label_input)
 
     fn_data   = data.take(fn_data_indicies, axis=0)
     fn_labels = labels.take(fn_label_indicies, axis=0)

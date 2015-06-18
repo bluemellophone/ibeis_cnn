@@ -28,9 +28,9 @@ RANDOM_SEED = None
 
 def checkfreq(freqlike_, count):
     # checks frequency of param, also handles the case where it is specified
-    # as a bool
+    # as a bool. does not trigger on 0
     if ut.is_int(freqlike_):
-        return (count % freqlike_) == 0
+        return (count % freqlike_) == (freqlike_  - 1)
     else:
         return freqlike_ is True
 
@@ -218,8 +218,15 @@ def get_current_time():
 def testdata_xy(data_per_label=2, factor=20, seed=0):
     img_list, width, height, channels = testdata_imglist()
     data = np.array((img_list * factor))
-    randstate = np.random.RandomState(seed)
-    labels = randstate.rand(len(data) / data_per_label) > .5
+    if seed is None:
+        rng = np.random
+    elif isinstance(seed, int):
+        rng = np.random.RandomState(seed)
+    elif seed is np.random or isinstance(seed, np.RandomState):
+        rng = seed
+    else:
+        assert False
+    labels = rng.rand(len(data) / data_per_label) > .5
     #data_per_label = 2
     return data, labels, data_per_label
 
@@ -268,7 +275,7 @@ def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
     return X_train, y_train, X_valid, y_valid
 
 
-def random_test_train_sample(X, y, size_, data_per_label, seed=0):
+def random_xy_sample(X, y, size_, data_per_label, seed=0):
     label_indicies =  ut.random_indexes(len(y), seed=seed)[0:size_]
     data_indicies = expand_data_indicies(label_indicies, data_per_label)
     X_subset = X.take(data_indicies, axis=0)
@@ -524,9 +531,16 @@ def make_random_indicies(num, seed=RANDOM_SEED):
         >>> print(result)
         [8 1 5 0 7 2 9 4 3 6]
     """
-    randstate = np.random.RandomState(seed)
+    if seed is None:
+        rng = np.random
+    elif isinstance(seed, int):
+        rng = np.random.RandomState(seed)
+    elif seed is np.random or isinstance(seed, np.RandomState):
+        rng = seed
+    else:
+        assert False
     random_indicies = np.arange(num)
-    randstate.shuffle(random_indicies)
+    rng.shuffle(random_indicies)
     return random_indicies
 
 
@@ -599,7 +613,7 @@ def slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=
                 yb = np.concatenate([yb, yb_extra], axis=0)
             #print('WRAP')
     # Get corret dtype for X
-    Xb = Xb.astype(np.float32)
+    #Xb = Xb.astype(np.float32)
     if verbose:
         print('[batchiter]   * x_sl = %r' % (x_sl,))
         print('[batchiter]   * y_sl = %r' % (y_sl,))

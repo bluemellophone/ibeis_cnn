@@ -171,6 +171,7 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
 
     green = tuple(pt.color_funcs.to_base255(pt.TRUE_GREEN)[0:3])[::-1]
     red   = tuple(pt.color_funcs.to_base255(pt.FALSE_RED)[0:3])[::-1]
+    purp  = tuple(pt.color_funcs.to_base255(pt.PURPLE)[0:3])[::-1]
 
     patch1_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch1_list, indicies)]
     patch2_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch2_list, indicies)]
@@ -179,7 +180,7 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
     if label_list is not None:
         # draw label border
         label_list_subset = ut.list_take(label_list, indicies)
-        colorfn = [red, green]
+        colorfn = [red, green, purp]
         patch1_list_subset = [
             vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
             for label, patch in zip(label_list_subset, patch1_list_subset)
