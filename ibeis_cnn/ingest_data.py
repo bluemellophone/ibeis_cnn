@@ -9,18 +9,18 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
 
 
-def testdata_trainset():
-    trainset = get_ibeis_siam_trainset(max_examples=5, controlled=False)
-    return trainset
+def testdata_dataset():
+    dataset = get_ibeis_siam_dataset(max_examples=5, controlled=False)
+    return dataset
 
 
 def testdata_patchmatch():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    trainset = get_ibeis_siam_trainset(max_examples=5)
-    data_fpath = trainset.data_fpath
-    labels_fpath = trainset.labels_fpath
+    dataset = get_ibeis_siam_dataset(max_examples=5)
+    data_fpath = dataset.data_fpath
+    labels_fpath = dataset.labels_fpath
     data_cv2, labels = utils.load(data_fpath, labels_fpath)
     data = utils.convert_cv2_images_to_theano_images(data_cv2)
     return data, labels
@@ -30,9 +30,9 @@ def testdata_patchmatch2():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    trainset = get_ibeis_siam_trainset(max_examples=5)
-    data_fpath = trainset.data_fpath
-    labels_fpath = trainset.labels_fpath
+    dataset = get_ibeis_siam_dataset(max_examples=5)
+    data_fpath = dataset.data_fpath
+    labels_fpath = dataset.labels_fpath
     data, labels = utils.load(data_fpath, labels_fpath)
     return data, labels
 
@@ -55,29 +55,29 @@ def view_training_directories():
     ut.vd(ingest_ibeis.get_juction_dpath())
 
 
-def grab_siam_trainset(ds_tag):
+def grab_siam_dataset(ds_tag=None):
     """
     Will build the dataset using the command line if it doesnt exist
 
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db PZ_MTEST --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db NNP_Master3 --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db PZ_Master0 --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db mnist --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db liberty --show
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db NNP_Master3 --show
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_Master0 --show
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db mnist --show
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db liberty --show
 
-        python -m ibeis_cnn.ingest_data --test-grab_siam_trainset --db PZ_MTEST
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> ds_tag = None
-        >>> trainset = grab_siam_trainset(ds_tag=ds_tag)
+        >>> dataset = grab_siam_dataset(ds_tag=ds_tag)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = trainset.load_subset('all')
+        >>> data, labels = dataset.load_subset('all')
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
@@ -95,15 +95,15 @@ def grab_siam_trainset(ds_tag):
     dbname = ut.get_argval('--db')
     if dbname == 'liberty':
         pairs = 250000
-        trainset = grab_liberty_siam_trainset(pairs)
+        dataset = grab_liberty_siam_dataset(pairs)
     elif dbname == 'mnist':
-        trainset = grab_mnist_siam_trainset()
+        dataset = grab_mnist_siam_dataset()
     else:
-        trainset = get_ibeis_siam_trainset()
-    return trainset
+        dataset = get_ibeis_siam_dataset()
+    return dataset
 
 
-def grab_mnist_category_trainset():
+def grab_mnist_category_dataset():
     import numpy as np
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
     ut.ensuredir(training_dpath)
@@ -129,7 +129,7 @@ def grab_mnist_category_trainset():
 
     alias_key = 'mnist'
 
-    trainset = DataSet.new_training_set(
+    dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
@@ -138,24 +138,24 @@ def grab_mnist_category_trainset():
         data_shape=(28, 28, 1),
         output_dims=10,
     )
-    return trainset
+    return dataset
 
 
-def grab_mnist_siam_trainset():
+def grab_mnist_siam_dataset():
     r"""
 
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-grab_mnist_siam_trainset --show
+        python -m ibeis_cnn.ingest_data --test-grab_mnist_siam_dataset --show
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
-        >>> trainset = grab_mnist_siam_trainset()
+        >>> dataset = grab_mnist_siam_dataset()
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = trainset.load_subset('all')
+        >>> data, labels = dataset.load_subset('all')
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
@@ -196,7 +196,7 @@ def grab_mnist_siam_trainset():
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
         #metadata = {}
 
-    trainset = DataSet.new_training_set(
+    dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
@@ -205,10 +205,10 @@ def grab_mnist_siam_trainset():
         data_shape=(28, 28, 1),
         output_dims=1,
     )
-    return trainset
+    return dataset
 
 
-def grab_liberty_siam_trainset(pairs=250000):
+def grab_liberty_siam_dataset(pairs=250000):
     """
     References:
         http://www.cs.ubc.ca/~mbrown/patchdata/patchdata.html
@@ -237,18 +237,18 @@ def grab_liberty_siam_trainset(pairs=250000):
              patchID1  3DpointID1  unused1  patchID2  3DpointID2  unused2
 
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-grab_liberty_siam_trainset --show
+        python -m ibeis_cnn.ingest_data --test-grab_liberty_siam_dataset --show
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> pairs = 500
-        >>> trainset = grab_liberty_siam_trainset(pairs)
+        >>> dataset = grab_liberty_siam_dataset(pairs)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = trainset.load_subset('all')
+        >>> data, labels = dataset.load_subset('all')
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
@@ -287,7 +287,7 @@ def grab_liberty_siam_trainset(pairs=250000):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
 
-    trainset = DataSet.new_training_set(
+    dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
@@ -296,14 +296,14 @@ def grab_liberty_siam_trainset(pairs=250000):
         data_per_label=2,
         output_dims=1,
     )
-    return trainset
+    return dataset
 
 
-def get_ibeis_siam_trainset(**kwargs):
+def get_ibeis_siam_dataset(**kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_trainset --show
-        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_trainset --show --db PZ_Master0
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_Master0
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -311,9 +311,9 @@ def get_ibeis_siam_trainset(**kwargs):
         >>> from ibeis_cnn import draw_results
         >>> import ibeis
         >>> kwargs = {}  # ut.argparse_dict({'max_examples': None, 'num_top': 3})
-        >>> trainset = get_ibeis_siam_trainset(**kwargs)
-        >>> data_fpath = trainset.data_fpath
-        >>> labels_fpath = trainset.labels_fpath
+        >>> dataset = get_ibeis_siam_dataset(**kwargs)
+        >>> data_fpath = dataset.data_fpath
+        >>> labels_fpath = dataset.labels_fpath
         >>> ut.quit_if_noshow()
         >>> draw_results.interact_siamese_data_fpath_patches(data_fpath, labels_fpath, {})
         >>> ut.show_if_requested()
@@ -324,6 +324,7 @@ def get_ibeis_siam_trainset(**kwargs):
             'max_examples': None,
             'num_top': 3,
             'controlled': True,
+            'colorspace': 'gray',
         }, verbose=True)
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
@@ -334,29 +335,30 @@ def get_ibeis_siam_trainset(**kwargs):
     training_dpath = ibs.get_neuralnet_dir()
     ut.ensuredir(training_dpath)
     datakw.update(kwargs)
-    print('\n\n[get_ibeis_siam_trainset] START')
+    print('\n\n[get_ibeis_siam_dataset] START')
     #log_dir = join(training_dpath, 'logs')
     #ut.start_logging(log_dir=log_dir)
 
     alias_key = ibs.get_dbname() + ';' + ut.dict_str(datakw, nl=False, explicit=True)
     try:
         # Try and short circut cached loading
-        trainset = DataSet.from_alias_key(alias_key)
-        return trainset
+        dataset = DataSet.from_alias_key(alias_key)
+        return dataset
     except Exception as ex:
         ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
 
     with ut.Indenter('[CHECKDATA]'):
         # Get training data pairs
+        colorspace = datakw.pop('colorspace')
         patchmatch_tup = ingest_ibeis.get_aidpairs_and_matches(ibs, **datakw)
         aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists = patchmatch_tup
         # Extract and cache the data
         # TODO: metadata
         data_fpath, labels_fpath, training_dpath, data_shape = ingest_ibeis.cached_patchmetric_training_data_fpaths(
-            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists)
-        print('\n[get_ibeis_siam_trainset] FINISH\n\n')
+            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, colorspace=colorspace)
+        print('\n[get_ibeis_siam_dataset] FINISH\n\n')
 
-    trainset = DataSet.new_training_set(
+    dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
@@ -365,7 +367,7 @@ def get_ibeis_siam_trainset(**kwargs):
         data_per_label=2,
         output_dims=1,
     )
-    return trainset
+    return dataset
 
 
 if __name__ == '__main__':

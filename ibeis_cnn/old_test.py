@@ -17,6 +17,13 @@ from os.path import join, abspath
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.test]')
 
 
+def load_ids(id_fpath, labels_fpath=None):
+    # Load X matrix (data)
+    ids = np.load(id_fpath, mmap_mode='r')
+    # Return data
+    return ids
+
+
 def test_data(X_test, y_test, model, weights_fpath, results_dpath=None, **kwargs):
     """
     Driver function

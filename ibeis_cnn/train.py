@@ -57,11 +57,14 @@ checkpoint_tag_alias = {
 # second level of alias indirection
 # This is more of a dataset tag
 ds_tag_alias2 = {
-    'nnp'       : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
-    'nnp3-2'    : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=None,)',
-    'pzmaster' : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=3,)',
-    'pzmtest'   : 'PZ_MTEST;dict(controlled=True, max_examples=None, num_top=3,)',
-    'liberty'   : 'liberty;dict(detector=\'dog\', pairs=250000,)',
+    'nnp'         : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
+    'nnp3-2'      : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=None,)',
+    'nnp3-2-bgr'  : 'NNP_Master3;dict(colorspace=\'bgr\', controlled=True, max_examples=None, num_top=None,)',
+    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=3,)',
+    'pzmtest'     : 'PZ_MTEST;dict(controlled=True, max_examples=None, num_top=3,)',
+    'pzmaster-bgr' : "PZ_Master0;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
+    'pzmtest-bgr' : r"PZ_MTEST;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
+    'liberty'     : 'liberty;dict(detector=\'dog\', pairs=250000,)',
 }
 
 
@@ -71,6 +74,14 @@ def train_patchmatch_pz():
         patchmatch?
 
     CommandLine:
+        # Build Dataset Aliases
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --colorspace='gray' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='gray' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='gray' --num-top=None --controlled=True --aliasexit
+
         # Build Aliased Datasets
 
         # Train NNP_Master
@@ -85,7 +96,7 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0011 --arch=siaml2 --test
 
-        # Build PZ_Mater0
+        # Build PZ_Master0
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --weights=nnp3-2:epochs0021 --arch=siaml2 --test --num_top=None
         # Now can use the alias
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
@@ -100,6 +111,17 @@ def train_patchmatch_pz():
 
         # THIS DID WELL VERY QUICKLY
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2 --train --monitor --learning_rate=.1 --weight_decay=0.0005
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2 --train --monitor
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siam2streaml2 --train --monitor
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --weights=new --arch=siaml2 --train --monitor --colorspace='bgr' --num_top=None
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmaster-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
+        --monitor --colorspace='bgr' --num_top=None
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -129,7 +151,8 @@ def train_patchmatch_pz():
 
     hyperparams = ut.argparse_dict(
         {
-            'batch_size': 128,
+            #'batch_size': 128,
+            'batch_size': 256,
             #'learning_rate': .0005,
             'learning_rate': .1,
             'momentum': .9,
@@ -144,11 +167,16 @@ def train_patchmatch_pz():
 
     # ----------------------------
     # Choose the main dataset
-    trainset = ingest_data.grab_siam_trainset(ds_tag)
+    dataset = ingest_data.grab_siam_dataset(ds_tag)
     if extern_ds_tag is not None:
         extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
     else:
         extern_dpath = None
+
+    if ut.get_argflag('--aliasexit'):
+        print(repr(dataset.alias_key))
+        import sys
+        sys.exit(1)
 
     # ----------------------------
     # Choose model architecture
@@ -156,12 +184,19 @@ def train_patchmatch_pz():
     # Specify model archichitecture
     if arch_tag == 'siam2stream':
         model = models.SiameseCenterSurroundModel(
-            data_shape=trainset.data_shape,
-            training_dpath=trainset.training_dpath, **hyperparams)
+            data_shape=dataset.data_shape,
+            training_dpath=dataset.training_dpath, **hyperparams)
     elif arch_tag == 'siaml2':
         model = models.SiameseL2(
-            data_shape=trainset.data_shape,
-            training_dpath=trainset.training_dpath, **hyperparams)
+            data_shape=dataset.data_shape,
+            arch_tag=arch_tag,
+            training_dpath=dataset.training_dpath, **hyperparams)
+    elif arch_tag == 'siam2streaml2':
+        model = models.SiameseL2(
+            data_shape=dataset.data_shape,
+            arch_tag=arch_tag,
+            training_dpath=dataset.training_dpath,
+            **hyperparams)
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
     model.initialize_architecture()
@@ -185,20 +220,20 @@ def train_patchmatch_pz():
     # Run Actions
     if ut.get_argflag('--train'):
         config = dict(
-            learning_rate_schedule=10,
-            max_epochs=100,
+            learning_rate_schedule=15,
+            max_epochs=120,
         )
-        X_train, y_train = trainset.load_subset('train')
-        X_valid, y_valid = trainset.load_subset('valid')
+        X_train, y_train = dataset.load_subset('train')
+        X_valid, y_valid = dataset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-        harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
+        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
     elif ut.get_argflag('--test'):
         #assert model.best_results['epoch'] is not None
-        X_test, y_test = trainset.load_subset('all')
-        #X_test, y_test = trainset.load_subset('test')
+        X_test, y_test = dataset.load_subset('all')
+        #X_test, y_test = dataset.load_subset('test')
         data, labels = X_test, y_test
         #data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label_input)
-        dataname = trainset.alias_key
+        dataname = dataset.alias_key
         experiments.test_siamese_performance(model, data, labels, dataname)
     else:
         raise ValueError('nothing here. need to train or test')
@@ -223,14 +258,14 @@ def train_mnist():
             'weight_decay': 0.0005,
         }
     )
-    trainset = ingest_data.grab_mnist_category_trainset()
-    data_shape = trainset.data_shape
+    dataset = ingest_data.grab_mnist_category_dataset()
+    data_shape = dataset.data_shape
     input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 
     # Choose model
     model = models.MNISTModel(
-        input_shape=input_shape, output_dims=trainset.output_dims,
-        training_dpath=trainset.training_dpath, **hyperparams)
+        input_shape=input_shape, output_dims=dataset.output_dims,
+        training_dpath=dataset.training_dpath, **hyperparams)
 
     # Initialize architecture
     model.initialize_architecture()
@@ -242,18 +277,18 @@ def train_mnist():
         model.reinit_weights()
 
     config = dict(
-        learning_rate_schedule=10,
-        max_epochs=100,
+        learning_rate_schedule=15,
+        max_epochs=120,
         show_confusion=False,
         run_test=None,
         show_features=False,
         print_timing=False,
     )
 
-    X_train, y_train = trainset.load_subset('train')
-    X_valid, y_valid = trainset.load_subset('valid')
+    X_train, y_train = dataset.load_subset('train')
+    X_valid, y_valid = dataset.load_subset('valid')
     #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-    harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
+    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
 
 if __name__ == '__main__':

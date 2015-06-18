@@ -20,11 +20,11 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 @six.add_metaclass(ut.ReloadingMetaclass)
 class DummyModel(abstract_models.AbstractCategoricalModel):
-    def __init__(model, autoinit=False, batch_size=8, input_shape=None, **kwargs):
+    def __init__(model, autoinit=False, batch_size=8, input_shape=None, data_shape=(4, 4, 1), **kwargs):
         #if data_shape is not None:
         #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         if input_shape is None:
-            input_shape = (None, 1, 4, 4)
+            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         super(DummyModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
         #model.network_layers = None
         model.input_shape = input_shape

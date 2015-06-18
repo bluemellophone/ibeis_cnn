@@ -36,19 +36,15 @@ def test_siamese_performance(model, data, labels, dataname=''):
     import plottool as pt
     fnum_gen = pt.make_fnum_nextgen()
 
-    fig = model.show_era_history(fnum=fnum_gen(), yscale='linear')
-    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
-
-    fig = model.show_era_history(fnum=fnum_gen(), yscale='log')
+    fig = model.show_era_history(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
 
     # hack
-    fig = model.show_weights_image(target=0, fnum=fnum_gen())
+    fig = model.show_weights_image(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
     #model.draw_all_conv_layer_weights(fnum=fnum_gen())
     #model.imwrite_weights(1)
     #model.imwrite_weights(2)
-    return
     #ut.embed()
 
     #ut.embed()
@@ -187,6 +183,10 @@ def test_sift_patchmatch_scores(data, labels):
     import numpy as np
     if len(data.shape) == 4 and data.shape[-1] == 1:
         data = data.reshape(data.shape[0:3])
+    elif len(data.shape) == 4 and data.shape[-1] == 3:
+        import vtool as vt
+        # TODO use dataset to infer data colorspace
+        data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
     vecs_list = pyhesaff.extract_desc_from_patches(data)
     sqrddist = ((vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T

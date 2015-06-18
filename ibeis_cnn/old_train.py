@@ -118,9 +118,9 @@ def train_viewpoint():
 #    )
 #    #pairs = 500
 #    pairs = 250000
-#    trainset = ingest_data.grab_cached_liberty_data(pairs)
+#    dataset = ingest_data.grab_cached_liberty_data(pairs)
 #    #model = models.SiameseModel()
-#    model = models.SiameseCenterSurroundModel(data_shape=trainset.data_shape, training_dpath=trainset.training_dpath, **train_params)
+#    model = models.SiameseCenterSurroundModel(data_shape=dataset.data_shape, training_dpath=dataset.training_dpath, **train_params)
 
 #    model.initialize_architecture()
 
@@ -139,16 +139,16 @@ def train_viewpoint():
 #        config = dict(
 #            patience=100,
 #        )
-#        X_train, y_train = trainset.load_subset('train')
-#        X_valid, y_valid = trainset.load_subset('valid')
+#        X_train, y_train = dataset.load_subset('train')
+#        X_valid, y_valid = dataset.load_subset('valid')
 #        #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-#        harness.train(model, X_train, y_train, X_valid, y_valid, trainset, config)
+#        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 #    elif ut.get_argflag('--test'):
 
-#        X_test, y_test = trainset.load_subset('test')
+#        X_test, y_test = dataset.load_subset('test')
 #        data, labels = X_test, y_test
 #        data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label)
-#        dataname = trainset.alias_key
+#        dataname = dataset.alias_key
 #        experiments.test_siamese_performance(model, data, labels, dataname)
 
 #    else:

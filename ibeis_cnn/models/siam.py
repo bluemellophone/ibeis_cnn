@@ -212,7 +212,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             [
                 _P(layers.InputLayer, shape=model.input_shape),
                 # TODO: Stack Inputs by making a 2 Channel Layer
-                _P(custom_layers.CenterSurroundLayer),
+                _P(custom_layers.CenterSurroundLayer, name='CentSur'),
 
                 #layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
@@ -224,7 +224,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **hidden_initkw),
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C3', **hidden_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
-                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
+                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4, name='Concat'),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
                 _P(layers.DenseLayer, num_units=768, name='F1',  **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5),
@@ -324,7 +324,7 @@ class SiameseL2(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
         if data_shape is not None:
             input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         if input_shape is None:
@@ -340,6 +340,7 @@ class SiameseL2(AbstractSiameseModel):
         # two images a piece
         model.data_per_label_input = 2
         model.data_per_label_output = 2
+        model.arch_tag = 'siaml2'
         if autoinit:
             model.initialize_architecture()
 
@@ -369,10 +370,54 @@ class SiameseL2(AbstractSiameseModel):
                 _P(layers.DropoutLayer, p=0.1),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.2),
+                _P(layers.DropoutLayer, p=0.1),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(layers.FlattenLayer, outdim=2)
+                #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
+                _P(layers.FlattenLayer, outdim=2, name='flatten'),
+                #_P(custom_layers.L2NormalizeLayer, axis=2),
+                # TODO: L2 distance layer
+                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
+    def get_siam2streaml2_def(model, verbose=True, **kwargs):
+        """
+        Notes:
+            (ix) siam-2stream-l2 consists of one central and one surround
+                branch of siam-2stream.
+
+                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+                # TODO: Stack Inputs by making a 2 Channel Layer
+                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                _P(custom_layers.CenterSurroundLayer, name='CentSuround'),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P0'),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
+                _P(layers.FlattenLayer, outdim=2, name='flatten'),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 # TODO: L2 distance layer
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
@@ -448,7 +493,10 @@ class SiameseL2(AbstractSiameseModel):
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
         #network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
-        network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
+        if model.arch_tag == 'siam2streaml2':
+            network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
+        elif model.arch_tag == 'siaml2':
+            network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
         # connect and record layers
         network_layers = abstract_models.evaluate_layer_list(network_layers_def)
         #model.network_layers = network_layers

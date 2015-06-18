@@ -21,28 +21,28 @@ class DataSet(object):
     TODO: move to own module
     TODO: metadata
     """
-    def __init__(trainset, alias_key, training_dpath, data_fpath, labels_fpath, data_per_label, data_shape, output_dims):
+    def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath, data_per_label, data_shape, output_dims):
         # Constructor args is primary data
-        key_list = ut.get_func_argspec(trainset.__init__).args[1:]
+        key_list = ut.get_func_argspec(dataset.__init__).args[1:]
         locals_ = locals()
         for key in key_list:
-            setattr(trainset, key, locals_[key])
+            setattr(dataset, key, locals_[key])
         # Define auxillary data
-        trainset.build_auxillary_data()
+        dataset.build_auxillary_data()
 
-    def build_auxillary_data(trainset):
+    def build_auxillary_data(dataset):
         # Make test train validatation sets
         data_fpath_dict, label_fpath_dict = ondisk_data_split(
-            trainset.data_fpath, trainset.labels_fpath, trainset.data_per_label,
+            dataset.data_fpath, dataset.labels_fpath, dataset.data_per_label,
             split_names=['train', 'valid', 'test'],
             fraction_list=[.2, .1])
-        trainset.data_fpath_dict = data_fpath_dict
-        trainset.label_fpath_dict = label_fpath_dict
+        dataset.data_fpath_dict = data_fpath_dict
+        dataset.label_fpath_dict = label_fpath_dict
 
-    def asdict(trainset):
+    def asdict(dataset):
         # save all args passed into constructor as a dict
-        key_list = ut.get_func_argspec(trainset.__init__).args[1:]
-        data_dict = ut.dict_subset(trainset.__dict__, key_list)
+        key_list = ut.get_func_argspec(dataset.__init__).args[1:]
+        data_dict = ut.dict_subset(dataset.__dict__, key_list)
         return data_dict
 
     @classmethod
@@ -59,34 +59,34 @@ class DataSet(object):
             ut.assert_exists(data_dict['training_dpath'])
             ut.assert_exists(data_dict['data_fpath'])
             ut.assert_exists(data_dict['labels_fpath'])
-            trainset = cls(**data_dict)
-            print('[get_ibeis_siam_trainset] Returning aliased data alias_key=%r' % (alias_key,))
-            return trainset
+            dataset = cls(**data_dict)
+            print('[get_ibeis_siam_dataset] Returning aliased data alias_key=%r' % (alias_key,))
+            return dataset
         raise Exception('Alias cache miss: alias_key=%r' % (alias_key,))
 
     @classmethod
     def new_training_set(cls, **kwargs):
-        trainset = cls(**kwargs)
+        dataset = cls(**kwargs)
         # creates a symlink in the junction dir
-        register_training_dpath(trainset.training_dpath, trainset.alias_key)
-        trainset.save_alias(trainset.alias_key)
-        return trainset
+        register_training_dpath(dataset.training_dpath, dataset.alias_key)
+        dataset.save_alias(dataset.alias_key)
+        return dataset
 
-    def save_alias(trainset, alias_key):
+    def save_alias(dataset, alias_key):
         # shortcut to the cached information so we dont need to
         # compute hotspotter matching hashes. There is a change data
         # can get out of date while this is enabled.
         alias_fpath = get_alias_dict_fpath()
         alias_dict = ut.text_dict_read(alias_fpath)
-        data_dict = trainset.asdict()
+        data_dict = dataset.asdict()
         alias_dict[alias_key] = data_dict
         ut.text_dict_write(alias_fpath, alias_dict)
 
-    def load_subset(trainset, key):
+    def load_subset(dataset, key):
         """ loads a test/train/valid/all data subset """
-        data, labels = utils.load(trainset.data_fpath_dict[key], trainset.label_fpath_dict[key])
+        data, labels = utils.load(dataset.data_fpath_dict[key], dataset.label_fpath_dict[key])
         utils.print_data_label_info(data, labels, key)
-        #X, y = utils.load_from_fpath_dicts(trainset.data_fpath_dict, trainset.label_fpath_dict, key)
+        #X, y = utils.load_from_fpath_dicts(dataset.data_fpath_dict, dataset.label_fpath_dict, key)
         return data, labels
 
 
@@ -126,10 +126,10 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.dataset import *  # NOQA
         >>> from ibeis_cnn import ingest_data
-        >>> trainset = ingest_data.testdata_trainset()
-        >>> data_fpath = trainset.data_fpath
-        >>> labels_fpath = trainset.labels_fpath
-        >>> data_per_label = trainset.data_per_label
+        >>> dataset = ingest_data.testdata_dataset()
+        >>> data_fpath = dataset.data_fpath
+        >>> labels_fpath = dataset.labels_fpath
+        >>> data_per_label = dataset.data_per_label
         >>> split_names = ['train', 'valid', 'test']
         >>> fraction_list = [0.2, 0.1]
         >>> nocache = True
@@ -167,9 +167,14 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
         totalfrac_list[-1] = left
         totalfrac_list.append(right)
 
-    split_data_fpaths = [join(splitdir, name + '_data_%.3f_' % (frac,) + hashstr_ + '.pkl')
+    from os.path import splitext
+
+    data_ext = splitext(data_fpath)[1]
+    labels_ext = splitext(data_fpath)[1]
+
+    split_data_fpaths = [join(splitdir, name + '_data_%.3f_' % (frac,) + hashstr_ + data_ext)
                          for name, frac in zip(split_names, totalfrac_list)]
-    split_labels_fpaths = [join(splitdir, name + '_labels_%.3f_' % (frac,) + hashstr_ + '.pkl')
+    split_labels_fpaths = [join(splitdir, name + '_labels_%.3f_' % (frac,) + hashstr_ + labels_ext)
                            for name, frac in zip(split_names, totalfrac_list)]
 
     is_cache_hit = (all(map(exists, split_data_fpaths)) and all(map(exists, split_labels_fpaths)))

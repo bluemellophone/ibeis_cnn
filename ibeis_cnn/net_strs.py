@@ -75,6 +75,22 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
 
 
 def print_layer_info(output_layer):
+    r"""
+    Args:
+        output_layer (lasange.layers.Layer):
+
+    CommandLine:
+        python -m ibeis_cnn.net_strs --test-print_layer_info
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.net_strs import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.DummyModel(data_shape=(24, 24, 3), autoinit=True)
+        >>> output_layer = model.output_layer
+        >>> result = print_layer_info(output_layer)
+        >>> print(result)
+    """
     import operator
     import lasagne
     with warnings.catch_warnings():
@@ -82,22 +98,99 @@ def print_layer_info(output_layer):
         nn_layers = lasagne.layers.get_all_layers(output_layer)
         print('\n[info] Network Structure:')
 
-        name_column = [layer.__class__.__name__ for layer in nn_layers]
-        max_namecol_len = max(list(map(len, name_column)))
-        fmtstr = '[info]  {:>3}  {:<' + str(max_namecol_len) + '}   {:<20}   produces {:>7,} outputs'
+        columns_ = ut.ddict(list)
 
         for index, layer in enumerate(nn_layers):
-            #print([p.get_value().shape for p in layer.get_params()])
+            #print()
+            #params = lasagne.layers.get_all_params(layer)
+            #layer.get_params()
+
+            def surround(str_, b='{}'):
+                return b[0] + str_ + b[1]
+
+            def tagstr(tags):
+                return surround(','.join([t[0] for t in tags]), '{}')
+
+            def shapestr(shape):
+                return ','.join(map(str, shape))
+
+            def paramstr(p, tags):
+                tag_str =  ', ' + tagstr(tags)
+                return p.name + surround(shapestr(p.get_value().shape) + tag_str , '()')
+                return p.name + surround(shapestr(p.get_value().shape), '()')
+
+            param_str = surround(', '.join([paramstr(p, tags) for p, tags in layer.params.items()]), '[]')
+
             output_shape = lasagne.layers.get_output_shape(layer)  # .get_output_shape()
+
             num_outputs = functools.reduce(operator.mul, output_shape[1:])
-            str_ = fmtstr.format(
-                index,
-                layer.__class__.__name__,
-                str(output_shape),
-                int(num_outputs),
-            )
-            print(str_)
+
+            columns_['index'].append(index)
+            columns_['name'].append(layer.__class__.__name__)
+            columns_['num_outputs'].append('{:,}'.format(int(num_outputs)))
+            columns_['shape'].append(str(output_shape))
+            columns_['params'].append(param_str)
             #ut.embed()
+
+        header_nice = {
+            'index'       : 'index',
+            'name'        : 'Layer',
+            'num_outputs' : '#Outputs',
+            'shape'       : 'Output Shape',
+            'params'      : 'Params',
+        }
+
+        header_align = {
+            'index'       : '<',
+            'params'      : '<',
+        }
+
+        def get_col_maxval(key):
+            header_len = len(header_nice[key])
+            val_len = max(list(map(len, map(str, columns_[key]))))
+            return max(val_len, header_len)
+
+        header_order = ['index', 'name', 'num_outputs', 'shape', 'params']
+
+        import six
+        max_len = {key: str(get_col_maxval(key) + 1) for key, col in six.iteritems(columns_)}
+
+        fmtstr = '[info]  ' + ' '.join(
+            [
+                '{:' + align + len_ + '}'
+                for align, len_ in zip(ut.dict_take(header_align, header_order, '<'),
+                                       ut.dict_take(max_len, header_order))
+            ]
+        )
+        #           )
+        #        '{:>' + max_len['index'] + '}',
+        #        '{:<' + max_len['name'] + '}'
+        #        '{:<' + max_len['num_outputs'] + '}'
+        #        '{:<' + max_len['shape'] + '}',
+        #        '{:>' + max_len['params'] + '}',
+        #    ]
+        #)
+
+        print(fmtstr.format(*ut.dict_take(header_nice, header_order)))
+
+        row_list = zip(*ut.dict_take(columns_, header_order))
+        for row in row_list:
+            str_ = fmtstr.format(*row)
+            print(str_)
+
         print('[info] ...this model has {:,} learnable parameters\n'.format(
             lasagne.layers.count_params(output_layer)
         ))
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.net_strs
+        python -m ibeis_cnn.net_strs --allexamples
+        python -m ibeis_cnn.net_strs --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

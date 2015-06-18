@@ -43,7 +43,7 @@ def sample_train_valid_test(model, data, labels):
 # ---------------
 
 @profile
-def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
+def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     r"""
     CommandLine:
         python -m ibeis_cnn.harness --test-train
@@ -54,6 +54,11 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
         >>> result = train(model, X_train, y_train, X_valid, y_valid, config)
         >>> print(result)
     """
+
+    learning_rate_schedule = config.get('learning_rate_schedule')
+    max_epochs = config.get('max_epochs', None)
+    test_freq  = config.get('test_freq', None)
+
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
     model.ensure_training_state(X_train, y_train)
@@ -65,11 +70,29 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     MONITOR_PROGRESS = ut.get_argflag('--monitor')
     if MONITOR_PROGRESS:
         progress_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'progress'))
-        history_progress_dir = ut.ensuredir(ut.get_nonconflicting_path(ut.unixjoin(progress_dir, 'history%02d')))
-        weights_progress_dir = ut.ensuredir(ut.get_nonconflicting_path(ut.unixjoin(progress_dir, 'weights%02d')))
+        def progress_metric_path(x):
+            return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
+        def progress_metric_dir(x):
+            return ut.ensuredir(progress_metric_path(x))
+        history_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_history')
+        weights_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_weights')
+        history_text_fpath = progress_metric_path(model.arch_tag + '_%02d_era_history.txt')
         #history_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'history'))
         #weights_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'weights'))
         ut.vd(progress_dir)
+
+        def overwrite_latest_image(fpath, new_name):
+            """ copies the new image to a path to be overwritten so new updates are shown """
+            from os.path import split, join, splitext, dirname
+            import shutil
+            dpath, fname = split(fpath)
+            ext = splitext(fpath)[1]
+            shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
+            shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
+
+        # Write initial states of the weights
+        fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2, verbose=0)
+        overwrite_latest_image(fpath, 'weights')
 
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
@@ -78,9 +101,6 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     theano_funcs = model.build_theano_funcs()
     theano_backprop, theano_forward, theano_predict = theano_funcs
 
-    learning_rate_schedule = config.get('learning_rate_schedule')
-    max_epochs = config.get('max_epochs', None)
-    test_freq  = config.get('test_freq', None)
     #show_times    = kwargs.get('print_timing', False)
     #show_features = kwargs.get('show_features', False)
     #test_freq      = kwargs.get('test_freq', None)
@@ -106,7 +126,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
     printcol_info = utils.get_printcolinfo(model.requested_headers)
     utils.print_header_columns(printcol_info)
 
-    model.start_new_era(X_train, y_train, X_valid, y_valid, trainset.alias_key)
+    model.start_new_era(X_train, y_train, X_valid, y_valid, dataset.alias_key)
 
     batchiter_kw = dict(
         #showprog=False,
@@ -164,9 +184,7 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 train_determ_outputs = batch.process_batch(
                     model, X_train, y_train, theano_forward, augment_on=False,
                     randomize_batch_order=False, **batchiter_kw)
-                train_loss_determ = train_determ_outputs['loss_determ'].mean()  # NOQA
-            else:
-                train_loss_determ = None
+                epoch_info['train_loss_determ'] = train_determ_outputs['loss_determ'].mean()
 
             # Calculate request_test before adding to the epoch counter
             request_test = utils.checkfreq(test_freq, epoch)
@@ -230,27 +248,18 @@ def train(model, X_train, y_train, X_valid, y_valid, trainset, config):
                 model.save_model_state()
 
             if MONITOR_PROGRESS:
-                def overwrite_latest_image(fpath, new_name):
-                    """ copies the new image to a path to be overwritten so new updates are shown """
-                    from os.path import split, join, splitext, dirname
-                    import shutil
-                    dpath, fname = split(fpath)
-                    ext = splitext(fpath)[1]
-                    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
-                    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
                 fpath = model.imwrite_era_history(dpath=history_progress_dir, fnum=1, verbose=0)
                 overwrite_latest_image(fpath, 'history')
                 fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2, verbose=0)
                 overwrite_latest_image(fpath, 'weights')
                 history_text = ut.list_str(model.era_history, newlines=True)
-                ut.write_to(ut.unixjoin(progress_dir, 'era_history.txt'), history_text)
-                #model.imwrite_weights(index=0)
+                ut.write_to(history_text_fpath, history_text)
 
             # Learning rate schedule update
             if epoch % learning_rate_schedule == (learning_rate_schedule - 1):
                 #epoch_marker = epoch
                 model.learning_rate = model.learning_rate * .8
-                model.start_new_era(X_train, y_train, X_valid, y_valid, trainset.alias_key)
+                model.start_new_era(X_train, y_train, X_valid, y_valid, dataset.alias_key)
                 utils.print_header_columns(printcol_info)
 
             # Break on max epochs

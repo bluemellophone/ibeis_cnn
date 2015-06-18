@@ -183,6 +183,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         Xb = Xb_orig.copy().astype(np.float32)
         if yb_orig is not None:
             yb = yb_orig.copy()
+        else:
+            yb = None
         # Whiten (applies centering)
         if do_whitening:
             # .563 time fraction

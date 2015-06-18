@@ -115,11 +115,13 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
     aid1_list_ = np.array(ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)]))
     aid2_list_ = np.array(ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)]))
     # Flatten metadata
-    flat_metadata = {key: ut.flatten(val) for key, val in metadata_lists.items()}
+    flat_metadata = {key: np.array(ut.flatten(val)) for key, val in metadata_lists.items()}
     flat_metadata['aid_pair'] = np.hstack((np.array(aid1_list_)[:, None], np.array(aid2_list_)[:, None]))
     flat_metadata['fm'] = np.vstack(fm_list)
     flat_metadata['kpts1_m'] = np.vstack(kpts1_m_list)
     flat_metadata['kpts2_m'] = np.vstack(kpts2_m_list)
+
+    #flat_metadata = ut.map_dict_vals(np.array, flat_metadata)
 
     warped_patch1_list = ut.flatten(warped_patches1_list)
     del warped_patches1_list
@@ -216,25 +218,29 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
 
 
 class NewConfigBase(object):
-    def update(self, **kwargs):
-        self.__dict__.update(**kwargs)
+    #def update(self, **kwargs):
+    #    self.__dict__.update(**kwargs)
 
     def kw(self):
         return ut.KwargsWrapper(self)
 
 
 class PatchMetricDataConfig(NewConfigBase):
-    def __init__(pmcfg):
+    def __init__(pmcfg, **kwargs):
         pmcfg.patch_size = 64
         #pmcfg.colorspace = 'bgr'
         pmcfg.colorspace = 'gray'
+        ut.update_existing(pmcfg.__dict__, kwargs)
+        unhandled_keys = set(kwargs.keys()) - set(pmcfg.__dict__.keys())
+        if len(unhandled_keys) > 0:
+            raise AssertionError('[ConfigBaseError] unhandled_keys=%r' % (unhandled_keys,))
 
     def get_cfgstr(pmcfg):
         cfgstr_list = [
             'patch_size=%d' % (pmcfg.patch_size,),
         ]
-        if pmcfg.colorspace != 'bgr':
-            cfgstr_list.append(pmcfg.colorspace)
+        #if pmcfg.colorspace != 'bgr':
+        cfgstr_list.append(pmcfg.colorspace)
         return ','.join(cfgstr_list)
 
     def get_data_shape(pmcfg):
@@ -242,14 +248,15 @@ class PatchMetricDataConfig(NewConfigBase):
         return (pmcfg.patch_size, pmcfg.patch_size, channels)
 
 
-def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists):
+def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, **kwargs):
     """
     todo use size in cfgstrings
+    kwargs is used for PatchMetricDataConfig
 
     from ibeis_cnn.ingest_ibeis import *
     """
     import utool as ut
-    pmcfg = PatchMetricDataConfig()
+    pmcfg = PatchMetricDataConfig(**kwargs)
     data_shape = pmcfg.get_data_shape()
 
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
@@ -270,9 +277,12 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
 
     fm_hashstr = ut.hashstr_arr27(np.vstack(fm_list), pathsafe=True, lbl='fm')
     cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
-    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
-    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
-    metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.pkl')
+    #data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
+    #labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
+    #metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.pkl')
+    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.hdf5')
+    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.hdf5')
+    metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.hdf5')
 
     # Change to use path friendlier hashes
     #if FIX_HASH:
@@ -313,9 +323,13 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list, kpts1_m_l
         # TODO; save metadata
         print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
         print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
-        ut.save_cPkl(data_fpath, data)
-        ut.save_cPkl(labels_fpath, labels)
-        ut.save_cPkl(metadata_fpath, flat_metadata)
+        # TODO hdf5 for large data
+        ut.save_hdf5(data_fpath, data)
+        ut.save_hdf5(labels_fpath, labels)
+        ut.save_hdf5(metadata_fpath, flat_metadata)
+        #ut.save_cPkl(data_fpath, data)
+        #ut.save_cPkl(labels_fpath, labels)
+        #ut.save_cPkl(metadata_fpath, flat_metadata)
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, training_dpath, data_shape

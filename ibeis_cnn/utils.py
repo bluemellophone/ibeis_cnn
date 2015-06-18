@@ -15,6 +15,7 @@ import cv2
 import cPickle as pickle
 import utool as ut
 import six
+from os.path import splitext
 from ibeis_cnn import net_strs
 #from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
@@ -289,21 +290,33 @@ def write_data_and_labels(data, labels, data_fpath, labels_fpath):
     # to resize the images back to their 2D-structure:
     # X = images_array.reshape(-1, 3, 48, 48)
     print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
-    with open(data_fpath, 'wb') as ofile:
-        np.save(ofile, data)
+    if splitext(data_fpath)[1] == '.hdf5':
+        ut.save_hdf5(data_fpath, data)
+    else:
+        with open(data_fpath, 'wb') as ofile:
+            np.save(ofile, data)
 
     print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
-    with open(labels_fpath, 'wb') as ofile:
-        np.save(ofile, labels)
+    if splitext(labels_fpath)[1] == '.hdf5':
+        ut.save_hdf5(labels_fpath, labels)
+    else:
+        with open(labels_fpath, 'wb') as ofile:
+            np.save(ofile, labels)
 
 
 def load(data_fpath, labels_fpath=None):
     # Load X matrix (data)
-    data = np.load(data_fpath, mmap_mode='r')
+    if splitext(data_fpath)[1] == '.hdf5':
+        data = ut.load_hdf5(data_fpath)
+    else:
+        data = np.load(data_fpath, mmap_mode='r')
     # Load y vector (labels)
     labels = None
     if labels_fpath is not None:
-        labels = np.load(labels_fpath, mmap_mode='r')
+        if splitext(labels_fpath)[1] == '.hdf5':
+            labels = ut.load_hdf5(labels_fpath)
+        else:
+            labels = np.load(labels_fpath, mmap_mode='r')
     # TODO: This should be part of data preprocessing
     # Ensure that data is 4-dimensional
     if len(data.shape) == 3:
@@ -311,13 +324,6 @@ def load(data_fpath, labels_fpath=None):
         data.shape = data.shape + (1,)
     # Return data
     return data, labels
-
-
-def load_ids(id_fpath, labels_fpath=None):
-    # Load X matrix (data)
-    ids = np.load(id_fpath, mmap_mode='r')
-    # Return data
-    return ids
 
 
 def get_printcolinfo(requested_headers_):

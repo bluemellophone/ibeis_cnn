@@ -283,7 +283,7 @@ def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
     diff = (Xb_[::2] - Xb_orig[::2])
     diff_batches = diff.sum(-1).sum(-1).sum(-1)
     modified_indexes = np.where(diff_batches > 0)[0]
-    #import vtool as vt
+    #import vtool as vt                       nnnnnnnnnnnnnnnnnnnn
     #nonmodified_flags = ~vt.other.index_to_boolmask(modified_indexes_, num_examples)
     #print(ut.debug_consec_list(modified_indexes_))
     # hack
@@ -302,13 +302,16 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     """
     CommandLine:
         python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show
+        python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show --colorspace='bgr'
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.augment import *  # NOQA
         >>> from ibeis_cnn import ingest_data, utils, draw_results
-        >>> data, labels = ingest_data.testdata_patchmatch()
-        >>> cv2_data = utils.convert_theano_images_to_cv2_images(data)
+        >>> #data, labels = ingest_data.testdata_patchmatch()
+        >>> #cv2_data = utils.convert_theano_images_to_cv2_images(data)
+        >>> dataset = ingest_data.grab_siam_dataset()
+        >>> cv2_data, labels = dataset.load_subset('valid')
         >>> batch_size = 128
         >>> Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
         >>> Xb_orig = Xb.copy()
@@ -322,14 +325,24 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     import vtool as vt
     # Rotate corresponding patches together
     Xb1, Xb2 = Xb[::2], Xb[1::2]
-    prob_perterb = .7
+    affprob_perterb = .7
+    perlin_perteb = 1.5
+
+    perlin_range = 1.0
+    image_range = 1.0
+    dtype = None
+    if ut.is_int(Xb):
+        image_range = 255.0
+        dtype = Xb.dtype
+    perlin_range *= image_range
 
     num = len(Xb1)
 
     # Determine which examples will be augmented
-    perterb_flags = rng.uniform(0.0, 1.0, size=num) <= prob_perterb
+    affperterb_flags = rng.uniform(0.0, 1.0, size=num) <= affprob_perterb
+    perlinperterb_flags = rng.uniform(0.0, 1.0, size=num) <= perlin_perteb
 
-    perterb_ranges = dict(
+    affperterb_ranges = dict(
         zoom_range=None,
         max_tx=None,
         max_ty=None,
@@ -338,7 +351,7 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         enable_flip=False,
         enable_stretch=False,
     )
-    perterb_ranges.update(
+    affperterb_ranges.update(
         dict(
             zoom_range=(1.0, 1.7),
             #max_tx=5,
@@ -350,12 +363,16 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         )
     )
 
-    index_list = np.where(perterb_flags)[0]
+    index_list = np.where(affperterb_flags)[0]
 
-    perterb_kw_list = [
-        random_affine_kwargs(rng=rng, **perterb_ranges)
+    affperterb_kw_list = [
+        random_affine_kwargs(rng=rng, **affperterb_ranges)
         for index in index_list
     ]
+
+    #lighting_perterb_ranges = dict(
+    #    darken=(-.01, .01),
+    #)
 
     import cv2
     #borderMode = cv2.BORDER_REFLECT101
@@ -367,9 +384,31 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     #borderMode = cv2.BORDER_REPLICATE
     flags = cv2.INTER_LANCZOS4
 
-    for index, kw in zip(index_list, perterb_kw_list):
+    for index, kw in zip(index_list, affperterb_kw_list):
         Xb1[index] = vt.affine_warp_around_center(Xb1[index], borderMode=borderMode, flags=flags, **kw)
-        Xb2[index] = vt.affine_warp_around_center(Xb2[index], borderMode=borderMode, flags=flags, **kw)
+        Xb1[index] = vt.affine_warp_around_center(Xb2[index], borderMode=borderMode, flags=flags, **kw)
+
+    if False:
+        for index in np.where(perlinperterb_flags)[0]:
+            img1 = Xb1[index]
+            img2 = Xb2[index]
+            #ut.embed()
+            # TODO: TAKE IN NORMALIZED POINTS
+            noise1 = (vt.perlin_noise(img1.shape[0:2], scale=128.0).astype(np.float32) - 127) / 255.0
+            noise2 = (vt.perlin_noise(img2.shape[0:2], scale=128.0).astype(np.float32) - 127) / 255.0
+            noise1 = 1 - (noise1 * rng.rand())
+            noise2 = 1 - (noise2 * rng.rand())
+            print(noise1)
+            # TODO: BLEND IN NOISE CORRECTLY
+            img1 = (noise1[None, :].T + img1)
+            img2 = (noise2[None, :].T * img2)
+            if dtype is not None:
+                img1 = np.clip(img1, 0, 255).astype(dtype)
+                img2 = np.clip(img2, 0, 255).astype(dtype)
+            Xb1[index] = img1
+            Xb1[index] = img2
+            pass
+
     return Xb, yb
 
 

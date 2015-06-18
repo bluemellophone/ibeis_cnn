@@ -66,6 +66,7 @@ def evaluate_layer_list(network_layers_def, verbose=None):
                     print('  * took %.4s' % (tt.toc(),))
                     print('Evaluating layer %d' % (count,))
                     print('  * prev_layer = %r' % (prev_layer,))
+                    print('  * prev_layer.output_shape = %r' % (prev_layer.output_shape,))
                     tt.tic()
                 prev_layer = layer_fn(prev_layer)
                 network_layers.append(prev_layer)
@@ -102,6 +103,7 @@ class BaseModel(object):
                  training_dpath='.', momentum=.9, weight_decay=.0005,
                  learning_rate=.001):
         #model.network_layers = None  # We really don't need to save all of these
+        model.arch_tag = None
         model.output_layer = None
         model.output_dims = output_dims
         model.input_shape = input_shape
@@ -415,11 +417,11 @@ class BaseModel(object):
 
     # --- HISTORY
 
-    def historyfoohack(model, X_train, y_train, trainset):
+    def historyfoohack(model, X_train, y_train, dataset):
         #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
         y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
         #
-        train_hashid =  trainset.alias_key + '_' + y_hashid
+        train_hashid =  dataset.alias_key + '_' + y_hashid
         era_info = {
             'train_hashid': train_hashid,
             'valid_loss_list': [model.best_results['valid_loss']],
@@ -452,6 +454,7 @@ class BaseModel(object):
         era_info = {
             'train_hashid': train_hashid,
             'arch_hashid': model.get_architecture_hashid(),
+            'arch_tag': model.arch_tag,
             'num_train': len(y_train),
             'num_valid': len(y_valid),
             'valid_loss_list': [],
