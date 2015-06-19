@@ -301,7 +301,7 @@ def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
 def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     """
     CommandLine:
-        python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show
+        python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show --db=PZ_MTEST
         python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show --colorspace='bgr'
 
     Example:
@@ -316,10 +316,13 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         >>> Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
         >>> Xb_orig = Xb.copy()
         >>> yb_orig = yb.copy()
+        >>> mean_ = Xb.mean(axis=0)
+        >>> std_ = 255.0
+        >>> Xb = ((Xb - mean_) / std_).astype(np.float32)
         >>> rng = np.random.RandomState(0)
-        >>> Xb, yb = augment_siamese_patches2(Xb.copy(), yb.copy(), rng=rng)
+        >>> Xb, yb = augment_siamese_patches2(Xb, yb, rng=rng)
         >>> ut.quit_if_noshow()
-        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_, std_)
         >>> ut.show_if_requested()
     """
     import vtool as vt
@@ -386,9 +389,12 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
 
     for index, kw in zip(index_list, affperterb_kw_list):
         Xb1[index] = vt.affine_warp_around_center(Xb1[index], borderMode=borderMode, flags=flags, **kw)
-        Xb1[index] = vt.affine_warp_around_center(Xb2[index], borderMode=borderMode, flags=flags, **kw)
+        Xb2[index] = vt.affine_warp_around_center(Xb2[index], borderMode=borderMode, flags=flags, **kw)
 
-    if False:
+    perlin_min = 0.0
+    perlin_max = 0.4
+
+    if True:
         for index in np.where(perlinperterb_flags)[0]:
             img1 = Xb1[index]
             img2 = Xb2[index]
@@ -396,9 +402,15 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
             # TODO: TAKE IN NORMALIZED POINTS
             noise1 = (vt.perlin_noise(img1.shape[0:2], scale=128.0).astype(np.float32) - 127) / 255.0
             noise2 = (vt.perlin_noise(img2.shape[0:2], scale=128.0).astype(np.float32) - 127) / 255.0
-            noise1 = 1 - (noise1 * rng.rand())
-            noise2 = 1 - (noise2 * rng.rand())
-            print(noise1)
+            alpha1 = 1 - (rng.rand() * (perlin_max - perlin_min) + perlin_min)
+            alpha2 = 1 - (rng.rand() * (perlin_max - perlin_min) + perlin_min)
+            print(alpha1)
+
+            Xb1[index] = vt.blend_images(img1, noise1[None, :].T, alpha1)
+            Xb2[index] = vt.blend_images(img2, noise2[None, :].T, alpha2)
+            continue
+            #noise1 = 1 - (noise1 * rng.rand())
+            #noise2 = 1 - (noise2 * rng.rand())
             # TODO: BLEND IN NOISE CORRECTLY
             img1 = (noise1[None, :].T + img1)
             img2 = (noise2[None, :].T * img2)
@@ -406,7 +418,7 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
                 img1 = np.clip(img1, 0, 255).astype(dtype)
                 img2 = np.clip(img2, 0, 255).astype(dtype)
             Xb1[index] = img1
-            Xb1[index] = img2
+            Xb2[index] = img2
             pass
 
     return Xb, yb

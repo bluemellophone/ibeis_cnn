@@ -96,6 +96,21 @@ def get_alias_dict_fpath():
 
 
 def get_juction_dpath():
+    r"""
+    Returns:
+        ?: junction_dpath
+
+    CommandLine:
+        python -m ibeis_cnn.dataset --test-get_juction_dpath
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.dataset import *  # NOQA
+        >>> junction_dpath = get_juction_dpath()
+        >>> ut.vd(junction_dpath)
+        >>> result = ('junction_dpath = %s' % (str(junction_dpath),))
+        >>> print(result)
+    """
     junction_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training_junction')
     return junction_dpath
 
