@@ -175,37 +175,48 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                                            time_thresh=time_thresh,
                                            time_thresh_growth=time_thresh_growth)
 
+    DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
+
+    ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
+    center_std01 = center_std / np.array(255.0, dtype=np.float32)
+
     for batch_index in batch_index_iter:
         # Get batch slice
         Xb_orig, yb_orig = utils.slice_data_labels(
             X, y, batch_size, batch_index,
             data_per_label_input, wraparound=equal_batch_sizes)  # .113 time fraction
-        Xb = Xb_orig.copy().astype(np.float32)
+        # FIRST CONVERT TO 0/1
+        Xb = Xb_orig.copy().astype(np.float32) / 255.0
         if yb_orig is not None:
             yb = yb_orig.copy()
         else:
             yb = None
-        # Whiten (applies centering)
-        if do_whitening:
-            # .563 time fraction
-            Xb = (Xb - center_mean) / center_std
         # Augment
+        # MAKE SURE DATA AUGMENTATION HAS MEAN FILL VALUES NOT 0
+        # AUGMENT DATA IN 0-1 SPACE
         if augment_on:
             if verbose or veryverbose:
                 if veryverbose or (batch_index + 1) % num_batches <= 1:
                     print('Augmenting Data')
                     # only copy if we have't yet
             Xb, yb = model.augment(Xb, yb)
-            '''
-            ut.embed()
-            if False:
+            if DEBUG_AUGMENTATION:
                 #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
                 from ibeis_cnn import augment
                 import plottool as pt
+                '''
                 import IPython; IPython.get_ipython().magic('pylab qt4')
+                augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+                '''
                 augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb, center_mean, center_std)
-                pt.iup()
-            '''
+                pt.show_if_requested()
+                ut.embed()
+        # DO WHITENING AFTER DATA AUGMENTATION
+        # MOVE DATA INTO -1 to 1 space
+        # Whiten (applies centering), not really whitening
+        if do_whitening:
+            # .563 time fraction
+            Xb = (Xb - (ceneter_mean01)) / (center_std01,)
         # Encode
         if yb is not None:
             if encoder is not None:
