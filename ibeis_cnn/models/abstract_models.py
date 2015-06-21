@@ -134,6 +134,7 @@ class BaseModel(object):
         model.shared_state = {
             'learning_rate': None,
         }
+        # TODO: do not set learning rate until theano is initialized
         model.learning_rate = learning_rate
 
     # --- INITIALIZATION
@@ -255,12 +256,18 @@ class BaseModel(object):
             checkpoint_dpath = dirname(dpath)
             matching_dpaths = ut.glob(checkpoint_dpath, '*' + checkpoint_pattern + '*')
             if len(matching_dpaths) == 0:
-                raise RuntimeError('Could not resolve checkpoint_pattern=%r. No Matches' % (checkpoint_pattern,))
+                raise RuntimeError(
+                    'Could not resolve checkpoint_pattern=%r. No Matches' %
+                    (checkpoint_pattern,))
             elif len(matching_dpaths) > 1:
-                raise RuntimeError('Could not resolve checkpoint_pattern=%r. matching_dpaths=%r. Too many matches' % (checkpoint_pattern, matching_dpaths))
+                raise RuntimeError(
+                    ('Could not resolve checkpoint_pattern=%r. '
+                        'matching_dpaths=%r. Too many matches') %
+                    (checkpoint_pattern, matching_dpaths))
             else:
                 checkpoint_tag = basename(matching_dpaths[0])
-                print('Resolved checkpoint pattern to checkpoint_tag=%r' % (checkpoint_tag,))
+                print('Resolved checkpoint pattern to checkpoint_tag=%r' %
+                        (checkpoint_tag,))
         return checkpoint_tag
 
     def has_saved_state(model, checkpoint_tag=None):
@@ -449,6 +456,7 @@ class BaseModel(object):
         """
         Used to denote a change in hyperparameters during training.
         """
+        # TODO: fix the training data hashid stuff
         y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
         train_hashid =  alias_key + '_' + y_hashid
         era_info = {

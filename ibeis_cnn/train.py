@@ -32,6 +32,15 @@ TODO:
     Data Metadata - Along with ability to go back and check the context of fail cases
     - need to use original SIFT descriptors from ibeis db if available
 
+
+    * Training Babysitting:
+    * Graph of weight magnitude updates - per layer as well
+    * validation loss variance - per example -
+    * determenistic loss ratios
+    * loss ratios without weight decay
+
+    * Baysian Hyperparamater optimization
+
 Ideas:
     Neural Network Vocabulary?
     Input a patch
@@ -204,6 +213,11 @@ def train_patchmatch_pz():
             arch_tag=arch_tag,
             training_dpath=dataset.training_dpath,
             **hyperparams)
+    elif arch_tag == 'mnist-category':
+        model = models.MNISTModel(
+            data_shape=dataset.data_shape, output_dims=dataset.output_dims,
+            training_dpath=dataset.training_dpath, **hyperparams)
+        pass
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
     model.initialize_architecture()
@@ -246,56 +260,56 @@ def train_patchmatch_pz():
         raise ValueError('nothing here. need to train or test')
 
 
-def train_mnist():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_mnist
+#def train_mnist():
+#    r"""
+#    CommandLine:
+#        python -m ibeis_cnn.train --test-train_mnist
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> result = train_mnist()
-        >>> print(result)
-    """
-    hyperparams = ut.argparse_dict(
-        {
-            'batch_size': 128,
-            'learning_rate': .001,
-            'momentum': .9,
-            'weight_decay': 0.0005,
-        }
-    )
-    dataset = ingest_data.grab_mnist_category_dataset()
-    data_shape = dataset.data_shape
-    input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
+#    Example:
+#        >>> # DISABLE_DOCTEST
+#        >>> from ibeis_cnn.train import *  # NOQA
+#        >>> result = train_mnist()
+#        >>> print(result)
+#    """
+#    hyperparams = ut.argparse_dict(
+#        {
+#            'batch_size': 128,
+#            'learning_rate': .001,
+#            'momentum': .9,
+#            'weight_decay': 0.0005,
+#        }
+#    )
+#    dataset = ingest_data.grab_mnist_category_dataset()
+#    data_shape = dataset.data_shape
+#    input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 
-    # Choose model
-    model = models.MNISTModel(
-        input_shape=input_shape, output_dims=dataset.output_dims,
-        training_dpath=dataset.training_dpath, **hyperparams)
+#    # Choose model
+#    model = models.MNISTModel(
+#        input_shape=input_shape, output_dims=dataset.output_dims,
+#        training_dpath=dataset.training_dpath, **hyperparams)
 
-    # Initialize architecture
-    model.initialize_architecture()
+#    # Initialize architecture
+#    model.initialize_architecture()
 
-    # Load previously learned weights or initialize new weights
-    if model.has_saved_state():
-        model.load_model_state()
-    else:
-        model.reinit_weights()
+#    # Load previously learned weights or initialize new weights
+#    if model.has_saved_state():
+#        model.load_model_state()
+#    else:
+#        model.reinit_weights()
 
-    config = dict(
-        learning_rate_schedule=15,
-        max_epochs=120,
-        show_confusion=False,
-        run_test=None,
-        show_features=False,
-        print_timing=False,
-    )
+#    config = dict(
+#        learning_rate_schedule=15,
+#        max_epochs=120,
+#        show_confusion=False,
+#        run_test=None,
+#        show_features=False,
+#        print_timing=False,
+#    )
 
-    X_train, y_train = dataset.load_subset('train')
-    X_valid, y_valid = dataset.load_subset('valid')
-    #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+#    X_train, y_train = dataset.load_subset('train')
+#    X_valid, y_valid = dataset.load_subset('valid')
+#    #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+#    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
 
 if __name__ == '__main__':

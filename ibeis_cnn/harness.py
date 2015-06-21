@@ -77,8 +77,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         history_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_history')
         weights_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_weights')
         history_text_fpath = progress_metric_path(model.arch_tag + '_%02d_era_history.txt')
-        #history_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'history'))
-        #weights_progress_dir = ut.ensuredir(ut.unixjoin(progress_dir, 'weights'))
         ut.vd(progress_dir)
 
         def overwrite_latest_image(fpath, new_name):
@@ -148,13 +146,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             # ---------------------------------------
             # Run training set
-            """
-            X_train = X_train[0:128 * 10]
-            y_train = y_train[0:128 * 5]
-            X = X_train
-            y = y_train
-            theano_fn = theano_backprop
-            """
             train_outputs = batch.process_batch(
                 model, X_train, y_train, theano_backprop, augment_on=True,
                 randomize_batch_order=True, **batchiter_kw)
