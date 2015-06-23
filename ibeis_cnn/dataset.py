@@ -12,6 +12,12 @@ NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
 NOCACHE_DATA_SPLIT = ut.get_argflag('--nocache-datasplit')
 
 
+class DummyDataSet(object):
+    def __init__(dataset):
+        dataset.data_fpath_dict = None
+        dataset.label_fpath_dict = None
+
+
 @six.add_metaclass(ut.ReloadingMetaclass)
 class DataSet(object):
     """

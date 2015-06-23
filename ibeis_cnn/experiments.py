@@ -47,8 +47,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #model.imwrite_weights(2)
     #ut.embed()
 
-    #ut.embed()
-
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
     network_output = test_outputs['network_output']
@@ -64,6 +62,9 @@ def test_siamese_performance(model, data, labels, dataname=''):
         cnn_scores = vt.L2(vecs1, vecs2)
     else:
         assert False
+
+    # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
+    # Fixed in hesaff implementation
     sift_scores = test_sift_patchmatch_scores(data, labels)
 
     # Learn encoders
@@ -187,7 +188,8 @@ def test_sift_patchmatch_scores(data, labels):
         import vtool as vt
         # TODO use dataset to infer data colorspace
         data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
-    vecs_list = pyhesaff.extract_desc_from_patches(data)
+    patch_list = data
+    vecs_list = pyhesaff.extract_desc_from_patches(patch_list)
     sqrddist = ((vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T
     VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)

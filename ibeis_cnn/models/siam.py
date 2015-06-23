@@ -56,6 +56,322 @@ class AbstractSiameseModel(abstract_models.BaseModel):
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
+class SiameseL2(AbstractSiameseModel):
+    """
+    Model for individual identification
+    """
+    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
+        if data_shape is not None:
+            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
+        if input_shape is None:
+            (batch_size, 3, 64, 64)
+        super(SiameseL2, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
+        #model.network_layers = None
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        model.output_dims = 1
+        model.name = arch_tag
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        model.data_per_label_input = 2
+        model.data_per_label_output = 2
+        model.arch_tag = arch_tag
+        if autoinit:
+            model.initialize_architecture()
+
+    def get_siaml2_def(model, verbose=True, **kwargs):
+        """
+        Notes:
+            (ix) siam-2stream-l2 consists of one central and one surround
+                branch of siam-2stream.
+
+                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+                # TODO: Stack Inputs by making a 2 Channel Layer
+                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
+                #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
+                _P(layers.FlattenLayer, outdim=2, name='flatten'),
+                #_P(custom_layers.L2NormalizeLayer, axis=2),
+                # TODO: L2 distance layer
+                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
+    def get_siaml2_128_def(model, verbose=True, **kwargs):
+        """
+        Notes:
+            (ix) siam-2stream-l2 consists of one central and one surround
+                branch of siam-2stream.
+
+                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+                # TODO: Stack Inputs by making a 2 Channel Layer
+                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
+                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2_128', **hidden_initkw),
+                #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
+                _P(layers.FlattenLayer, outdim=2, name='flatten128'),
+                #_P(custom_layers.L2NormalizeLayer, axis=2),
+                # TODO: L2 distance layer
+                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
+    def get_siam2streaml2_def(model, verbose=True, **kwargs):
+        """
+        Notes:
+            (ix) siam-2stream-l2 consists of one central and one surround
+                branch of siam-2stream.
+
+                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+                # TODO: Stack Inputs by making a 2 Channel Layer
+                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
+                _P(custom_layers.CenterSurroundLayer, name='CentSuround'),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.1),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P0'),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
+                _P(layers.FlattenLayer, outdim=2, name='flatten'),
+                #_P(custom_layers.L2NormalizeLayer, axis=2),
+                # TODO: L2 distance layer
+                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
+    def get_mnist_siaml2_def(model, verbose=True, **kwargs):
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        network_layers_def = (
+            [
+                #_P(layers.InputLayer, shape=model.input_shape),
+                #_P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
+                #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                #_P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
+                #_P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='C2', **hidden_initkw),
+                _P(layers.InputLayer, shape=model.input_shape),
+                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
+                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P3'),
+                #_P(layers.ReshapeLayer, shape=(-1, 128))
+                _P(layers.FlattenLayer, outdim=2)
+                #_P(Conv2DLayer, num_filters=256, filter_size=(2, 2), name='C3', **hidden_initkw),
+            ]
+        )
+        return network_layers_def
+
+    def initialize_architecture(model, verbose=True, **kwargs):
+        r"""
+        Notes:
+            http://arxiv.org/pdf/1504.03641.pdf
+
+        CommandLine:
+            python -m ibeis_cnn.models.siam --test-SiameseL2.initialize_architecture --verbcnn --show
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.siam import *  # NOQA
+            >>> # build test data
+            >>> verbose = True
+            >>> model = SiameseL2(batch_size=128, data_shape=(64, 64, 3))
+            >>> # execute function
+            >>> output_layer = model.initialize_architecture()
+            >>> model.print_dense_architecture_str()
+            >>> # verify results
+            >>> result = str(output_layer)
+            >>> print(result)
+            >>> ut.quit_if_noshow()
+            >>> model.show_architecture_image()
+            >>> ut.show_if_requested()
+
+        """
+        # TODO: remove output dims
+        #_P = functools.partial
+        (_, input_channels, input_width, input_height) = model.input_shape
+        if verbose:
+            print('[model] Initialize center surround siamese model architecture')
+            print('[model]   * batch_size     = %r' % (model.batch_size,))
+            print('[model]   * input_width    = %r' % (input_width,))
+            print('[model]   * input_height   = %r' % (input_height,))
+            print('[model]   * input_channels = %r' % (input_channels,))
+            print('[model]   * output_dims    = %r' % (model.output_dims,))
+
+        #network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
+        if model.arch_tag == 'siam2streaml2':
+            network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
+        elif model.arch_tag == 'siaml2':
+            network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
+        elif model.arch_tag == 'siaml2_128':
+            network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
+        # connect and record layers
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
+        #model.network_layers = network_layers
+        output_layer = network_layers[-1]
+        model.output_layer = output_layer
+        return output_layer
+
+    def loss_function(model, network_output, labels, T=T, verbose=True):
+        """
+        Implements the contrastive loss term from (Hasdel, Chopra, LeCun 06)
+
+        CommandLine:
+            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function
+            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function:1 --show
+
+        Example1:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models import *  # NOQA
+            >>> network_output, labels = testdata_siam_desc()
+            >>> verbose = False
+            >>> T = np
+            >>> func = SiameseL2.loss_function
+            >>> loss0, Y0_ = ut.exec_func_src(func, globals(), locals(), ['loss', 'Y_'])
+            >>> ut.quit_if_noshow()
+            >>> import plottool as pt
+            >>> pt.plot2(network_output, loss0, '-', color=pt.TRUE_BLUE, label='imposter_loss', y_label='network output')
+            >>> pt.plot2(network_output, loss1, '-', color=pt.FALSE_RED, label='genuine_loss', y_label='network output')
+            >>> pt.legend()
+            >>> ut.show_if_requested()
+        """
+        if verbose:
+            print('[model] Build SiameseL2 loss function')
+        vecs1 = network_output[0::2]
+        vecs2 = network_output[1::2]
+        margin = 1.0
+        dist_l2 = T.sqrt(((vecs1 - vecs2) ** 2).sum(axis=1))
+        loss = constrastive_loss(dist_l2, labels, margin, T=T)
+        if T is not np:
+            loss.name = 'loss'
+        return loss
+
+    def learn_encoder(model, labels, scores, **kwargs):
+        import vtool as vt
+        encoder = vt.ScoreNormalizer(**kwargs)
+        encoder.fit(scores, labels)
+        print('[model] learned encoder accuracy = %r' % (encoder.get_accuracy(scores, labels)))
+        model.encoder = encoder
+        return encoder
+
+
+def constrastive_loss(dist_l2, labels, margin, T=T):
+    r"""
+    Args:
+        vecs1 (ndarray[uint8_t, ndim=2]):  descriptor vectors
+        vecs2 (ndarray[uint8_t, ndim=2]):  descriptor vectors
+        labels (ndarray): 1 if genuine pair, 0 if imposter pair
+        margin (float): positive number
+
+    Returns:
+        ndarray: loss
+
+    Notes:
+        Carefull, you need to pass the the euclidean distance in here here, NOT
+        the squared euclidean distance otherwise you end up with
+        T.maximum(0, (m ** 2 - 2 * m * d + d ** 2)),
+        which still requires the square root operation
+
+    CommandLine:
+        python -m ibeis_cnn.models.siam --test-constrastive_loss --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.models.siam import *  # NOQA
+        >>> dist_l2 = np.linspace(0, 2.5, 200)
+        >>> labels = np.tile([True, False], 100)
+        >>> margin, T = 1.25, np
+        >>> loss = constrastive_loss(dist_l2, labels, margin, T)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> xdat_genuine, ydat_genuine = dist_l2[labels], loss[labels] * 2.0
+        >>> xdat_imposter, ydat_imposter = dist_l2[~labels], loss[~labels] * 2.0
+        >>> pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
+        >>> pt.plot(xdat_genuine, ydat_genuine, '--', color=pt.TRUE, label='Genuine Distance')
+        >>> pt.plot(xdat_imposter, ydat_imposter, '-', color=pt.FALSE,  label='Imposter Distance')
+        >>> pt.pad_axes(.03, ylim=(0, 3.5))
+        >>> pt.postsetup_axes()
+        >>> ut.show_if_requested()
+    """
+    #if __debug__:
+    #    assert margin > 0
+    #    assert set(labels).issubset({0, 1})
+    loss_genuine = (labels * dist_l2) ** 2
+    loss_imposter = (1 - labels) * T.maximum(margin - dist_l2, 0) ** 2
+    loss = (loss_genuine + loss_imposter) / 2.0
+    return loss
+
+
+@six.add_metaclass(ut.ReloadingMetaclass)
 class SiameseCenterSurroundModel(AbstractSiameseModel):
     """
     Model for individual identification
@@ -317,281 +633,6 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         )
         #raise NotImplementedError('The 2-channel part is not yet implemented')
         return network_layers_def
-
-
-@six.add_metaclass(ut.ReloadingMetaclass)
-class SiameseL2(AbstractSiameseModel):
-    """
-    Model for individual identification
-    """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
-        if data_shape is not None:
-            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
-        if input_shape is None:
-            (batch_size, 3, 64, 64)
-        super(SiameseL2, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
-        #model.network_layers = None
-        model.input_shape = input_shape
-        model.batch_size = batch_size
-        model.output_dims = 1
-        model.name = 'siaml2'
-        # bad name, says that this network will take
-        # 2*N images in a batch and N labels that map to
-        # two images a piece
-        model.data_per_label_input = 2
-        model.data_per_label_output = 2
-        model.arch_tag = 'siaml2'
-        if autoinit:
-            model.initialize_architecture()
-
-    def get_siaml2_def(model, verbose=True, **kwargs):
-        """
-        Notes:
-            (ix) siam-2stream-l2 consists of one central and one surround
-                branch of siam-2stream.
-
-                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
-        """
-        _P = functools.partial
-
-        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        #orthog_kw = dict(W=init.Orthogonal())
-        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
-        hidden_initkw = leaky_kw
-
-        #ReshapeLayer = layers.ReshapeLayer
-
-        network_layers_def = (
-            [
-                _P(layers.InputLayer, shape=model.input_shape),
-                # TODO: Stack Inputs by making a 2 Channel Layer
-                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
-                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
-                #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
-                _P(layers.FlattenLayer, outdim=2, name='flatten'),
-                #_P(custom_layers.L2NormalizeLayer, axis=2),
-                # TODO: L2 distance layer
-                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-            ]
-        )
-        #raise NotImplementedError('The 2-channel part is not yet implemented')
-        return network_layers_def
-
-    def get_siam2streaml2_def(model, verbose=True, **kwargs):
-        """
-        Notes:
-            (ix) siam-2stream-l2 consists of one central and one surround
-                branch of siam-2stream.
-
-                C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
-        """
-        _P = functools.partial
-
-        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        #orthog_kw = dict(W=init.Orthogonal())
-        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
-        hidden_initkw = leaky_kw
-
-        #ReshapeLayer = layers.ReshapeLayer
-
-        network_layers_def = (
-            [
-                _P(layers.InputLayer, shape=model.input_shape),
-                # TODO: Stack Inputs by making a 2 Channel Layer
-                #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
-                _P(custom_layers.CenterSurroundLayer, name='CentSuround'),
-                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P0'),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
-                _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
-                _P(layers.FlattenLayer, outdim=2, name='flatten'),
-                #_P(custom_layers.L2NormalizeLayer, axis=2),
-                # TODO: L2 distance layer
-                #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
-            ]
-        )
-        #raise NotImplementedError('The 2-channel part is not yet implemented')
-        return network_layers_def
-
-    def get_mnist_siaml2_def(model, verbose=True, **kwargs):
-        _P = functools.partial
-
-        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        #orthog_kw = dict(W=init.Orthogonal())
-        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
-        hidden_initkw = leaky_kw
-
-        network_layers_def = (
-            [
-                #_P(layers.InputLayer, shape=model.input_shape),
-                #_P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
-                #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                #_P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
-                #_P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='C2', **hidden_initkw),
-                _P(layers.InputLayer, shape=model.input_shape),
-                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
-                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P3'),
-                #_P(layers.ReshapeLayer, shape=(-1, 128))
-                _P(layers.FlattenLayer, outdim=2)
-                #_P(Conv2DLayer, num_filters=256, filter_size=(2, 2), name='C3', **hidden_initkw),
-            ]
-        )
-        return network_layers_def
-
-    def initialize_architecture(model, verbose=True, **kwargs):
-        r"""
-        Notes:
-            http://arxiv.org/pdf/1504.03641.pdf
-
-        CommandLine:
-            python -m ibeis_cnn.models.siam --test-SiameseL2.initialize_architecture --verbcnn --show
-
-        Example:
-            >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.models.siam import *  # NOQA
-            >>> # build test data
-            >>> verbose = True
-            >>> model = SiameseL2(batch_size=128, data_shape=(64, 64, 3))
-            >>> # execute function
-            >>> output_layer = model.initialize_architecture()
-            >>> model.print_dense_architecture_str()
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
-            >>> ut.quit_if_noshow()
-            >>> model.show_architecture_image()
-            >>> ut.show_if_requested()
-
-        """
-        # TODO: remove output dims
-        #_P = functools.partial
-        (_, input_channels, input_width, input_height) = model.input_shape
-        if verbose:
-            print('[model] Initialize center surround siamese model architecture')
-            print('[model]   * batch_size     = %r' % (model.batch_size,))
-            print('[model]   * input_width    = %r' % (input_width,))
-            print('[model]   * input_height   = %r' % (input_height,))
-            print('[model]   * input_channels = %r' % (input_channels,))
-            print('[model]   * output_dims    = %r' % (model.output_dims,))
-
-        #network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
-        if model.arch_tag == 'siam2streaml2':
-            network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'siaml2':
-            network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
-        # connect and record layers
-        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
-        #model.network_layers = network_layers
-        output_layer = network_layers[-1]
-        model.output_layer = output_layer
-        return output_layer
-
-    def loss_function(model, network_output, labels, T=T, verbose=True):
-        """
-        Implements the contrastive loss term from (Hasdel, Chopra, LeCun 06)
-
-        CommandLine:
-            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function
-            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function:1 --show
-
-        Example1:
-            >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.models import *  # NOQA
-            >>> network_output, labels = testdata_siam_desc()
-            >>> verbose = False
-            >>> T = np
-            >>> func = SiameseL2.loss_function
-            >>> loss0, Y0_ = ut.exec_func_src(func, globals(), locals(), ['loss', 'Y_'])
-            >>> ut.quit_if_noshow()
-            >>> import plottool as pt
-            >>> pt.plot2(network_output, loss0, '-', color=pt.TRUE_BLUE, label='imposter_loss', y_label='network output')
-            >>> pt.plot2(network_output, loss1, '-', color=pt.FALSE_RED, label='genuine_loss', y_label='network output')
-            >>> pt.legend()
-            >>> ut.show_if_requested()
-        """
-        if verbose:
-            print('[model] Build SiameseL2 loss function')
-        vecs1 = network_output[0::2]
-        vecs2 = network_output[1::2]
-        margin = 1.0
-        dist_l2 = T.sqrt(((vecs1 - vecs2) ** 2).sum(axis=1))
-        loss = constrastive_loss(dist_l2, labels, margin, T=T)
-        if T is not np:
-            loss.name = 'loss'
-        return loss
-
-    def learn_encoder(model, labels, scores, **kwargs):
-        import vtool as vt
-        encoder = vt.ScoreNormalizer(**kwargs)
-        encoder.fit(scores, labels)
-        print('[model] learned encoder accuracy = %r' % (encoder.get_accuracy(scores, labels)))
-        model.encoder = encoder
-        return encoder
-
-
-def constrastive_loss(dist_l2, labels, margin, T=T):
-    r"""
-    Args:
-        vecs1 (ndarray[uint8_t, ndim=2]):  descriptor vectors
-        vecs2 (ndarray[uint8_t, ndim=2]):  descriptor vectors
-        labels (ndarray): 1 if genuine pair, 0 if imposter pair
-        margin (float): positive number
-
-    Returns:
-        ndarray: loss
-
-    Notes:
-        Carefull, you need to pass the the euclidean distance in here here, NOT
-        the squared euclidean distance otherwise you end up with
-        T.maximum(0, (m ** 2 - 2 * m * d + d ** 2)),
-        which still requires the square root operation
-
-    CommandLine:
-        python -m ibeis_cnn.models.siam --test-constrastive_loss --show
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.models.siam import *  # NOQA
-        >>> dist_l2 = np.linspace(0, 2.5, 200)
-        >>> labels = np.tile([True, False], 100)
-        >>> margin, T = 1.25, np
-        >>> loss = constrastive_loss(dist_l2, labels, margin, T)
-        >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> xdat_genuine, ydat_genuine = dist_l2[labels], loss[labels] * 2.0
-        >>> xdat_imposter, ydat_imposter = dist_l2[~labels], loss[~labels] * 2.0
-        >>> pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
-        >>> pt.plot(xdat_genuine, ydat_genuine, '--', color=pt.TRUE, label='Genuine Distance')
-        >>> pt.plot(xdat_imposter, ydat_imposter, '-', color=pt.FALSE,  label='Imposter Distance')
-        >>> pt.pad_axes(.03, ylim=(0, 3.5))
-        >>> pt.postsetup_axes()
-        >>> ut.show_if_requested()
-    """
-    #if __debug__:
-    #    assert margin > 0
-    #    assert set(labels).issubset({0, 1})
-    loss_genuine = (labels * dist_l2) ** 2
-    loss_imposter = (1 - labels) * T.maximum(margin - dist_l2, 0) ** 2
-    loss = (loss_genuine + loss_imposter) / 2.0
-    return loss
 
 
 def predict():

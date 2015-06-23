@@ -41,6 +41,8 @@ TODO:
 
     * Baysian Hyperparamater optimization
 
+    * Combine datasets
+
 Ideas:
     Neural Network Vocabulary?
     Input a patch
@@ -69,9 +71,9 @@ ds_tag_alias2 = {
     'nnp'         : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
     'nnp3-2'      : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=None,)',
     'nnp3-2-bgr'  : 'NNP_Master3;dict(colorspace=\'bgr\', controlled=True, max_examples=None, num_top=None,)',
-    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=3,)',
-    'pzmtest'     : 'PZ_MTEST;dict(controlled=True, max_examples=None, num_top=3,)',
+    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
     'pzmaster-bgr' : "PZ_Master0;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
+    'pzmtest'     : 'PZ_MTEST;dict(controlled=True, max_examples=None, num_top=3,)',
     'pzmtest-bgr' : r"PZ_MTEST;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
     'liberty'     : 'liberty;dict(detector=\'dog\', pairs=250000,)',
     'gz-gray'     : "GZ_ALL;dict(colorspace='gray', controlled=False, max_examples=None, num_top=None,)"
@@ -95,25 +97,17 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='gray' --num-top=None --controlled=True --aliasexit
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='gray' --num-top=None --controlled=True --aliasexit
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db GZ_ALL --colorspace='gray' --num-top=None --controlled=False --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --colorspace='gray' --aliasexit
 
-        # --- TRAINING / TESTING ---
+        # --- TRAINING ---
 
         # Train NNP_Master
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=nnp3-2:epochs0011 --arch=siaml2 --train
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=nnp3-2:epochs0011 --arch=siaml2 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
 
-        # Test NNP_Master on in sample
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=current --arch=siaml2 --test
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=nnp3-2 --arch=siaml2 --test
-
-        # Test NNP_Master3 weights on out of sample data
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0011 --arch=siaml2 --test
-
-        # Now can use the alias
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmaster --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
 
         # --- MONITOR TRAINING ---
 
@@ -122,7 +116,6 @@ def train_patchmatch_pz():
 
         # Grevys
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds gz-gray --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
-
 
         # THIS DID WELL VERY QUICKLY
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2 --train --monitor --learning_rate=.1 --weight_decay=0.0005
@@ -138,6 +131,29 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmaster-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
         --monitor --colorspace='bgr' --num_top=None
+
+        # --- INITIALIZED-TRAINING ---
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --arch=siaml2 --weights=gz-gray:current --train --monitor
+
+        # --- TESTING ---
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=liberty:current --arch=siaml2_128 --test
+
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds gz-gray --arch=siaml2 --weights=gz-gray:current --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --arch=siaml2 --weights=gz-gray:current --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --arch=siaml2 --weights=gz-gray:current --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmaster --arch=siaml2 --weights=gz-gray:current --test
+
+        # Test NNP_Master on in sample
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=current --arch=siaml2 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=nnp3-2 --arch=siaml2 --test
+
+        # Test NNP_Master3 weights on out of sample data
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0011 --arch=siaml2 --test
+
+        # Now can use the alias
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmaster --weights=nnp3-2:epochs0021 --arch=siaml2 --test
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -172,7 +188,8 @@ def train_patchmatch_pz():
             #'learning_rate': .0005,
             'learning_rate': .1,
             'momentum': .9,
-            'weight_decay': 0.0005,
+            #'weight_decay': 0.0005,
+            'weight_decay': 0.0001,
         }
     )
 
@@ -202,7 +219,7 @@ def train_patchmatch_pz():
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
             training_dpath=dataset.training_dpath, **hyperparams)
-    elif arch_tag == 'siaml2':
+    elif arch_tag in ['siaml2', 'siaml2_128']:
         model = models.SiameseL2(
             data_shape=dataset.data_shape,
             arch_tag=arch_tag,

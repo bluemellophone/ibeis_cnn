@@ -59,6 +59,13 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     max_epochs = config.get('max_epochs', None)
     test_freq  = config.get('test_freq', None)
 
+    batchiter_kw = dict(
+        #showprog=False,
+        showprog=True,
+        time_thresh=4,
+        time_thresh_growth=ut.PHI * 2,
+    )
+
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
     model.ensure_training_state(X_train, y_train)
@@ -69,6 +76,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     MONITOR_PROGRESS = ut.get_argflag('--monitor')
     if MONITOR_PROGRESS:
+        # FIXME; put into better place
         progress_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'progress'))
         def progress_metric_path(x):
             return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
@@ -97,7 +105,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
     theano_funcs = model.build_theano_funcs()
-    theano_backprop, theano_forward, theano_predict = theano_funcs
+    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     #show_times    = kwargs.get('print_timing', False)
     #show_features = kwargs.get('show_features', False)
@@ -126,13 +134,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     model.start_new_era(X_train, y_train, X_valid, y_valid, dataset.alias_key)
 
-    batchiter_kw = dict(
-        #showprog=False,
-        showprog=True,
-        time_thresh=4,
-        time_thresh_growth=ut.PHI * 2,
-    )
-
     tt = ut.Timer(verbose=False)
     while True:
         try:
@@ -150,11 +151,29 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 model, X_train, y_train, theano_backprop, augment_on=True,
                 randomize_batch_order=True, **batchiter_kw)
             # compute the loss over all testing batches
-            epoch_info['train_loss'] = train_outputs['loss_regularized'].mean()
+            epoch_info['train_loss'] = train_outputs['loss'].mean()
+            epoch_info['train_loss_regularized'] = train_outputs['loss_regularized'].mean()
             #if 'valid_acc' in model.requested_headers:
             #    epoch_info['test_acc']  = train_outputs['accuracy']
 
             # If the training loss is nan, the training has diverged
+            regularization_amount  = train_outputs['loss_regularized'] - train_outputs['loss']
+            regularization_ratio   = regularization_amount / train_outputs['loss']
+            regularization_percent = regularization_amount / train_outputs['loss_regularized']
+
+            epoch_info['regularization_percent'] = regularization_percent
+            epoch_info['regularization_ratio'] = regularization_ratio
+
+            print('regularization_ratio = %r' % (regularization_ratio,))
+            print('regularization_percent = %r' % (regularization_percent,))
+
+            param_update_mags = {}
+            for key, val in train_outputs.items():
+                if key.startswith('param_update_magnitude_'):
+                    param_update_mags[key.replace('param_update_magnitude_', '')] = (val.mean(), val.std())
+            epoch_info['param_update_mags'] = param_update_mags
+            #if key.startswith('param_update_mag_')
+
             if np.isnan(epoch_info['train_loss']):
                 print('\n[train] training diverged\n')
                 break
@@ -164,6 +183,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 model, X_valid, y_valid, theano_forward, augment_on=False,
                 randomize_batch_order=True, **batchiter_kw)
             epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
+            epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
             if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
@@ -338,7 +358,7 @@ def test_data2(model, X_test, y_test):
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
     theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
-    theano_backprop, theano_forward, theano_predict = theano_funcs
+    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     # Begin testing with the neural network
     print('\n[test] starting testing with batch size %0.1f' % (model.batch_size))

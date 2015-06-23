@@ -84,13 +84,30 @@ def testdata_model_with_history():
     model = BaseModel()
     # make a dummy history
     X_train, y_train = [1, 2, 3], [0, 0, 1]
-    model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
-    model.record_epoch({'epoch': 1, 'valid_loss': .9, 'train_loss': .8})
-    model.record_epoch({'epoch': 2, 'valid_loss': .7, 'train_loss': .7})
-    model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
-    model.record_epoch({'epoch': 3, 'valid_loss': .8, 'train_loss': .6})
-    model.record_epoch({'epoch': 4, 'valid_loss': .7, 'train_loss': .5})
-    model.record_epoch({'epoch': 5, 'valid_loss': .6, 'train_loss': .2})
+    rng = np.random.RandomState(0)
+    def dummy_epoch_dict(num):
+        epoch_info = {
+            'epoch': num,
+            'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'train_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'train_loss_regularized': 1 / np.exp(num / 10) + np.exp(rng.rand() * num) + rng.rand() / 100,
+            'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
+            'param_update_mags': {
+                'C0': (rng.normal() ** 2, rng.rand()),
+                'F1': (rng.normal() ** 2, rng.rand()),
+            }
+        }
+        return epoch_info
+    count = 0
+    for era_length in [4, 4, 4]:
+        model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
+        for count in range(count, count + era_length):
+            model.record_epoch(dummy_epoch_dict(count))
+    #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'train_loss': .9})
+    #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'train_loss': .7})
+    #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'train_loss': .6})
+    #model.record_epoch({'epoch': 4, 'valid_loss': .2, 'train_loss': .3})
+    #model.record_epoch({'epoch': 5, 'valid_loss': .1, 'train_loss': .2})
     return model
 
 
@@ -101,9 +118,9 @@ class BaseModel(object):
     """
     def __init__(model, output_dims=None, input_shape=None, batch_size=None,
                  training_dpath='.', momentum=.9, weight_decay=.0005,
-                 learning_rate=.001):
+                 learning_rate=.001, arch_tag=None):
         #model.network_layers = None  # We really don't need to save all of these
-        model.arch_tag = None
+        model.arch_tag = arch_tag
         model.output_layer = None
         model.output_dims = output_dims
         model.input_shape = input_shape
@@ -358,6 +375,7 @@ class BaseModel(object):
         model.era_history  = model_state.get('era_history', [None])
         if model.__class__.__name__ != 'BaseModel':
             # hack for abstract model
+            # model.output_layer is not None
             model.set_all_param_values(model.best_weights)
 
     def load_state_from_dict(model, dict_):
@@ -440,18 +458,6 @@ class BaseModel(object):
         model.era_history = []
         model.era_history.append(era_info)
 
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
-
     def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
         """
         Used to denote a change in hyperparameters during training.
@@ -475,6 +481,18 @@ class BaseModel(object):
         #if model.current_era is not None:
         model.current_era = era_info
         model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
 
     # --- STRINGS
 
@@ -562,6 +580,24 @@ class BaseModel(object):
         pt.imshow(img)
 
     def show_era_history(model, fnum=None):
+        r"""
+        Args:
+            fnum (int):  figure number(default = None)
+
+        Returns:
+            ?: fig
+
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models --test-show_era_history --show
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> model = testdata_model_with_history()
+            >>> fnum = None
+            >>> model.show_era_history(fnum)
+            >>> ut.show_if_requested()
+        """
         import plottool as pt
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=(1, 1, 1), doclf=True, docla=True)
@@ -569,6 +605,8 @@ class BaseModel(object):
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='log')
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
         model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
+
+        model.show_weight_updates(fnum=fnum, pnum=next_pnum())
 
         pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
         return fig
@@ -584,6 +622,7 @@ class BaseModel(object):
             epochs = era['epoch_list']
             train_loss = np.array(era['train_loss_list'])
             valid_loss = np.array(era['valid_loss_list'])
+            valid_loss_std = np.array(era['valid_loss_std_list'])  # NOQA
             trainvalid_ratio = train_loss / valid_loss
 
             era_color = colors[index]
@@ -598,6 +637,62 @@ class BaseModel(object):
         pt.set_xlabel('epoch')
         pt.set_ylabel('train/valid ratio')
 
+        pt.legend()
+
+        pt.dark_background()
+        return fig
+
+    def show_weight_updates(model, fnum=None, pnum=(1, 1, 1)):
+        import plottool as pt
+        fnum = pt.ensure_fnum(fnum)
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        for index, era in enumerate(model.era_history):
+            epochs = era['epoch_list']
+            if 'param_update_mags_list' not in era:
+                continue
+            update_mags_list = era['param_update_mags_list']
+            # Transpose keys and positions
+            param_keys = list(set(ut.flatten([dict_.keys() for dict_ in update_mags_list])))
+            param_val_list = [[list_[param] for list_ in update_mags_list] for param in param_keys]
+            colors = pt.distinct_colors(len(param_val_list))
+            for key, val, color in zip(param_keys, param_val_list, colors):
+                update_mag_mean = ut.get_list_column(val, 0)
+                update_mag_std = ut.get_list_column(val, 1)  # NOQA
+                #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
+                if index == len(model.era_history) - 1:
+                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color, label=key)
+                else:
+                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color)
+                #, label=valid_label, yscale=yscale)
+            pass
+        pt.legend()
+
+        pt.dark_background()
+        return fig
+
+    def show_regularization_stuff(model, fnum=None, pnum=(1, 1, 1)):
+        import plottool as pt
+        fnum = pt.ensure_fnum(fnum)
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        for index, era in enumerate(model.era_history):
+            epochs = era['epoch_list']
+            if 'update_mags_list' not in era:
+                continue
+            update_mags_list = era['update_mags_list']
+            # Transpose keys and positions
+            param_keys = list(set(ut.flatten([dict_.keys() for dict_ in update_mags_list])))
+            param_val_list = [[list_[param] for list_ in update_mags_list] for param in param_keys]
+            colors = pt.distinct_colors(len(param_val_list))
+            for key, val, color in zip(param_keys, param_val_list, colors):
+                update_mag_mean = ut.get_list_column(val, 0)
+                update_mag_std = ut.get_list_column(val, 1)  # NOQA
+                #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
+                if index == len(model.era_history) - 1:
+                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color, label=key)
+                else:
+                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color)
+                #, label=valid_label, yscale=yscale)
+            pass
         pt.legend()
 
         pt.dark_background()
@@ -744,6 +839,11 @@ class BaseModel(object):
         return theano_funcs
 
     def build_loss_expressions(model, X_batch, y_batch):
+        r"""
+        Args:
+            X_batch (theano.tensor.tensor4): symbolic expression for input
+            y_batch (theano.tensor.ivector): symbolic expression for labels
+        """
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
@@ -762,9 +862,11 @@ class BaseModel(object):
             # Regularize
             # TODO: L2 should be one of many available options for regularization
             L2 = lasagne.regularization.regularize_network_params(model.output_layer, lasagne.regularization.l2)
-            #L2 = lasagne.regularization.l2(model.output_layer)
             weight_decay = model.learning_state['weight_decay']
-            loss_regularized = loss + weight_decay * L2
+            regularization_term = weight_decay * L2
+            regularization_term.name = 'regularization_term'
+            #L2 = lasagne.regularization.l2(model.output_layer)
+            loss_regularized = loss + regularization_term
             loss_regularized.name = 'loss_regularized'
             return loss, loss_determ, loss_regularized
 

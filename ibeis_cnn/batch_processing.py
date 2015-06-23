@@ -270,22 +270,47 @@ def build_theano_funcs(model,
     # Run inference and get other_outputs
     unlabeled_outputs = model.build_unlabeled_output_expressions(network_output)
     labeled_outputs   = model.build_labeled_output_expressions(network_output, y_batch)
+    updates = None
 
     if request_backprop:
         learning_rate_theano = model.shared_learning_rate
         momentum = model.learning_state['momentum']
         # Define how to update network parameters based on the training loss
         parameters = model.get_all_params(trainable=True)
-        updates = lasagne.updates.nesterov_momentum(loss_regularized, parameters, learning_rate_theano, momentum)
+        gradients_regularized = theano.grad(loss_regularized, parameters)
+        updates = lasagne.updates.nesterov_momentum(gradients_regularized, parameters, learning_rate_theano, momentum)
+
+        # Build outputs to babysit training
+        import theano.tensor as T
+        monitor_outputs = []
+        for param in parameters:
+            # The vector each param was udpated with
+            param_update_vector = updates[param] - param
+            param_update_vector.name = 'param_update_vector_' + param.name
+            #param_update_magnitude = (param_update_vector.reshape(param_update_vector.shape[0], -1) ** 2).sum(-1)
+            flat_param_update_vector = param_update_vector.reshape((param_update_vector.shape[0], T.prod(param_update_vector.shape[1:])))
+            param_update_magnitude = (flat_param_update_vector ** 2).sum(-1)
+            param_update_magnitude.name = 'param_update_magnitude_' + param.name
+            monitor_outputs.append(param_update_magnitude)
+
         theano_backprop = theano.function(
             inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-            outputs=[loss_regularized] + labeled_outputs,
+            outputs=[loss_regularized, loss] + labeled_outputs + monitor_outputs,
             updates=updates,
             givens={
                 X: X_batch,
                 y: y_batch,
             },
         )
+        #theano_backprop = theano.function(
+        #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+        #    outputs=[loss_regularized] + labeled_outputs,
+        #    updates=updates,
+        #    givens={
+        #        X: X_batch,
+        #        y: y_batch,
+        #    },
+        #)
         theano_backprop.name = ':theano_backprob:unbuffered'
     else:
         theano_backprop = None
@@ -317,7 +342,7 @@ def build_theano_funcs(model,
     else:
         theano_predict = None
 
-    return theano_backprop, theano_forward, theano_predict
+    return theano_backprop, theano_forward, theano_predict, updates
 
 
 def output_confusion_matrix(X_test, results_path,  test_results, model, **kwargs):

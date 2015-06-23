@@ -105,8 +105,11 @@ def get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, fl
         sfs_list.append(sf_list)
         # Add horizontal spacing
 
-        solidbar = np.zeros((img.shape[0], int(img.shape[1] * .1), 3), dtype=np.uint8)
-        solidbar[:, :, :] = np.array(border_color)[None, None]
+        solidbar = np.zeros((img.shape[0], int(img.shape[1] * .1), 3), dtype=img.dtype)
+        if ut.is_float(solidbar):
+            solidbar[:, :, :] = (np.array(border_color) / 255)[None, None]
+        else:
+            solidbar[:, :, :] = np.array(border_color)[None, None]
         multiimg_list.append(solidbar)
         offsets_list.append([(0, 0)])
         sfs_list.append([(1., 1.)])

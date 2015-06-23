@@ -268,26 +268,34 @@ def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
     """
     import plottool as pt
 
-    if ut.is_float(Xb):
-        if mean_ is None:
-            # I know its not actually std
-            std_ = 255 * (Xb.max() - Xb.min())
-            mean_ = (-Xb.min() * std_)
-        # unwhiten
-        Xb_ = np.clip(((std_ * Xb) + mean_), 0.0, 255.0).astype(np.uint8)
-    else:
-        Xb_ = Xb
+    #if ut.is_float(Xb):
+    #    if mean_ is None:
+    #        # I know its not actually std
+    #        std_ = 255 * (Xb.max() - Xb.min())
+    #        mean_ = (-Xb.min() * std_)
+    #    # unwhiten
+    #    Xb_ = np.clip(((std_ * Xb) + mean_), 0.0, 255.0).astype(np.uint8)
+    #else:
+    #    Xb_ = Xb
+    import vtool as vt
+    Xb_orig = vt.rectify_to_float01(Xb_orig)
+    Xb_ = vt.rectify_to_float01(Xb)
 
     #num_examples = len(Xb_orig) // 2
     # only look at ones that were actually augmented
-    diff = (Xb_[::2] - Xb_orig[::2])
-    diff_batches = diff.sum(-1).sum(-1).sum(-1)
+    diff1 = np.abs((Xb_[0::2] - Xb_orig[0::2]))
+    diff2 = np.abs((Xb_[1::2] - Xb_orig[1::2]))
+    diff_batches1 = diff1.sum(-1).sum(-1).sum(-1)
+    diff_batches2 = diff2.sum(-1).sum(-1).sum(-1)
+    diff_batches = diff_batches1 + diff_batches2
     modified_indexes = np.where(diff_batches > 0)[0]
     #import vtool as vt                       nnnnnnnnnnnnnnnnnnnn
     #nonmodified_flags = ~vt.other.index_to_boolmask(modified_indexes_, num_examples)
     #print(ut.debug_consec_list(modified_indexes_))
     # hack
     #modified_indexes = np.arange(num_examples)
+    Xb_orig = vt.rectify_to_uint8(Xb_orig)
+    Xb_ = vt.rectify_to_uint8(Xb_)
 
     orig_stack = stacked_img_pairs(Xb_orig, modified_indexes, yb_orig)
     warp_stack = stacked_img_pairs(Xb_, modified_indexes, yb)
@@ -323,10 +331,11 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         >>> Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
         >>> Xb_orig = Xb.copy()
         >>> yb_orig = yb.copy()
-        >>> mean_ = Xb.mean(axis=0)
+        >>> #mean_ = Xb.mean(axis=0)
         >>> #std_ = 255.0
         >>> #Xb = ((Xb - mean_) / std_).astype(np.float32)
-        >>> Xb = Xb.astype(np.float32) / 255.0
+        >>> import vtool as vt
+        >>> Xb = vt.rectify_to_float01(Xb)
         >>> rng = np.random.RandomState(0)
         >>> Xb, yb = augment_siamese_patches2(Xb, yb, rng=rng)
         >>> ut.quit_if_noshow()
@@ -343,15 +352,16 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     perlin_perteb = .5
     gamma_perterb = .5
     #perlin_perteb = 1.5
-    #affprob_perterb = .0
+    gamma_perterb = .0
+    affprob_perterb = .0
     #perlin_perteb = 1.5
 
     num = len(Xb1)
 
     # Determine which examples will be augmented
-    affperterb_flags = rng.uniform(0.0, 1.0, size=num) <= affprob_perterb
-    perlinperterb_flags = rng.uniform(0.0, 1.0, size=num) <= perlin_perteb
-    gammaperterb_flags = rng.uniform(0.0, 1.0, size=num) <= gamma_perterb
+    affperterb_flags = rng.uniform(0.0, 1.0, size=num) < affprob_perterb
+    perlinperterb_flags = rng.uniform(0.0, 1.0, size=num) < perlin_perteb
+    gammaperterb_flags = rng.uniform(0.0, 1.0, size=num) < gamma_perterb
 
     affperterb_ranges = dict(
         zoom_range=None,
@@ -384,25 +394,40 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         return noise
 
     if True:
-        perlin_min = 0.0
+        perlin_min = 0.2
         perlin_max = 0.9
         perlin_range = perlin_max - perlin_min
         for index in np.where(perlinperterb_flags)[0]:
             img1 = Xb1[index]
             img2 = Xb2[index]
-            #ut.embed()
             # TODO: TAKE IN NORMALIZED POINTS
             noise1 = perlin_noise01(img1.shape[0:2])
             noise2 = perlin_noise01(img2.shape[0:2])
+
+            #noise1 = np.clip(noise1 / .7, 0, 1)
+            #noise2 = np.clip(noise2 / .7, 0, 1)
+            noise1 = np.clip((noise1 ** .7 - .15) / .75, .1, 1)
+            noise2 = np.clip((noise2 ** .7 - .15) / .75, .1, 1)
+
+            #noise1[noise1 > .6] = 1
+            #noise2[noise2 > .6] = 1
 
             alpha1 = ((rng.rand() * perlin_range) + perlin_min)
             alpha2 = ((rng.rand() * perlin_range) + perlin_min)
             #Xb1[index] = img1 ** (noise1 * alpha1)
             #Xb2[index] = img2 ** (noise2 * alpha2)
-            Xb1[index] = vt.blend_images_multiply(img1, noise1, alpha1)
-            Xb2[index] = vt.blend_images_multiply(img2, noise2, alpha2)
+            #Xb1[index] = vt.blend_images_multiply(img1, noise1, alpha1)
+            #Xb2[index] = vt.blend_images_multiply(img2, noise2, alpha2)
+
+            # Linear Burn
+            Xb1[index] = img1 + noise1 - 1.0
+            Xb2[index] = img2 + noise2 - 1.0
+
             #Xb1[index] = vt.blend_images_average(img1, noise1, alpha1)
             #Xb2[index] = vt.blend_images_average(img2, noise2, alpha2)
+
+            #Xb1[index] = noise1
+            #Xb2[index] = noise2
 
         # Modify exposure
         #perlin_min = 0.6
@@ -446,8 +471,12 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     borderValue = [.5] * Xb1.shape[-1]
 
     for index, kw in zip(index_list, affperterb_kw_list):
-        Xb1[index] = vt.affine_warp_around_center(Xb1[index], borderMode=borderMode, flags=flags, borderValue=borderValue, **kw)
-        Xb2[index] = vt.affine_warp_around_center(Xb2[index], borderMode=borderMode, flags=flags, borderValue=borderValue, **kw)
+        Xb1[index] = vt.affine_warp_around_center(
+            Xb1[index], borderMode=borderMode, flags=flags,
+            borderValue=borderValue, **kw)
+        Xb2[index] = vt.affine_warp_around_center(
+            Xb2[index], borderMode=borderMode, flags=flags,
+            borderValue=borderValue, **kw)
     Xb = Xb.astype(np.float32)
     return Xb, yb
 
