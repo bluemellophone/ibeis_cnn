@@ -260,23 +260,13 @@ def stacked_img_pairs(Xb, modified_indexes, label_list=None, num=None):
     pass
 
 
-def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
+def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, shadows=None):
     """
     from ibeis_cnn.augment import *  # NOQA
     std_ = center_std
     mean_ = center_mean
     """
     import plottool as pt
-
-    #if ut.is_float(Xb):
-    #    if mean_ is None:
-    #        # I know its not actually std
-    #        std_ = 255 * (Xb.max() - Xb.min())
-    #        mean_ = (-Xb.min() * std_)
-    #    # unwhiten
-    #    Xb_ = np.clip(((std_ * Xb) + mean_), 0.0, 255.0).astype(np.uint8)
-    #else:
-    #    Xb_ = Xb
     import vtool as vt
     Xb_orig = vt.rectify_to_float01(Xb_orig)
     Xb_ = vt.rectify_to_float01(Xb)
@@ -299,11 +289,250 @@ def show_augmented_patches(Xb_orig, Xb, yb_orig, yb, mean_=None, std_=None):
 
     orig_stack = stacked_img_pairs(Xb_orig, modified_indexes, yb_orig)
     warp_stack = stacked_img_pairs(Xb_, modified_indexes, yb)
+    if shadows is not None:
+        # hack
+        shadow_stack = stacked_img_pairs(shadows, modified_indexes, yb)
+
     fnum = None
     fnum = pt.ensure_fnum(fnum)
     pt.figure(fnum)
-    pt.imshow(orig_stack, pnum=(2, 1, 1), title='before')
-    pt.imshow(warp_stack, pnum=(2, 1, 2), title='after')
+    #next_pnum = pt.make_pnum_nextgen(nRows=2 + (shadows is not None), nCols=1)
+    next_pnum = pt.make_pnum_nextgen(nCols=2 + (shadows is not None), nRows=1)
+    pt.imshow(orig_stack, pnum=next_pnum(), title='before')
+    pt.imshow(warp_stack, pnum=next_pnum(), title='after')
+
+    if shadows is not None:
+        pt.imshow(shadow_stack, pnum=next_pnum(), title='shadow_stack')
+
+
+def testdata_augment():
+    from ibeis_cnn import ingest_data, utils
+    import vtool as vt
+    dataset = ingest_data.grab_siam_dataset()
+    cv2_data, labels = dataset.load_subset('valid')
+    batch_size = 128
+    Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
+    Xb = vt.rectify_to_float01(Xb)
+    Xb_orig = Xb.copy()
+    yb_orig = yb.copy()
+    return Xb_orig, yb_orig, Xb, yb
+
+
+def augment_affine(Xb, yb=None, rng=np.random):
+    """
+    CommandLine:
+        python -m ibeis_cnn.augment --test-augment_affine --show --db PZ_MTEST
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.augment import *  # NOQA
+        >>> from ibeis_cnn import ingest_data, utils, draw_results
+        >>> Xb_orig, yb_orig, Xb, yb = testdata_augment()
+        >>> rng = np.random.RandomState(0)
+        >>> Xb, yb = augment_affine(Xb, yb, rng=rng)
+        >>> ut.quit_if_noshow()
+        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+        >>> ut.show_if_requested()
+    """
+    assert Xb.max() <= 1.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    assert Xb.min() >= 0.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    import vtool as vt
+    Xb1, Xb2 = Xb[::2], Xb[1::2]
+    affprob_perterb = .7
+
+    num = len(Xb1)
+    # Determine which examples will be augmented
+    affperterb_flags = rng.uniform(0.0, 1.0, size=num) < affprob_perterb
+
+    affperterb_ranges = dict(
+        zoom_range=None,
+        max_tx=None,
+        max_ty=None,
+        max_shear=None,
+        max_theta=None,
+        enable_flip=False,
+        enable_stretch=False,
+    )
+    affperterb_ranges.update(
+        dict(
+            #zoom_range=(1.0, 1.7),
+            zoom_range=(1.0, 1.3),
+            #zoom_range=(.7, 1.7),
+            max_tx=2,
+            max_ty=2,
+            max_shear=TAU / 32,
+            max_theta=TAU,
+            enable_stretch=True,
+            enable_flip=True,
+        )
+    )
+    index_list = np.where(affperterb_flags)[0]
+
+    affperterb_kw_list = [
+        random_affine_kwargs(rng=rng, **affperterb_ranges)
+        for index in index_list
+    ]
+
+    #lighting_perterb_ranges = dict(
+    #    darken=(-.01, .01),
+    #)
+
+    import cv2
+    #borderMode = cv2.BORDER_REFLECT101
+    #borderMode = cv2.BORDER_REFLECT_101
+    #borderMode = cv2.BORDER_WRAP
+    #borderMode = cv2.BORDER_CONSTANT
+    #borderMode = cv2.BORDER_REFLECT
+    borderMode = cv2.BORDER_CONSTANT
+    #borderMode = cv2.BORDER_REPLICATE
+    flags = cv2.INTER_LANCZOS4
+    borderValue = [.5] * Xb1.shape[-1]
+
+    for index, kw in zip(index_list, affperterb_kw_list):
+        Xb1[index] = np.clip(vt.affine_warp_around_center(
+            Xb1[index], borderMode=borderMode, flags=flags,
+            borderValue=borderValue, **kw), 0, 1)
+        Xb2[index] = np.clip(vt.affine_warp_around_center(
+            Xb2[index], borderMode=borderMode, flags=flags,
+            borderValue=borderValue, **kw), 0, 1)
+    with ut.embed_on_exception_context:
+        assert Xb.max() <= 1.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+        assert Xb.min() >= 0.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+        #bad_xs = np.where((Xb > 1).sum(axis=-1).sum(axis=-1).sum(axis=-1) > 0)[0]
+    Xb = Xb.astype(np.float32)
+    return Xb, yb
+
+
+def augment_shadow(Xb, yb=None, rng=np.random, return_shadowmaps=False):
+    """
+    CommandLine:
+        python -m ibeis_cnn.augment --test-augment_shadow --show --db PZ_MTEST
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.augment import *  # NOQA
+        >>> from ibeis_cnn import ingest_data, utils, draw_results
+        >>> Xb_orig, yb_orig, Xb, yb = testdata_augment()
+        >>> rng = np.random.RandomState(0)
+        >>> Xb, yb, shadows = augment_shadow(Xb, yb, rng=rng, return_shadowmaps=True)
+        >>> ut.quit_if_noshow()
+        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb, shadows)
+        >>> ut.show_if_requested()
+    """
+
+    import vtool as vt
+    # Rotate corresponding patches together
+    Xb1, Xb2 = Xb[::2], Xb[1::2]
+    perlin_perteb = .5
+
+    def perlin_noise01(size):
+        #scale = 128.0
+        #scale = 80.0
+        scale = size[0] * 1.5
+        noise = (vt.perlin_noise(size, scale=scale, rng=rng).astype(np.float32)) / 255.0
+        noise = np.transpose(noise[None, :], (1, 2, 0))
+        return noise
+
+    num = len(Xb1)
+
+    perlinperterb_flags = rng.uniform(0.0, 1.0, size=num) < perlin_perteb
+
+    #perlin_min = 0.2
+    #perlin_max = 0.9
+    #perlin_range = perlin_max - perlin_min
+    if return_shadowmaps:
+        shadows = np.empty(Xb.shape, dtype=Xb.dtype)
+        shadows1, shadows2 =  shadows[::2], shadows[1::2]
+
+    for index in np.where(perlinperterb_flags)[0]:
+        img1 = Xb1[index]
+        img2 = Xb2[index]
+        # TODO: TAKE IN NORMALIZED POINTS
+        noise1 = perlin_noise01(img1.shape[0:2])
+        noise2 = perlin_noise01(img2.shape[0:2])
+
+        #noise1 = np.clip(noise1 / .7, 0, 1)
+        #noise2 = np.clip(noise2 / .7, 0, 1)
+        noise1 = np.clip((noise1 ** .7 - .15) / .75, .1, 1)
+        noise2 = np.clip((noise2 ** .7 - .15) / .75, .1, 1)
+
+        if return_shadowmaps:
+            shadows1[index] = noise1
+            shadows2[index] = noise2
+
+        #noise1[noise1 > .6] = 1
+        #noise2[noise2 > .6] = 1
+
+        #alpha1 = ((rng.rand() * perlin_range) + perlin_min)
+        #alpha2 = ((rng.rand() * perlin_range) + perlin_min)
+        #Xb1[index] = img1 ** (noise1 * alpha1)
+        #Xb2[index] = img2 ** (noise2 * alpha2)
+        #alpha1 = alpha2 = .5
+        alpha1 = alpha2 = .5
+        Xb1[index] = vt.blend_images_multiply(img1, noise1, alpha1)
+        Xb2[index] = vt.blend_images_multiply(img2, noise2, alpha2)
+
+        # Linear Burn
+        #Xb1[index] = np.clip(img1 + noise1 - 1.0, 0, 1)
+        #Xb2[index] = np.clip(img2 + noise2 - 1.0, 0, 1)
+
+        #Xb1[index] = vt.blend_images_average(img1, noise1, alpha1)
+        #Xb2[index] = vt.blend_images_average(img2, noise2, alpha2)
+
+        #Xb1[index] = noise1
+        #Xb2[index] = noise2
+    #with ut.embed_on_exception_context:
+    assert Xb.max() <= 1.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    assert Xb.min() >= 0.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    #bad_xs = np.where((Xb > 1).sum(axis=-1).sum(axis=-1).sum(axis=-1) > 0)[0]
+    if return_shadowmaps:
+        return Xb, yb, shadows
+    return Xb, yb
+
+
+def augment_gamma(Xb, yb=None, rng=np.random):
+    """
+    CommandLine:
+        python -m ibeis_cnn.augment --test-augment_gamma --show --db PZ_MTEST
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.augment import *  # NOQA
+        >>> from ibeis_cnn import ingest_data, utils, draw_results
+        >>> Xb_orig, yb_orig, Xb, yb = testdata_augment()
+        >>> rng = np.random.RandomState(0)
+        >>> Xb, yb = augment_gamma(Xb, yb, rng=rng)
+        >>> ut.quit_if_noshow()
+        >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+        >>> ut.show_if_requested()
+    """
+    #import vtool as vt
+    # Rotate corresponding patches together
+    Xb1, Xb2 = Xb[::2], Xb[1::2]
+    gamma_perterb = .5
+    num = len(Xb1)
+
+    # Determine which examples will be augmented
+    gammaperterb_flags = rng.uniform(0.0, 1.0, size=num) < gamma_perterb
+
+    # Modify exposure
+    #perlin_min = 0.6
+    #gamma_min = 1.7
+    gamma_max = 1.7
+    gamma_min = .4
+    gamma_range = gamma_max - gamma_min
+    for index in np.where(gammaperterb_flags)[0]:
+        img1 = Xb1[index]
+        img2 = Xb2[index]
+        gamma1 = ((rng.rand() * gamma_range) + gamma_min)
+        gamma2 = ((rng.rand() * gamma_range) + gamma_min)
+        #print('gamma1 = %r' % (gamma1,))
+        #print('gamma2 = %r' % (gamma2,))
+        Xb1[index] = img1 ** (gamma1)
+        Xb2[index] = img2 ** (gamma2)
+    assert Xb.max() <= 1.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    assert Xb.min() >= 0.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
+    return Xb, yb
 
 
 def augment_siamese_patches2(Xb, yb=None, rng=np.random):
@@ -323,161 +552,16 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.augment import *  # NOQA
         >>> from ibeis_cnn import ingest_data, utils, draw_results
-        >>> #data, labels = ingest_data.testdata_patchmatch()
-        >>> #cv2_data = utils.convert_theano_images_to_cv2_images(data)
-        >>> dataset = ingest_data.grab_siam_dataset()
-        >>> cv2_data, labels = dataset.load_subset('valid')
-        >>> batch_size = 128
-        >>> Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
-        >>> Xb_orig = Xb.copy()
-        >>> yb_orig = yb.copy()
-        >>> #mean_ = Xb.mean(axis=0)
-        >>> #std_ = 255.0
-        >>> #Xb = ((Xb - mean_) / std_).astype(np.float32)
-        >>> import vtool as vt
-        >>> Xb = vt.rectify_to_float01(Xb)
+        >>> Xb_orig, yb_orig, Xb, yb = testdata_augment()
         >>> rng = np.random.RandomState(0)
         >>> Xb, yb = augment_siamese_patches2(Xb, yb, rng=rng)
         >>> ut.quit_if_noshow()
         >>> show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
         >>> ut.show_if_requested()
     """
-    assert Xb.max() <= 1.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
-    assert Xb.min() >= 0.0, 'max/min = %r, %r' % (Xb.min(), Xb.max())
-
-    import vtool as vt
-    # Rotate corresponding patches together
-    Xb1, Xb2 = Xb[::2], Xb[1::2]
-    affprob_perterb = .7
-    perlin_perteb = .5
-    gamma_perterb = .5
-    #perlin_perteb = 1.5
-    gamma_perterb = .0
-    affprob_perterb = .0
-    #perlin_perteb = 1.5
-
-    num = len(Xb1)
-
-    # Determine which examples will be augmented
-    affperterb_flags = rng.uniform(0.0, 1.0, size=num) < affprob_perterb
-    perlinperterb_flags = rng.uniform(0.0, 1.0, size=num) < perlin_perteb
-    gammaperterb_flags = rng.uniform(0.0, 1.0, size=num) < gamma_perterb
-
-    affperterb_ranges = dict(
-        zoom_range=None,
-        max_tx=None,
-        max_ty=None,
-        max_shear=None,
-        max_theta=None,
-        enable_flip=False,
-        enable_stretch=False,
-    )
-    affperterb_ranges.update(
-        dict(
-            zoom_range=(1.0, 1.7),
-            #zoom_range=(.7, 1.7),
-            #max_tx=5,
-            #max_ty=5,
-            #max_shear=TAU / 32,
-            #max_theta=TAU,
-            enable_stretch=True,
-            enable_flip=True,
-        )
-    )
-
-    def perlin_noise01(size):
-        #scale = 128.0
-        #scale = 80.0
-        scale = size[0] * 1.5
-        noise = (vt.perlin_noise(size, scale=scale).astype(np.float32)) / 255.0
-        noise = np.transpose(noise[None, :], (1, 2, 0))
-        return noise
-
-    if True:
-        perlin_min = 0.2
-        perlin_max = 0.9
-        perlin_range = perlin_max - perlin_min
-        for index in np.where(perlinperterb_flags)[0]:
-            img1 = Xb1[index]
-            img2 = Xb2[index]
-            # TODO: TAKE IN NORMALIZED POINTS
-            noise1 = perlin_noise01(img1.shape[0:2])
-            noise2 = perlin_noise01(img2.shape[0:2])
-
-            #noise1 = np.clip(noise1 / .7, 0, 1)
-            #noise2 = np.clip(noise2 / .7, 0, 1)
-            noise1 = np.clip((noise1 ** .7 - .15) / .75, .1, 1)
-            noise2 = np.clip((noise2 ** .7 - .15) / .75, .1, 1)
-
-            #noise1[noise1 > .6] = 1
-            #noise2[noise2 > .6] = 1
-
-            alpha1 = ((rng.rand() * perlin_range) + perlin_min)
-            alpha2 = ((rng.rand() * perlin_range) + perlin_min)
-            #Xb1[index] = img1 ** (noise1 * alpha1)
-            #Xb2[index] = img2 ** (noise2 * alpha2)
-            #Xb1[index] = vt.blend_images_multiply(img1, noise1, alpha1)
-            #Xb2[index] = vt.blend_images_multiply(img2, noise2, alpha2)
-
-            # Linear Burn
-            Xb1[index] = img1 + noise1 - 1.0
-            Xb2[index] = img2 + noise2 - 1.0
-
-            #Xb1[index] = vt.blend_images_average(img1, noise1, alpha1)
-            #Xb2[index] = vt.blend_images_average(img2, noise2, alpha2)
-
-            #Xb1[index] = noise1
-            #Xb2[index] = noise2
-
-        # Modify exposure
-        #perlin_min = 0.6
-        gamma_min = 1.7
-        gamma_max = .5
-        gamma_range = gamma_max - gamma_min
-        for index in np.where(gammaperterb_flags)[0]:
-            img1 = Xb1[index]
-            img2 = Xb2[index]
-            gamma1 = ((rng.rand() * gamma_range) + gamma_min)
-            gamma2 = ((rng.rand() * gamma_range) + gamma_min)
-            #print(gamma1)
-            #print(gamma2)
-            Xb1[index] = img1 ** (gamma1)
-            Xb2[index] = img2 ** (gamma2)
-            #Xb1[index] = vt.blend_images_multiply(img1, noise1, alpha1)
-            #Xb2[index] = vt.blend_images_multiply(img2, noise2, alpha2)
-            #Xb1[index] = vt.blend_images_average(img1, noise1, alpha1)
-            #Xb2[index] = vt.blend_images_average(img2, noise2, alpha2)
-
-    index_list = np.where(affperterb_flags)[0]
-
-    affperterb_kw_list = [
-        random_affine_kwargs(rng=rng, **affperterb_ranges)
-        for index in index_list
-    ]
-
-    #lighting_perterb_ranges = dict(
-    #    darken=(-.01, .01),
-    #)
-
-    import cv2
-    #borderMode = cv2.BORDER_REFLECT101
-    #borderMode = cv2.BORDER_REFLECT_101
-    #borderMode = cv2.BORDER_WRAP
-    #borderMode = cv2.BORDER_CONSTANT
-    borderMode = cv2.BORDER_REFLECT
-    borderMode = cv2.BORDER_CONSTANT
-    #borderMode = cv2.BORDER_REPLICATE
-    flags = cv2.INTER_LANCZOS4
-    borderValue = [.5] * Xb1.shape[-1]
-
-    for index, kw in zip(index_list, affperterb_kw_list):
-        Xb1[index] = vt.affine_warp_around_center(
-            Xb1[index], borderMode=borderMode, flags=flags,
-            borderValue=borderValue, **kw)
-        Xb2[index] = vt.affine_warp_around_center(
-            Xb2[index], borderMode=borderMode, flags=flags,
-            borderValue=borderValue, **kw)
-    Xb = Xb.astype(np.float32)
+    augment_affine(Xb, yb, rng)
+    augment_shadow(Xb, yb, rng)
+    augment_gamma(Xb, yb, rng)
     return Xb, yb
 
 

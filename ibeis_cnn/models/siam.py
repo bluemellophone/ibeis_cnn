@@ -286,8 +286,7 @@ class SiameseL2(AbstractSiameseModel):
         Implements the contrastive loss term from (Hasdel, Chopra, LeCun 06)
 
         CommandLine:
-            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function
-            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function:1 --show
+            python -m ibeis_cnn.models.siam --test-SiameseL2.loss_function --show
 
         Example1:
             >>> # ENABLE_DOCTEST
@@ -296,11 +295,15 @@ class SiameseL2(AbstractSiameseModel):
             >>> verbose = False
             >>> T = np
             >>> func = SiameseL2.loss_function
-            >>> loss0, Y0_ = ut.exec_func_src(func, globals(), locals(), ['loss', 'Y_'])
+            >>> loss, dist_l2 = ut.exec_func_src(func, globals(), locals(), ['loss', 'dist_l2'])
             >>> ut.quit_if_noshow()
+            >>> dist0_l2 = dist_l2[labels]
+            >>> dist1_l2 = dist_l2[~labels]
+            >>> loss0 = loss[labels]
+            >>> loss1 = loss[~labels]
             >>> import plottool as pt
-            >>> pt.plot2(network_output, loss0, '-', color=pt.TRUE_BLUE, label='imposter_loss', y_label='network output')
-            >>> pt.plot2(network_output, loss1, '-', color=pt.FALSE_RED, label='genuine_loss', y_label='network output')
+            >>> pt.plot2(dist0_l2, loss0, 'x', color=pt.TRUE_BLUE, label='imposter_loss', y_label='loss')
+            >>> pt.plot2(dist1_l2, loss1, 'x', color=pt.FALSE_RED, label='genuine_loss', y_label='loss')
             >>> pt.legend()
             >>> ut.show_if_requested()
         """
@@ -311,8 +314,9 @@ class SiameseL2(AbstractSiameseModel):
         margin = 1.0
         dist_l2 = T.sqrt(((vecs1 - vecs2) ** 2).sum(axis=1))
         loss = constrastive_loss(dist_l2, labels, margin, T=T)
-        if T is not np:
-            loss.name = 'loss'
+        # Ignore the hardest cases
+        num_ignore = 3
+        loss = ignore_hardest_cases(loss, labels, num_ignore=num_ignore, T=T)
         return loss
 
     def learn_encoder(model, labels, scores, **kwargs):
@@ -322,6 +326,138 @@ class SiameseL2(AbstractSiameseModel):
         print('[model] learned encoder accuracy = %r' % (encoder.get_accuracy(scores, labels)))
         model.encoder = encoder
         return encoder
+
+
+def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
+    r"""
+    Args:
+        loss (theano.Tensor):
+        labels (theano.Tensor):
+        num_ignore (int): (default = 3)
+        T (module): (default = theano.tensor)
+
+    Returns:
+        theano.Tensor: loss
+
+    CommandLine:
+        python -m ibeis_cnn.models.siam --test-ignore_hardest_cases:0
+        python -m ibeis_cnn.models.siam --test-ignore_hardest_cases:1
+        python -m ibeis_cnn.models.siam --test-ignore_hardest_cases:2
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.models.siam import *  # NOQA
+        >>> loss_arr   = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+        >>> labels_arr = np.array([1, 0, 0, 1, 1, 1, 1, 1, 0], dtype=np.int32)
+        >>> loss   = loss_arr
+        >>> labels = labels_arr
+        >>> num_ignore = 2
+        >>> T = np
+        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> result = ('loss = %s' % (ut.numpy_str(loss),))
+        >>> print(result)
+        loss = np.array([1, 2, 0, 4, 5, 6, 0, 0, 0], dtype=np.int32)
+
+     Example1:
+        >>> # DISABLE_DOCTEST
+        >>> # Test theano version
+        >>> from ibeis_cnn.models.siam import *  # NOQA
+        >>> import theano.tensor
+        >>> loss_arr   = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+        >>> labels_arr = np.array([1, 0, 0, 1, 1, 1, 1, 1, 0], dtype=np.int32)
+        >>> T = theano.tensor
+        >>> loss = T.ivector(name='loss')
+        >>> labels = T.ivector(name='labels')
+        >>> num_ignore = 2
+        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> output_T = output_expr.eval({input_expr: inputdata_})
+
+    Example2:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.models.siam import *  # NOQA
+        >>> import ibeis_cnn.theano_ext as theano_ext
+        >>> import theano.tensor
+        >>> loss_arr   = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
+        >>> labels_arr = np.array([1, 0, 0, 1, 1, 1, 1, 1, 0], dtype=np.int32)
+        >>> loss = T.ivector(name='loss')
+        >>> labels = T.ivector(name='labels')
+        >>> num_ignore = 2
+        >>> # build numpy targets
+        >>> numpy_locals = {'np': np, 'T': np, 'loss': loss_arr, 'labels': labels_arr, 'num_ignore': num_ignore}
+        >>> func = ignore_hardest_cases
+        >>> numpy_vars = ut.exec_func_src(func, {}, numpy_locals, None)
+        >>> numpy_targets = ut.delete_dict_keys(numpy_vars, ['__doc__', 'T', 'np', 'num_ignore'])
+        >>> # build theano functions
+        >>> theano_locals = {'np': np, 'T': theano.tensor, 'loss': loss, 'labels': labels, 'num_ignore': num_ignore}
+        >>> func = ignore_hardest_cases
+        >>> theano_vars = ut.exec_func_src(func, {}, theano_locals, None)
+        >>> theano_symbols = ut.delete_dict_keys(theano_vars, ['__doc__', 'T', 'np', 'num_ignore'])
+        >>> inputs_to_value = {loss: loss_arr, labels: labels_arr}
+        >>> # Evalute and test consistency
+        >>> key_order = sorted(list(theano_symbols.keys()))
+        >>> theano_values = {}
+        >>> noerror = True
+        >>> for key in key_order:
+        ...     symbol = theano_symbols[key]
+        ...     print('key=%r' % (key,))
+        ...     theano_value = theano_ext.eval_symbol(symbol, inputs_to_value)
+        ...     theano_values[key] = theano_value
+        ...     prefix = '  * '
+        ...     if not np.all(theano_values[key] == numpy_targets[key]):
+        ...         prefix = ' !!! '
+        ...         noerror = False
+        ...     print(prefix + 'numpy_value  = %r' % (numpy_targets[key],))
+        ...     print(prefix + 'theano_value = %r' % (theano_value,))
+        >>> print(ut.dict_str(numpy_targets))
+        >>> assert noerror, 'There was an error'
+
+    """
+    if T is np:
+        T.eq = np.equal
+        T.le = np.less_equal
+
+    hardest_sortx_ = loss.argsort()
+    hardest_sortx  = hardest_sortx_[::-1]
+
+    invert_sortx = hardest_sortx.argsort()
+
+    hardest_labels = labels[hardest_sortx]
+
+    hardest_istrue = T.eq(hardest_labels, 1)
+    hardest_isfalse = T.eq(hardest_labels, 0)
+
+    cumsum_istrue = T.cumsum(hardest_istrue)
+    cumsum_isfalse = T.cumsum(hardest_isfalse)
+
+    inrange_true  = T.le(cumsum_istrue, num_ignore)
+    inrange_false = T.le(cumsum_isfalse, num_ignore)
+
+    hardest_false_mask = inrange_false * hardest_isfalse
+    hardest_true_mask = inrange_true * hardest_istrue
+    true_mask = hardest_true_mask[invert_sortx]
+    false_mask = hardest_false_mask[invert_sortx]
+
+    keep_mask = 1 - (true_mask + false_mask)
+
+    ignored_loss = keep_mask * loss
+
+    #CHECK = False
+    #if CHECK:
+    #    hardest_trues  = T.nonzero(hardest_labels)[0][0:num_ignore]
+    #    hardest_falses = T.nonzero(1 - hardest_labels)[0][0:num_ignore]
+    #    hardest_true_sortx  = hardest_sortx[hardest_trues]
+    #    hardest_false_sortx = hardest_sortx[hardest_falses]
+    #    hardest_true_sortx.sort()
+    #    hardest_false_sortx.sort()
+    #    assert np.all(np.where(false_mask)[0] == hardest_false_sortx)
+    #    assert np.all(np.where(true_mask)[0] == hardest_true_sortx)
+    #    ignored_loss_ = loss.copy()
+    #    ignored_loss_[hardest_true_sortx] = 0
+    #    ignored_loss_[hardest_false_sortx] = 0
+
+    if T is not np:
+        ignored_loss.name = 'ignored_' + loss.name
+    return ignored_loss
 
 
 def constrastive_loss(dist_l2, labels, margin, T=T):
@@ -368,6 +504,8 @@ def constrastive_loss(dist_l2, labels, margin, T=T):
     loss_genuine = (labels * dist_l2) ** 2
     loss_imposter = (1 - labels) * T.maximum(margin - dist_l2, 0) ** 2
     loss = (loss_genuine + loss_imposter) / 2.0
+    if T is not np:
+        loss.name = 'contrastive_loss'
     return loss
 
 

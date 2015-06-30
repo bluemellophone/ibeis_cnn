@@ -23,11 +23,10 @@ class DataSet(object):
     """
     helper class for managing dataset paths and general metadata
 
-    TODO: rename to dataset notation
-    TODO: move to own module
     TODO: metadata
     """
-    def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath, data_per_label, data_shape, output_dims):
+    def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
+                 data_per_label, data_shape, output_dims, num_labels):
         # Constructor args is primary data
         key_list = ut.get_func_argspec(dataset.__init__).args[1:]
         locals_ = locals()

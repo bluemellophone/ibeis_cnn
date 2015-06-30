@@ -205,10 +205,12 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                 from ibeis_cnn import augment
                 import plottool as pt
                 '''
+                from ibeis_cnn import augment
+                import plottool as pt
                 import IPython; IPython.get_ipython().magic('pylab qt4')
                 augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
                 '''
-                augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb, center_mean, center_std)
+                augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
                 pt.show_if_requested()
                 ut.embed()
         # DO WHITENING AFTER DATA AUGMENTATION

@@ -68,16 +68,42 @@ checkpoint_tag_alias = {
 # second level of alias indirection
 # This is more of a dataset tag
 ds_tag_alias2 = {
-    'nnp'         : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=3,)',
-    'nnp3-2'      : 'NNP_Master3;dict(controlled=True, max_examples=None, num_top=None,)',
-    'nnp3-2-bgr'  : 'NNP_Master3;dict(colorspace=\'bgr\', controlled=True, max_examples=None, num_top=None,)',
-    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
+    'nnp3-2-bgr'   : "NNP_Master3;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
     'pzmaster-bgr' : "PZ_Master0;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
-    'pzmtest'     : 'PZ_MTEST;dict(controlled=True, max_examples=None, num_top=3,)',
-    'pzmtest-bgr' : r"PZ_MTEST;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
-    'liberty'     : 'liberty;dict(detector=\'dog\', pairs=250000,)',
-    'gz-gray'     : "GZ_ALL;dict(colorspace='gray', controlled=False, max_examples=None, num_top=None,)"
+    'pzmtest-bgr'  : "PZ_MTEST;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
+
+    'nnp'         : "NNP_Master3;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+    'pzmtest'     : "PZ_MTEST;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+    'gz-gray'     : "GZ_ALL;dict(colorspace='gray', controlled=False, max_examples=None, num_top=None,)",
+    'girm'        : "NNP_MasterGIRM_core;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+
+    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
+    'liberty'     : "liberty;dict(detector='dog', pairs=250000,)",
+
+    'combo': 'combo_vdsujffw',
 }
+
+
+def merge_ds_tags(ds_alias_list):
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-merge_ds_tags --alias-list gz-gray girm pzmtest nnp
+
+    TODO:
+        http://stackoverflow.com/questions/18492273/combining-hdf5-files
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> ds_alias_list = ut.get_argval('--alias-list', type_=list, default=[])
+        >>> result = merge_ds_tags(ds_alias_list)
+        >>> print(result)
+    """
+    ds_tag_list = [ds_tag_alias2.get(ds_tag, ds_tag) for ds_tag in ds_alias_list]
+    dataset_list = [ingest_data.grab_siam_dataset(ds_tag) for ds_tag in ds_tag_list]
+    merged_dataset = ingest_data.merge_datasets(dataset_list)
+    print(merged_dataset.alias_key)
+    return merged_dataset
 
 
 def train_patchmatch_pz():
@@ -90,14 +116,12 @@ def train_patchmatch_pz():
         # --- DATASET BUILDING ---
 
         # Build Dataset Aliases
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --colorspace='bgr' --num-top=None --controlled=True --aliasexit
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='gray' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --colorspace='gray' --aliasexit
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --colorspace='gray' --num-top=None --controlled=True --aliasexit
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='gray' --num-top=None --controlled=True --aliasexit
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='gray' --num-top=None --controlled=True --aliasexit
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db GZ_ALL --colorspace='gray' --num-top=None --controlled=False --aliasexit
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --colorspace='gray' --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db GZ_ALL --colorspace='gray' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_MasterGIRM_core --colorspace='gray' --num-top=None --controlled=True --aliasexit
 
         # --- TRAINING ---
 
@@ -108,6 +132,7 @@ def train_patchmatch_pz():
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo   --weights=new --arch=siaml2_128 --train --monitor
 
         # --- MONITOR TRAINING ---
 

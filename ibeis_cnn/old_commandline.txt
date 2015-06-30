@@ -1,0 +1,13 @@
+    
+
+"""
+    CommandLine:
+
+        # --- DATASET BUILDING ---
+
+        # Build Dataset Aliases
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_MTEST --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db NNP_Master3 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --colorspace='bgr' --num-top=None --controlled=True --aliasexit
+
+"""

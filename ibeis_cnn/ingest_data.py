@@ -55,6 +55,97 @@ def view_training_directories():
     ut.vd(ingest_ibeis.get_juction_dpath())
 
 
+def merge_datasets(dataset_list):
+    """
+    Merges a list of dataset objects into a single combined dataset.
+    """
+
+    def consensus_check_factory():
+        """
+        Returns a temporary function used to check that all incoming values
+        with the same key are consistent
+        """
+        from collections import defaultdict
+        past_values = defaultdict(lambda: None)
+        def consensus_check(value, key):
+            assert past_values[key] is None or past_values[key] == value, (
+                'key=%r with value=%r does not agree with past_value=%r' %
+                (key, value, past_values[key]))
+            past_values[key] = value
+            return value
+        return consensus_check
+
+    total_num_labels = 0
+    total_num_data = 0
+
+    input_alias_list = [dataset.alias_key for dataset in dataset_list]
+
+    alias_key = 'combo_' + ut.hashstr27(repr(input_alias_list), hashlen=8)
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', alias_key)
+    data_fpath = ut.unixjoin(training_dpath, alias_key + '_data.hdf5')
+    labels_fpath = ut.unixjoin(training_dpath, alias_key + '_labels.hdf5')
+
+    try:
+        # Try and short circut cached loading
+        merged_dataset = DataSet.from_alias_key(alias_key)
+        return merged_dataset
+    except Exception as ex:
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
+
+    # Build the dataset
+    consensus_check = consensus_check_factory()
+
+    for dataset in dataset_list:
+        print(ut.get_file_nBytes_str(dataset.data_fpath))
+        print(dataset.data_fpath_dict['all'])
+        print(dataset.num_labels)
+        print(dataset.data_per_label)
+        total_num_labels += dataset.num_labels
+        total_num_data += (dataset.data_per_label * dataset.num_labels)
+        # check that all data_dims agree
+        data_shape = consensus_check(dataset.data_shape, 'data_shape')
+        data_per_label = consensus_check(dataset.data_per_label, 'data_per_label')
+
+    # hack record this
+    import numpy as np
+    data_dtype = np.uint8
+    label_dtype = np.int32
+    data = np.empty((total_num_data,) + data_shape, dtype=data_dtype)
+    labels = np.empty(total_num_labels, dtype=label_dtype)
+
+    #def iterable_assignment():
+    #    pass
+    data_left = 0
+    data_right = None
+    labels_left = 0
+    labels_right = None
+    for dataset in ut.ProgressIter(dataset_list, lbl='combining datasets', freq=1):
+        X_all, y_all = dataset.load_subset('all')
+        labels_right = labels_left + y_all.shape[0]
+        data_right = data_left + X_all.shape[0]
+        data[data_left:data_right] = X_all
+        labels[labels_left:labels_right] = y_all
+        data_left = data_right
+        labels_left = labels_right
+
+    utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
+
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
+    merged_dataset = DataSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        training_dpath=training_dpath,
+        data_shape=data_shape,
+        data_per_label=data_per_label,
+        output_dims=1,
+        num_labels=num_labels,
+    )
+    return merged_dataset
+
+
 def grab_siam_dataset(ds_tag=None):
     """
     Will build the dataset using the command line if it doesnt exist
@@ -129,6 +220,10 @@ def grab_mnist_category_dataset():
 
     alias_key = 'mnist'
 
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
     dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
@@ -137,6 +232,7 @@ def grab_mnist_category_dataset():
         data_per_label=1,
         data_shape=(28, 28, 1),
         output_dims=10,
+        num_labels=num_labels,
     )
     return dataset
 
@@ -196,6 +292,10 @@ def grab_mnist_siam_dataset():
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
         #metadata = {}
 
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
     dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
@@ -204,6 +304,7 @@ def grab_mnist_siam_dataset():
         data_per_label=2,
         data_shape=(28, 28, 1),
         output_dims=1,
+        num_labels=num_labels,
     )
     return dataset
 
@@ -287,6 +388,10 @@ def grab_liberty_siam_dataset(pairs=250000):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
         utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
 
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
     dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
@@ -295,6 +400,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         data_shape=(64, 64, 1),
         data_per_label=2,
         output_dims=1,
+        num_labels=num_labels,
     )
     return dataset
 
@@ -322,14 +428,15 @@ def get_ibeis_siam_dataset(**kwargs):
         {
             #'db': 'PZ_MTEST',
             'max_examples': None,
-            'num_top': 3,
+            #'num_top': 3,
+            'num_top': None,
             'controlled': True,
             'colorspace': 'gray',
         }, verbose=True)
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
         dbname = ut.get_argval('--db', default='PZ_MTEST')
-        ibs = ibeis.opendb(dbname=dbname)
+        ibs = ibeis.opendb(dbname=dbname, defaultdb='PZ_MTEST')
 
     # Nets dir is the root dir for all training on this data
     training_dpath = ibs.get_neuralnet_dir()
@@ -358,6 +465,10 @@ def get_ibeis_siam_dataset(**kwargs):
             ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, colorspace=colorspace)
         print('\n[get_ibeis_siam_dataset] FINISH\n\n')
 
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
     dataset = DataSet.new_training_set(
         alias_key=alias_key,
         data_fpath=data_fpath,
@@ -366,6 +477,7 @@ def get_ibeis_siam_dataset(**kwargs):
         data_shape=data_shape,
         data_per_label=2,
         output_dims=1,
+        num_labels=num_labels,
     )
     return dataset
 
