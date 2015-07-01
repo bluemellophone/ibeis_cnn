@@ -132,7 +132,9 @@ def train_patchmatch_pz():
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo   --weights=new --arch=siaml2_128 --train --monitor
+
+        # Train COMBO
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo  --weights=new --arch=siaml2_128 --train --monitor
 
         # --- MONITOR TRAINING ---
 

@@ -53,7 +53,7 @@ def convert_label(label):
 
 @register_ibs_method
 def get_neuralnet_dir(ibs):
-    nets_dir = ut.unixjoin(ibs.get_cachedir(), 'nets')
+    nets_dir = ut.unixjoin(ibs.get_cachedir(), ibs.const.PATH_NAMES.nets)
     return nets_dir
 
 

@@ -69,6 +69,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
     model.ensure_training_state(X_train, y_train)
+    model.assert_valid_data(X_train, y_train)
 
     print('\n[train] --- MODEL INFO ---')
     model.print_architecture_str()
@@ -149,7 +150,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # Run training set
             train_outputs = batch.process_batch(
                 model, X_train, y_train, theano_backprop, augment_on=True,
-                randomize_batch_order=True, **batchiter_kw)
+                randomize_batch_order=True, buffered=True, **batchiter_kw)
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
             epoch_info['train_loss_regularized'] = train_outputs['loss_regularized'].mean()

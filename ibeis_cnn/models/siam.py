@@ -60,15 +60,14 @@ class SiameseL2(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
-        if data_shape is not None:
-            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
-        if input_shape is None:
-            (batch_size, 3, 64, 64)
-        super(SiameseL2, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
+        #if data_shape is not None:
+        #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
+        #if input_shape is None:
+        #    (batch_size, 3, 64, 64)
+        super(SiameseL2, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
         #model.network_layers = None
-        model.input_shape = input_shape
-        model.batch_size = batch_size
+        #model.batch_size = batch_size
         model.output_dims = 1
         model.name = arch_tag
         # bad name, says that this network will take
@@ -76,7 +75,7 @@ class SiameseL2(AbstractSiameseModel):
         # two images a piece
         model.data_per_label_input = 2
         model.data_per_label_output = 2
-        model.arch_tag = arch_tag
+        #model.arch_tag = arch_tag
         if autoinit:
             model.initialize_architecture()
 
@@ -462,11 +461,16 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
 
 def constrastive_loss(dist_l2, labels, margin, T=T):
     r"""
+
+    LaTeX:
+        $(y E)^2 + ((1 - y) max(m - E)^2)$
+
     Args:
-        vecs1 (ndarray[uint8_t, ndim=2]):  descriptor vectors
-        vecs2 (ndarray[uint8_t, ndim=2]):  descriptor vectors
+        dist_l2 (ndarray): energy of a training example (l2 distance of descriptor pairs)
         labels (ndarray): 1 if genuine pair, 0 if imposter pair
         margin (float): positive number
+        T (module): (default = theano.tensor)
+
 
     Returns:
         ndarray: loss
@@ -485,7 +489,8 @@ def constrastive_loss(dist_l2, labels, margin, T=T):
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> dist_l2 = np.linspace(0, 2.5, 200)
         >>> labels = np.tile([True, False], 100)
-        >>> margin, T = 1.25, np
+        >>> # margin, T = 1.25, np
+        >>> margin, T = 1.0, np
         >>> loss = constrastive_loss(dist_l2, labels, margin, T)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt

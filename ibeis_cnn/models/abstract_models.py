@@ -117,8 +117,21 @@ class BaseModel(object):
     Abstract model providing functionality for all other models to derive from
     """
     def __init__(model, output_dims=None, input_shape=None, batch_size=None,
-                 training_dpath='.', momentum=.9, weight_decay=.0005,
-                 learning_rate=.001, arch_tag=None):
+                 strict_batch_size=True, data_shape=None, training_dpath='.',
+                 momentum=.9, weight_decay=.0005, learning_rate=.001,
+                 arch_tag=None):
+
+        if input_shape is None and data_shape is not None:
+            if strict_batch_size is True:
+                strict_batch_size = batch_size
+            elif strict_batch_size is False:
+                strict_batch_size = None
+            else:
+                raise AssertionError('strict_batch_size must be a bool')
+            input_shape = (strict_batch_size, data_shape[2], data_shape[0], data_shape[1])
+        if data_shape is None:
+            data_shape = (input_shape[2], input_shape[3], input_shape[1])
+        model.data_shape = data_shape
         #model.network_layers = None  # We really don't need to save all of these
         model.arch_tag = arch_tag
         model.output_layer = None
@@ -172,7 +185,7 @@ class BaseModel(object):
     def initialize_architecture(model):
         raise NotImplementedError('reimplement')
 
-    def ensure_training_state(model, X_train, y_train):
+    def assert_valid_data(model, X_train):
         # Check to make sure data agrees with input
         # FIXME: This check should not be in this fuhnction
         input_layer = model.get_all_layers()[0]
@@ -184,11 +197,21 @@ class BaseModel(object):
             ('given_item_shape = %r' % (given_item_shape,))
         )
 
+    def ensure_training_state(model, X_train, y_train):
         if model.preproc_kw is None:
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
             model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
-            model.preproc_kw['center_std'] = 255.0
+            if ut.is_int(X_train):
+                ut.assert_inbounds(X_train, 0, 255, eq=True, verbose=ut.VERBOSE)
+                #assert X_train.max() < 255
+                #assert X_train.min() > 0
+                model.preproc_kw['center_std'] = 255.0
+            else:
+                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True, verbose=ut.VERBOSE)
+                #assert X_train.max() <= 1.0
+                #assert X_train.min() >= 0.0
+                model.preproc_kw['center_std'] = 1.0
         if hasattr(model, 'initialize_encoder'):
             model.initialize_encoder(y_train)
 
@@ -848,15 +871,25 @@ class BaseModel(object):
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
             warnings.filterwarnings('ignore', '.*layer.get_output.*')
+
+            network_output = lasagne.layers.get_output(model.output_layer, X_batch)
+            network_output.name = 'network_output'
+            network_output_determ = lasagne.layers.get_output(model.output_layer, X_batch, deterministic=True)
+            network_output_determ.name = 'network_output_determ'
+
             print('Building symbolic loss function')
-            objective = lasagne.objectives.Objective(
-                model.output_layer, loss_function=model.loss_function, aggregation='mean')
-            loss = objective.get_loss(X_batch, target=y_batch)
+            losses = model.loss_function(network_output, y_batch)
+            loss = lasagne.objectives.aggregate(losses, mode='mean')
+            #objective = lasagne.objectives.Objective(
+            #    model.output_layer, loss_function=model.loss_function, aggregation='mean')
+            #loss = objective.get_loss(X_batch, target=y_batch)
             loss.name = 'loss'
 
             print('Building symbolic loss function (determenistic)')
             #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-            loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
+            #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
+            losses_determ = model.loss_function(network_output_determ, y_batch)
+            loss_determ = lasagne.objectives.aggregate(losses_determ, mode='mean')
             loss_determ.name = 'loss_determ'
 
             # Regularize
@@ -868,7 +901,7 @@ class BaseModel(object):
             #L2 = lasagne.regularization.l2(model.output_layer)
             loss_regularized = loss + regularization_term
             loss_regularized.name = 'loss_regularized'
-            return loss, loss_determ, loss_regularized
+            return loss, loss_determ, loss_regularized, network_output, network_output_determ
 
     def build_unlabeled_output_expressions(model, network_output):
         # override in more specific subclasses
@@ -877,6 +910,24 @@ class BaseModel(object):
     def build_labeled_output_expressions(model, network_output, y_batch):
         # override in more specific subclasses
         return []
+
+    # Testing
+
+    def make_random_testdata(model, num=1000, seed=0, cv2_format=False):
+        print('made random testdata')
+        rng = np.random.RandomState(seed)
+        #X_unshared = np.random.rand(num, * model.input_shape[1:]).astype(np.float32)
+        num_labels = num
+        num_data   = num * model.data_per_label_input
+        X_unshared = rng.rand(num_data, *model.data_shape).astype(np.float32)
+        y_unshared = (rng.rand(num_labels) * (model.output_dims + 1)).astype(np.int32)
+        if ut.VERBOSE:
+            print('made random testdata')
+            print('size(X_unshared) = %r' % (ut.get_object_size_str(X_unshared),))
+            print('size(y_unshared) = %r' % (ut.get_object_size_str(y_unshared),))
+        if cv2_format:
+            pass
+        return X_unshared, y_unshared
 
 
 class AbstractCategoricalModel(BaseModel):

@@ -7,7 +7,6 @@ from lasagne import init
 import functools
 import six
 import theano.tensor as T
-import numpy as np
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn import custom_layers
 import utool as ut
@@ -23,27 +22,17 @@ class DummyModel(abstract_models.AbstractCategoricalModel):
     def __init__(model, autoinit=False, batch_size=8, input_shape=None, data_shape=(4, 4, 1), **kwargs):
         #if data_shape is not None:
         #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
-        if input_shape is None:
-            input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
-        super(DummyModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
+        #if input_shape is None:
+        #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
+        super(DummyModel, model).__init__(input_shape=input_shape, data_shape=data_shape, batch_size=batch_size, **kwargs)
         #model.network_layers = None
-        model.input_shape = input_shape
+        #model.input_shape = input_shape
         model.output_dims = 5
         #model.batch_size = 8
         #model.learning_rate = .001
         #model.momentum = .9
         if autoinit:
             model.initialize_architecture()
-
-    def make_random_testdata(model, num=1000, seed=0):
-        np.random.seed(seed)
-        X_unshared = np.random.rand(num, * model.input_shape[1:]).astype(np.float32)
-        y_unshared = (np.random.rand(num) * model.output_dims).astype(np.int32)
-        if ut.VERBOSE:
-            print('made random testdata')
-            print('size(X_unshared) = %r' % (ut.get_object_size_str(X_unshared),))
-            print('size(y_unshared) = %r' % (ut.get_object_size_str(y_unshared),))
-        return X_unshared, y_unshared
 
     def make_prediction_expr(model, newtork_output):
         prediction = T.argmax(newtork_output, axis=1)

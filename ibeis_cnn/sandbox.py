@@ -97,3 +97,108 @@ def convert_old_weights():
     #    #self.save_state()
     pass
 
+
+def theano_gradient_funtimes():
+    import theano
+    import numpy as np
+    import theano.tensor as T
+    import lasagne
+    import ibeis_cnn.theano_ext as theano_ext
+
+    TEST = True
+
+    x_data = np.linspace(-10, 10, 100).astype(np.float32)[:, None, None, None]
+    y_data = (x_data ** 2).flatten()[:, None]
+
+    X = T.tensor4('x')
+    y = T.matrix('y')
+
+    #x_data_batch =
+    #y_data_batch =
+    inputs_to_value = {X: x_data[0:16], y: y_data[0:16]}
+
+    l_in = lasagne.layers.InputLayer((16, 1, 1, 1))
+    l_out = lasagne.layers.DenseLayer(l_in, num_units=1, nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.Orthogonal())
+
+    network_output = lasagne.layers.get_output(l_out, X)
+
+    # TEST NETWORK OUTPUT
+
+    if TEST:
+        result = theano_ext.eval_symbol(network_output, inputs_to_value)
+        print('network_output = %r' % (result,))
+
+    loss_function = lasagne.objectives.squared_error
+    #def loss_function(network_output, labels):
+    #    return (network_output - labels) ** 2
+
+    losses = loss_function(network_output, y)
+    if TEST:
+        result = theano_ext.eval_symbol(losses, inputs_to_value)
+        print('losses = %r' % (result,))
+
+    loss = lasagne.objectives.aggregate(losses, mode='mean')
+
+    if TEST:
+        result = theano_ext.eval_symbol(loss, inputs_to_value)
+        print('loss = %r' % (result,))
+
+    L2 = lasagne.regularization.regularize_network_params(l_out, lasagne.regularization.l2)
+    weight_decay = .0001
+    loss_regularized = loss + weight_decay * L2
+    loss_regularized.name = 'loss_regularized'
+
+    parameters = lasagne.layers.get_all_params(l_out)
+
+    gradients_regularized = theano.grad(loss_regularized, parameters, add_names=True)
+
+    if TEST:
+        if False:
+            s = T.sum(1 / (1 + T.exp(-X)))
+            s.name = 's'
+            gs = T.grad(s, X, add_names=True)
+            theano.pp(gs)
+            inputs_to_value = {X: x_data[0:16], y: y_data[0:16]}
+            result = theano_ext.eval_symbol(gs, inputs_to_value)
+            print('%s = %r' % (gs.name, result,))
+            inputs_to_value = {X: x_data[16:32], y: y_data[16:32]}
+            result = theano_ext.eval_symbol(gs, inputs_to_value)
+            print('%s = %r' % (gs.name, result,))
+
+        for grad in gradients_regularized:
+            result = theano_ext.eval_symbol(grad, inputs_to_value)
+            print('%s = %r' % (grad.name, result,))
+
+        grad_on_losses = theano.grad(losses, parameters, add_names=True)
+
+    learning_rate_theano = .0001
+    momentum = .9
+    updates = lasagne.updates.nesterov_momentum(gradients_regularized, parameters, learning_rate_theano, momentum)
+
+    X_batch = T.tensor4('x_batch')
+    y_batch = T.fvector('y_batch')
+
+    func = theano.function(
+        inputs=[
+            theano.Param(X_batch),
+            theano.Param(y_batch)
+        ],
+        outputs=[network_output, losses],
+        #updates=updates,
+        givens={
+            X: X_batch,
+            y: y_batch,
+        },
+    )
+
+    y_predict_batch, loss_batch = func(inputs_to_value[X], inputs_to_value[y])
+
+
+    if ut.inIPython():
+        import IPython
+        IPython.get_ipython().magic('pylab qt4')
+
+    import plottool as pt
+    pt.plot(x_data, y_predict)
+    pt.iup()
+    pass
