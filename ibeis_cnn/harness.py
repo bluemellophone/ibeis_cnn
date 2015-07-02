@@ -165,8 +165,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             epoch_info['regularization_percent'] = regularization_percent
             epoch_info['regularization_ratio'] = regularization_ratio
 
-            print('regularization_ratio = %r' % (regularization_ratio,))
-            print('regularization_percent = %r' % (regularization_percent,))
+            #print('regularization_ratio = %r' % (regularization_ratio,))
+            #print('regularization_percent = %r' % (regularization_percent,))
 
             param_update_mags = {}
             for key, val in train_outputs.items():
