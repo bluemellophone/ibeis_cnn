@@ -134,7 +134,8 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
 
         # Train COMBO
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo  --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo --weights=hist_eras007_epochs0098_gvmylbm --arch=siaml2_128 --train --monitor --max-epochs=1000 --learning_rate=.02 --learning_rate_adjust=.9 --learning_rate_schedule=20
 
         # --- MONITOR TRAINING ---
 
@@ -163,6 +164,10 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --arch=siaml2 --weights=gz-gray:current --train --monitor
 
         # --- TESTING ---
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=liberty:current --arch=siaml2_128 --test
+
+        # test combo
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --weights=combo:hist_eras007_epochs0098_gvmylbm --arch=siaml2_128 --testall
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=liberty:current --arch=siaml2_128 --test
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds gz-gray --arch=siaml2 --weights=gz-gray:current --test
@@ -284,18 +289,20 @@ def train_patchmatch_pz():
     # ----------------------------
     # Run Actions
     if ut.get_argflag('--train'):
-        config = dict(
+        config = ut.argparse_dict(dict(
             learning_rate_schedule=15,
             max_epochs=120,
-        )
+            learning_rate_adjust=.8,
+        ))
         X_train, y_train = dataset.load_subset('train')
         X_valid, y_valid = dataset.load_subset('valid')
         #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
         harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-    elif ut.get_argflag('--test'):
+    elif ut.get_argflag('--test') or ut.get_argflag('--testall'):
         #assert model.best_results['epoch'] is not None
-        X_test, y_test = dataset.load_subset('all')
-        #X_test, y_test = dataset.load_subset('test')
+        if ut.get_argflag('--testall'):
+            X_test, y_test = dataset.load_subset('all')
+        X_test, y_test = dataset.load_subset('test')
         data, labels = X_test, y_test
         #data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label_input)
         dataname = dataset.alias_key

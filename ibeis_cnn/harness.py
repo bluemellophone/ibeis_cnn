@@ -55,9 +55,10 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         >>> print(result)
     """
 
-    learning_rate_schedule = config.get('learning_rate_schedule')
+    learning_rate_schedule = config.get('learning_rate_schedule', 15)
     max_epochs = config.get('max_epochs', None)
     test_freq  = config.get('test_freq', None)
+    learning_rate_adjust  = config.get('learning_rate_adjust', .8)
 
     batchiter_kw = dict(
         #showprog=False,
@@ -68,8 +69,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
+    model.assert_valid_data(X_train)
     model.ensure_training_state(X_train, y_train)
-    model.assert_valid_data(X_train, y_train)
 
     print('\n[train] --- MODEL INFO ---')
     model.print_architecture_str()
@@ -270,7 +271,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # Learning rate schedule update
             if epoch % learning_rate_schedule == (learning_rate_schedule - 1):
                 #epoch_marker = epoch
-                model.learning_rate = model.learning_rate * .8
+                model.learning_rate = model.learning_rate * learning_rate_adjust
                 model.start_new_era(X_train, y_train, X_valid, y_valid, dataset.alias_key)
                 utils.print_header_columns(printcol_info)
 

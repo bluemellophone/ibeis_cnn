@@ -129,7 +129,7 @@ class BaseModel(object):
             else:
                 raise AssertionError('strict_batch_size must be a bool')
             input_shape = (strict_batch_size, data_shape[2], data_shape[0], data_shape[1])
-        if data_shape is None:
+        if data_shape is None and input_shape is not None:
             data_shape = (input_shape[2], input_shape[3], input_shape[1])
         model.data_shape = data_shape
         #model.network_layers = None  # We really don't need to save all of these
@@ -500,7 +500,8 @@ class BaseModel(object):
             'learning_rate': [model.learning_rate],
             'learning_state': [model.learning_state],
         }
-        print('starting new era')
+        num_eras = len(model.era_history)
+        print('starting new era %d' % (num_eras,))
         #if model.current_era is not None:
         model.current_era = era_info
         model.era_history.append(model.current_era)

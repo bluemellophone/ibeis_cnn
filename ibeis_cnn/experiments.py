@@ -49,7 +49,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Compute each type of score
     test_outputs = harness.test_data2(model, data, labels)
-    network_output = test_outputs['network_output']
+    network_output = test_outputs['network_output_determ']
     # hack converting network output to distances for non-descriptor networks
     if len(network_output.shape) == 2 and network_output.shape[1] == 1:
         cnn_scores = network_output.T[0]
