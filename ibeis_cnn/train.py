@@ -168,6 +168,8 @@ def train_patchmatch_pz():
 
         # test combo
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --weights=combo:hist_eras007_epochs0098_gvmylbm --arch=siaml2_128 --testall
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db PZ_Master0 --weights=combo:current --arch=siaml2_128 --testall
+
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=liberty:current --arch=siaml2_128 --test
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds gz-gray --arch=siaml2 --weights=gz-gray:current --test
@@ -302,7 +304,8 @@ def train_patchmatch_pz():
         #assert model.best_results['epoch'] is not None
         if ut.get_argflag('--testall'):
             X_test, y_test = dataset.load_subset('all')
-        X_test, y_test = dataset.load_subset('test')
+        else:
+            X_test, y_test = dataset.load_subset('test')
         data, labels = X_test, y_test
         #data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label_input)
         dataname = dataset.alias_key

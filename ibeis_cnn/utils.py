@@ -12,7 +12,7 @@ import theano.tensor as T
 from lasagne import layers
 import sklearn.cross_validation
 import cv2
-import cPickle as pickle
+from six.moves import cPickle as pickle
 import utool as ut
 import six
 from os.path import splitext

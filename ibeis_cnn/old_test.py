@@ -4,7 +4,7 @@ from ibeis_cnn import models
 from ibeis_cnn import net_strs
 from ibeis_cnn import batch_processing as batch
 
-import cPickle as pickle
+from six.moves import cPickle as pickle
 from lasagne import layers
 
 import theano

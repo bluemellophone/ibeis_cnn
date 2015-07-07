@@ -15,7 +15,7 @@ import sklearn.preprocessing
 import utool as ut
 from os.path import join, dirname
 import warnings
-import cPickle as pickle
+from six.moves import cPickle as pickle
 ut.noinject('ibeis_cnn.abstract_models')
 
 
@@ -374,7 +374,7 @@ class BaseModel(object):
 
     def load_model_state(model, **kwargs):
         """
-        import cPickle as pickle
+        from six.moves import cPickle as pickle
         kwargs = {}
         TODO: resolve load_model_state and load_extern_weights into a single
             function that is less magic in what it does and more

@@ -1,5 +1,5 @@
 # flake8: noqa
-import cPickle as pickle
+from six.moves import cPickle as pickle
 from ibeis_cnn import abstract_models
 from ibeis_cnn.abstract_models import *
 
@@ -17,7 +17,7 @@ def check_external_training_paths():
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/liberty/checkpoints'
     checkpoints_dir = '/home/joncrall/.config/ibeis_cnn/training_junction/NNP_Master3_patchmatch-_24285_xatwrytpdbfttoax-/checkpoints'
 
-    import cPickle as pickle
+    from six.moves import cPickle as pickle
     from ibeis_cnn import abstract_models
     from ibeis_cnn.abstract_models import *
     from os.path import *
