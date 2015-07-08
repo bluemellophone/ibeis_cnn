@@ -259,7 +259,7 @@ class SiameseL2(AbstractSiameseModel):
         #_P = functools.partial
         (_, input_channels, input_width, input_height) = model.input_shape
         if verbose:
-            print('[model] Initialize center surround siamese model architecture')
+            print('[model] Initialize center siamese l2 model architecture')
             print('[model]   * batch_size     = %r' % (model.batch_size,))
             print('[model]   * input_width    = %r' % (input_width,))
             print('[model]   * input_height   = %r' % (input_height,))

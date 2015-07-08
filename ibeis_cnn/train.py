@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+TODO:
+    rename this file to not be train. maybe dev. I'm not sure
+
+
 Defines the models and the data we will send to the harness
 
 CommandLineHelp:
@@ -287,7 +291,6 @@ def train_patchmatch_pz():
             raise ValueError('Unresolved weight init: checkpoint_tag=%r, extern_ds_tag=%r' % (checkpoint_tag, extern_ds_tag,))
     #print('Model State:')
     #print(model.get_state_str())
-
     # ----------------------------
     # Run Actions
     if ut.get_argflag('--train'):
@@ -312,6 +315,19 @@ def train_patchmatch_pz():
         experiments.test_siamese_performance(model, data, labels, dataname)
     else:
         raise ValueError('nothing here. need to train or test')
+
+    if ut.get_argflag('--publish'):
+        publish_dpath = ut.truepath('~/Dropbox/IBEIS')
+        from os.path import join
+        published_model_state = join(publish_dpath, model.arch_tag + '_model_state.pkl')
+        ut.copy(model.get_model_state_fpath(), published_model_state)
+        ut.vd(publish_dpath)
+        print('You need to get the dropbox link and register it into the appropriate file')
+        # pip install dropbox
+        # https://www.dropbox.com/developers/core/start/python
+        # import dropbox  # need oauth
+        #client.share('/myfile.txt', short_url=False)
+        # https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl
 
 
 #def train_mnist():

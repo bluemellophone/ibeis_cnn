@@ -351,6 +351,9 @@ class BaseModel(object):
             'input_shape':  model.input_shape,
             'output_dims':  model.output_dims,
             'era_history':  model.era_history,
+            'arch_tag': model.arch_tag,
+            'data_shape': model.data_shape,
+            'batch_size': model.data_shape,
         }
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model state to: %s' % (model_state_fpath,))

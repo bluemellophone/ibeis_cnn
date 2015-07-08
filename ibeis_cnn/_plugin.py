@@ -318,3 +318,96 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     cv2.imshow('', rects)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+
+def get_siam_l2_model():
+    """
+    model.show_weights_image()
+    """
+    model_url = 'https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl'
+    model_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'models')
+    model_fpath = ut.grab_file_url(model_url, download_dir=model_dpath)
+    model_state = ut.load_cPkl(model_fpath)
+    import ibeis_cnn
+    ibeis_cnn.models
+    model = models.SiameseL2(
+        input_shape=model_state['input_shape'],
+        arch_tag=model_state['arch_tag'], autoinit=True)
+    model.load_model_state(fpath=model_fpath)
+    return model
+
+
+def extract_siam_l2_128_vecs(ibs, cid_list, config2_=None):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        cid_list (list):
+        config2_ (dict): (default = None)
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --test-extract_siam_l2_128_vecs
+
+    SeeAlso:
+        ~/code/ibeis/ibeis/model/preproc/preproc_feat.py
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> cid_list = ibs.get_annot_chip_rowids(ibs.get_valid_aids())
+        >>> config2_ = None
+        >>> # megahack
+        >>> config2_ = dict(feat_type='hesaff+siam128',
+        >>>                 feat_cfgstr=ibs.cfg.feat_cfg.get_cfgstr().replace('sift', 'siam128'),
+        >>>                 hesaff_params=ibs.cfg.feat_cfg.get_hesaff_params())
+        >>> result = extract_siam_l2_128_vecs(ibs, cid_list, config2_)
+        >>> print(result)
+    """
+    #if config2_ is not None:
+    #    # Get config from config2_ object
+    #    #print('id(config2_) = ' + str(id(config2_)))
+    #    feat_cfgstr     = config2_.get('feat_cfgstr')
+    #    hesaff_params   = config2_.get('hesaff_params')
+    #    assert feat_cfgstr is not None
+    #    assert hesaff_params is not None
+    #else:
+    #    # Get config from IBEIS controller
+    #    feat_cfgstr     = ibs.cfg.feat_cfg.get_cfgstr()
+    #    hesaff_params   = ibs.cfg.feat_cfg.get_hesaff_params()
+
+    # hack because we need the old features
+    hack_config2_ = dict(feat_type='hesaff+sift',
+                         feat_cfgstr=ibs.cfg.feat_cfg.get_cfgstr().replace('siam128', 'sift'),
+                         hesaff_params=ibs.cfg.feat_cfg.get_hesaff_params())
+    sift_fid_list = ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)
+    kpts_list = ibs.get_feat_kpts(sift_fid_list)
+    import vtool as vt
+    colorspace = 'gray'
+    chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_list, ensure=True), colorspace)
+    patch_size = 64
+    warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
+                           for chip, kpts in zip(chip_list, kpts_list)]
+    flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
+    stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
+
+    model = get_siam_l2_model()
+    import ibeis_cnn
+    test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+    network_output_determ = test_outputs['network_output_determ']
+    #network_output_determ.min()
+    #network_output_determ.max()
+    siam128_vecs_list = ut.unflatten2(network_output_determ, cumlen_list)
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn._plugin
+        python -m ibeis_cnn._plugin --allexamples
+        python -m ibeis_cnn._plugin --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()
