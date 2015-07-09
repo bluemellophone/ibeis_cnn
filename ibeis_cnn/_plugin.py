@@ -337,7 +337,7 @@ def get_siam_l2_model():
     return model
 
 
-def extract_siam_l2_128_vecs(ibs, cid_list, config2_=None):
+def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -345,7 +345,8 @@ def extract_siam_l2_128_vecs(ibs, cid_list, config2_=None):
         config2_ (dict): (default = None)
 
     CommandLine:
-        python -m ibeis_cnn._plugin --test-extract_siam_l2_128_vecs
+        python -m ibeis_cnn._plugin --test-generate_siam_l2_128_feats
+        python -m ibeis_cnn._plugin --test-generate_siam_l2_128_feats --db PZ_Master0
 
     SeeAlso:
         ~/code/ibeis/ibeis/model/preproc/preproc_feat.py
@@ -361,7 +362,8 @@ def extract_siam_l2_128_vecs(ibs, cid_list, config2_=None):
         >>> config2_ = dict(feat_type='hesaff+siam128',
         >>>                 feat_cfgstr=ibs.cfg.feat_cfg.get_cfgstr().replace('sift', 'siam128'),
         >>>                 hesaff_params=ibs.cfg.feat_cfg.get_hesaff_params())
-        >>> result = extract_siam_l2_128_vecs(ibs, cid_list, config2_)
+        >>> featgen = generate_siam_l2_128_feats(ibs, cid_list, config2_)
+        >>> result = ut.depth_profile(list(featgen))
         >>> print(result)
     """
     #if config2_ is not None:
@@ -377,27 +379,91 @@ def extract_siam_l2_128_vecs(ibs, cid_list, config2_=None):
     #    hesaff_params   = ibs.cfg.feat_cfg.get_hesaff_params()
 
     # hack because we need the old features
-    hack_config2_ = dict(feat_type='hesaff+sift',
-                         feat_cfgstr=ibs.cfg.feat_cfg.get_cfgstr().replace('siam128', 'sift'),
-                         hesaff_params=ibs.cfg.feat_cfg.get_hesaff_params())
-    sift_fid_list = ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)
-    kpts_list = ibs.get_feat_kpts(sift_fid_list)
     import vtool as vt
-    colorspace = 'gray'
-    chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_list, ensure=True), colorspace)
-    patch_size = 64
+    import ibeis_cnn
+    model = get_siam_l2_model()
+    colorspace = 'gray' if model.input_shape[1] else None  # 'bgr'
+    patch_size = model.input_shape[-1]
+    if config2_ is not None:
+        # Get config from config2_ object
+        #print('id(config2_) = ' + str(id(config2_)))
+        feat_cfgstr     = config2_.get('feat_cfgstr')
+        hesaff_params   = config2_.get('hesaff_params')
+        assert feat_cfgstr is not None
+        assert hesaff_params is not None
+    else:
+        # Get config from IBEIS controller
+        feat_cfgstr     = ibs.cfg.feat_cfg.get_cfgstr()
+        hesaff_params   = ibs.cfg.feat_cfg.get_hesaff_params()
+    hack_config2_ = dict(feat_type='hesaff+sift',
+                         feat_cfgstr=feat_cfgstr.replace('siam128', 'sift'),
+                         hesaff_params=hesaff_params)
+    print('Generating siam128 features for %d chips' % (len(cid_list),))
+    BATCHED = True
+    if BATCHED:
+        ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)
+        for cid_batch in ut.ProgressIter(list(ut.ichunks(cid_list, 128)), lbl='siam128 chip chunk'):
+            sift_fid_list = ibs.get_chip_feat_rowids(cid_batch, config2_=hack_config2_)
+            print('Reading keypoints')
+            kpts_list = ibs.get_feat_kpts(sift_fid_list)
+            print('Reading chips')
+            chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_batch, ensure=True), colorspace)
+            print('Warping patches')
+            warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
+                                   for chip, kpts in zip(chip_list, kpts_list)]
+            flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
+            stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
+
+            test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+            network_output_determ = test_outputs['network_output_determ']
+            #network_output_determ.min()
+            #network_output_determ.max()
+            siam128_vecs_list = ut.unflatten2(network_output_determ, cumlen_list)
+
+            for cid, kpts, vecs in zip(cid_batch, kpts_list, siam128_vecs_list):
+                yield cid, len(kpts), kpts, vecs
+    else:
+        sift_fid_list = ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)  # NOQA
+        print('Reading keypoints')
+        kpts_list = ibs.get_feat_kpts(sift_fid_list)
+        print('Reading chips')
+        chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_list, ensure=True), colorspace)
+        print('Warping patches')
+        warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
+                               for chip, kpts in zip(chip_list, kpts_list)]
+        flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
+        stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
+
+        test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+        network_output_determ = test_outputs['network_output_determ']
+        #network_output_determ.min()
+        #network_output_determ.max()
+        siam128_vecs_list = ut.unflatten2(network_output_determ, cumlen_list)
+
+        for cid, kpts, vecs in zip(cid_list, kpts_list, siam128_vecs_list):
+            yield cid, len(kpts), kpts, vecs
+
+
+def extract_siam128_vecs(chip_list, kpts_list):
+    """ duplicate testing func for vtool """
+    import vtool as vt
+    import ibeis_cnn
+    model = get_siam_l2_model()
+    colorspace = 'gray' if model.input_shape[1] else None  # 'bgr'
+    patch_size = model.input_shape[-1]
+    chip_list_ = vt.convert_image_list_colorspace(chip_list, colorspace)
+
     warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
-                           for chip, kpts in zip(chip_list, kpts_list)]
+                           for chip, kpts in zip(chip_list_, kpts_list)]
     flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
     stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
 
-    model = get_siam_l2_model()
-    import ibeis_cnn
     test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
     network_output_determ = test_outputs['network_output_determ']
     #network_output_determ.min()
     #network_output_determ.max()
     siam128_vecs_list = ut.unflatten2(network_output_determ, cumlen_list)
+    return siam128_vecs_list
 
 
 if __name__ == '__main__':

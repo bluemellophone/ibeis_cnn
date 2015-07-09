@@ -16,7 +16,8 @@ import utool as ut
 from os.path import join, dirname
 import warnings
 from six.moves import cPickle as pickle
-ut.noinject('ibeis_cnn.abstract_models')
+#ut.noinject('ibeis_cnn.abstract_models')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
 
 
 Conv2DLayer = custom_layers.Conv2DLayer

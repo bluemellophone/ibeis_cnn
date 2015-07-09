@@ -230,7 +230,7 @@ class SiameseL2(AbstractSiameseModel):
         )
         return network_layers_def
 
-    def initialize_architecture(model, verbose=True, **kwargs):
+    def initialize_architecture(model, verbose=ut.VERBOSE, **kwargs):
         r"""
         Notes:
             http://arxiv.org/pdf/1504.03641.pdf
@@ -274,7 +274,7 @@ class SiameseL2(AbstractSiameseModel):
         elif model.arch_tag == 'siaml2_128':
             network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
         # connect and record layers
-        network_layers = abstract_models.evaluate_layer_list(network_layers_def)
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
         #model.network_layers = network_layers
         output_layer = network_layers[-1]
         model.output_layer = output_layer
