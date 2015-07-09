@@ -15,7 +15,7 @@ import cv2
 from six.moves import cPickle as pickle
 import utool as ut
 import six
-from os.path import splitext
+#from os.path import splitext
 from ibeis_cnn import net_strs
 #from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
@@ -290,35 +290,44 @@ def write_data_and_labels(data, labels, data_fpath, labels_fpath):
     # to resize the images back to their 2D-structure:
     # X = images_array.reshape(-1, 3, 48, 48)
     print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
-    if splitext(data_fpath)[1] == '.hdf5':
-        ut.save_hdf5(data_fpath, data)
-    else:
-        with open(data_fpath, 'wb') as ofile:
-            np.save(ofile, data)
-
     print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
-    if splitext(labels_fpath)[1] == '.hdf5':
-        ut.save_hdf5(labels_fpath, labels)
-    else:
-        with open(labels_fpath, 'wb') as ofile:
-            np.save(ofile, labels)
+    ut.save_data(data_fpath, data)
+    ut.save_data(labels_fpath, labels) if labels_fpath is not None else None
+    #if splitext(data_fpath)[1] == '.hdf5':
+    #    ut.save_hdf5(data_fpath, data)
+    #elif splitext(data_fpath)[1] == '.npz':
+    #    with open(data_fpath, 'wb') as ofile:
+    #        np.save(ofile, data)
+    #else:
+    #    ut.save_data(data_fpath, data)
+
+    #if splitext(labels_fpath)[1] == '.hdf5':
+    #    ut.save_hdf5(labels_fpath, labels)
+    #elif splitext(data_fpath)[1] == '.npz':
+    #    with open(labels_fpath, 'wb') as ofile:
+    #        np.save(ofile, labels)
+    #else:
+    #    ut.save_data(labels_fpath, labels)
 
 
 def load(data_fpath, labels_fpath=None):
     # Load X matrix (data)
-    if splitext(data_fpath)[1] == '.hdf5':
-        data = ut.load_hdf5(data_fpath)
-    else:
-        data = np.load(data_fpath, mmap_mode='r')
-    # Load y vector (labels)
-    labels = None
-    if labels_fpath is not None:
-        if splitext(labels_fpath)[1] == '.hdf5':
-            labels = ut.load_hdf5(labels_fpath)
-        else:
-            labels = np.load(labels_fpath, mmap_mode='r')
-    # TODO: This should be part of data preprocessing
-    # Ensure that data is 4-dimensional
+    data = ut.load_data(data_fpath)
+    labels = ut.load_data(labels_fpath) if labels_fpath is not None else None
+
+    #if splitext(data_fpath)[1] == '.hdf5':
+    #    data = ut.load_hdf5(data_fpath)
+    #else:
+    #    data = np.load(data_fpath, mmap_mode='r')
+    ## Load y vector (labels)
+    #labels = None
+    #if labels_fpath is not None:
+    #    if splitext(labels_fpath)[1] == '.hdf5':
+    #        labels = ut.load_hdf5(labels_fpath)
+    #    else:
+    #        labels = np.load(labels_fpath, mmap_mode='r')
+    ## TODO: This should be part of data preprocessing
+    ## Ensure that data is 4-dimensional
     if len(data.shape) == 3:
         # add channel dimension for implicit grayscale
         data.shape = data.shape + (1,)

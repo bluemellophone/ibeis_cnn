@@ -198,8 +198,8 @@ def grab_mnist_category_dataset():
     import numpy as np
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
     ut.ensuredir(training_dpath)
-    data_fpath = join(training_dpath, 'mnist_data.cPkl')
-    labels_fpath = join(training_dpath, 'mnist_labels.cPkl')
+    data_fpath = join(training_dpath, 'mnist_data.hdf5')
+    labels_fpath = join(training_dpath, 'mnist_labels.hdf5')
     if not ut.checkpath(data_fpath):
         train_imgs_fpath = ut.grab_zipped_url(
             'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
@@ -265,8 +265,8 @@ def grab_mnist_siam_dataset():
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
     ut.ensuredir(training_dpath)
 
-    data_fpath = join(training_dpath, alias_key + '_data.cPkl')
-    labels_fpath = join(training_dpath, alias_key + '_labels.cPkl')
+    data_fpath = join(training_dpath, alias_key + '_data.hdf5')
+    labels_fpath = join(training_dpath, alias_key + '_labels.hdf5')
     if not ut.checkpath(data_fpath):
         train_imgs_fpath = ut.grab_zipped_url(
             'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
@@ -381,8 +381,8 @@ def grab_liberty_siam_dataset(pairs=250000):
         ut.vd(training_dpath)
     ut.ensuredir(training_dpath)
 
-    data_fpath = join(training_dpath, 'liberty_data_' + cfgstr + '.cPkl')
-    labels_fpath = join(training_dpath, 'liberty_labels_' + cfgstr  + '.cPkl')
+    data_fpath = join(training_dpath, 'liberty_data_' + cfgstr + '.hdf5')
+    labels_fpath = join(training_dpath, 'liberty_labels_' + cfgstr  + '.hdf5')
 
     if not ut.checkpath(data_fpath, verbose=True):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
