@@ -137,11 +137,15 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
 
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
 
         # Train COMBO
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo --weights=new --arch=siaml2_128 --train --monitor
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds combo --weights=hist_eras007_epochs0098_gvmylbm --arch=siaml2_128 --train --monitor --max-epochs=1000 --learning_rate=.02 --learning_rate_adjust=.9 --learning_rate_schedule=20
+
+        # Train Liberty (Make sure that our structures continue to work on liberty data)
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
+        # continue training
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=current --arch=siaml2_128 --train --monitor --learning-rate=.03
 
         # --- MONITOR TRAINING ---
 
