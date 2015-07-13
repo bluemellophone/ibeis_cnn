@@ -146,6 +146,7 @@ def train_patchmatch_pz():
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=new --arch=siaml2_128 --train --monitor
         # continue training
         python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=current --arch=siaml2_128 --train --monitor --learning-rate=.03
+        python -m ibeis_cnn.train --test-train_patchmatch_pz --db liberty --weights=current --arch=siaml2_128 --test
 
         # --- MONITOR TRAINING ---
 

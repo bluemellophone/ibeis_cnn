@@ -65,7 +65,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    sift_scores = test_sift_patchmatch_scores(data, labels)
+    sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
 
     # Learn encoders
     encoder_kw = {
@@ -83,6 +83,8 @@ def test_siamese_performance(model, data, labels, dataname=''):
     # Visualize
     inter_cnn = cnn_encoder.visualize(figtitle=dataname + ' CNN scores. #data=' + str(len(data)), fnum=fnum_gen())
     inter_sift = sift_encoder.visualize(figtitle=dataname + ' SIFT scores. #data=' + str(len(data)), fnum=fnum_gen())
+
+    ut.embed()
 
     # Save
     pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
@@ -145,6 +147,20 @@ def test_siamese_performance(model, data, labels, dataname=''):
         pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
         pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
+    fnum = fnum_gen()
+    num_rows = 5
+    pnum_gen = pt.make_pnum_nextgen(num_rows, 3)
+    # Compare actual output descriptors
+    for index in ut.random_indexes(len(sift_list), num_rows):
+        vec_sift = sift_list[index]
+        vec_cnn = network_output[index]
+        patch = data[index]
+        pt.imshow(patch, fnum=fnum, pnum=pnum_gen())
+        pt.plot_descriptor_signature(vec_cnn, 'cnn vec',  fnum=fnum, pnum=pnum_gen())
+        pt.plot_sift_signature(vec_sift, 'sift vec',  fnum=fnum, pnum=pnum_gen())
+    pt.set_figtitle('Patch Descriptors')
+    pt.adjust_subplots(left=0, right=0.95, bottom=0., wspace=.1, hspace=.15)
+    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
     #ut.vd(epoch_dpath)
 
 
@@ -194,7 +210,8 @@ def test_sift_patchmatch_scores(data, labels):
     sqrddist_ = sqrddist[None, :].T
     VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
     sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
-    return sift_scores
+    sift_list = vecs_list
+    return sift_scores, sift_list
     #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
 
 
