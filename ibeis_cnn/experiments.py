@@ -84,8 +84,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
     inter_cnn = cnn_encoder.visualize(figtitle=dataname + ' CNN scores. #data=' + str(len(data)), fnum=fnum_gen())
     inter_sift = sift_encoder.visualize(figtitle=dataname + ' SIFT scores. #data=' + str(len(data)), fnum=fnum_gen())
 
-    ut.embed()
-
     # Save
     pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
     pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
@@ -132,6 +130,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
         #vt.imwrite(dataname + '_' + 'sift_fp_img.png', (sift_fp_img))
         #vt.imwrite(dataname + '_' + 'sift_fn_img.png', (sift_fn_img))
     else:
+        print('Drawing TP FP TN FN')
         fnum = fnum_gen()
         pnum_gen = pt.make_pnum_nextgen(4, 2)
         fig = pt.figure(fnum)
@@ -147,8 +146,10 @@ def test_siamese_performance(model, data, labels, dataname=''):
         pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
         pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
+    print('Drawing Patch Descriptors')
     fnum = fnum_gen()
-    num_rows = 5
+    fig = pt.figure(fnum=fnum, pnum=(1, 1, 1))
+    num_rows = 7
     pnum_gen = pt.make_pnum_nextgen(num_rows, 3)
     # Compare actual output descriptors
     for index in ut.random_indexes(len(sift_list), num_rows):
