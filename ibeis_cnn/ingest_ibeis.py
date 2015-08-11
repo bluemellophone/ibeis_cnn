@@ -379,8 +379,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True)
         #'affine_invariance': False,
     }
 
-    import ibeis.dev.dbinfo
-    ibeis.dev.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
+    import ibeis.other.dbinfo
+    ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
     qres_list, qreq_ = ibs.query_chips(
         qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
     # TODO: Use ChipMatch2 instead of QueryResult

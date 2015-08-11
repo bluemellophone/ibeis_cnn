@@ -401,9 +401,9 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
     print('Generating siam128 features for %d chips' % (len(cid_list),))
     BATCHED = True
     if BATCHED:
-        ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)
+        ibs.get_chip_feat_rowid(cid_list, config2_=hack_config2_, ensure=True)
         for cid_batch in ut.ProgressIter(list(ut.ichunks(cid_list, 128)), lbl='siam128 chip chunk'):
-            sift_fid_list = ibs.get_chip_feat_rowids(cid_batch, config2_=hack_config2_)
+            sift_fid_list = ibs.get_chip_feat_rowid(cid_batch, config2_=hack_config2_)
             print('Reading keypoints')
             kpts_list = ibs.get_feat_kpts(sift_fid_list)
             print('Reading chips')
@@ -423,7 +423,7 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
             for cid, kpts, vecs in zip(cid_batch, kpts_list, siam128_vecs_list):
                 yield cid, len(kpts), kpts, vecs
     else:
-        sift_fid_list = ibs.get_chip_feat_rowids(cid_list, config2_=hack_config2_, ensure=True)  # NOQA
+        sift_fid_list = ibs.get_chip_feat_rowid(cid_list, config2_=hack_config2_, ensure=True)  # NOQA
         print('Reading keypoints')
         kpts_list = ibs.get_feat_kpts(sift_fid_list)
         print('Reading chips')
