@@ -437,6 +437,9 @@ class BaseModel(object):
         input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
         output_dims  = oldkw['output_dims']
 
+        if model.output_dims is None:
+            model.output_dims = output_dims
+
         # Perform checks
         assert input_shape[1:] == model.input_shape[1:], 'architecture disagreement'
         assert output_dims == model.output_dims, 'architecture disagreement'
@@ -456,6 +459,11 @@ class BaseModel(object):
             'valid_loss'     : oldkw['best_valid_loss'],
             'valid_loss'     : oldkw['best_valid_loss'],
         }
+
+        # Need to build architecture first
+        model.initialize_architecture()
+
+        model.encoder = oldkw.get('encoder', None)
 
         # Set architecture weights
         weights_list = model.best_weights

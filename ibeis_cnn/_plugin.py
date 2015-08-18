@@ -7,7 +7,7 @@ from ibeis.control.controller_inject import make_ibs_register_decorator
 from ibeis.constants import Species, VIEWTEXT_TO_YAW_RADIANS
 # from ibeis_cnn import utils
 from ibeis_cnn import models
-from ibeis_cnn import test
+#from ibeis_cnn import test
 from ibeis_cnn import _plugin_grabmodels as grabmodels
 import utool as ut
 import cv2
@@ -80,8 +80,38 @@ def get_verified_aid_pairs(ibs):
 
 @register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+
+    Returns:
+        list: species_viewpoint_list
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-detect_annot_species_viewpoint_cnn
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> aid_list = ibs.get_valid_aids()
+        >>> species_viewpoint_list = detect_annot_species_viewpoint_cnn(ibs, aid_list)
+        >>> result = ('species_viewpoint_list = %s' % (str(species_viewpoint_list),))
+        >>> print(result)
+    """
     # Load chips and resize to the target
-    target = (96, 96)
+    data_shape = (96, 96, 3)
+    # Define model and load weights
+    print('Loading model...')
+    batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
+    model = models.ViewpointModel(batch_size=batch_size, data_shape=data_shape)
+    weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
+    old_weights_fpath = weights_path
+    model.load_old_weights_kw(old_weights_fpath)
+    # Read the data
+    target = data_shape[0:2]
     print('Loading chips...')
     chip_list = ibs.get_annot_chips(aid_list, verbose=True)
     print('Resizing chips...')
@@ -89,18 +119,42 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
-    # Define model and load weights
-    print('Loading model...')
-    model = models.ViewpointModel()
-    weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
+
+    from ibeis_cnn import harness
     # Predict on the data and convert labels to IBEIS namespace
-    pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
+    test_outputs = harness.test_data2(model, X_test, y_test)
+    label_list = test_outputs['labeled_predictions']
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
+    #pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
+    #species_viewpoint_list = [ convert_label(label) for label in label_list ]
     return species_viewpoint_list
 
 
 @register_ibs_method
 def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+        verbose (bool):  verbosity flag(default = False)
+
+    Returns:
+        tuple: (bad_species_list, bad_viewpoint_list)
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-validate_annot_species_viewpoint_cnn --db PZ_FlankHack
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> aid_list = ibs.get_valid_aids()
+        >>> verbose = False
+        >>> (bad_species_list, bad_viewpoint_list) = validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose)
+        >>> result = ('(bad_species_list, bad_viewpoint_list) = %s' % (str((bad_species_list, bad_viewpoint_list)),))
+        >>> print(result)
+    """
     # Load chips and metadata
     species_list = ibs.get_annot_species(aid_list)
     viewpoint_list = ibs.get_annot_yaw_texts(aid_list)
@@ -235,6 +289,28 @@ def non_max_suppression_fast(box_list, conf_list, overlapThresh=0.5):
 
 @register_ibs_method
 def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        gid (?):
+        confidence (float): (default = 0.9)
+        extraction (str): (default = 'bing')
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-detect_image_cnn
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> from ibeis_cnn._plugin import _suggest_random_candidate_regions, _suggest_bing_candidate_regions  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> gid = 1
+        >>> confidence = 0.9
+        >>> extraction = 'bing'
+        >>> result = detect_image_cnn(ibs, gid, confidence, extraction)
+        >>> print(result)
+    """
     # Load chips and resize to the target
     target = (96, 96)
     targetx, targety = target
@@ -274,10 +350,22 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     y_test = None
     # Define model and load weights
     print('Loading model...')
-    model = models.ViewpointModel()
+    from ibeis_cnn import harness
+    data_shape = (96, 96, 3)
+    # Define model and load weights
+    print('Loading model...')
+    batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_list_resized)))))
+    model = models.ViewpointModel(batch_size=batch_size, data_shape=data_shape)
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
+    old_weights_fpath = weights_path
+    model.load_old_weights_kw(old_weights_fpath)
+
     # Predict on the data and convert labels to IBEIS namespace
-    pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
+    test_outputs = harness.test_data2(model, X_test, y_test)
+    conf_list = test_outputs['confidences']
+    label_list = test_outputs['labeled_predictions']
+    pred_list = test_outputs['predictions']
+    #pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
 
     num_all_candidates = len(conf_list)

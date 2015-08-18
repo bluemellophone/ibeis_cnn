@@ -119,7 +119,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False, **kw
         for key in six.iterkeys(outputs_):
             outputs_[key] = outputs_[key][0:num_outputs]
 
-    if hasattr(model, 'encoder') and 'predictions' in outputs_:
+    if getattr(model, 'encoder', None) is not None and 'predictions' in outputs_:
         outputs_['labeled_predictions'] = model.encoder.inverse_transform(outputs_['predictions'])
     return outputs_
 
