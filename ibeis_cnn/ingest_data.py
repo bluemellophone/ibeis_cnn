@@ -488,7 +488,7 @@ def get_numpy_dataset(data_fpath, labels_fpath, training_dpath):
     import numpy as np
     # hack for caching num_labels
     data = np.load(data_fpath)
-    data_shape = data.shape
+    data_shape = data.shape[1:]
     labels = np.load(labels_fpath)
     num_labels = len(labels)
 
