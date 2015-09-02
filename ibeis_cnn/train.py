@@ -249,7 +249,7 @@ def train_patchmatch_pz():
         training_dpath = join('data', 'results', 'backgound_patches')
         dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
         extern_dpath = None
-        checkpoint_tag = 'new'
+        checkpoint_tag = None
     else:
         extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
         checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
@@ -301,16 +301,18 @@ def train_patchmatch_pz():
 
     # ----------------------------
     # Choose weight initialization
-    if checkpoint_tag == 'new':
-        model.reinit_weights()
-    else:
-        checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
-        if extern_dpath is not None:
-            model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
-        elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
-            model.load_model_state(checkpoint_tag=checkpoint_tag)
+    if checkpoint_tag is not None:
+        if checkpoint_tag == 'new':
+            model.reinit_weights()
         else:
-            raise ValueError('Unresolved weight init: checkpoint_tag=%r, extern_ds_tag=%r' % (checkpoint_tag, extern_ds_tag,))
+            checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
+            if extern_dpath is not None:
+                model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
+            elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
+                model.load_model_state(checkpoint_tag=checkpoint_tag)
+            else:
+                raise ValueError('Unresolved weight init: checkpoint_tag=%r, extern_ds_tag=%r' % (checkpoint_tag, extern_ds_tag,))
+
     #print('Model State:')
     #print(model.get_state_str())
     # ----------------------------
