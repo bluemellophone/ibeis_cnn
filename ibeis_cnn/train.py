@@ -248,6 +248,7 @@ def train_patchmatch_pz():
         labels_fpath = join(source_path, 'y.npy')
         training_dpath = join('data', 'results', 'backgound_patches')
         dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
+        extern_dpath = None
     else:
         extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
         checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
