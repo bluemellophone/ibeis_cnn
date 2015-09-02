@@ -243,10 +243,10 @@ def train_patchmatch_pz():
     ds_tag = ds_tag_alias2.get(ds_tag, ds_tag)
     if ds_tag is None:
         from os.path import join
-        source_path = join('..', 'data', 'numpy', 'backgound_patches')
+        source_path = join('data', 'numpy', 'backgound_patches')
         data_fpath = join(source_path, 'X.npy')
         labels_fpath = join(source_path, 'y.npy')
-        training_dpath = join('..', 'data', 'results', 'backgound_patches')
+        training_dpath = join('data', 'results', 'backgound_patches')
         dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
     else:
         extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
