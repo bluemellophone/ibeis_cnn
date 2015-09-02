@@ -28,7 +28,7 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
         return x * 2.0
 
     def get_background_def(model, verbose=ut.VERBOSE, **kwargs):
-        _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
+        # _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
         _P = functools.partial
 
         hidden_initkw = {
@@ -39,11 +39,11 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
             [
                 _P(layers.InputLayer, shape=model.input_shape),
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(11, 11), name='C0', W=_CaffeNet.get_pretrained_layer(0), **hidden_initkw),
+                _P(Conv2DLayer, num_filters=32, filter_size=(11, 11), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(layers.DropoutLayer, p=0.1, name='D0'),
 
-                _P(Conv2DLayer, num_filters=64, filter_size=(5, 5), name='C1', W=_CaffeNet.get_pretrained_layer(2), **hidden_initkw),
+                _P(Conv2DLayer, num_filters=64, filter_size=(5, 5), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(layers.DropoutLayer, p=0.2, name='D1'),
 
