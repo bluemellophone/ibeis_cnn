@@ -485,10 +485,11 @@ def get_ibeis_siam_dataset(**kwargs):
 def get_numpy_dataset(data_fpath, labels_fpath, training_dpath):
     """
     """
+    import numpy as np
     # hack for caching num_labels
-    data = ut.load_data(data_fpath)
+    data = np.load(data_fpath)
     data_shape = data.shape
-    labels = ut.load_data(labels_fpath)
+    labels = np.load(labels_fpath)
     num_labels = len(labels)
 
     alias_key = 'temp'
