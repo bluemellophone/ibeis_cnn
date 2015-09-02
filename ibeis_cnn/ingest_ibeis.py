@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
 import six
+import cv2
 #from ibeis_cnn import utils
 from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
@@ -541,6 +542,122 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True)
     #assert ut.get_list_column(ut.depth_profile(kpts1_m_list), 0) == ut.depth_profile(metadata_lists['fs'])
     patchmatch_tup = aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists
     return patchmatch_tup
+
+
+def get_background_training_patches(ibs, min_percent=0.20, max_percent=0.60, dest_path=None, patch_size=96):
+    """
+    """
+    import random
+    from os.path import join, expanduser
+
+    def resize_target(image, target_height=None, target_width=None):
+        assert target_height is not None or target_width is not None
+        height, width = image.shape[:2]
+        if target_height is not None and target_width is not None:
+            h = target_height
+            w = target_width
+        elif target_height is not None:
+            h = target_height
+            w = (width / height) * h
+        elif target_width is not None:
+            w = target_width
+            h = (height / width) * w
+        w, h = int(w), int(h)
+        return cv2.resize(image, (w, h))
+
+    def point_inside((x, y), (x0, y0, w, h)):
+        x1 = x0 + w
+        y1 = y0 + h
+        return x0 <= x and x <= x1 and y0 <= y and y <= y1
+
+    if dest_path is None:
+        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+    name = 'background_patches'
+    raw_path = join(dest_path, 'raw', name)
+    labels_path = join(dest_path, 'labels', name)
+
+    ut.remove_dirs(dest_path)
+    ut.ensuredir(dest_path)
+    ut.ensuredir(raw_path)
+    ut.ensuredir(labels_path)
+
+    gid_list = ibs.get_valid_gids()
+    size_list = ibs.get_image_sizes(gid_list)
+    aids_list = ibs.get_image_aids(gid_list)
+    bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
+
+    patch_size = (patch_size, patch_size)
+    zipped = zip(gid_list, size_list, aids_list, bboxes_list)
+    label_list = []
+    for gid, (width, height), aid_list, bbox_list in zipped:
+        image = ibs.get_images(gid)
+        smallest_size = min(width, height)
+        min_size = int(min_percent * smallest_size)
+        max_size = int(max_percent * smallest_size)
+
+        print('Processing GID: %r' % (gid, ))
+        print('\tAIDS  : %r' % (aid_list, ))
+        print('\tBBOXES: %r' % (bbox_list, ))
+
+        # for (x0, y0, w, h) in bbox_list:
+        #     x1 = x0 + w
+        #     y1 = y0 + h
+        #     cv2.rectangle(image, (x0, y0), (x1, y1), (255, 0, 0))
+
+        for _ in range(100):
+            x0 = random.randint(0, width)
+            y0 = random.randint(0, height)
+
+            x1, y1 = None, None
+            while x1 is None or y1 is None:
+                x1_ = random.randint(0, width)
+                y1_ = random.randint(0, height)
+                dist_x = abs(x0 - x1_)
+                dist_y = abs(y0 - y1_)
+                if dist_x < min_size or max_size < dist_x:
+                    continue
+                if dist_y < min_size or max_size < dist_y:
+                    continue
+                x1 = x1_
+                y1 = y1_
+
+            if x1 < x0:
+                x0, x1 = x1, x0
+            if y1 < y0:
+                y0, y1 = y1, y0
+
+            size = min(x1 - x0, y1 - y0)
+            x1 = x0 + size
+            y1 = y0 + size
+            center = ( int(np.mean((x0, x1))), int(np.mean((y0, y1))) )
+
+            inside = False
+            for bbox in bbox_list:
+                if point_inside(center, bbox):
+                    inside = True
+                    break
+
+            patch = image[y0: y1, x0: x1]
+            patch = cv2.resize(patch, patch_size, interpolation=cv2.INTER_LANCZOS4)
+            patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, size, size, )
+            patch_class = 'positive' if inside else 'negative'
+            # patch_color = (0, 0, 255) if inside else (0, 255, 0)
+
+            patch_filepath = join(raw_path, patch_filename)
+            cv2.imwrite(patch_filepath, patch)
+            # cv2.rectangle(image, (x0, y0), (x1, y1), color)
+
+            label = '%s,%s' % (patch_filename, patch_class)
+            label_list.append(label)
+
+        # image = resize_target(image, target_width=1000)
+        # cv2.imshow('', image)
+        # cv2.waitKey(0)
+
+    with open(join(labels_path, 'labels.csv'), 'w') as labels:
+        label_str = '\n'.join(label_list)
+        labels.write(label_str)
 
 
 if __name__ == '__main__':
