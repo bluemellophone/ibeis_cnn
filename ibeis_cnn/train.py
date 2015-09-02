@@ -289,7 +289,7 @@ def train_patchmatch_pz():
             data_shape=dataset.data_shape, output_dims=dataset.output_dims,
             training_dpath=dataset.training_dpath, **hyperparams)
     elif arch_tag == 'background':
-        model = models.BackgroundMo(
+        model = models.BackgroundModel(
             data_shape=dataset.data_shape, output_dims=dataset.output_dims,
             training_dpath=dataset.training_dpath, **hyperparams)
         pass
