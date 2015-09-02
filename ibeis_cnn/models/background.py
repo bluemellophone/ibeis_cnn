@@ -3,9 +3,9 @@ from __future__ import absolute_import, division, print_function
 import lasagne  # NOQA
 from lasagne import layers
 from lasagne import nonlinearities
-from lasagne import init
 from ibeis_cnn import custom_layers
 from ibeis_cnn.models import abstract_models
+import functools
 import six
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.background]')
@@ -13,151 +13,85 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.background]')
 
 Conv2DLayer = custom_layers.Conv2DLayer
 MaxPool2DLayer = custom_layers.MaxPool2DLayer
+DenseLayer = layers.DenseLayer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
 class BackgroundModel(abstract_models.AbstractCategoricalModel):
-    def __init__(self):
-        super(BackgroundModel, self).__init__()
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(96, 96, 3), arch_tag='background', **kwargs):
+        super(BackgroundModel, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
 
-    def learning_rate_update(self, x):
+    def learning_rate_update(model, x):
         return x / 2.0
 
-    def learning_rate_shock(self, x):
+    def learning_rate_shock(model, x):
         return x * 2.0
 
-    def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+    def get_background_def(model, verbose=ut.VERBOSE, **kwargs):
         _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
-        _leaky_relu = nonlinearities.LeakyRectify(leakiness=(1. / 10.))
+        _P = functools.partial
 
-        l_in = layers.InputLayer(
-            # variable batch size (None), channel, width, height
-            shape=(None, input_channels, input_width, input_height)
+        hidden_initkw = {
+            'nonlinearity' : nonlinearities.LeakyRectify(leakiness=(1. / 10.))
+        }
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape),
+
+                _P(Conv2DLayer, num_filters=32, filter_size=(11, 11), name='C0', W=_CaffeNet.get_pretrained_layer(0), **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
+                _P(layers.DropoutLayer, p=0.1, name='D0'),
+
+                _P(Conv2DLayer, num_filters=64, filter_size=(5, 5), name='C1', W=_CaffeNet.get_pretrained_layer(2), **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
+                _P(layers.DropoutLayer, p=0.2, name='D1'),
+
+                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.3, name='D2'),
+
+                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
+                _P(layers.DropoutLayer, p=0.5, name='D3'),
+
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C4', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.5, name='D4'),
+
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C5', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.5, name='D5'),
+
+                _P(DenseLayer, num_units=1024, name='F1', **hidden_initkw),
+                _P(layers.FeaturePoolLayer, pool_size=2),
+                _P(layers.DropoutLayer, p=0.5),
+
+                _P(DenseLayer, num_units=1024, name='F2', **hidden_initkw),
+                _P(layers.FeaturePoolLayer, pool_size=2),
+                _P(layers.DropoutLayer, p=0.5),
+
+                _P(DenseLayer, num_units=2, name='F3', nonlinearity=nonlinearities.softmax),
+            ]
         )
+        return network_layers_def
 
-        l_conv0 = Conv2DLayer(
-            l_in,
-            num_filters=32,
-            filter_size=(11, 11),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=_CaffeNet.get_pretrained_layer(0),
-        )
+    def initialize_architecture(model, verbose=ut.VERBOSE, **kwargs):
+        r"""
+        """
+        (_, input_channels, input_width, input_height) = model.input_shape
+        if verbose:
+            print('[model] Initialize center siamese l2 model architecture')
+            print('[model]   * batch_size     = %r' % (model.batch_size,))
+            print('[model]   * input_width    = %r' % (input_width,))
+            print('[model]   * input_height   = %r' % (input_height,))
+            print('[model]   * input_channels = %r' % (input_channels,))
+            print('[model]   * output_dims    = %r' % (model.output_dims,))
 
-        l_pool0 = MaxPool2DLayer(
-            l_conv0,
-            pool_size=(2, 2),
-            stride=(2, 2),
-        )
-
-        l_conv0_dropout = layers.DropoutLayer(l_pool0, p=0.1)
-
-        l_conv1 = Conv2DLayer(
-            l_conv0_dropout,
-            num_filters=64,
-            filter_size=(5, 5),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=_CaffeNet.get_pretrained_layer(2),
-        )
-
-        l_pool1 = MaxPool2DLayer(
-            l_conv1,
-            pool_size=(2, 2),
-            stride=(2, 2),
-        )
-
-        l_conv1_dropout = layers.DropoutLayer(l_pool1, p=0.2)
-
-        l_conv2 = Conv2DLayer(
-            l_conv1_dropout,
-            num_filters=128,
-            filter_size=(3, 3),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_conv2_dropout = layers.DropoutLayer(l_conv2, p=0.3)
-
-        l_conv3 = Conv2DLayer(
-            l_conv2_dropout,
-            num_filters=128,
-            filter_size=(3, 3),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_pool3 = MaxPool2DLayer(
-            l_conv3,
-            pool_size=(2, 2),
-            stride=(2, 2),
-        )
-
-        l_conv3_dropout = layers.DropoutLayer(l_pool3, p=0.5)
-
-        l_conv4 = Conv2DLayer(
-            l_conv3_dropout,
-            num_filters=256,
-            filter_size=(3, 3),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_conv4_dropout = layers.DropoutLayer(l_conv4, p=0.5)
-
-        l_conv5 = Conv2DLayer(
-            l_conv4_dropout,
-            num_filters=256,
-            filter_size=(3, 3),
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_conv5_dropout = layers.DropoutLayer(l_conv5, p=0.5)
-
-        l_hidden1 = layers.DenseLayer(
-            l_conv5_dropout,
-            num_units=1024,
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_hidden1_maxout = layers.FeaturePoolLayer(
-            l_hidden1,
-            pool_size=2,
-        )
-
-        l_hidden1_dropout = layers.DropoutLayer(l_hidden1_maxout, p=0.5)
-
-        l_hidden2 = layers.DenseLayer(
-            l_hidden1_dropout,
-            num_units=1024,
-            # nonlinearity=nonlinearities.rectify,
-            nonlinearity=_leaky_relu,
-            W=init.Orthogonal(),
-        )
-
-        l_hidden2_maxout = layers.FeaturePoolLayer(
-            l_hidden2,
-            pool_size=2,
-        )
-
-        l_hidden2_dropout = layers.DropoutLayer(l_hidden2_maxout, p=0.5)
-
-        l_out = layers.DenseLayer(
-            l_hidden2_dropout,
-            num_units=output_dims,
-            nonlinearity=nonlinearities.softmax,
-            W=init.Orthogonal(),
-        )
-        self.output_layer = l_out
-        return l_out
-
+        network_layers_def = model.get_background_def(verbose=verbose, **kwargs)
+        # connect and record layers
+        network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
+        #model.network_layers = network_layers
+        output_layer = network_layers[-1]
+        model.output_layer = output_layer
+        return output_layer
 
 if __name__ == '__main__':
     """
