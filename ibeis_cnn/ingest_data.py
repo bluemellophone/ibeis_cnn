@@ -482,6 +482,31 @@ def get_ibeis_siam_dataset(**kwargs):
     return dataset
 
 
+def get_numpy_dataset(data_fpath, labels_fpath, training_dpath):
+    """
+    """
+    # hack for caching num_labels
+    data = ut.load_data(data_fpath)
+    data_shape = data.shape
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
+    alias_key = 'temp'
+    ut.ensuredir(training_dpath)
+
+    dataset = DataSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        training_dpath=training_dpath,
+        data_shape=data_shape,
+        data_per_label=1,
+        output_dims=1,
+        num_labels=num_labels,
+    )
+    return dataset
+
+
 if __name__ == '__main__':
     """
     CommandLine:

@@ -76,15 +76,16 @@ ds_tag_alias2 = {
     'pzmaster-bgr' : "PZ_Master0;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
     'pzmtest-bgr'  : "PZ_MTEST;dict(colorspace='bgr', controlled=True, max_examples=None, num_top=None,)",
 
-    'nnp'         : "NNP_Master3;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
-    'pzmtest'     : "PZ_MTEST;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
-    'gz-gray'     : "GZ_ALL;dict(colorspace='gray', controlled=False, max_examples=None, num_top=None,)",
-    'girm'        : "NNP_MasterGIRM_core;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+    'nnp'          : "NNP_Master3;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+    'pzmtest'      : "PZ_MTEST;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
+    'gz-gray'      : "GZ_ALL;dict(colorspace='gray', controlled=False, max_examples=None, num_top=None,)",
+    'girm'         : "NNP_MasterGIRM_core;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
 
-    'pzmaster'    : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
-    'liberty'     : "liberty;dict(detector='dog', pairs=250000,)",
+    'pzmaster'     : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
+    'liberty'      : "liberty;dict(detector='dog', pairs=250000,)",
 
-    'combo': 'combo_vdsujffw',
+    'combo'        : 'combo_vdsujffw',
+    'background'   : None,
 }
 
 
@@ -240,16 +241,24 @@ def train_patchmatch_pz():
 
     # resolve aliases
     ds_tag = ds_tag_alias2.get(ds_tag, ds_tag)
-    extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
-    checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
-
-    # ----------------------------
-    # Choose the main dataset
-    dataset = ingest_data.grab_siam_dataset(ds_tag)
-    if extern_ds_tag is not None:
-        extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
+    if ds_tag is None:
+        from os.path import join
+        source_path = join('..', 'data', 'numpy', 'backgound_patches')
+        data_fpath = join(source_path, 'X.npy')
+        labels_fpath = join(source_path, 'y.npy')
+        training_dpath = join('..', 'data', 'results', 'backgound_patches')
+        dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
     else:
-        extern_dpath = None
+        extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
+        checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
+
+        # ----------------------------
+        # Choose the main dataset
+        dataset = ingest_data.grab_siam_dataset(ds_tag)
+        if extern_ds_tag is not None:
+            extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
+        else:
+            extern_dpath = None
 
     if ut.get_argflag('--aliasexit'):
         print(repr(dataset.alias_key))
@@ -277,6 +286,10 @@ def train_patchmatch_pz():
             **hyperparams)
     elif arch_tag == 'mnist-category':
         model = models.MNISTModel(
+            data_shape=dataset.data_shape, output_dims=dataset.output_dims,
+            training_dpath=dataset.training_dpath, **hyperparams)
+    elif arch_tag == 'background':
+        model = models.BackgroundMo(
             data_shape=dataset.data_shape, output_dims=dataset.output_dims,
             training_dpath=dataset.training_dpath, **hyperparams)
         pass

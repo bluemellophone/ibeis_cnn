@@ -62,6 +62,7 @@ rrrr = reload_subs
 
 IMPORT_TUPLES = [
     ('abstract_models', None),
+    ('background', None),
     ('dummy', None),
     ('mnist', None),
     ('quality', None),
@@ -93,31 +94,33 @@ if DOELSE:
     # <AUTOGEN_INIT>
 
     from ibeis_cnn.models import abstract_models
+    from ibeis_cnn.models import background
     from ibeis_cnn.models import dummy
     from ibeis_cnn.models import mnist
     from ibeis_cnn.models import quality
     from ibeis_cnn.models import siam
     from ibeis_cnn.models import viewpoint
-    from ibeis_cnn.models.abstract_models import (AbstractCategoricalModel, 
-                                                  BaseModel, Conv2DLayer, 
-                                                  MaxPool2DLayer, 
-                                                  PretrainedNetwork, 
-                                                  evaluate_layer_list, 
-                                                  imwrite_wrapper, 
-                                                  testdata_model_with_history,) 
-    from ibeis_cnn.models.dummy import (DummyModel,) 
-    from ibeis_cnn.models.mnist import (MNISTModel,) 
-    from ibeis_cnn.models.quality import (QualityModel,) 
-    from ibeis_cnn.models.siam import (AbstractSiameseModel, 
-                                       SiameseCenterSurroundModel, SiameseL2, 
-                                       constrastive_loss, ignore_hardest_cases, 
-                                       predict, testdata_siam_desc,) 
-    from ibeis_cnn.models.viewpoint import (ViewpointModel,) 
+    from ibeis_cnn.models.abstract_models import (AbstractCategoricalModel,
+                                                  BaseModel, Conv2DLayer,
+                                                  MaxPool2DLayer,
+                                                  PretrainedNetwork,
+                                                  evaluate_layer_list,
+                                                  imwrite_wrapper,
+                                                  testdata_model_with_history,)
+    from ibeis_cnn.models.background import (BackgroundModel,)
+    from ibeis_cnn.models.dummy import (DummyModel,)
+    from ibeis_cnn.models.mnist import (MNISTModel,)
+    from ibeis_cnn.models.quality import (QualityModel,)
+    from ibeis_cnn.models.siam import (AbstractSiameseModel,
+                                       SiameseCenterSurroundModel, SiameseL2,
+                                       constrastive_loss, ignore_hardest_cases,
+                                       predict, testdata_siam_desc,)
+    from ibeis_cnn.models.viewpoint import (ViewpointModel,)
     import utool
     print, print_, printDBG, rrr, profile = utool.inject(
         __name__, '[ibeis_cnn.models]')
-    
-    
+
+
     def reassign_submodule_attributes(verbose=True):
         """
         why reloading all the modules doesnt do this I don't know
@@ -144,8 +147,8 @@ if DOELSE:
                     continue
                 seen_.add(attr)
                 setattr(ibeis_cnn.models, attr, getattr(submod, attr))
-    
-    
+
+
     def reload_subs(verbose=True):
         """ Reloads ibeis_cnn.models and submodules """
         rrr(verbose=verbose)
@@ -153,6 +156,7 @@ if DOELSE:
             """ fallback reload """
             pass
         getattr(abstract_models, 'rrr', fbrrr)(verbose=verbose)
+        getattr(background, 'rrr', fbrrr)(verbose=verbose)
         getattr(dummy, 'rrr', fbrrr)(verbose=verbose)
         getattr(mnist, 'rrr', fbrrr)(verbose=verbose)
         getattr(quality, 'rrr', fbrrr)(verbose=verbose)
