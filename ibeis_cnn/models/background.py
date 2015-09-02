@@ -39,32 +39,32 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
             [
                 _P(layers.InputLayer, shape=model.input_shape),
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(11, 11), name='C0', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(11, 11), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(layers.DropoutLayer, p=0.1, name='D0'),
 
-                _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(5, 5), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(layers.DropoutLayer, p=0.2, name='D1'),
 
-                _P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C2', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), name='C2', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.3, name='D2'),
 
-                _P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), name='C3', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
                 _P(layers.DropoutLayer, p=0.5, name='D3'),
 
-                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C4', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), name='C4', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5, name='D4'),
 
-                _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C5', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), name='C5', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5, name='D5'),
 
-                _P(DenseLayer, num_units=512, name='F1', **hidden_initkw),
+                _P(DenseLayer, num_units=128, name='F1', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(DenseLayer, num_units=512, name='F2', **hidden_initkw),
+                _P(DenseLayer, num_units=128, name='F2', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
