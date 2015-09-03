@@ -60,11 +60,11 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C5', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5, name='D5'),
 
-                _P(DenseLayer, num_units=128, name='F1', **hidden_initkw),
+                _P(DenseLayer, num_units=1024, name='F1', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(DenseLayer, num_units=128, name='F2', **hidden_initkw),
+                _P(DenseLayer, num_units=1024, name='F2', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
