@@ -295,6 +295,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 print('[train]     4 - Embed into IPython')
                 print('[train]     5 - Draw current weights')
                 print('[train]     6 - Show training state')
+                print('[train]     7 - Clean dataset [WARNING: EXPERIMENTAL]')
                 print('[train]  ELSE - Stop network training')
                 resolution = input('[train] Resolution: ')
             resolution = int(resolution)
@@ -323,12 +324,57 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                     ut.startfile(fpath)
             elif resolution == 6:
                 print(model.get_state_str())
+            elif resolution == 7:
+                X_train, y_train = _clean(model, theano_forward, X_train, y_train, **batchiter_kw)
+                X_valid, y_valid = _clean(model, theano_forward, X_valid, y_valid, **batchiter_kw)
             else:
                 # Terminate the network training
                 raise
     # Save the best network
     model.checkpoint_save_model_state()
     model.save_model_state()
+
+
+def _clean(model, theano_forward, X_list, y_list, min_conf=0.90, **batchiter_kw):
+    import random
+    # Perform testing
+    clean_outputs = batch.process_batch(
+        model, X_list, y_list, theano_forward, augment_on=False,
+        randomize_batch_order=True, **batchiter_kw)
+    prediction_list = clean_outputs['labeled_predictions']
+    confidence_list = clean_outputs['confidences']
+    enumerated = enumerate(zip(y_list, prediction_list, confidence_list))
+
+    switched_counter = 0
+    switched = {}
+    for index, (y, prediction, confidence) in enumerated:
+        if confidence < min_conf:
+            continue
+        y = str(y)
+        prediction = str(prediction)
+        if y == prediction:
+            continue
+        if random.uniform(0.0, 1.0) > confidence:
+            continue
+        # Perform the switching
+        y_list[index] = prediction
+        switched_counter += 1
+        # Keep track of changes
+        if y not in switched:
+            switched[y] = {}
+        if prediction not in switched[y]:
+            switched[y][prediction] = 0
+        switched[y][prediction] += 1
+
+    total = len(y_list)
+    ratio = switched_counter / total
+    args = (switched_counter, total, ratio, )
+    print('[_clean] Cleaned Data... [ %d / %d ] ( %0.04f )' % args)
+    for src in sorted(switched.keys()):
+        for dst in sorted(switched.keys()):
+            print('[_clean] \t%r -> %r : %d' % (src, dst, switched[src][dst], ))
+
+    return X_list, y_list
 
 
 def test_data2(model, X_test, y_test):
