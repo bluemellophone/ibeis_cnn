@@ -357,7 +357,14 @@ def train_background():
             'weight_decay': 0.0005,
         }
     )
-    dataset = ingest_data.get_numpy_dataset()
+
+    from os.path import join
+    source_path = join('data', 'numpy', 'background_patches')
+    data_fpath = join(source_path, 'X.npy')
+    labels_fpath = join(source_path, 'y.npy')
+    training_dpath = join('data', 'results', 'backgound_patches')
+    dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
+
     data_shape = dataset.data_shape
     input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 
