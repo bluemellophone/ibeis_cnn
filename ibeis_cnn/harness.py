@@ -61,8 +61,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     learning_rate_adjust  = config.get('learning_rate_adjust', .8)
 
     batchiter_kw = dict(
-        #showprog=False,
-        showprog=True,
+        showprog=ut.get_argflag('--monitor'),
         time_thresh=4,
         time_thresh_growth=ut.PHI * 2,
     )
