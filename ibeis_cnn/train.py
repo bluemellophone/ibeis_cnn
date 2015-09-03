@@ -346,7 +346,7 @@ def train_background():
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.train import *  # NOQA
-        >>> result = train_mnist()
+        >>> result = train_background()
         >>> print(result)
     """
     hyperparams = ut.argparse_dict(
