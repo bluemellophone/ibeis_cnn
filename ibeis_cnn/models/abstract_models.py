@@ -589,8 +589,7 @@ class BaseModel(object):
         print(model.get_state_str(**kwargs))
 
     def print_layer_info(model):
-        # net_strs.print_layer_info(model.get_all_layers())
-        pass
+        net_strs.print_layer_info(model.get_all_layers())
 
     def print_architecture_str(model, sep='\n  '):
         architecture_str = model.get_architecture_str(sep=sep)

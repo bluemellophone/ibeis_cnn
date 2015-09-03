@@ -85,7 +85,6 @@ ds_tag_alias2 = {
     'liberty'      : "liberty;dict(detector='dog', pairs=250000,)",
 
     'combo'        : 'combo_vdsujffw',
-    'background'   : None,
 }
 
 
@@ -241,26 +240,16 @@ def train_patchmatch_pz():
 
     # resolve aliases
     ds_tag = ds_tag_alias2.get(ds_tag, ds_tag)
-    if ds_tag is None:
-        from os.path import join
-        source_path = join('data', 'numpy', 'background_patches')
-        data_fpath = join(source_path, 'X.npy')
-        labels_fpath = join(source_path, 'y.npy')
-        training_dpath = join('data', 'results', 'backgound_patches')
-        dataset = ingest_data.get_numpy_dataset(data_fpath, labels_fpath, training_dpath)
-        extern_dpath = None
-        checkpoint_tag = None
-    else:
-        extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
-        checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
+    extern_ds_tag = ds_tag_alias2.get(extern_ds_tag, extern_ds_tag)
+    checkpoint_tag = checkpoint_tag_alias.get(checkpoint_tag, checkpoint_tag)
 
-        # ----------------------------
-        # Choose the main dataset
-        dataset = ingest_data.grab_siam_dataset(ds_tag)
-        if extern_ds_tag is not None:
-            extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
-        else:
-            extern_dpath = None
+    # ----------------------------
+    # Choose the main dataset
+    dataset = ingest_data.grab_siam_dataset(ds_tag)
+    if extern_ds_tag is not None:
+        extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
+    else:
+        extern_dpath = None
 
     if ut.get_argflag('--aliasexit'):
         print(repr(dataset.alias_key))
@@ -290,10 +279,6 @@ def train_patchmatch_pz():
         model = models.MNISTModel(
             data_shape=dataset.data_shape, output_dims=dataset.output_dims,
             training_dpath=dataset.training_dpath, **hyperparams)
-    elif arch_tag == 'background':
-        model = models.BackgroundModel(
-            data_shape=dataset.data_shape, output_dims=dataset.output_dims,
-            training_dpath=dataset.training_dpath, **hyperparams)
         pass
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
@@ -301,17 +286,16 @@ def train_patchmatch_pz():
 
     # ----------------------------
     # Choose weight initialization
-    if checkpoint_tag is not None:
-        if checkpoint_tag == 'new':
-            model.reinit_weights()
+    if checkpoint_tag == 'new':
+        model.reinit_weights()
+    else:
+        checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
+        if extern_dpath is not None:
+            model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
+        elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
+            model.load_model_state(checkpoint_tag=checkpoint_tag)
         else:
-            checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
-            if extern_dpath is not None:
-                model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
-            elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
-                model.load_model_state(checkpoint_tag=checkpoint_tag)
-            else:
-                raise ValueError('Unresolved weight init: checkpoint_tag=%r, extern_ds_tag=%r' % (checkpoint_tag, extern_ds_tag,))
+            raise ValueError('Unresolved weight init: checkpoint_tag=%r, extern_ds_tag=%r' % (checkpoint_tag, extern_ds_tag,))
 
     #print('Model State:')
     #print(model.get_state_str())
@@ -352,6 +336,58 @@ def train_patchmatch_pz():
         # import dropbox  # need oauth
         #client.share('/myfile.txt', short_url=False)
         # https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl
+
+
+def train_background():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.train --test-train_background
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.train import *  # NOQA
+        >>> result = train_mnist()
+        >>> print(result)
+    """
+    hyperparams = ut.argparse_dict(
+        {
+            'batch_size': 128,
+            'learning_rate': .001,
+            'momentum': .9,
+            'weight_decay': 0.0005,
+        }
+    )
+    dataset = ingest_data.get_numpy_dataset()
+    data_shape = dataset.data_shape
+    input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
+
+    # Choose model
+    model = models.BackgroundModel(
+        input_shape=input_shape, output_dims=dataset.output_dims,
+        training_dpath=dataset.training_dpath, **hyperparams)
+
+    # Initialize architecture
+    model.initialize_architecture()
+
+    # Load previously learned weights or initialize new weights
+    if model.has_saved_state():
+        model.load_model_state()
+    else:
+        model.reinit_weights()
+
+    config = dict(
+        learning_rate_schedule=15,
+        max_epochs=120,
+        show_confusion=False,
+        run_test=None,
+        show_features=False,
+        print_timing=False,
+    )
+
+    X_train, y_train = dataset.load_subset('train')
+    X_valid, y_valid = dataset.load_subset('valid')
+    #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
+    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
 
 #def train_mnist():
