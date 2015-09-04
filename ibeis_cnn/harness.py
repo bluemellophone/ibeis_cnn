@@ -154,7 +154,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
             epoch_info['train_loss_regularized'] = train_outputs['loss_regularized'].mean()
-            #if 'valid_acc' in model.requested_headers:
+            # if 'valid_acc' in model.requested_headers:
             #    epoch_info['test_acc']  = train_outputs['accuracy']
 
             # If the training loss is nan, the training has diverged
@@ -185,7 +185,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 randomize_batch_order=True, **batchiter_kw)
             epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
             epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
-            if 'valid_acc' in model.requested_headers:
+            # if 'valid_acc' in model.requested_headers:
+            if True:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
                 epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
@@ -335,7 +336,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     model.save_model_state()
 
 
-def _clean(model, theano_forward, X_list, y_list, min_conf=0.90, **batchiter_kw):
+def _clean(model, theano_forward, X_list, y_list, min_conf=0.95, **batchiter_kw):
     import random
     # Perform testing
     clean_outputs = batch.process_batch(
