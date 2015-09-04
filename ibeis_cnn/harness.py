@@ -350,8 +350,6 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.90, **batchiter_kw)
     for index, (y, prediction, confidence) in enumerated:
         if confidence < min_conf:
             continue
-        y = str(y)
-        prediction = str(prediction)
         if y == prediction:
             continue
         if random.uniform(0.0, 1.0) > confidence:
@@ -360,6 +358,8 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.90, **batchiter_kw)
         y_list[index] = prediction
         switched_counter += 1
         # Keep track of changes
+        y = str(y)
+        prediction = str(prediction)
         if y not in switched:
             switched[y] = {}
         if prediction not in switched[y]:
