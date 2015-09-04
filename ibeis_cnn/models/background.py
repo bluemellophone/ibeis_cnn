@@ -29,10 +29,10 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
 
     def augment(model, Xb, yb=None):
         import random
+        import cv2
         for index, X in enumerate(Xb):
-            print(X.shape)
-            # if random.uniform(0.0, 1.0):
-
+            if random.uniform(0.0, 1.0) <= 0.5:
+                X = cv2.flip(X, 1)
         return Xb, yb
 
     def get_background_def(model, verbose=ut.VERBOSE, **kwargs):
