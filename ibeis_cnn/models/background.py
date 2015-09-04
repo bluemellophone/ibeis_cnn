@@ -27,6 +27,14 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
     def learning_rate_shock(model, x):
         return x * 2.0
 
+    def augment(model, Xb, yb=None):
+        import random
+        for index, X in enumerate(Xb):
+            print(X.shape)
+            # if random.uniform(0.0, 1.0):
+
+        return Xb, yb
+
     def get_background_def(model, verbose=ut.VERBOSE, **kwargs):
         # _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
         _P = functools.partial
