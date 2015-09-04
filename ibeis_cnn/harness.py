@@ -154,7 +154,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
             epoch_info['train_loss_regularized'] = train_outputs['loss_regularized'].mean()
-            # if 'valid_acc' in model.requested_headers:
+            #if 'valid_acc' in model.requested_headers:
             #    epoch_info['test_acc']  = train_outputs['accuracy']
 
             # If the training loss is nan, the training has diverged
@@ -182,11 +182,10 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # Run validation set
             valid_outputs = batch.process_batch(
                 model, X_valid, y_valid, theano_forward, augment_on=False,
-                randomize_batch_order=True, **batchiter_kw)
+                randomize_batch_order=False, **batchiter_kw)
             epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
             epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
-            # if 'valid_acc' in model.requested_headers:
-            if True:
+            if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
                 epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
@@ -326,8 +325,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             elif resolution == 6:
                 print(model.get_state_str())
             elif resolution == 7:
-                X_train, y_train = _clean(model, theano_forward, X_train, y_train, **batchiter_kw)
-                X_valid, y_valid = _clean(model, theano_forward, X_valid, y_valid, **batchiter_kw)
+                y_train = _clean(model, theano_forward, X_train, y_train, **batchiter_kw)
+                y_valid = _clean(model, theano_forward, X_valid, y_valid, **batchiter_kw)
             else:
                 # Terminate the network training
                 raise
@@ -341,7 +340,7 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.95, **batchiter_kw)
     # Perform testing
     clean_outputs = batch.process_batch(
         model, X_list, y_list, theano_forward, augment_on=False,
-        randomize_batch_order=True, **batchiter_kw)
+        randomize_batch_order=False, **batchiter_kw)
     prediction_list = clean_outputs['labeled_predictions']
     confidence_list = clean_outputs['confidences']
     enumerated = enumerate(zip(y_list, prediction_list, confidence_list))
@@ -375,7 +374,7 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.95, **batchiter_kw)
         for dst in sorted(switched[src].keys()):
             print('[_clean] \t%r -> %r : %d' % (src, dst, switched[src][dst], ))
 
-    return X_list, y_list
+    return y_list
 
 
 def test_data2(model, X_test, y_test):
