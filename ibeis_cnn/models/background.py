@@ -117,15 +117,15 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
                 _P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='F1', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(layers.NIN, num_units=1024, name='F2', **hidden_initkw),
+                _P(layers.NINLayer, num_units=1024, name='F2', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(layers.NIN, num_units=1024, name='F2', **hidden_initkw),
+                _P(layers.NINLayer, num_units=1024, name='F2', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(layers.NIN, num_units=2, name='F3', nonlinearity=nonlinearities.softmax),
+                _P(layers.NINLayer, num_units=2, name='F3', nonlinearity=nonlinearities.softmax),
             ]
         )
         return network_layers_def
