@@ -800,6 +800,51 @@ def print_data_label_info(data, labels, key=''):
 #    return data, labels
 
 
+def extract_patches_stride(image, patch_size, stride):
+    """ Using the input image, take a strided sampling of patches from the image
+
+    The patches are extracted (cropped copies) using the patch_size and stride.
+    If the patch size and stride do not evenly cover the source image in width
+    or height, the fractional border is strided explicitly, meaning that the
+    final row or column will fit precicely against the image border.  As a
+    result, the final row and column will most likely have more overlap with the
+    penultimate row and column.
+
+    Args:
+        image (numpy.ndarray): the image that the patches will be extracted from
+        patch_size (int, tuple of int): the size of the patches to be extracted
+        stride (int, tuple of int): the stride to be used when extracting the
+            patches.
+
+    Returns:
+        patch_list, coord_list (list of numpy.ndarray, list of tuple of int):
+            the list of image patches extracted and a list of the coordinates
+            from the original image space where each patch was extracted.  The
+            coordinates are in the form of a 4-tuple, (top left x, top left y,
+            bottom right x, bottom right y).
+    """
+    if isinstance(patch_size, int):
+        patch_size = (patch_size, patch_size)
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    h, w = image.shape[0:2]
+    pw, ph = patch_size
+    sx, sy = stride
+    patch_list = []
+    coord_list = []
+    extrax = [w - 1 - pw] if w % pw != 0 else []
+    extray = [h - 1 - ph] if h % ph != 0 else []
+    for y in range(0, h - ph, sy) + extray:
+        y_ = y + ph
+        for x in range(0, w - pw, sx) + extrax:
+            x_ = x + pw
+            patch = image[y: y_, x: x_]
+            patch_list.append(patch)
+            coord_list.append((x, y, x_, y_))
+
+    return patch_list, coord_list
+
+
 if __name__ == '__main__':
     """
     CommandLine:

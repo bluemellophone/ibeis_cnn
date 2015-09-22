@@ -2,6 +2,7 @@
 # flake8: noqa
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn.models import abstract_models
+from ibeis_cnn.models import background
 from ibeis_cnn.models import dummy
 from ibeis_cnn.models import mnist
 from ibeis_cnn.models import quality

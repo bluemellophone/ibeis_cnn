@@ -475,6 +475,53 @@ class BaseModel(object):
         #}
         #batch_size = oldkw['batch_size']
 
+    def load_old_weights_kw2(model, old_weights_fpath):
+        print('[model] loading old model state from: %s' % (old_weights_fpath,))
+        with open(old_weights_fpath, 'rb') as file_:
+            oldkw = pickle.load(file_)
+        # Model architecture and weight params
+        data_shape  = oldkw['model_shape'][1:]
+        input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
+        output_dims  = oldkw['output_dims']
+
+        if model.output_dims is None:
+            model.output_dims = output_dims
+
+        # Perform checks
+        assert input_shape[1:] == model.input_shape[1:], 'architecture disagreement'
+        assert output_dims == model.output_dims, 'architecture disagreement'
+
+        # Set class attributes
+        model.best_weights = oldkw['best_weights']
+
+        model.preproc_kw = {
+            'center_mean' : oldkw['center_mean'],
+            'center_std'  : oldkw['center_std'],
+        }
+        model.best_results = {
+            'epoch'          : oldkw['best_epoch'],
+            'test_accuracy'  : oldkw['best_test_accuracy'],
+            'train_loss'     : oldkw['best_train_loss'],
+            'valid_accuracy' : oldkw['best_valid_accuracy'],
+            'valid_loss'     : oldkw['best_valid_loss'],
+            'valid_loss'     : oldkw['best_valid_loss'],
+        }
+
+        # Need to build architecture first
+        model.initialize_architecture()
+
+        model.encoder = oldkw.get('encoder', None)
+
+        # Set architecture weights
+        weights_list = model.best_weights
+        model.set_all_param_values(weights_list)
+        #learning_state = {
+        #    'weight_decay'   : oldkw['regularization'],
+        #    'learning_rate'  : oldkw['learning_rate'],
+        #    'momentum'       : oldkw['momentum'],
+        #}
+        #batch_size = oldkw['batch_size']
+
     # --- HISTORY
 
     def historyfoohack(model, X_train, y_train, dataset):

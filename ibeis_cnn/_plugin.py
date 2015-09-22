@@ -79,6 +79,57 @@ def get_verified_aid_pairs(ibs):
 
 
 @register_ibs_method
+def detect_annot_zebra_background_mask(ibs, aid_list):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+
+    Returns:
+        list: species_viewpoint_list
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-detect_annot_species_viewpoint_cnn
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> import ibeis
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> aid_list = ibs.get_valid_aids()
+        >>> species_viewpoint_list = detect_annot_species_viewpoint_cnn(ibs, aid_list)
+        >>> result = ('species_viewpoint_list = %s' % (str(species_viewpoint_list),))
+        >>> print(result)
+    """
+    from ibeis_cnn import harness
+
+    # Load chips and resize to the target
+    data_shape = (48, 48, 3)
+    # Define model and load weights
+    print('Loading model...')
+    batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
+    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+    weights_path = grabmodels.ensure_model('background', redownload=False)
+    old_weights_fpath = weights_path
+    model.load_old_weights_kw2(old_weights_fpath)
+    # Read the data
+    print('Loading chips...')
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True)
+
+    print(len(chip_list))
+
+    mask_list = []
+    for chip in chip_list:
+        print(chip.shapes)
+        samples, canvas_dict = harness.test_convolutional(model, chip, padding=24)
+        print(canvas_dict.keys())
+        mask = canvas_dict['X']
+        mask_list.append(mask)
+
+    return mask_list
+
+
+@register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     r"""
     Args:
