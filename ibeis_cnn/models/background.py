@@ -16,6 +16,44 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 DenseLayer = layers.DenseLayer
 
 
+class NonlinearityLayerSpatial(lasagne.layers.NonlinearityLayer):
+    def __init__(self, incoming, nonlinearity=nonlinearities.rectify,
+                 **kwargs):
+        """ The spatial version of a nonlinearity as applied accross all spatial
+        dimensions of a network's output.
+        """
+        super(NonlinearityLayerSpatial, self).__init__(incoming, **kwargs)
+        self.nonlinearity = (nonlinearities.identity if nonlinearity is None
+                             else nonlinearity)
+        in_batch, in_channels, in_width, in_height = self.input_shape
+        self.reshape_required = (in_width == 1 and in_height == 1)
+
+    def get_output_for(self, input, **kwargs):
+        import theano.tensor as T
+        old_shape = T.shape(input)
+        if self.reshape_required:
+            input = T.reshape(input, (-1, old_shape[1]))
+            return self.nonlinearity(input)
+        elif input.ndim == 4:
+            input = input.dimshuffle((0, 3, 2, 1))
+            temp = T.shape(input)
+            input = T.reshape(input, (-1, old_shape[1]))
+            activation = self.nonlinearity(input)
+            activation = T.reshape(activation, temp)
+            activation = activation.dimshuffle((0, 3, 2, 1))  # Transpose
+            return activation
+        else:
+            _super = super(NonlinearityLayerSpatial, self)
+            return _super.get_output_for(input, **kwargs)
+
+    def get_output_shape_for(self, input_shape):
+        if self.reshape_required:
+            return input_shape[:2]
+        else:
+            _super = super(NonlinearityLayerSpatial, self)
+            return _super.get_output_shape_for(input_shape)
+
+
 @six.add_metaclass(ut.ReloadingMetaclass)
 class BackgroundModel(abstract_models.AbstractCategoricalModel):
     def __init__(model, autoinit=False, batch_size=128, data_shape=(96, 96, 3), arch_tag='background', **kwargs):
@@ -67,6 +105,9 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
 
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C5', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.5, name='D5'),
+
+                _P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='F1', **hidden_initkw),
+                _P(layers.DropoutLayer, p=0.5),
 
                 _P(DenseLayer, num_units=1024, name='F1', **hidden_initkw),
                 _P(layers.FeaturePoolLayer, pool_size=2),
@@ -125,12 +166,14 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
                 _P(layers.FeaturePoolLayer, pool_size=2),
                 _P(layers.DropoutLayer, p=0.5),
 
-                _P(layers.NINLayer, num_units=2, name='F3', nonlinearity=nonlinearities.softmax),
+                _P(layers.NINLayer, num_units=2, name='F3', nonlinearity=None),
+
+                _P(NonlinearityLayerSpatial, name='S0', nonlinearity=nonlinearities.softmax),
             ]
         )
         return network_layers_def
 
-    def initialize_architecture(model, verbose=ut.VERBOSE, fcnn=True, **kwargs):
+    def initialize_architecture(model, verbose=ut.VERBOSE, fcnn=False, **kwargs):
         r"""
         """
         (_, input_channels, input_width, input_height) = model.input_shape
