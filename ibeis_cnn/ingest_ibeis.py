@@ -544,9 +544,132 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True)
     return patchmatch_tup
 
 
-def get_background_training_patches(ibs, min_percent=0.20, max_percent=0.60, dest_path=None, patch_size=96):
-    """
-    """
+# def get_background_training_patches(ibs, min_percent=0.80, max_percent=2.0,
+#                                     dest_path=None, patch_size=96, patches_per_image=200):
+#     """
+#     """
+#     import random
+#     from os.path import join, expanduser
+
+#     def resize_target(image, target_height=None, target_width=None):
+#         assert target_height is not None or target_width is not None
+#         height, width = image.shape[:2]
+#         if target_height is not None and target_width is not None:
+#             h = target_height
+#             w = target_width
+#         elif target_height is not None:
+#             h = target_height
+#             w = (width / height) * h
+#         elif target_width is not None:
+#             w = target_width
+#             h = (height / width) * w
+#         w, h = int(w), int(h)
+#         return cv2.resize(image, (w, h))
+
+#     def point_inside((x, y), (x0, y0, w, h)):
+#         x1 = x0 + w
+#         y1 = y0 + h
+#         return x0 <= x and x <= x1 and y0 <= y and y <= y1
+
+#     if dest_path is None:
+#         dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+#     name = 'background_patches'
+#     raw_path = join(dest_path, 'raw', name)
+#     labels_path = join(dest_path, 'labels', name)
+
+#     ut.remove_dirs(dest_path)
+#     ut.ensuredir(dest_path)
+#     ut.ensuredir(raw_path)
+#     ut.ensuredir(labels_path)
+
+#     gid_list = ibs.get_valid_gids()
+#     size_list = ibs.get_image_sizes(gid_list)
+#     aids_list = ibs.get_image_aids(gid_list)
+#     bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
+
+#     min_size = int(min_percent * patch_size)
+#     max_size = int(max_percent * patch_size)
+
+#     patch_size = (patch_size, patch_size)
+#     zipped = zip(gid_list, size_list, aids_list, bboxes_list)
+#     label_list = []
+#     for gid, (width, height), aid_list, bbox_list in zipped:
+#         image = ibs.get_images(gid)
+
+#         # smallest_size = min(width, height)
+#         # min_size = int(min_percent * smallest_size)
+#         # max_size = int(max_percent * smallest_size)
+#         # min_size = max(min_size, patch_size)
+
+#         print('Processing GID: %r' % (gid, ))
+#         print('\tAIDS  : %r' % (aid_list, ))
+#         print('\tBBOXES: %r' % (bbox_list, ))
+
+#         for (x0, y0, w, h) in bbox_list:
+#             x1 = x0 + w
+#             y1 = y0 + h
+#             cv2.rectangle(image, (x0, y0), (x1, y1), (255, 0, 0))
+
+#         for _ in range(patches_per_image):
+#             x0 = random.randint(0, width)
+#             y0 = random.randint(0, height)
+
+#             x1, y1 = None, None
+#             while x1 is None or y1 is None:
+#                 x1_ = random.randint(0, width)
+#                 y1_ = random.randint(0, height)
+#                 dist_x = abs(x0 - x1_)
+#                 dist_y = abs(y0 - y1_)
+#                 if dist_x < min_size or max_size < dist_x:
+#                     continue
+#                 if dist_y < min_size or max_size < dist_y:
+#                     continue
+#                 x1 = x1_
+#                 y1 = y1_
+
+#             if x1 < x0:
+#                 x0, x1 = x1, x0
+#             if y1 < y0:
+#                 y0, y1 = y1, y0
+
+#             size = min(x1 - x0, y1 - y0)
+#             x1 = x0 + size
+#             y1 = y0 + size
+#             center = ( int(np.mean((x0, x1))), int(np.mean((y0, y1))) )
+
+#             inside = False
+#             for bbox in bbox_list:
+#                 if point_inside(center, bbox):
+#                     inside = True
+#                     break
+
+#             patch = image[y0: y1, x0: x1]
+#             patch = cv2.resize(patch, patch_size, interpolation=cv2.INTER_LANCZOS4)
+#             patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, size, size, )
+#             patch_class = 'positive' if inside else 'negative'
+#             patch_color = (0, 0, 255) if inside else (0, 255, 0)
+
+#             patch_filepath = join(raw_path, patch_filename)
+#             cv2.imwrite(patch_filepath, patch)
+#             cv2.rectangle(image, (x0, y0), (x1, y1), patch_color)
+
+#             label = '%s,%s' % (patch_filename, patch_class)
+#             label_list.append(label)
+
+#         image = resize_target(image, target_width=1000)
+#         cv2.imshow('', image)
+#         cv2.waitKey(0)
+
+#     with open(join(labels_path, 'labels.csv'), 'w') as labels:
+#         label_str = '\n'.join(label_list)
+#         labels.write(label_str)
+
+
+def get_background_training_patches2(ibs, dest_path=None, patch_size=48,
+                                     patch_size_min=0.80, patch_size_max=1.25,
+                                     annot_size=300, patience=20,
+                                     patches_per_annotation=30):
     import random
     from os.path import join, expanduser
 
@@ -583,77 +706,155 @@ def get_background_training_patches(ibs, min_percent=0.20, max_percent=0.60, des
     ut.ensuredir(labels_path)
 
     gid_list = ibs.get_valid_gids()
-    size_list = ibs.get_image_sizes(gid_list)
     aids_list = ibs.get_image_aids(gid_list)
     bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
 
-    patch_size = (patch_size, patch_size)
-    zipped = zip(gid_list, size_list, aids_list, bboxes_list)
+    zipped = zip(gid_list, aids_list, bboxes_list)
     label_list = []
-    for gid, (width, height), aid_list, bbox_list in zipped:
+    global_positives = 0
+    global_negatives = 0
+    for gid, aid_list, bbox_list in zipped:
         image = ibs.get_images(gid)
-        smallest_size = min(width, height)
-        min_size = int(min_percent * smallest_size)
-        max_size = int(max_percent * smallest_size)
+        h, w, c = image.shape
 
-        print('Processing GID: %r' % (gid, ))
+        args = (gid, global_positives, global_negatives, len(label_list), )
+        print('Processing GID: %r [ %r / %r = %r]' % args)
         print('\tAIDS  : %r' % (aid_list, ))
         print('\tBBOXES: %r' % (bbox_list, ))
 
-        # for (x0, y0, w, h) in bbox_list:
-        #     x1 = x0 + w
-        #     y1 = y0 + h
-        #     cv2.rectangle(image, (x0, y0), (x1, y1), (255, 0, 0))
+        if len(aid_list) == 0 and len(bbox_list) == 0:
+            aid_list = [None]
+            bbox_list = [None]
 
-        for _ in range(100):
-            x0 = random.randint(0, width)
-            y0 = random.randint(0, height)
+        for aid, bbox in zip(aid_list, bbox_list):
+            positives = 0
+            negatives = 0
 
-            x1, y1 = None, None
-            while x1 is None or y1 is None:
-                x1_ = random.randint(0, width)
-                y1_ = random.randint(0, height)
-                dist_x = abs(x0 - x1_)
-                dist_y = abs(y0 - y1_)
-                if dist_x < min_size or max_size < dist_x:
+            if aid is not None:
+                xtl, ytl, w_, h_ = bbox
+                xbr, ybr = xtl + w_, ytl + h_
+
+                # cv2.rectangle(image, (xtl, ytl), (xbr, ybr), (255, 0, 0))
+
+                if min(w_, h_) / max(w_, h_) <= 0.25:
                     continue
-                if dist_y < min_size or max_size < dist_y:
-                    continue
-                x1 = x1_
-                y1 = y1_
 
-            if x1 < x0:
-                x0, x1 = x1, x0
-            if y1 < y0:
-                y0, y1 = y1, y0
+                modifier = w_ / annot_size
+                patch_size_ = patch_size * modifier
+                patch_size_min_ = patch_size_ * patch_size_min
+                patch_size_max_ = patch_size_ * patch_size_max
 
-            size = min(x1 - x0, y1 - y0)
-            x1 = x0 + size
-            y1 = y0 + size
-            center = ( int(np.mean((x0, x1))), int(np.mean((y0, y1))) )
+                for index in range(patches_per_annotation):
+                    counter = 0
+                    found = False
+                    while not found and counter < patience:
+                        counter += 1
+                        patch_size_random = random.uniform(patch_size_min_, patch_size_max_)
+                        patch_size_final = int(round(patch_size_random))
 
-            inside = False
-            for bbox in bbox_list:
-                if point_inside(center, bbox):
-                    inside = True
-                    break
+                        if patch_size_final > w_ or patch_size_final > h_:
+                            continue
 
-            patch = image[y0: y1, x0: x1]
-            patch = cv2.resize(patch, patch_size, interpolation=cv2.INTER_LANCZOS4)
-            patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, size, size, )
-            patch_class = 'positive' if inside else 'negative'
-            # patch_color = (0, 0, 255) if inside else (0, 255, 0)
+                        radius = patch_size_final // 2
+                        centerx = random.randint(xtl + radius, xbr - radius)
+                        centery = random.randint(ytl + radius, ybr - radius)
 
-            patch_filepath = join(raw_path, patch_filename)
-            cv2.imwrite(patch_filepath, patch)
-            # cv2.rectangle(image, (x0, y0), (x1, y1), color)
+                        x0 = centerx - radius
+                        y0 = centery - radius
+                        x1 = centerx + radius
+                        y1 = centery + radius
 
-            label = '%s,%s' % (patch_filename, patch_class)
-            label_list.append(label)
+                        if x0 < 0 or x0 >= w or x1 < 0 or x1 >= w:
+                            continue
+                        if y0 < 0 or y0 >= w or y1 < 0 or y1 >= w:
+                            continue
+
+                        found = True
+
+                    if found:
+                        positives += 1
+                        # cv2.rectangle(image, (x0, y0), (x1, y1), (0, 255, 0))
+                        chip = image[y0: y1, x0: x1]
+                        chip = cv2.resize(chip, (patch_size, patch_size), interpolation=cv2.INTER_LANCZOS4)
+
+                        patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, x1, y1, )
+                        patch_filepath = join(raw_path, patch_filename)
+                        cv2.imwrite(patch_filepath, chip)
+                        label = '%s,%s' % (patch_filename, 'positive')
+                        label_list.append(label)
+
+                positives_ = positives
+            else:
+                modifier = 4.0
+                patch_size_ = patch_size * modifier
+                patch_size_min_ = patch_size_ * patch_size_min
+                patch_size_max_ = patch_size_ * patch_size_max
+                positives_ = patches_per_annotation
+
+            delta = global_positives - global_negatives
+            if delta >= 2 * patches_per_annotation:
+                print('SUPERCHARGE NEGATIVES')
+                positives_ = int(positives_ * 1.5)
+            elif delta <= -2 * patches_per_annotation:
+                print('UNDERCHARGE NEGATIVES')
+                positives_ = int(positives_ * 0.5)
+
+            for index in range(positives_):
+                counter = 0
+                found = False
+                while not found and counter < patience:
+                    counter += 1
+                    patch_size_random = random.uniform(patch_size_min_, patch_size_max_)
+                    patch_size_final = int(round(patch_size_random))
+
+                    radius = patch_size_final // 2
+                    centerx = random.randint(radius, w - radius)
+                    centery = random.randint(radius, h - radius)
+
+                    inside = False
+                    for bbox in bbox_list:
+                        if bbox is None:
+                            continue
+                        if point_inside((centerx, centery), bbox):
+                            inside = True
+                            break
+
+                    if inside:
+                        continue
+
+                    x0 = centerx - radius
+                    y0 = centery - radius
+                    x1 = centerx + radius
+                    y1 = centery + radius
+
+                    if x0 < 0 or x0 >= w or x1 < 0 or x1 >= w:
+                        continue
+                    if y0 < 0 or y0 >= w or y1 < 0 or y1 >= w:
+                        continue
+
+                    found = True
+
+                if found:
+                    negatives += 1
+                    # cv2.rectangle(image, (x0, y0), (x1, y1), (0, 0, 255))
+                    chip = image[y0: y1, x0: x1]
+                    chip = cv2.resize(chip, (patch_size, patch_size), interpolation=cv2.INTER_LANCZOS4)
+
+                    patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, x1, y1, )
+                    patch_filepath = join(raw_path, patch_filename)
+                    cv2.imwrite(patch_filepath, chip)
+                    label = '%s,%s' % (patch_filename, 'negative')
+                    label_list.append(label)
+
+            global_positives += positives
+            global_negatives += negatives
 
         # image = resize_target(image, target_width=1000)
         # cv2.imshow('', image)
         # cv2.waitKey(0)
+
+    args = (global_positives, global_negatives, len(label_list), )
+    print('Final Split: [ %r / %r = %r]' % args)
 
     with open(join(labels_path, 'labels.csv'), 'w') as labels:
         label_str = '\n'.join(label_list)
