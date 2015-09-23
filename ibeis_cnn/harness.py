@@ -424,8 +424,8 @@ def test_data2(model, X_test, y_test):
     return test_outputs
 
 
-def test_convolutional(net, image, patch_size='auto', stride='auto',
-                       padding=32, batch_size=None, **kwargs):
+def test_convolutional(net, theano_predict, image, patch_size='auto', stride='auto',
+                       padding=32, batch_size=None, verbose=False, **kwargs):
     """ Using a network, test an entire image full convolutionally
 
     This function will test an entire image full convolutionally (or a close
@@ -475,7 +475,10 @@ def test_convolutional(net, image, patch_size='auto', stride='auto',
             ])
         return data_padded
 
-    print('[interface] Loading the testing data (convolutional)...')
+    if verbose:
+        # Start timer
+        t0 = time.time()
+        print('[harness] Loading the testing data (convolutional)...')
     # Try to get the image's shape
     try:
         h, w, c = image.shape
@@ -483,8 +486,6 @@ def test_convolutional(net, image, patch_size='auto', stride='auto',
         h, w = image.shape
 
     GLOBAL_LIMIT = min(256, w, h)
-    # Start timer
-    t0 = time.time()
     # Inference
     if patch_size == 'auto':
         patch_size = (GLOBAL_LIMIT - 2 * padding, GLOBAL_LIMIT - 2 * padding)
@@ -505,32 +506,33 @@ def test_convolutional(net, image, patch_size='auto', stride='auto',
         # coord_list_segment = coord_list[start: end]
 
         # Augment the data_list by adding a reflected pad
-        data_list_ = [
+        data_list_ = np.array([
             _add_pad(data_)
             for data_ in data_list_segment
-        ]
+        ])
 
-        # net.data.set_data_list(data_list_, coord_list=coord_list_segment, whiten=False)
-        # # Perform forward inference with the configuration passed in
-        # test_results = net.test(**kwargs)
+        batchiter_kw = dict(
+            fix_output=False,
+            showprog=False,
+            time_thresh=10,
+            spatial=True,
+        )
 
-        test_results = test_data2(net, data_list_, y_test=None)
+        test_results = batch.process_batch(net, data_list_, None, theano_predict, **batchiter_kw)
 
-        print(test_results.keys())
-
-        label_list.extend(test_results['label_list'])
-        confidence_list.extend(test_results['confidence_list'])
+        label_list.extend(test_results['labeled_predictions'])
+        confidence_list.extend(test_results['confidences'])
         start += batch_size
 
     # Get all of the labels for the data, inheritted from the model
-    label_list_ = net.get_data_labels()
+    label_list_ = list(net.encoder.classes_)
     # Create a dictionary of canvases
     canvas_dict = {}
     for label in label_list_:
         canvas_dict[label] = np.zeros((h, w))  # We want float precision
     # Construct the canvases using the forward inference results
     label_list_ = label_list_[::-1]
-    # print('[interface] Labels: %r' %(label_list_, ))
+    # print('[harness] Labels: %r' %(label_list_, ))
     zipped = list(zip(data_list, coord_list, label_list, confidence_list))
     for label in label_list_:
         for data, coord, label_, confidence in zipped:
@@ -558,9 +560,10 @@ def test_convolutional(net, image, patch_size='auto', stride='auto',
     for label in label_list_:
         canvas = np.around(canvas_dict[label])
         canvas_dict[label] = canvas.astype(np.uint8)
-    # End timer
-    t1 = time.time()
-    duration = t1 - t0
-    print('[interface] Interface took %s seconds...' % (duration, ))
+    if verbose:
+        # End timer
+        t1 = time.time()
+        duration = t1 - t0
+        print('[harness] Interface took %s seconds...' % (duration, ))
     # Return the canvas dict
     return samples, canvas_dict

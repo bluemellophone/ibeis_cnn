@@ -6,6 +6,7 @@ from ibeis_cnn import process
 from ibeis_cnn import train
 from ibeis_cnn import utils
 from ibeis_cnn import theano_ext
+from ibeis_cnn import _plugin
 import utool
 print, print_, printDBG, rrr, profile = utool.inject(
     __name__, '[ibeis_cnn]')

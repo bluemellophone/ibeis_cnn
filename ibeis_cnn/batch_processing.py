@@ -18,7 +18,8 @@ VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERB
 VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or ut.VERYVERBOSE
 
 
-def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False, **kwargs):
+def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
+                  show=False, spatial=False, **kwargs):
     """
     compute the loss over all training batches
 
@@ -66,7 +67,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False, **kw
         for outexpr in theano_fn.outputs
     ]
     batch_target_list = []  # augmented label list
-    show = VERBOSE_BATCH
+    show = VERBOSE_BATCH or show
 
     # Break data into generated batches
     # generated data with explicit iteration
@@ -75,10 +76,9 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False, **kw
         batch_iter = ut.buffered_generator(batch_iter)
     if y is None:
         # Labels are not known, only one argument
-        #for Xb, yb in batch_iter:
-        #    batch_output = theano_fn(Xb)
-        #    batch_output_list.append(batch_output)
-        batch_output_list = [theano_fn(Xb) for Xb, yb in batch_iter]
+        for Xb, yb in batch_iter:
+            batch_output = theano_fn(Xb)
+            batch_output_list.append(batch_output)
     else:
         # TODO: sliced batches
         for Xb, yb in batch_iter:
@@ -103,8 +103,16 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False, **kw
     else:
         unstacked_output_gen = ([bop[count] for bop in batch_output_list]
                                 for count, name in enumerate(output_names))
-    stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
-                            for _output_unstacked in unstacked_output_gen]
+
+    if spatial:
+        unstacked_output_gen = list(unstacked_output_gen)
+        stacked_output_list = [ [] for _ in range(len(unstacked_output_gen)) ]
+        for index, output in enumerate(unstacked_output_gen):
+            output = np.vstack(output)
+            stacked_output_list[index] = output
+    else:
+        stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
+                                for _output_unstacked in unstacked_output_gen]
 
     outputs_ = dict(zip(output_names, stacked_output_list))
 

@@ -79,7 +79,7 @@ def get_verified_aid_pairs(ibs):
 
 
 @register_ibs_method
-def detect_annot_zebra_background_mask(ibs, aid_list):
+def detect_annot_zebra_background_mask(ibs, aid_list, **kwargs):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -89,7 +89,7 @@ def detect_annot_zebra_background_mask(ibs, aid_list):
         list: species_viewpoint_list
 
     CommandLine:
-        python -m ibeis_cnn._plugin --exec-detect_annot_species_viewpoint_cnn
+        python -m ibeis_cnn._plugin --exec-detect_annot_zebra_background_mask
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -97,33 +97,38 @@ def detect_annot_zebra_background_mask(ibs, aid_list):
         >>> import ibeis
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> aid_list = ibs.get_valid_aids()
-        >>> species_viewpoint_list = detect_annot_species_viewpoint_cnn(ibs, aid_list)
-        >>> result = ('species_viewpoint_list = %s' % (str(species_viewpoint_list),))
-        >>> print(result)
+        >>> mask_list = detect_annot_zebra_background_mask(ibs, aid_list)
     """
     from ibeis_cnn import harness
 
     # Load chips and resize to the target
-    data_shape = (48, 48, 3)
+    data_shape = (256, 256, 3)
     # Define model and load weights
-    print('Loading model...')
+    print('\n[harness] Loading model...')
     batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
     model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+
     weights_path = grabmodels.ensure_model('background', redownload=False)
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)
+
+    # Create the Theano primitives
+    # create theano symbolic expressions that define the network
+    print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
+    print('[model] creating Theano primitives...')
+    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
+    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
+
     # Read the data
-    print('Loading chips...')
-    chip_list = ibs.get_annot_chips(aid_list, verbose=True)
+    print('\n[harness] Loading chips...')
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True, **kwargs)
 
-    print(len(chip_list))
-
+    print('[harness] Performing inference...')
     mask_list = []
-    for chip in chip_list:
-        print(chip.shapes)
-        samples, canvas_dict = harness.test_convolutional(model, chip, padding=24)
-        print(canvas_dict.keys())
-        mask = canvas_dict['X']
+
+    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
+        samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
+        mask = canvas_dict['positive']
         mask_list.append(mask)
 
     return mask_list
