@@ -3,8 +3,6 @@
 tests a test set of data using a specified, pre0trained model and weights
 """
 from __future__ import absolute_import, division, print_function
-from ibeis.control.controller_inject import make_ibs_register_decorator
-from ibeis.constants import Species, VIEWTEXT_TO_YAW_RADIANS
 # from ibeis_cnn import utils
 from ibeis_cnn import models
 #from ibeis_cnn import test
@@ -16,7 +14,12 @@ import random
 print, print_, printDBG, rrr, profile = ut.inject(__name__, '[ibeis_cnn._plugin]')
 
 
-CLASS_INJECT_KEY, register_ibs_method = make_ibs_register_decorator(__name__)
+try:
+    from ibeis.control.controller_inject import make_ibs_register_decorator
+    from ibeis.constants import Species, VIEWTEXT_TO_YAW_RADIANS
+    CLASS_INJECT_KEY, register_ibs_method = make_ibs_register_decorator(__name__)
+except ImportError as ex:
+    register_ibs_method = ut.identity
 
 
 def convert_species_viewpoint(species, viewpoint):
@@ -79,7 +82,7 @@ def get_verified_aid_pairs(ibs):
 
 
 @register_ibs_method
-def detect_annot_zebra_background_mask(ibs, aid_list, **kwargs):
+def detect_annot_zebra_background_mask(ibs, aid_list, config2_=None):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -89,15 +92,29 @@ def detect_annot_zebra_background_mask(ibs, aid_list, **kwargs):
         list: species_viewpoint_list
 
     CommandLine:
-        python -m ibeis_cnn._plugin --exec-detect_annot_zebra_background_mask
+        python -m ibeis_cnn._plugin --exec-detect_annot_zebra_background_mask --show
 
     Example:
         >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> import ibeis_cnn
         >>> import ibeis
+        >>> from ibeis_cnn._plugin import *  # NOQA
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> aid_list = ibs.get_valid_aids()
         >>> mask_list = detect_annot_zebra_background_mask(ibs, aid_list)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(mask_list, nPerPage=4)
+        >>> #pt.imshow(mask_list[0])
+        >>> ut.show_if_requested()
+
+        #>>> from ibeis_cnn.draw_results import *  # NOQA
+        #>>> from ibeis_cnn import ingest_data
+        #>>> data, labels = ingest_data.testdata_patchmatch2()
+        #>>> flat_metadata = {'fs': np.arange(len(labels))}
+        #>>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
+        #>>> ut.show_if_requested()
+
     """
     from ibeis_cnn import harness
 
@@ -121,7 +138,79 @@ def detect_annot_zebra_background_mask(ibs, aid_list, **kwargs):
 
     # Read the data
     print('\n[harness] Loading chips...')
-    chip_list = ibs.get_annot_chips(aid_list, verbose=True, **kwargs)
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_)
+
+    print('[harness] Performing inference...')
+    mask_list = []
+
+    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
+        samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
+        mask = canvas_dict['positive']
+        mask_list.append(mask)
+
+    return mask_list
+
+
+@register_ibs_method
+def detect_species_background_mask(ibs, chip_fpath_list, species=None):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+
+    Returns:
+        list: species_viewpoint_list
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-detect_species_background_mask --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> import ibeis_cnn
+        >>> import ibeis
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> aid_list = ibs.get_valid_aids()
+        >>> chip_fpath_list = ibs.get_annot_chip_fpath(aid_list)
+        >>> mask_list = detect_species_background_mask(ibs, chip_fpath_list)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(mask_list, nPerPage=4)
+        >>> #pt.imshow(mask_list[0])
+        >>> ut.show_if_requested()
+
+        #>>> from ibeis_cnn.draw_results import *  # NOQA
+        #>>> from ibeis_cnn import ingest_data
+        #>>> data, labels = ingest_data.testdata_patchmatch2()
+        #>>> flat_metadata = {'fs': np.arange(len(labels))}
+        #>>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
+        #>>> ut.show_if_requested()
+
+    """
+    from ibeis_cnn import harness
+
+    # Load chips and resize to the target
+    data_shape = (256, 256, 3)
+    # Define model and load weights
+    print('\n[harness] Loading model...')
+    batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_fpath_list)))))
+    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+
+    weights_path = grabmodels.ensure_model('background', redownload=False)
+    old_weights_fpath = weights_path
+    model.load_old_weights_kw2(old_weights_fpath)
+
+    # Create the Theano primitives
+    # create theano symbolic expressions that define the network
+    print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
+    print('[model] creating Theano primitives...')
+    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
+    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
+
+    # Read the data
+    print('\n[harness] Loading chips...')
+    import vtool as vt
+    chip_list = [vt.imread(fpath) for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips', adjust=True)]
 
     print('[harness] Performing inference...')
     mask_list = []
@@ -199,6 +288,7 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
 
     CommandLine:
         python -m ibeis_cnn._plugin --exec-validate_annot_species_viewpoint_cnn --db PZ_FlankHack
+        python -m ibeis_cnn._plugin --exec-validate_annot_species_viewpoint_cnn --db GZ_Master1
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -207,9 +297,19 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> aid_list = ibs.get_valid_aids()
         >>> verbose = False
+        >>> #ut.embed()
         >>> (bad_species_list, bad_viewpoint_list) = validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose)
-        >>> result = ('(bad_species_list, bad_viewpoint_list) = %s' % (str((bad_species_list, bad_viewpoint_list)),))
+        >>> print('bad_species_list = %s' % (bad_species_list,))
+        >>> print('bad_species_list = %s' % (bad_viewpoint_list,))
         >>> print(result)
+
+     Ignore:
+        bad_viewpoint_list_ = [item for item in bad_viewpoint_list if item[2] is not None and item[0] > 1200]
+        grouped_dict = ut.group_items(bad_viewpoint_list, ut.get_list_column(bad_viewpoint_list_, 3))
+        grouped_list = grouped_dict.values()
+        regrouped_items = ut.flatten(ut.sortedby(grouped_list, map(len, grouped_list)))
+        candidate_aid_list = ut.get_list_column(regrouped_items, 0)
+        print('candidate_aid_list = %r' % (candidate_aid_list,))
     """
     # Load chips and metadata
     species_list = ibs.get_annot_species(aid_list)

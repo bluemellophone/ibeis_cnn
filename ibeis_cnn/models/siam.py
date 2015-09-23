@@ -463,7 +463,7 @@ def constrastive_loss(dist_l2, labels, margin, T=T):
     r"""
 
     LaTeX:
-        $(y E)^2 + ((1 - y) max(m - E)^2)$
+        $(y E)^2 + ((1 - y) max(m - E, 0)^2)$
 
     Args:
         dist_l2 (ndarray): energy of a training example (l2 distance of descriptor pairs)
