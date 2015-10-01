@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """
-tests a test set of data using a specified, pre0trained model and weights
+tests a test set of data using a specified, pre-trained model and weights
+
+python -c "import ibeis_cnn"
 """
 from __future__ import absolute_import, division, print_function
 # from ibeis_cnn import utils
@@ -20,6 +22,7 @@ try:
     CLASS_INJECT_KEY, register_ibs_method = make_ibs_register_decorator(__name__)
 except ImportError as ex:
     register_ibs_method = ut.identity
+    raise
 
 
 def convert_species_viewpoint(species, viewpoint):
@@ -150,7 +153,7 @@ def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=Non
     print('[harness] Performing inference...')
     mask_list = []
 
-    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
+    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference', adjust=True, freq=5):
         samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
         # mask = canvas_dict['positive']
         mask = canvas_dict[species]
@@ -160,7 +163,7 @@ def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=Non
 
 
 @register_ibs_method
-def detect_species_background_mask(ibs, chip_fpath_list, species=None):
+def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -170,7 +173,7 @@ def detect_species_background_mask(ibs, chip_fpath_list, species=None):
         list: species_viewpoint_list
 
     CommandLine:
-        python -m ibeis_cnn._plugin --exec-detect_species_background_mask --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background_mask --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -180,7 +183,7 @@ def detect_species_background_mask(ibs, chip_fpath_list, species=None):
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> aid_list = ibs.get_valid_aids()
         >>> chip_fpath_list = ibs.get_annot_chip_fpath(aid_list)
-        >>> mask_list = detect_species_background_mask(ibs, chip_fpath_list)
+        >>> mask_list = generate_species_background_mask(ibs, chip_fpath_list)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(mask_list, nPerPage=4)
@@ -312,7 +315,6 @@ def validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose=False):
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
         >>> aid_list = ibs.get_valid_aids()
         >>> verbose = False
-        >>> #ut.embed()
         >>> (bad_species_list, bad_viewpoint_list) = validate_annot_species_viewpoint_cnn(ibs, aid_list, verbose)
         >>> print('bad_species_list = %s' % (bad_species_list,))
         >>> print('bad_species_list = %s' % (bad_viewpoint_list,))
