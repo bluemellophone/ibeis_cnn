@@ -82,7 +82,7 @@ def get_verified_aid_pairs(ibs):
 
 
 @register_ibs_method
-def detect_annot_zebra_background_mask(ibs, aid_list, config2_=None):
+def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=None):
     r"""
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -118,14 +118,21 @@ def detect_annot_zebra_background_mask(ibs, aid_list, config2_=None):
     """
     from ibeis_cnn import harness
 
+    if species is None:
+        species = 'zebra_plains'
+
+    assert species in ['zebra_plains', 'zebra_grevys']
+
     # Load chips and resize to the target
     data_shape = (256, 256, 3)
     # Define model and load weights
     print('\n[harness] Loading model...')
-    batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
+    # batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
+    batch_size = None
     model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
 
-    weights_path = grabmodels.ensure_model('background', redownload=False)
+    # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
+    weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)
 
@@ -145,7 +152,8 @@ def detect_annot_zebra_background_mask(ibs, aid_list, config2_=None):
 
     for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
         samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        mask = canvas_dict['positive']
+        # mask = canvas_dict['positive']
+        mask = canvas_dict[species]
         mask_list.append(mask)
 
     return mask_list
@@ -189,6 +197,11 @@ def detect_species_background_mask(ibs, chip_fpath_list, species=None):
     """
     from ibeis_cnn import harness
 
+    if species is None:
+        species = 'zebra_plains'
+
+    assert species in ['zebra_plains', 'zebra_grevys']
+
     # Load chips and resize to the target
     data_shape = (256, 256, 3)
     # Define model and load weights
@@ -196,7 +209,8 @@ def detect_species_background_mask(ibs, chip_fpath_list, species=None):
     batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_fpath_list)))))
     model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
 
-    weights_path = grabmodels.ensure_model('background', redownload=False)
+    # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
+    weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)
 
@@ -217,7 +231,8 @@ def detect_species_background_mask(ibs, chip_fpath_list, species=None):
 
     for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
         samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        mask = canvas_dict['positive']
+        # mask = canvas_dict['positive']
+        mask = canvas_dict[species]
         mask_list.append(mask)
 
     return mask_list
