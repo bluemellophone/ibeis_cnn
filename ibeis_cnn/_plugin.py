@@ -132,7 +132,8 @@ def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=Non
     print('\n[harness] Loading model...')
     # batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
     batch_size = None
-    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+    # model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
 
     # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
     weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
@@ -210,7 +211,8 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     # Define model and load weights
     print('\n[harness] Loading model...')
     batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_fpath_list)))))
-    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+    # model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
 
     # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
     weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
