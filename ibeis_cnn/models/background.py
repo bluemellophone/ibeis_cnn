@@ -56,7 +56,8 @@ class NonlinearityLayerSpatial(lasagne.layers.NonlinearityLayer):
 
 @six.add_metaclass(ut.ReloadingMetaclass)
 class BackgroundModel(abstract_models.AbstractCategoricalModel):
-    def __init__(model, autoinit=False, batch_size=128, data_shape=(48, 48, 3), arch_tag='background', **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(48, 48, 3), num_output=2, arch_tag='background', **kwargs):
+        model.num_output = num_output
         super(BackgroundModel, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
 
     def learning_rate_update(model, x):
@@ -100,7 +101,7 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C4', **hidden_initkw),
                 _P(layers.DropoutLayer, p=0.4, name='D4'),
 
-                _P(layers.NINLayer, num_units=2, name='F3', nonlinearity=None),
+                _P(layers.NINLayer, num_units=model.num_output, name='F3', nonlinearity=None),
 
                 _P(NonlinearityLayerSpatial, name='S0', nonlinearity=nonlinearities.softmax),
             ]
