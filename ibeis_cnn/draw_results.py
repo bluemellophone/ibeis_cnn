@@ -119,8 +119,8 @@ def get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, fl
     offsets_list = offsets_list[:-1]
     sfs_list = sfs_list[:-1]
 
-    import plottool as pt
-    stacked_img, stacked_offsets, stacked_sfs = pt.stack_multi_images2(multiimg_list, offsets_list, sfs_list, vert=False)
+    import vtool as vt
+    stacked_img, stacked_offsets, stacked_sfs = vt.stack_multi_images2(multiimg_list, offsets_list, sfs_list, vert=False)
     return stacked_img, stacked_offsets, stacked_sfs
 
     # TODO; use offset_list for interaction
@@ -200,10 +200,10 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
 
     # stack into single image
     stack_kw = dict(modifysize=False, return_offset=True, return_sf=True)
-    stacked_patch1s, offset_list1, sf_list1 = pt.stack_image_list(patch1_list, vert=True, **stack_kw)
-    stacked_patch2s, offset_list2, sf_list2 = pt.stack_image_list(patch2_list, vert=True, **stack_kw)
+    stacked_patch1s, offset_list1, sf_list1 = vt.stack_image_list(patch1_list, vert=True, **stack_kw)
+    stacked_patch2s, offset_list2, sf_list2 = vt.stack_image_list(patch2_list, vert=True, **stack_kw)
 
-    stacked_patches, offset_list, sf_list = pt.stack_multi_images(
+    stacked_patches, offset_list, sf_list = vt.stack_multi_images(
         stacked_patch1s, stacked_patch2s, offset_list1, sf_list1, offset_list2, sf_list2,
         vert=False, modifysize=False)
 
@@ -329,10 +329,10 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list, flat_me
     #    patch2_list = [vt.draw_border(patch, color=(0, 0, 0), thickness=1, out=patch) for patch in patch2_list]
     #    # stack and show
     #    stack_kw = dict(modifysize=False, return_offset=True, return_sf=True)
-    #    stacked_patch1s, offset_list1, sf_list1 = pt.stack_image_list(patch1_list, vert=True, **stack_kw)
-    #    stacked_patch2s, offset_list2, sf_list2 = pt.stack_image_list(patch2_list, vert=True, **stack_kw)
-    #    #stacked_patches = pt.stack_images(stacked_patch1s, stacked_patch2s, vert=False)[0]
-    #    stacked_patches, offset_list, sf_list = pt.stack_multi_images(
+    #    stacked_patch1s, offset_list1, sf_list1 = vt.stack_image_list(patch1_list, vert=True, **stack_kw)
+    #    stacked_patch2s, offset_list2, sf_list2 = vt.stack_image_list(patch2_list, vert=True, **stack_kw)
+    #    #stacked_patches = vt.stack_images(stacked_patch1s, stacked_patch2s, vert=False)[0]
+    #    stacked_patches, offset_list, sf_list = vt.stack_multi_images(
     #        stacked_patch1s, stacked_patch2s, offset_list1, sf_list1, offset_list2, sf_list2, vert=False, modifysize=False)
     #    pt.figure(fnum=1, pnum=(1, 1, 1), doclf=True)
     #    pt.imshow(stacked_patches)

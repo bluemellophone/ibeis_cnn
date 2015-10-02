@@ -98,12 +98,12 @@ def detect_annot_zebra_background_mask(ibs, aid_list, config2_=None):
         python -m ibeis_cnn._plugin --exec-detect_annot_zebra_background_mask --show
 
     Example:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> import ibeis_cnn
         >>> import ibeis
         >>> from ibeis_cnn._plugin import *  # NOQA
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> aid_list = ibs.get_valid_aids()
+        >>> aid_list = ibs.get_valid_aids()[0:10]
         >>> mask_list = detect_annot_zebra_background_mask(ibs, aid_list)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
@@ -165,7 +165,7 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
         list: species_viewpoint_list
 
     CommandLine:
-        python -m ibeis_cnn._plugin --exec-generate_species_background_mask --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background_mask --show --db PZ_Master1
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -173,7 +173,7 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
         >>> import ibeis
         >>> from ibeis_cnn._plugin import *  # NOQA
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> aid_list = ibs.get_valid_aids()
+        >>> aid_list = ibs.get_valid_aids()[0:10]
         >>> chip_fpath_list = ibs.get_annot_chip_fpath(aid_list)
         >>> mask_list = generate_species_background_mask(ibs, chip_fpath_list)
         >>> ut.quit_if_noshow()

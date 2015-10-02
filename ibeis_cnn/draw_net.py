@@ -298,8 +298,8 @@ def make_conv_weight_image(all_weights, limit=144):
     bordered_features = np.zeros(border_shape, dtype=resized_features.dtype)
     bordered_features[:, nbp_:-nbp_, nbp_:-nbp_, :] = resized_features
     #img_list = bordered_features
-    import plottool as pt   # TODO: this should use vtool
-    stacked_img = pt.stack_square_images(bordered_features)
+    import vtool as vt
+    stacked_img = vt.stack_square_images(bordered_features)
     return stacked_img
 
 
