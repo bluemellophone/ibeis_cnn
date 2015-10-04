@@ -92,74 +92,12 @@ def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=Non
         aid_list (int):  list of annotation ids
 
     Returns:
-        list: species_viewpoint_list
-
-    CommandLine:
-        python -m ibeis_cnn._plugin --exec-detect_annot_zebra_background_mask --show
-
-    Example:
-        >>> # ENABLE_DOCTEST
-        >>> import ibeis_cnn
-        >>> import ibeis
-        >>> from ibeis_cnn._plugin import *  # NOQA
-        >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> aid_list = ibs.get_valid_aids()[0:10]
-        >>> mask_list = detect_annot_zebra_background_mask(ibs, aid_list)
-        >>> ut.quit_if_noshow()
-        >>> import plottool as pt
-        >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(mask_list, nPerPage=4)
-        >>> #pt.imshow(mask_list[0])
-        >>> ut.show_if_requested()
-
-        #>>> from ibeis_cnn.draw_results import *  # NOQA
-        #>>> from ibeis_cnn import ingest_data
-        #>>> data, labels = ingest_data.testdata_patchmatch2()
-        #>>> flat_metadata = {'fs': np.arange(len(labels))}
-        #>>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
-        #>>> ut.show_if_requested()
-
+        list: mask_list
     """
-    from ibeis_cnn import harness
-
-    if species is None:
-        species = 'zebra_plains'
-
-    assert species in ['zebra_plains', 'zebra_grevys']
-
-    # Load chips and resize to the target
-    data_shape = (256, 256, 3)
-    # Define model and load weights
-    print('\n[harness] Loading model...')
-    # batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
-    batch_size = None
-    # model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
-    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
-
-    # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
-    weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
-    old_weights_fpath = weights_path
-    model.load_old_weights_kw2(old_weights_fpath)
-
-    # Create the Theano primitives
-    # create theano symbolic expressions that define the network
-    print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
-    print('[model] creating Theano primitives...')
-    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
-    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
-
     # Read the data
     print('\n[harness] Loading chips...')
     chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_)
-
-    print('[harness] Performing inference...')
-    mask_list = []
-
-    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference', adjust=True, freq=5):
-        samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        # mask = canvas_dict['positive']
-        mask = canvas_dict[species]
-        mask_list.append(mask)
-
+    mask_list = list(generate_species_background(ibs, chip_list, species=species))
     return mask_list
 
 
@@ -197,25 +135,81 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
         #>>> flat_metadata = {'fs': np.arange(len(labels))}
         #>>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
         #>>> ut.show_if_requested()
+    """
+    # Read the data
+    print('\n[harness] Loading chips...')
+    import vtool as vt
+    chip_list = (vt.imread(fpath) for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips', adjust=True))
+    mask_list = list(generate_species_background(ibs, chip_list, species=species))
+    return mask_list
 
+
+@register_ibs_method
+def generate_species_background(ibs, chip_list, species=None, nInput=None):
+    """
+    TODO: Use this as the primary function
+
+    CommandLine:
+        python -m ibeis_cnn._plugin --exec-generate_species_background --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db GZ_Master1 --species=zebra_grevys --save cnn_detect_results_gz.png --diskshow --clipwhite
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --save cnn_detect_results_pz.png --diskshow --clipwhite --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --show --save cnn_detect_results_pz_orig.png --diskshow --clipwhite --show
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> import ibeis_cnn
+        >>> import ibeis
+        >>> from ibeis_cnn._plugin import *  # NOQA
+        >>> ibs = ibeis.opendb(defaultdb='testdb1')
+        >>> aid_list = ibs.get_valid_aids()[0:8]
+        >>> species = ut.get_argval('--species', type_=str, default=None)
+        >>> config2_ = None
+        >>> chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_)
+        >>> nInput = len(chip_list)
+        >>> mask_list = list(generate_species_background(ibs, chip_list, species=species))
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> import vtool as vt
+        >>> stacked_list = [vt.stack_images(chip, mask)[0] for chip, mask in  zip(chip_list, mask_list)]
+        >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(stacked_list, nPerPage=4)
+        >>> #hough_cpath = ibs.get_annot_probchip_fpath(aid_list, config2_=config2_)
+        >>> #iteract_obj2 = pt.interact_multi_image.MultiImageInteraction(hough_cpath, nPerPage=4)
+        >>> #pt.imshow(mask_list[0])
+        >>> ut.show_if_requested()
+
+        #>>> from ibeis_cnn.draw_results import *  # NOQA
+        #>>> from ibeis_cnn import ingest_data
+        #>>> data, labels = ingest_data.testdata_patchmatch2()
+        #>>> flat_metadata = {'fs': np.arange(len(labels))}
+        #>>> result = interact_siamsese_data_patches(labels, data, flat_metadata)
+        #>>> ut.show_if_requested()
     """
     from ibeis_cnn import harness
 
     if species is None:
         species = 'zebra_plains'
 
-    assert species in ['zebra_plains', 'zebra_grevys']
-
     # Load chips and resize to the target
     data_shape = (256, 256, 3)
     # Define model and load weights
     print('\n[harness] Loading model...')
-    batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_fpath_list)))))
-    # model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
-    model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
+    if nInput is None:
+        nInput = len(chip_list)
 
-    # weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
-    weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
+    batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
+
+    OLD = True
+    if OLD:
+        assert species in ['zebra_plains']
+        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+        weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
+        canvas_key = 'positive'
+    else:
+        assert species in ['zebra_plains', 'zebra_grevys']
+        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
+        weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
+        canvas_key = species
+
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)
 
@@ -226,21 +220,12 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
-    # Read the data
-    print('\n[harness] Loading chips...')
-    import vtool as vt
-    chip_list = [vt.imread(fpath) for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips', adjust=True)]
-
     print('[harness] Performing inference...')
-    mask_list = []
 
-    for chip in ut.ProgressIter(chip_list, lbl='zebra background inference'):
+    for chip in ut.ProgressIter(chip_list, lbl=species + ' background inference'):
         samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        # mask = canvas_dict['positive']
-        mask = canvas_dict[species]
-        mask_list.append(mask)
-
-    return mask_list
+        mask = canvas_dict[canvas_key]
+        yield mask
 
 
 @register_ibs_method

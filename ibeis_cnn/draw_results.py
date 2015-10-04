@@ -164,20 +164,12 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
     import vtool as vt
     import plottool as pt
 
-    def ensure_colored(patch):
-        if len(patch.shape) == 2:
-            return np.tile(patch[None, :].T, 3)
-        elif len(patch.shape) == 3 and patch.shape[-1] == 1:
-            return np.tile(patch, 3)
-        else:
-            return patch.copy()
-
     green = tuple(pt.color_funcs.to_base255(pt.TRUE_GREEN)[0:3])[::-1]
     red   = tuple(pt.color_funcs.to_base255(pt.FALSE_RED)[0:3])[::-1]
     purp  = tuple(pt.color_funcs.to_base255(pt.PURPLE)[0:3])[::-1]
 
-    patch1_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch1_list, indicies)]
-    patch2_list_subset = [ensure_colored(patch) for patch in ut.list_take(warped_patch2_list, indicies)]
+    patch1_list_subset = [vt.ensure_3channel(patch) for patch in ut.list_take(warped_patch1_list, indicies)]
+    patch2_list_subset = [vt.ensure_3channel(patch) for patch in ut.list_take(warped_patch2_list, indicies)]
 
     thickness = 2
     if label_list is not None:
