@@ -152,8 +152,9 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     CommandLine:
         python -m ibeis_cnn._plugin --exec-generate_species_background --show
         python -m ibeis_cnn._plugin --exec-generate_species_background --db GZ_Master1 --species=zebra_grevys --save cnn_detect_results_gz.png --diskshow --clipwhite
-        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --save cnn_detect_results_pz.png --diskshow --clipwhite --show
-        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --show --save cnn_detect_results_pz_orig.png --diskshow --clipwhite --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --save cnn_detect_results_pz.png --diskshow --clipwhite
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db GZ_Master1 --show
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -164,12 +165,14 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
         >>> aid_list = ibs.get_valid_aids()[0:8]
         >>> species = ut.get_argval('--species', type_=str, default=None)
         >>> config2_ = None
-        >>> chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_)
-        >>> nInput = len(chip_list)
-        >>> mask_list = list(generate_species_background(ibs, chip_list, species=species))
+        >>> nInput = len(aid_list)
+        >>> chip_iter = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_, eager=False)
+        >>> mask_iter = generate_species_background(ibs, chip_iter, species=species, nInput=nInput)
+        >>> mask_list = list(mask_iter)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> import vtool as vt
+        >>> chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_, eager=True)
         >>> stacked_list = [vt.stack_images(chip, mask)[0] for chip, mask in  zip(chip_list, mask_list)]
         >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(stacked_list, nPerPage=4)
         >>> #hough_cpath = ibs.get_annot_probchip_fpath(aid_list, config2_=config2_)
@@ -198,7 +201,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
 
     batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
 
-    OLD = True
+    OLD = False
     if OLD:
         assert species in ['zebra_plains']
         model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
@@ -222,9 +225,13 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
 
     print('[harness] Performing inference...')
 
-    for chip in ut.ProgressIter(chip_list, lbl=species + ' background inference'):
+    for chip in ut.ProgressIter(chip_list, nTotal=nInput, lbl=species + ' background inference'):
         samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        mask = canvas_dict[canvas_key]
+        if OLD:
+            mask = canvas_dict[canvas_key]
+        else:
+            mask = np.maximum(255 - canvas_dict['negative'], canvas_dict[canvas_key])
+        #ut.embed()
         yield mask
 
 
