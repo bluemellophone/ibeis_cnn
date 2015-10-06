@@ -113,6 +113,7 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
 
     CommandLine:
         python -m ibeis_cnn._plugin --exec-generate_species_background_mask --show --db PZ_Master1
+        python -m ibeis_cnn --tf generate_species_background_mask --show --db PZ_Master1
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -197,7 +198,13 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     # Define model and load weights
     print('\n[harness] Loading model...')
     if nInput is None:
-        nInput = len(chip_list)
+        try:
+            nInput = len(chip_list)
+        except TypeError:
+            print('Warning passed in generator without specifying nInput hint')
+            print('Explicitly evaluating generator')
+            chip_list = list(chip_list)
+            nInput = len(chip_list)
 
     batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
 
