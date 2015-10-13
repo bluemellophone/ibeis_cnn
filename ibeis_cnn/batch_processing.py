@@ -234,7 +234,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         batch_index_iter = ut.ProgressIter(batch_index_iter,
                                            nTotal=num_batches, lbl=lbl,
                                            time_thresh=time_thresh,
-                                           time_thresh_growth=time_thresh_growth)
+                                           time_thresh_growth=time_thresh_growth,
+                                           adjust=True)
 
     DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
 
