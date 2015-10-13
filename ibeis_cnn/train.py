@@ -261,6 +261,7 @@ def train_patchmatch_pz():
     # Choose model architecture
     # TODO: data will need to return info about number of labels in viewpoint models
     # Specify model archichitecture
+    print('Specify architecture')
     if arch_tag == 'siam2stream':
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
@@ -283,10 +284,12 @@ def train_patchmatch_pz():
         pass
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
+    print('Initialize architecture')
     model.initialize_architecture()
 
     # ----------------------------
     # Choose weight initialization
+    print('Choose weight initialization')
     if checkpoint_tag == 'new':
         model.reinit_weights()
     else:
