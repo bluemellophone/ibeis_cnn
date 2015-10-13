@@ -8,6 +8,7 @@ import theano.tensor as T
 import functools
 #import six
 from ibeis_cnn import utils
+import pylearn2  # NOQA
 ut.noinject('custom_layers')
 
 

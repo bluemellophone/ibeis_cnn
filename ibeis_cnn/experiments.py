@@ -62,10 +62,12 @@ def test_siamese_performance(model, data, labels, dataname=''):
         cnn_scores = vt.L2(vecs1, vecs2)
     else:
         assert False
+    cnn_scores = cnn_scores.astype(np.float64)
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
     sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
+    sift_scores = sift_scores.astype(np.float64)
 
     # Learn encoders
     encoder_kw = {

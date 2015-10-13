@@ -289,8 +289,8 @@ def write_data_and_labels(data, labels, data_fpath, labels_fpath):
     print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
     # to resize the images back to their 2D-structure:
     # X = images_array.reshape(-1, 3, 48, 48)
-    print('[write_data_and_labels] writing training data to %s...' % (data_fpath))
-    print('[write_data_and_labels] writing training labels to %s...' % (labels_fpath))
+    print('[write_data_and_labels] data_fpath=%s...' % (data_fpath))
+    print('[write_data_and_labels] labels_fpath=%s...' % (labels_fpath))
     ut.save_data(data_fpath, data)
     ut.save_data(labels_fpath, labels) if labels_fpath is not None else None
     #if splitext(data_fpath)[1] == '.hdf5':

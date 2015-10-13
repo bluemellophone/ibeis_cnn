@@ -129,9 +129,10 @@ def train_patchmatch_pz():
 
         # --- TRAINING ---
 
-        # Train NNP_Master
+        # Train liberty
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds liberty --weights=new --arch=siaml2_128 --train --monitor
 
+        # Train NNP_Master
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=nnp3-2:epochs0011 --arch=siaml2 --train --monitor
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
         python -m ibeis_cnn.train --test-train_patchmatch_pz --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor

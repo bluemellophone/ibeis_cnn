@@ -30,6 +30,11 @@ CLUTTER_DIRS = [
 
 INSTALL_REQUIRES = [
     'scikit-learn >= 0.16.1',
+    'theano',
+    'lasagne',
+    #'pylearn2',
+    #'git+git://github.com/lisa-lab/pylearn2.git'
+
     #'utool >= 1.0.0.dev1',
     #'vtool >= 1.0.0.dev1',
     ##'pyhesaff >= 1.0.0.dev1',

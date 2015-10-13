@@ -160,7 +160,7 @@ def extract_liberty_style_patches(ds_path, pairs):
 
     # Read all patches out of the bmp file store
     all_patches = {}
-    for pfx, patchfile in ut.ProgressIter(list(enumerate(patchfile_list)), lbl='Reading Patches'):
+    for pfx, patchfile in ut.ProgressIter(list(enumerate(patchfile_list)), lbl='Reading Patches', adjust=True):
         patch_id_offset = pfx * num_patch_per_bmp
         # get local patch ids in this bmp file
         patch_ids_ = np.arange(num_patch_per_bmp) + patch_id_offset
