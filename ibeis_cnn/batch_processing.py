@@ -329,7 +329,7 @@ def build_theano_funcs(model,
     References:
         http://deeplearning.net/software/theano/library/tensor/basic.html
     """
-    print('[batch] build_theano_funcs')
+    print('[batch.build_theano_funcs] enter')
     X = input_type('x')
     y = output_type('y')
     X_batch = input_type('x_batch')
@@ -345,6 +345,7 @@ def build_theano_funcs(model,
     updates = None
 
     if request_backprop:
+        print('[batch.build_theano_funcs] request_backprop')
         learning_rate_theano = model.shared_learning_rate
         momentum = model.learning_state['momentum']
         # Define how to update network parameters based on the training loss
@@ -388,6 +389,7 @@ def build_theano_funcs(model,
         theano_backprop = None
 
     if request_forward:
+        print('[batch.build_theano_funcs] request_forward')
         theano_forward = theano.function(
             inputs=[theano.Param(X_batch), theano.Param(y_batch)],
             outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
@@ -402,6 +404,7 @@ def build_theano_funcs(model,
         theano_forward = None
 
     if request_predict:
+        print('[batch.build_theano_funcs] request_predict')
         theano_predict = theano.function(
             inputs=[theano.Param(X_batch)],
             outputs=[network_output_determ] + unlabeled_outputs,
@@ -414,6 +417,7 @@ def build_theano_funcs(model,
     else:
         theano_predict = None
 
+    print('[batch.build_theano_funcs] exit')
     return theano_backprop, theano_forward, theano_predict, updates
 
 
