@@ -18,9 +18,28 @@ try:
         raise ImportError('GPU is forced off')
     # use cuda_convnet for a speed improvement
     # will not be available without a GPU
-    import lasagne.layers.cuda_convnet as convnet
-    Conv2DLayer = convnet.Conv2DCCLayer
-    MaxPool2DLayer = convnet.MaxPool2DCCLayer
+
+    #conv_impl = 'cuDNN'
+    conv_impl = 'cuda_convnet'
+
+    # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
+
+    if conv_impl == 'cuda_convnet':
+        import lasagne.layers.cuda_convnet
+        Conv2DLayer = lasagne.layers.cuda_convnet.Conv2DCCLayer
+        MaxPool2DLayer = lasagne.layers.cuda_convnet.MaxPool2DCCLayer
+    elif conv_impl == 'cuDNN':
+        import lasagne.layers.dnn
+        Conv2DLayer = lasagne.layers.dnn.Conv2DLayer
+        MaxPool2DLayer = lasagne.layers.dnn.Conv2DLayer
+    elif conv_impl == 'gemm':
+        # Dont use gemm
+        import lasagne.layers.corrmm
+        Conv2DLayer = lasagne.layers.corrmm.Conv2DLayer
+        MaxPool2DLayer = lasagne.layers.corrmm.Conv2DLayer
+    else:
+        raise NotImplementedError('conv_impl = %r' % (conv_impl,))
+
     USING_GPU = True
 except ImportError as ex:
     ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)

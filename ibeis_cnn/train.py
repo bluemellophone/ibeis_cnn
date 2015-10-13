@@ -116,6 +116,7 @@ def train_patchmatch_pz():
         patchmatch?
 
     CommandLine:
+        THEANO_FLAGS='device=gpu1'
 
         # --- DATASET BUILDING ---
 

@@ -1,14 +1,38 @@
 ### __init__.py ###
 # flake8: noqa
 from __future__ import absolute_import, division, print_function
+import utool as ut
+
+
+def parse_theano_flags():
+    import os
+    theano_flags_str = os.environ.get('THEANO_FLAGS', '')
+    theano_flags_itemstrs = theano_flags_str.split(',')
+    theano_flags = ut.odict([itemstr.split('=') for itemstr in theano_flags_itemstrs if len(itemstr) > 0])
+    return theano_flags
+
+def write_theano_flags(theano_flags):
+    import os
+    theano_flags_itemstrs = [key + '=' + val for key, val in theano_flags.items()]
+    theano_flags_str = ','.join(theano_flags_itemstrs)
+    os.environ['THEANO_FLAGS'] = theano_flags_str
+
+DEVICE = ut.get_argval('--device', type_=str, default=None)
+
+if DEVICE is not None:
+    print('Change device to %r' % (DEVICE,))
+    theano_flags = parse_theano_flags()
+    theano_flags['device'] = DEVICE
+    write_theano_flags(theano_flags)
+    #python -c 'import theano; print theano.config'
+
 from ibeis_cnn import models
 from ibeis_cnn import process
 from ibeis_cnn import train
 from ibeis_cnn import utils
 from ibeis_cnn import theano_ext
 #from ibeis_cnn import _plugin
-import utool
-print, print_, printDBG, rrr, profile = utool.inject(
+print, print_, printDBG, rrr, profile = ut.inject(
     __name__, '[ibeis_cnn]')
 
 __version__ = '1.0.0.dev1'
