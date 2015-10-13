@@ -329,6 +329,7 @@ def build_theano_funcs(model,
     References:
         http://deeplearning.net/software/theano/library/tensor/basic.html
     """
+    print('[batch] build_theano_funcs')
     X = input_type('x')
     y = output_type('y')
     X_batch = input_type('x_batch')

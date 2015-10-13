@@ -257,6 +257,7 @@ class SiameseL2(AbstractSiameseModel):
         """
         # TODO: remove output dims
         #_P = functools.partial
+        print('[model] initialize_architecture')
         (_, input_channels, input_width, input_height) = model.input_shape
         if verbose:
             print('[model] Initialize center siamese l2 model architecture')
@@ -567,6 +568,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()
         """
+        print('[model] initialize_architecture')
         (_, input_channels, input_width, input_height) = model.input_shape
         if verbose:
             print('[model] Initialize center surround siamese model architecture')
