@@ -82,7 +82,7 @@ ds_tag_alias2 = {
     'girm'         : "NNP_MasterGIRM_core;dict(colorspace='gray', controlled=True, max_examples=None, num_top=None,)",
 
     'pzmaster'     : 'PZ_Master0;dict(controlled=True, max_examples=None, num_top=None,)',
-    'liberty'      : "liberty;dict(detector='dog', pairs=250000,)",
+    'liberty'      : "liberty;dict(detector='dog', pairs=250000)",
 
     'combo'        : 'combo_vdsujffw',
 }

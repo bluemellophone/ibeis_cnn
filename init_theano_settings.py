@@ -32,6 +32,8 @@ PythonPrereqs:
     cd Lesagne
     git checkout 8758ac1434175159e5c1f30123041799c2b6098a
     python setup.py develop
+
+    python -c "import pylearn2; print(pylearn2.__file__)"
 """
 
 
