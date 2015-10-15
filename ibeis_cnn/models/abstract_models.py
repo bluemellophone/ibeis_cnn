@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import theano
-import lasagne
+try:
+    import lasagne
+except ImportError as ex:
+    print('theano.__version__ = %r' % (theano.__version__,))
+    print('theano.__file__ = %r' % (theano.__file__,))
+    raise
 import functools
 import six
 import numpy as np
@@ -26,7 +31,8 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 def imwrite_wrapper(show_func):
     """ helper to convert show funcs into imwrite funcs """
-    def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True, ascheckpoint=None, verbose=1, **kwargs):
+    def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True,
+                     ascheckpoint=None, verbose=1, **kwargs):
         import plottool as pt
         # Resolve path to save the image
         if dpath is None:
@@ -91,7 +97,9 @@ def testdata_model_with_history():
             'epoch': num,
             'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
             'train_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'train_loss_regularized': 1 / np.exp(num / 10) + np.exp(rng.rand() * num) + rng.rand() / 100,
+            'train_loss_regularized': (1 / np.exp(num / 10) +
+                                       np.exp(rng.rand() * num) +
+                                       rng.rand() / 100),
             'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
             'param_update_mags': {
                 'C0': (rng.normal() ** 2, rng.rand()),
@@ -317,14 +325,22 @@ class BaseModel(object):
             ut.assertpath(fpath)
         return ut.checkpath(fpath)
 
-    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None, checkpoint_tag=None):
-        default_fname = 'model_state_arch_%s.pkl' % (model.get_architecture_hashid())
-        model_state_fpath = model._get_model_file_fpath(default_fname, fpath, dpath, fname, checkpoint_tag)
+    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None,
+                              checkpoint_tag=None):
+        default_fname = 'model_state_arch_%s.pkl' % (
+            model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
+                                                        dpath, fname,
+                                                        checkpoint_tag)
         return model_state_fpath
 
-    def get_model_info_fpath(model, fpath=None, dpath=None, fname=None, checkpoint_tag=None):
-        default_fname = 'model_info_arch_%s.pkl' % (model.get_architecture_hashid())
-        model_state_fpath = model._get_model_file_fpath(default_fname, fpath, dpath, fname, checkpoint_tag)
+    def get_model_info_fpath(model, fpath=None, dpath=None, fname=None,
+                             checkpoint_tag=None):
+        default_fname = 'model_info_arch_%s.pkl' % (
+            model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
+                                                        dpath, fname,
+                                                        checkpoint_tag)
         return model_state_fpath
 
     def checkpoint_save_model_state(model):
@@ -332,7 +348,8 @@ class BaseModel(object):
         fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
         ut.ensuredir(dirname(fpath))
         model.save_model_state(fpath=fpath)
-        #checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'checkpoints'))
+        #checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath,
+        #'checkpoints'))
         #dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
 
     def checkpoint_save_model_info(model):
@@ -389,8 +406,10 @@ class BaseModel(object):
         with open(model_state_fpath, 'rb') as file_:
             model_state = pickle.load(file_)
         if model.__class__.__name__ != 'BaseModel':
-            assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
-            assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
+            assert model_state['input_shape'][1:] == model.input_shape[1:], (
+                'architecture disagreement')
+            assert model_state['output_dims'] == model.output_dims, (
+                'architecture disagreement')
             model.preproc_kw   = model_state['preproc_kw']
             model.best_weights = model_state['best_weights']
         else:
@@ -587,7 +606,8 @@ class BaseModel(object):
         override_reprs = {
             'best_results': ut.dict_str(model.best_results),
             'best_weights': ut.truncate_str(str(model.best_weights)),
-            'preproc_kw': 'None' if model.preproc_kw is None else ut.dict_str(model.preproc_kw, truncate=True),
+            'preproc_kw': ('None' if model.preproc_kw is None else
+                           ut.dict_str(model.preproc_kw, truncate=True)),
             'learning_state': ut.dict_str(model.learning_state),
             'learning_rate': model.learning_rate,
             'era_history': era_history_str,
@@ -743,9 +763,14 @@ class BaseModel(object):
                 update_mag_std = ut.get_list_column(val, 1)  # NOQA
                 #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
                 if index == len(model.era_history) - 1:
-                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color, label=key)
+                    pt.interval_line_plot(epochs, update_mag_mean,
+                                          update_mag_std, marker='x',
+                                          linestyle='-', color=color,
+                                          label=key)
                 else:
-                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color)
+                    pt.interval_line_plot(epochs, update_mag_mean,
+                                          update_mag_std, marker='x',
+                                          linestyle='-', color=color)
                 #, label=valid_label, yscale=yscale)
             pass
         pt.legend()
@@ -771,9 +796,14 @@ class BaseModel(object):
                 update_mag_std = ut.get_list_column(val, 1)  # NOQA
                 #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
                 if index == len(model.era_history) - 1:
-                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color, label=key)
+                    pt.interval_line_plot(epochs, update_mag_mean,
+                                          update_mag_std, marker='x',
+                                          linestyle='-', color=color,
+                                          label=key)
                 else:
-                    pt.interval_line_plot(epochs, update_mag_mean, update_mag_std, marker='x', linestyle='-', color=color)
+                    pt.interval_line_plot(epochs, update_mag_mean,
+                                          update_mag_std, marker='x',
+                                          linestyle='-', color=color)
                 #, label=valid_label, yscale=yscale)
             pass
         pt.legend()
@@ -826,7 +856,9 @@ class BaseModel(object):
         fig = draw_net.show_convolutional_weights(all_weights, **kwargs)
         history_hashid = model.get_model_history_hashid()
         figtitle = layername + '\n' + history_hashid
-        pt.set_figtitle(figtitle, subtitle='shape=%r, sum=%.4f, l2=%.4f' % (all_weights.shape, all_weights.sum(), (all_weights ** 2).sum()))
+        pt.set_figtitle(figtitle, subtitle='shape=%r, sum=%.4f, l2=%.4f' %
+                        (all_weights.shape, all_weights.sum(),
+                         (all_weights ** 2).sum()))
         return fig
 
     # --- IMAGE WRITE
@@ -856,7 +888,8 @@ class BaseModel(object):
     #    import plottool as pt
     #    if fnum is None:
     #        fnum = pt.next_fnum()
-    #    conv_layers = [layer_ for layer_ in model.get_all_layers() if hasattr(layer_, 'W') and layer_.name.startswith('C')]
+    #    conv_layers = [layer_ for layer_ in model.get_all_layers() if
+    #    hasattr(layer_, 'W') and layer_.name.startswith('C')]
     #    for index in range(len(conv_layers)):
     #        model.imwrite_weights(index, fnum=fnum + index)
 
@@ -934,7 +967,8 @@ class BaseModel(object):
 
             network_output = lasagne.layers.get_output(model.output_layer, X_batch)
             network_output.name = 'network_output'
-            network_output_determ = lasagne.layers.get_output(model.output_layer, X_batch, deterministic=True)
+            network_output_determ = lasagne.layers.get_output(
+                model.output_layer, X_batch, deterministic=True)
             network_output_determ.name = 'network_output_determ'
 
             try:
@@ -948,14 +982,16 @@ class BaseModel(object):
 
                 print('Building symbolic loss function (determenistic)')
                 #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-                #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True, aggregation='mean')
+                #loss_determ = objective.get_loss(X_batch, target=y_batch,
+                #deterministic=True, aggregation='mean')
                 losses_determ = model.loss_function(network_output_determ, y_batch)
                 loss_determ = lasagne.objectives.aggregate(losses_determ, mode='mean')
                 loss_determ.name = 'loss_determ'
 
                 # Regularize
                 # TODO: L2 should be one of many available options for regularization
-                L2 = lasagne.regularization.regularize_network_params(model.output_layer, lasagne.regularization.l2)
+                L2 = lasagne.regularization.regularize_network_params(
+                    model.output_layer, lasagne.regularization.l2)
                 weight_decay = model.learning_state['weight_decay']
                 regularization_term = weight_decay * L2
                 regularization_term.name = 'regularization_term'

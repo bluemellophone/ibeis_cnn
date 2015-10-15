@@ -113,7 +113,7 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
 
     CommandLine:
         python -m ibeis_cnn._plugin --exec-generate_species_background_mask --show --db PZ_Master1
-        python -m ibeis_cnn --tf generate_species_background_mask --show --db PZ_Master1
+        python -m ibeis_cnn --tf generate_species_background_mask --show --db PZ_Master1 --aid 9970
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -121,9 +121,10 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
         >>> import ibeis
         >>> from ibeis_cnn._plugin import *  # NOQA
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> aid_list = ibs.get_valid_aids()[0:10]
+        >>> aid_list = ut.get_argval(('--aids', '--aid'), type_=list, default=ibs.get_valid_aids()[0:10])
         >>> chip_fpath_list = ibs.get_annot_chip_fpath(aid_list)
-        >>> mask_list = generate_species_background_mask(ibs, chip_fpath_list)
+        >>> species = ibs.const.Species.ZEB_PLAIN
+        >>> mask_list = generate_species_background_mask(ibs, chip_fpath_list, species)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(mask_list, nPerPage=4)
@@ -140,7 +141,10 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     # Read the data
     print('\n[harness] Loading chips...')
     import vtool as vt
-    chip_list = (vt.imread(fpath) for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips', adjust=True))
+    chip_list = (
+        vt.imread(fpath)
+        for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips',
+                                     adjust=True))
     mask_list = list(generate_species_background(ibs, chip_list, species=species))
     return mask_list
 
@@ -227,7 +231,9 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     # create theano symbolic expressions that define the network
     print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
-    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
+    theano_funcs = model.build_theano_funcs(request_predict=True,
+                                            request_forward=False,
+                                            request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     print('[harness] Performing inference...')
@@ -279,7 +285,10 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     print('Loading chips...')
     chip_list = ibs.get_annot_chips(aid_list, verbose=True)
     print('Resizing chips...')
-    chip_list_resized = [ cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4) for chip in ut.ProgressIter(chip_list, lbl='resizing chips') ]
+    chip_list_resized = [
+        cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
+        for chip in ut.ProgressIter(chip_list, lbl='resizing chips')
+    ]
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
     y_test = None
@@ -669,7 +678,8 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
             print('Reading keypoints')
             kpts_list = ibs.get_feat_kpts(sift_fid_list)
             print('Reading chips')
-            chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_batch, ensure=True), colorspace)
+            chip_list = vt.convert_image_list_colorspace(
+                ibs.get_chips(cid_batch, ensure=True), colorspace)
             print('Warping patches')
             warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
                                    for chip, kpts in zip(chip_list, kpts_list)]
@@ -689,7 +699,8 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
         print('Reading keypoints')
         kpts_list = ibs.get_feat_kpts(sift_fid_list)
         print('Reading chips')
-        chip_list = vt.convert_image_list_colorspace(ibs.get_chips(cid_list, ensure=True), colorspace)
+        chip_list = vt.convert_image_list_colorspace(
+            ibs.get_chips(cid_list, ensure=True), colorspace)
         print('Warping patches')
         warped_patches_list = [vt.get_warped_patches(chip, kpts, patch_size=patch_size)[0]
                                for chip, kpts in zip(chip_list, kpts_list)]

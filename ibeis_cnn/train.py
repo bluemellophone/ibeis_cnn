@@ -11,7 +11,8 @@ CommandLineHelp:
     ./cnn.py
 
     --dataset, --ds = <dstag>:<subtag>
-        dstag is the main dataset name (eg PZ_MTEST), subtag are parameters to modify (max_examples=3)
+        dstag is the main dataset name (eg PZ_MTEST), subtag are parameters to
+        modify (max_examples=3)
 
     --weights, -w = |new|<checkpoint_tag>|<dstag>:<checkpoint_tag> (default: <checkpoint_tag>)
         new will initialize clean weights.

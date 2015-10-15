@@ -346,6 +346,7 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
 
     Example0:
         >>> # ENABLE_DOCTEST
+        >>> # Test numpy version
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> loss_arr   = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
         >>> labels_arr = np.array([1, 0, 0, 1, 1, 1, 1, 1, 0], dtype=np.int32)
@@ -353,13 +354,13 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         >>> labels = labels_arr
         >>> num_ignore = 2
         >>> T = np
-        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
-        >>> result = ('loss = %s' % (ut.numpy_str(loss),))
+        >>> ignored_loss_arr = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> result = ('ignored_loss_arr = %s' % (ut.numpy_str(ignored_loss_arr),))
         >>> print(result)
-        loss = np.array([1, 2, 0, 4, 5, 6, 0, 0, 0], dtype=np.int32)
+        ignored_loss = np.array([0, 1, 0, 3, 4, 5, 0, 0, 0], dtype=np.int32)
 
      Example1:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> # Test theano version
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> import theano.tensor
@@ -369,11 +370,15 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         >>> loss = T.ivector(name='loss')
         >>> labels = T.ivector(name='labels')
         >>> num_ignore = 2
-        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
-        >>> output_T = output_expr.eval({input_expr: inputdata_})
+        >>> ignored_loss = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> ignored_loss_arr = ignored_loss.eval({loss: loss_arr, labels: labels_arr})
+        >>> result = ('ignored_loss = %s' % (ut.numpy_str(ignored_loss_arr),))
+        >>> print(result)
+        ignored_loss = np.array([0, 1, 0, 3, 4, 5, 0, 0, 0], dtype=np.int32)
 
     Example2:
         >>> # ENABLE_DOCTEST
+        >>> # Test version compatiblity
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> import ibeis_cnn.theano_ext as theano_ext
         >>> import theano.tensor
@@ -406,9 +411,17 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         ...     if not np.all(theano_values[key] == numpy_targets[key]):
         ...         prefix = ' !!! '
         ...         noerror = False
-        ...     print(prefix + 'numpy_value  = %r' % (numpy_targets[key],))
+        ...     # Cast to compatible dtype
+        ...     numpy_value = numpy_targets[key]
+        ...     result_dtype = np.result_type(numpy_value, theano_value)
+        ...     numpy_value = numpy_value.astype(result_dtype)
+        ...     theano_value = theano_value.astype(result_dtype)
+        ...     numpy_targets[key] = numpy_value
+        ...     theano_values[key] = theano_value
+        ...     print(prefix + 'numpy_value  = %r' % (numpy_value,))
         ...     print(prefix + 'theano_value = %r' % (theano_value,))
-        >>> print(ut.dict_str(numpy_targets))
+        >>> print('numpy_targets = ' + ut.dict_str(numpy_targets, align=True))
+        >>> print('theano_values = ' + ut.dict_str(theano_values, align=True))
         >>> assert noerror, 'There was an error'
 
     """

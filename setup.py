@@ -28,6 +28,13 @@ CLUTTER_DIRS = [
     '__pycache__/',
 ]
 
+"""
+Need special theano
+References:
+    http://lasagne.readthedocs.org/en/latest/user/installation.html
+    pip install -r https://raw.githubusercontent.com/Lasagne/Lasagne/v0.1/requirements.txt
+"""
+
 INSTALL_REQUIRES = [
     'scikit-learn >= 0.16.1',
     'theano',
