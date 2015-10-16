@@ -60,12 +60,15 @@ class SiameseL2(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(64, 64, 3),
+                 arch_tag='siaml2', **kwargs):
         #if data_shape is not None:
         #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         #if input_shape is None:
         #    (batch_size, 3, 64, 64)
-        super(SiameseL2, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
+        super(SiameseL2, model).__init__(batch_size=batch_size,
+                                         data_shape=data_shape,
+                                         arch_tag=arch_tag, **kwargs)
         #model.network_layers = None
         #model.batch_size = batch_size
         model.output_dims = 1
@@ -533,12 +536,15 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, input_shape=None,
+                 data_shape=(64, 64, 3), **kwargs):
         if data_shape is not None:
             input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         if input_shape is None:
             (batch_size, 3, 64, 64)
-        super(SiameseCenterSurroundModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
+        super(SiameseCenterSurroundModel,
+              model).__init__(input_shape=input_shape, batch_size=batch_size,
+                              **kwargs)
         #model.network_layers = None
         model.input_shape = input_shape
         model.batch_size = batch_size
@@ -672,7 +678,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         """
         Notes:
             (i) 2ch-2stream consists of two branches
-                C(95, 5, 1)- ReLU- P(2, 2)- C(96, 3, 1)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(192, 3, 1)- ReLU,
+                C(95, 5, 1)- ReLU- P(2, 2)- C(96, 3, 1)- ReLU- P(2, 2)- C(192, 3, 1)-
+                  ReLU- C(192, 3, 1)- ReLU,
                 one for central and one for surround parts, followed by
                 F(768)- ReLU- F(1)
         """
@@ -711,7 +718,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         """
         Notes:
             (viii) siam-2stream has 4 branches
-                C(96, 4, 2)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(256, 3, 1)- ReLU- C(256, 3, 1)- ReLU
+                C(96, 4, 2)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(256, 3, 1)- ReLU- C(256, 3, 1)-
+                  ReLU
                 (coupled in pairs for central and surround streams, and decision layer)
                 F(512)-ReLU- F(1)
         """
