@@ -14,6 +14,7 @@ def ibeis_cnn_main():
     except ImportError:
         raise
         pass
+    # allow for --tf flags
     ut.main_function_tester('ibeis_cnn', ignore_prefix, ignore_suffix)
 
 if __name__ == '__main__':

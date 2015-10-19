@@ -58,7 +58,7 @@ def siamese_loss(G, Y_padded, data_per_label=2, T=T):
     CommandLine:
         python -m ibeis_cnn.lasange_ext --test-siamese_loss
         # Train Network
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=16 --batch_size=128 --learning_rate .0000001
+        python -m ibeis_cnn.train --test-pz_patchmatch --vtd --max-examples=16 --batch_size=128 --learning_rate .0000001
 
     CommandLine:
         python -m ibeis_cnn.lasange_ext --test-siamese_loss

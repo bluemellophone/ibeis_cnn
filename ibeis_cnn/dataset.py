@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
-from os.path import join, basename, exists, dirname
+from os.path import join, basename, exists, dirname, splitext
 import six
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.datset]')
@@ -103,18 +103,19 @@ def get_alias_dict_fpath():
 def get_juction_dpath():
     r"""
     Returns:
-        ?: junction_dpath
+        str: junction_dpath
 
     CommandLine:
-        python -m ibeis_cnn.dataset --test-get_juction_dpath
+        python -m ibeis_cnn --tf get_juction_dpath --show
 
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.dataset import *  # NOQA
         >>> junction_dpath = get_juction_dpath()
-        >>> ut.vd(junction_dpath)
         >>> result = ('junction_dpath = %s' % (str(junction_dpath),))
         >>> print(result)
+        >>> ut.quit_if_noshow()
+        >>> ut.vd(junction_dpath)
     """
     junction_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training_junction')
     return junction_dpath
@@ -131,7 +132,9 @@ def register_training_dpath(training_dpath, alias_key=None):
     ut.symlink(training_dpath, training_dlink)
 
 
-def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['train', 'valid', 'test'], fraction_list=[.2, .1], nocache=None):
+def ondisk_data_split(data_fpath, labels_fpath, data_per_label,
+                      split_names=['train', 'valid', 'test'],
+                      fraction_list=[.2, .1], nocache=None):
     """
     splits into train / validation datasets on disk
 
@@ -163,7 +166,8 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
         >>> result = ('(data_fpath_dict, label_fpath_dict) = %s' % (ut.list_str((data_fpath_dict, label_fpath_dict), nl=True),))
         >>> print(result)
     """
-    assert len(split_names) == len(fraction_list) + 1, 'must have one less fraction then split names'
+    assert len(split_names) == len(fraction_list) + 1, (
+        'must have one less fraction then split names')
     USE_FILE_UUIDS = False
     if USE_FILE_UUIDS:
         # Get uuid based on the data, so different data makes different validation paths
@@ -186,8 +190,6 @@ def ondisk_data_split(data_fpath, labels_fpath, data_per_label, split_names=['tr
         left = total * (1 - fraction)
         totalfrac_list[-1] = left
         totalfrac_list.append(right)
-
-    from os.path import splitext
 
     data_ext = splitext(data_fpath)[1]
     labels_ext = splitext(data_fpath)[1]

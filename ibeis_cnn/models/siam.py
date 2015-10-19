@@ -566,8 +566,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture --verbcnn
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture --verbcnn --show
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+            python -m ibeis_cnn.train --test-pz_patchmatch --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
+            python -m ibeis_cnn.train --test-pz_patchmatch --vtd
 
         Example:
             >>> # ENABLE_DOCTEST

@@ -296,7 +296,9 @@ class BaseModel(object):
         return fpath
 
     def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern, extern_dpath=None):
-        """ tries to find a matching checkpoint so you dont have to type a full hash """
+        """
+        tries to find a matching checkpoint so you dont have to type a full hash
+        """
         dpath = model._get_model_dpath(extern_dpath, checkpoint_pattern)
         from os.path import exists, dirname, basename
         if exists(dpath):

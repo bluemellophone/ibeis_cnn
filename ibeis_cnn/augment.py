@@ -542,7 +542,7 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         python -m ibeis_cnn.augment --test-augment_siamese_patches2 --show --colorspace='bgr'
 
         # Shows what augumentation looks like durring trainging
-        python -m ibeis_cnn.train --test-train_patchmatch_pz --ds pzmtest --weights=new --arch=siaml2 --train --monitor --DEBUG_AUGMENTATION
+        python -m ibeis_cnn.train --test-pz_patchmatch --ds pzmtest --weights=new --arch=siaml2 --train --monitor --DEBUG_AUGMENTATION
 
     TODO:
         zoom in only if a true positive
