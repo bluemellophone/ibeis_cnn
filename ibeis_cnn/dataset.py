@@ -67,7 +67,7 @@ class DataSet(object):
             dataset = cls(**data_dict)
             print('[get_ibeis_siam_dataset] Returning aliased data alias_key=%r' % (alias_key,))
             return dataset
-        raise Exception('Alias cache miss: alias_key=%r' % (alias_key,))
+        raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
 
     @classmethod
     def new_training_set(cls, **kwargs):

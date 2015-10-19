@@ -95,17 +95,23 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
             return val_list
         fx1_list = [fm.T[0] for fm in fm_list]
         fx2_list = [fm.T[1] for fm in fm_list]
-        warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list, kpts1_m_list),
-                                     nTotal=len(kpts1_m_list), lbl='warp1')
-        warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list, kpts2_m_list),
-                                     nTotal=len(kpts2_m_list), lbl='warp2')
+        warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list,
+                                         kpts1_m_list),
+                                     nTotal=len(kpts1_m_list), lbl='warp1',
+                                     adjust=True)
+        warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list,
+                                         kpts2_m_list),
+                                     nTotal=len(kpts2_m_list), lbl='warp2',
+                                     adjust=True)
         warped_patches1_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter1))
         warped_patches2_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter2))
     else:
         warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list),
-                                     nTotal=len(kpts1_m_list), lbl='warp1')
+                                     nTotal=len(kpts1_m_list), lbl='warp1',
+                                     adjust=True)
         warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list),
-                                     nTotal=len(kpts2_m_list), lbl='warp2')
+                                     nTotal=len(kpts2_m_list), lbl='warp2',
+                                     adjust=True)
         warped_patches1_list = [vt.get_warped_patches(chip1, kpts1, patch_size=patch_size)[0]
                                 for chip1, kpts1 in warp_iter1]
         warped_patches2_list = [vt.get_warped_patches(chip2, kpts2, patch_size=patch_size)[0]
@@ -350,14 +356,26 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True):
+def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
+                             controlled=True, featweight_thresh=None,
+                             acfg_name=None):
     """
+
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        max_examples (None): (default = None)
+        num_top (int): (default = 3)
+        controlled (bool): (default = True)
+
     Returns:
-        aid pairs and matching keypoint pairs as well as the original index of the feature matches
+        tuple : patchmatch_tup = (aid1_list, aid2_list, kpts1_m_list,
+                                   kpts2_m_list, fm_list, metadata_lists)
+            aid pairs and matching keypoint pairs as well as the original index
+            of the feature matches
 
     CommandLine:
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master0
-        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg ctrl:qindex=0:10 --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db NNP_Master3
 
     Example:
@@ -366,155 +384,249 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True)
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
+        ...                             type_=str,
+        ...                             default='ctrl:qindex=0:10')
         >>> max_examples = None
         >>> num_top = None
-        >>> patchmatch_tup = get_aidpairs_and_matches(ibs, max_examples=None, num_top=num_top, controlled=True)
+        >>> controlled = True
+        >>> featweight_thresh = .99
+        >>> patchmatch_tup = get_aidpairs_and_matches(ibs,
+        >>>                                           max_examples=max_examples,
+        >>>                                           num_top=num_top,
+        >>>                                           controlled=controlled,
+        >>>                                           featweight_thresh=featweight_thresh,
+        >>>                                           acfg_name=acfg_name)
+        >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = patchmatch_tup
+        >>> ut.quit_if_noshow()
+        >>> _iter = list(zip(aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list))
+        >>> _iter = ut.InteractiveIter(_iter, display_item=False)
+        >>> import plottool as pt
+        >>> import ibeis.viz
+        >>> for aid1, aid2, kpts1, kpts2, fm in _iter:
+        >>>     pt.reset()
+        >>>     print('aid2 = %r' % (aid2,))
+        >>>     print('aid1 = %r' % (aid1,))
+        >>>     print('len(fm) = %r' % (len(fm),))
+        >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
+        >>>     pt.update()
+        >>> ut.show_if_requested()
     """
 
-    from ibeis import ibsfuncs
-    if controlled:
-        # TODO: use acfg config
-        qaid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=True)
-        daid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=False)
-    else:
-        qaid_list = ibs.get_valid_aids()
-        #from ibeis.model.hots import chip_match
-        qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
-        daid_list = qaid_list
+    def get_query_results():
+        if acfg_name is None:
+            print('OLD WAY OF FILTERING')
+            from ibeis import ibsfuncs
+            if controlled:
+                # TODO: use acfg config
+                qaid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=True)
+                daid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=False)
+            else:
+                qaid_list = ibs.get_valid_aids()
+                #from ibeis.model.hots import chip_match
+                qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
+                daid_list = qaid_list
+                if max_examples is not None:
+                    daid_list = daid_list[0:min(max_examples, len(daid_list))]
+        else:
+            print('NEW WAY OF FILTERING')
+            from ibeis.experiments import experiment_helpers
+            acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
+            #acfg = acfg_list[0]
+            expanded_aids = expanded_aids_list[0]
+            qaid_list, daid_list = expanded_aids
+
         if max_examples is not None:
-            daid_list = daid_list[0:min(max_examples, len(daid_list))]
+            qaid_list = qaid_list[0:min(max_examples, len(qaid_list))]
 
-    if max_examples is not None:
-        qaid_list = qaid_list[0:min(max_examples, len(qaid_list))]
+        cfgdict = {
+            'affine_invariance': False,
+        }
 
-    cfgdict = {
-        #'affine_invariance': False,
-    }
+        #import ibeis.other.dbinfo
+        ibs.print_annotconfig_stats(qaid_list, daid_list, bigstr=True)
+        #ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
+        qres_list, qreq_ = ibs.query_chips(
+            qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
+        # TODO: Use ChipMatch2 instead of QueryResult
+        #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
+        #for cm in cm_list:
+        #    cm.evaluate_nsum_score(qreq_=qreq_)
+        #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
+        #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
+        return qres_list, qreq_
+    qres_list, qreq_ = get_query_results()
 
-    import ibeis.other.dbinfo
-    ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
-    qres_list, qreq_ = ibs.query_chips(
-        qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
-    # TODO: Use ChipMatch2 instead of QueryResult
-    #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
-    #for cm in cm_list:
-    #    cm.evaluate_nsum_score(qreq_=qreq_)
-    #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
-    #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
-
-    # Get aid pairs and feature matches
-    if num_top is None:
-        aids2_list = [qres.get_top_aids() for qres in qres_list]
-    else:
-        aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
-    aids1_list = [[qres.qaid] * len(aids2)
-                  for qres, aids2 in zip(qres_list, aids2_list)]
-    aid1_list_all = np.array(ut.flatten(aids1_list))
-    aid2_list_all = np.array(ut.flatten(aids2_list))
-
-    def take_qres_list_attr(attr):
-        attrs_list = [ut.dict_take(getattr(qres, attr), aids2)
+    def get_matchdata1():
+        # Get aid pairs and feature matches
+        if num_top is None:
+            aids2_list = [qres.get_top_aids() for qres in qres_list]
+        else:
+            aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
+        aids1_list = [[qres.qaid] * len(aids2)
                       for qres, aids2 in zip(qres_list, aids2_list)]
-        attr_list = ut.flatten(attrs_list)
-        return attr_list
+        aid1_list_all = np.array(ut.flatten(aids1_list))
+        aid2_list_all = np.array(ut.flatten(aids2_list))
+        def take_qres_list_attr(attr):
+            attrs_list = [ut.dict_take(getattr(qres, attr), aids2)
+                          for qres, aids2 in zip(qres_list, aids2_list)]
+            attr_list = ut.flatten(attrs_list)
+            return attr_list
+        fm_list_all = take_qres_list_attr(attr='aid2_fm')
+        metadata_all = {}
+        filtkey_lists = ut.unique_unordered([tuple(qres.filtkey_list) for qres in qres_list])
+        assert len(filtkey_lists) == 1, 'multiple fitlers used in this query'
+        filtkey_list = filtkey_lists[0]
+        fsv_list = take_qres_list_attr('aid2_fsv')
+        for index, key in enumerate(filtkey_list):
+            metadata_all[key] = [fsv.T[index] for fsv in fsv_list]
+        metadata_all['fs'] = take_qres_list_attr('aid2_fs')
+        # extract metadata (like feature scores and whatnot)
+        return aid1_list_all, aid2_list_all, fm_list_all, metadata_all
 
-    fm_list_all = take_qres_list_attr(attr='aid2_fm')
-    # extract metadata (like feature scores and whatnot)
-    metadata_all = {}
-    filtkey_lists = ut.unique_unordered([tuple(qres.filtkey_list) for qres in qres_list])
-    assert len(filtkey_lists) == 1, 'multiple fitlers used in this query'
-    filtkey_list = filtkey_lists[0]
-    fsv_list = take_qres_list_attr('aid2_fsv')
-    for index, key in enumerate(filtkey_list):
-        metadata_all[key] = [fsv.T[index] for fsv in fsv_list]
-    metadata_all['fs'] = take_qres_list_attr('aid2_fs')
+    def get_matchdata2():
+        aid1_list_all, aid2_list_all, fm_list_all, metadata_all = get_matchdata1()
+        # Filter out bad training examples
+        # (we are currently in annot-vs-annot format, not yet in patch-vs-patch)
+        labels_all = get_aidpair_training_labels(ibs, aid1_list_all, aid2_list_all)
+        has_gt = (labels_all != ibs.const.TRUTH_UNKNOWN)
+        nonempty = [len(fm) > 0 for fm in fm_list_all]
+        isvalid = np.logical_and(has_gt, nonempty)
+        aid1_list_uneq = ut.list_compress(aid1_list_all, isvalid)
+        aid2_list_uneq = ut.list_compress(aid2_list_all, isvalid)
+        labels_uneq    = ut.list_compress(labels_all, isvalid)
+        fm_list_uneq   = ut.list_compress(fm_list_all, isvalid)
+        metadata_uneq  = {key: ut.list_compress(vals, isvalid)
+                          for key, vals in metadata_all.items()}
+        return aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq, metadata_uneq
 
-    # Filter out bad training examples
-    # (we are currently in annot-vs-annot format, not yet in patch-vs-patch)
-    labels_all = get_aidpair_training_labels(ibs, aid1_list_all, aid2_list_all)
-    isvalid = (labels_all != ibs.const.TRUTH_UNKNOWN)
-    aid1_list_uneq = ut.list_compress(aid1_list_all, isvalid)
-    aid2_list_uneq = ut.list_compress(aid2_list_all, isvalid)
-    fm_list_uneq   = ut.list_compress(fm_list_all, isvalid)
-    labels_uneq    = ut.list_compress(labels_all, isvalid)
-    metadata_uneq  = {key: ut.list_compress(vals, isvalid) for key, vals in metadata_all.items()}
+    def get_matchdata3():
+        # Filters in place
+        aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq, metadata_uneq = get_matchdata2()
 
-    def equalize_labels():
-        import vtool as vt
-        print('flattening')
-        # Find out how many examples each source holds
-        len1_list = list(map(len, fm_list_uneq))
-        # Expand source labels so one exists for each datapoint
-        flat_labels = ut.flatten([[label] * len1 for len1, label in zip(len1_list, labels_uneq)])
-        #aid1_list_ = ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)])
-        #aid2_list_ = ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)])
+        #featweight_thresh = None
+        if featweight_thresh is not None:
+            print('filter by featweight')
+            # Remove feature matches where the foreground weight is under a threshold
+            flags_list = []
+            for index in range(len(aid1_list_uneq)):
+                aid1 = aid1_list_uneq[index]
+                aid2 = aid2_list_uneq[index]
+                fm = fm_list_uneq[index]
+
+                fgweight1 = ibs.get_annot_fgweights(
+                    [aid1], config2_=qreq_.get_internal_query_config2())[0][fm.T[0]]
+                fgweight2 = ibs.get_annot_fgweights(
+                    [aid2], config2_=qreq_.get_internal_data_config2())[0][fm.T[1]]
+                flags = np.logical_and(fgweight1 > featweight_thresh,
+                                       fgweight2 > featweight_thresh)
+                flags_list.append(flags)
+
+            import vtool as vt
+            num_keep = sum([x.sum() for x in flags_list])
+            num_total = sum([len(x) for x in flags_list])
+            print('Kept ' + str(100 * num_keep / num_total) + '% of matches')
+            fm_list_uneq2 = vt.zipcompress_safe(fm_list_uneq, flags_list, axis=0)
+            metadata_uneq2  = {key: vt.zipcompress_safe(vals, flags_list, axis=0)
+                               for key, vals in metadata_uneq.items()}
+        else:
+            fm_list_uneq2 = fm_list_uneq
+            metadata_uneq2 = metadata_uneq
+
+        return aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq2, metadata_uneq2
+
+    def equalize_flat_flags(flat_labels, flat_scores):
+        import vtool as vt  # NOQA
+
         labelhist = ut.dict_hist(flat_labels)
         # Print input distribution of labels
         print('[ingest_ibeis] original label histogram = \n' + ut.dict_str(labelhist))
         print('[ingest_ibeis] total = %r' % (sum(list(labelhist.values()))))
-        flat_labels = np.array(flat_labels)
 
-        flat_fs = np.hstack(metadata_uneq['fs'])
-        def preference_highscores(type_indicies, min_):
-            sortx = flat_fs.take(type_indicies).argsort()[::-1]
-            keep_indicies = type_indicies.take(sortx[:min_])
-            return keep_indicies
-        preference_strat = 'rand'
-        #preference_strat = preference_highscores
+        pref_method = 'rand'
+        #pref_method = 'scores'
+        seed = 0
+        rng = np.random.RandomState(seed)
+
+        def pref_rand(type_indicies, min_, rng=rng):
+            return rng.choice(type_indicies, size=min_, replace=False)
+
+        def pref_first(type_indicies, min_):
+            return type_indicies[:min_]
+
+        def pref_scores(type_indicies, min_, flat_scores=flat_scores):
+            sortx = flat_scores.take(type_indicies).argsort()[::-1]
+            return type_indicies.take(sortx[:min_])
+
+        sample_func = {
+            'rand': pref_rand,
+            'scores': pref_scores,
+            'first': pref_first,
+        }[pref_method]
 
         # Figure out how much of each label needs to be removed
         # record the indicies that will not be filtered in keep_indicies_list
         allowed_ratio = ut.PHI * .8
         #allowed_ratio = 1.0
-        def compute_keep_indicies(flat_labels, labelhist, allowed_ratio,
-                                  preference_strat='rand', seed=0):
-            # Find the maximum and minimum number of labels over all types
-            true_max_ = max(labelhist.values())
-            true_min_ = min(labelhist.values())
-            # Allow for some window around the minimum
-            min_ = min(int(true_min_ * allowed_ratio), true_max_)
-            print('Allowing at most %d labels of a type' % (min_,))
-            keep_indicies_list = []
-            randstate = np.random.RandomState(seed)
-            type_indicies_list = [np.where(flat_labels == key)[0]
-                                  for key in six.iterkeys(labelhist)]
-            for type_indicies in type_indicies_list:
-                size = min(min_, len(type_indicies))
-                if size == len(type_indicies):
-                    # no need to filter
-                    keep_indicies = type_indicies
-                else:
-                    if preference_strat == 'rand':
-                        keep_indicies = randstate.choice(type_indicies, size=min_, replace=False)
-                    elif preference_strat == 'first':
-                        # Be stupid and grab the first few labels of each type
-                        keep_indicies = type_indicies[:min_]
-                    elif ut.is_funclike(preference_strat):
-                        # custom function
-                        keep_indicies = preference_highscores(type_indicies, min_)
-                    else:
-                        raise NotImplementedError('preference_strat = %r' % (preference_strat,))
+        # Find the maximum and minimum number of labels over all types
+        true_max_ = max(labelhist.values())
+        true_min_ = min(labelhist.values())
+        # Allow for some window around the minimum
+        min_ = min(int(true_min_ * allowed_ratio), true_max_)
+        print('Equalizing label distribution with method=%r' % (pref_method,))
+        print('Allowing at most %d labels of a type' % (min_,))
+        key_list, type_indicies_list = vt.group_indices(flat_labels)
+        #type_indicies_list = [np.where(flat_labels == key)[0]
+        #                      for key in six.iterkeys(labelhist)]
+        keep_indicies_list = []
+        for type_indicies in type_indicies_list:
+            if min_ >= len(type_indicies):
+                keep_indicies = type_indicies
+            else:
+                keep_indicies = sample_func(type_indicies, min_)
+            keep_indicies_list.append(keep_indicies)
+        # Create a flag for each flat label (patch-pair)
+        flat_keep_idxs = np.hstack(keep_indicies_list)
+        flat_flag_list = vt.index_to_boolmask(flat_keep_idxs, maxval=len(flat_labels))
+        return flat_flag_list
 
-                keep_indicies_list.append(keep_indicies)
-            # Create a flag for each flat label (patch-pair)
-            flag_list = vt.index_to_boolmask(np.hstack(keep_indicies_list), maxval=len(flat_labels))
-            return flag_list
+    def equalize_labels():
+        (aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq2,
+         metadata_uneq2) = get_matchdata3()
+        import vtool as vt
+        print('flattening')
+        # Find out how many examples each source holds
+        len1_list = list(map(len, fm_list_uneq2))
+        # Expand source labels so one exists for each datapoint
+        flat_labels = ut.flatten([
+            [label] * len1
+            for len1, label in zip(len1_list, labels_uneq)
+        ])
+        flat_labels = np.array(flat_labels)
+        flat_scores = np.hstack(metadata_uneq2['fs'])
+        flat_flag_list = equalize_flat_flags(flat_labels, flat_scores)
 
-        flag_list = compute_keep_indicies(flat_labels, labelhist, allowed_ratio, preference_strat)
-        #fm_flat, cumsum = ut.invertible_flatten2_numpy(fm_list)
         # Unflatten back into source-vs-source pairs (annot-vs-annot)
-        flags_list = ut.unflatten2(flag_list, np.cumsum(len1_list))
-        fm_list_ = vt.zipcompress(fm_list_uneq, flags_list, axis=0)
-        metadata_ = {key: vt.zipcompress(vals, flags_list) for key, vals in metadata_uneq.items()}
+        flags_list = ut.unflatten2(flat_flag_list, np.cumsum(len1_list))
+
+        assert ut.depth_profile(flags_list) == ut.depth_profile(metadata_uneq2['fs'])
+
+        fm_list_ = vt.zipcompress_safe(fm_list_uneq2, flags_list, axis=0)
+        metadata_ = dict([
+            (key, vt.zipcompress_safe(vals, flags_list))
+            for key, vals in metadata_uneq2.items()
+        ])
 
         # remove empty aids
-        isnonempty_list = [len(fm) != 0 for fm in fm_list_]
+        isnonempty_list = [len(fm) > 0 for fm in fm_list_]
         fm_list_eq = ut.list_compress(fm_list_, isnonempty_list)
         aid1_list_eq = ut.list_compress(aid1_list_uneq, isnonempty_list)
         aid2_list_eq = ut.list_compress(aid2_list_uneq, isnonempty_list)
         labels_eq    = ut.list_compress(labels_uneq, isnonempty_list)
-        metadata_eq = {key: ut.list_compress(vals, isnonempty_list)
-                       for key, vals in metadata_.items()}
+        metadata_eq = dict([
+            (key, ut.list_compress(vals, isnonempty_list))
+            for key, vals in metadata_.items()
+        ])
 
         # PRINT NEW LABEL STATS
         len1_list = list(map(len, fm_list_eq))
@@ -527,10 +639,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3, controlled=True)
         # --
         return aid1_list_eq, aid2_list_eq, fm_list_eq, labels_eq, metadata_eq
 
-    EQUALIZE_LABELS = True
-    if EQUALIZE_LABELS:
-        aid1_list_eq, aid2_list_eq, fm_list_eq, labels_eq, metadata_eq = equalize_labels()
-        pass
+    #EQUALIZE_LABELS = True
+    #if EQUALIZE_LABELS:
+    aid1_list_eq, aid2_list_eq, fm_list_eq, labels_eq, metadata_eq = equalize_labels()
 
     # Convert annot-vs-annot pairs into raw feature-vs-feature pairs
 

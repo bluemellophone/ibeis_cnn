@@ -90,7 +90,8 @@ def merge_datasets(dataset_list):
         merged_dataset = DataSet.from_alias_key(alias_key)
         return merged_dataset
     except Exception as ex:
-        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
+                   (alias_key,), iswarning=True)
 
     # Build the dataset
     consensus_check = consensus_check_factory()
@@ -410,6 +411,7 @@ def get_ibeis_siam_dataset(**kwargs):
     CommandLine:
         python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show
         python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_Master0
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -432,7 +434,15 @@ def get_ibeis_siam_dataset(**kwargs):
             'num_top': None,
             'controlled': True,
             'colorspace': 'gray',
+            'acfg_name': None,
         }, verbose=True)
+    if datakw['acfg_name'] is not None:
+        del datakw['controlled']
+    if datakw['max_examples'] is None:
+        del datakw['max_examples']
+    if datakw['num_top'] is None:
+        del datakw['num_top']
+
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
         dbname = ut.get_argval('--db', default='PZ_MTEST')
@@ -452,17 +462,24 @@ def get_ibeis_siam_dataset(**kwargs):
         dataset = DataSet.from_alias_key(alias_key)
         return dataset
     except Exception as ex:
-        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
+                   (alias_key,), iswarning=True)
 
-    with ut.Indenter('[CHECKDATA]'):
+    with ut.Indenter('[BuildDS]'):
         # Get training data pairs
         colorspace = datakw.pop('colorspace')
         patchmatch_tup = ingest_ibeis.get_aidpairs_and_matches(ibs, **datakw)
         aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists = patchmatch_tup
         # Extract and cache the data
         # TODO: metadata
-        data_fpath, labels_fpath, training_dpath, data_shape = ingest_ibeis.cached_patchmetric_training_data_fpaths(
-            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, colorspace=colorspace)
+        if ut.get_argflag('--dryrun'):
+            print('exiting due to dry run')
+            import sys
+            sys.exit(0)
+        tup = ingest_ibeis.cached_patchmetric_training_data_fpaths(
+            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+            metadata_lists, colorspace=colorspace)
+        data_fpath, labels_fpath, training_dpath, data_shape = tup
         print('\n[get_ibeis_siam_dataset] FINISH\n\n')
 
     # hack for caching num_labels
