@@ -436,6 +436,8 @@ def get_ibeis_siam_dataset(**kwargs):
             'colorspace': 'gray',
             'acfg_name': None,
         }, verbose=True)
+
+    ut.embed()
     if datakw['acfg_name'] is not None:
         del datakw['controlled']
     if datakw['max_examples'] is None:
