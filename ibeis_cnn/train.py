@@ -135,12 +135,12 @@ def pz_patchmatch():
         python -m ibeis_cnn --tf pz_patchmatch --db GZ_ALL --colorspace='gray' --num-top=None --controlled=True --ensuredata
         python -m ibeis_cnn --tf pz_patchmatch --db NNP_MasterGIRM_core --colorspace='gray' --num-top=None --controlled=True --ensuredata
         python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master1 --acfg_name timectrl --ensuredata
-        python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master1 --acfg_name timectrl:pername=None --ensuredata --dryrun
+        python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master1 --acfg_name timectrl:pername=None --ensuredata
 
         # --- TRAINING ---
 
         python -m ibeis_cnn --tf pz_patchmatch --ds timectrl_pzmaster1 --train --weights=new --arch=siaml2_128  --monitor  # NOQA
-        python -m ibeis_cnn --tf pz_patchmatch --ds timectrl_pzmaster1 --train --weights=new --arch=siaml2_128  --monitor  --learning_rate=.1 --weight_decay=0.0005 # NOQA
+        python -m ibeis_cnn --tf pz_patchmatch --ds timectrl_pzmaster1 --train --weights=new --arch=siaml2_128  --monitor  --learning_rate=.01 --weight_decay=0.005 # NOQA
 
         # Train NNP_Master
         python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=nnp3-2:epochs0011 --arch=siaml2_128 --train --monitor
