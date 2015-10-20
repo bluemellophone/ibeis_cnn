@@ -356,6 +356,13 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
+def get_aidpairs_partmatch(ibs, qaid_list, daid_list):
+    tup = ibs.partition_annots_into_corresponding_groups(qaid_list, daid_list)
+    aids1_list, aids2_list, other_aids1, other_aids2 = tup
+    for aids1, aids2 in  zip(aids1_list, aids2_list):
+        pass
+
+
 def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                              controlled=True, min_featweight=None,
                              acfg_name=None):
@@ -414,7 +421,14 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     """
 
     def get_query_results():
-        if acfg_name is None:
+        if acfg_name is not None:
+            print('NEW WAY OF FILTERING')
+            from ibeis.experiments import experiment_helpers
+            acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
+            #acfg = acfg_list[0]
+            expanded_aids = expanded_aids_list[0]
+            qaid_list, daid_list = expanded_aids
+        else:
             print('OLD WAY OF FILTERING')
             from ibeis import ibsfuncs
             if controlled:
@@ -428,13 +442,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                 daid_list = qaid_list
                 if max_examples is not None:
                     daid_list = daid_list[0:min(max_examples, len(daid_list))]
-        else:
-            print('NEW WAY OF FILTERING')
-            from ibeis.experiments import experiment_helpers
-            acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
-            #acfg = acfg_list[0]
-            expanded_aids = expanded_aids_list[0]
-            qaid_list, daid_list = expanded_aids
 
         if max_examples is not None:
             qaid_list = qaid_list[0:min(max_examples, len(qaid_list))]
