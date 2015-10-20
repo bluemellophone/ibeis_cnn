@@ -26,7 +26,8 @@ def sample_train_valid_test(model, data, labels):
     train_split = .2
     #train_split = .4
     #train_split = .5
-    _tup = utils.train_test_split(data, labels, eval_size=train_split, data_per_label=data_per_label)
+    _tup = utils.train_test_split(data, labels, eval_size=train_split,
+                                  data_per_label=data_per_label)
     X_train, y_train, X_valid, y_valid = _tup
     memtrack.report('sample_data1')
     _tup = utils.train_test_split(X_train, y_train, eval_size=0.1, data_per_label=data_per_label)
@@ -173,7 +174,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             param_update_mags = {}
             for key, val in train_outputs.items():
                 if key.startswith('param_update_magnitude_'):
-                    param_update_mags[key.replace('param_update_magnitude_', '')] = (val.mean(), val.std())
+                    key_ = key.replace('param_update_magnitude_', '')
+                    param_update_mags[key_] = (val.mean(), val.std())
             epoch_info['param_update_mags'] = param_update_mags
             #if key.startswith('param_update_mag_')
 
@@ -210,7 +212,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 test_loss = test_outputs['loss_determ'].mean()  # NOQA
                 #if kwargs.get('show_confusion', False):
                 #    #output_confusion_matrix(results_path, **kwargs)
-                #    batch.output_confusion_matrix(X_test, results_dpath, test_results, model=model, **kwargs)
+                #    batch.output_confusion_matrix(X_test, results_dpath,
+                #    test_results, model=model, **kwargs)
 
             # ---------------------------------------
             # Summarize the epoch
@@ -407,7 +410,9 @@ def test_data2(model, X_test, y_test):
     # create theano symbolic expressions that define the network
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
-    theano_funcs = model.build_theano_funcs(request_predict=True, request_forward=False, request_backprop=False)
+    theano_funcs = model.build_theano_funcs(request_predict=True,
+                                            request_forward=False,
+                                            request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     # Begin testing with the neural network
@@ -420,7 +425,8 @@ def test_data2(model, X_test, y_test):
 
     #X_test = X_test[0:259]
     # Start timer
-    test_outputs = batch.process_batch(model, X_test, None, theano_predict, fix_output=True, **batchiter_kw)
+    test_outputs = batch.process_batch(model, X_test, None, theano_predict,
+                                       fix_output=True, **batchiter_kw)
     return test_outputs
 
 

@@ -410,7 +410,7 @@ def get_ibeis_siam_dataset(**kwargs):
     """
     CommandLine:
         python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show
-        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_Master0
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_Master1 --acfg_name timectrl
         python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
 
     Example:
@@ -432,12 +432,18 @@ def get_ibeis_siam_dataset(**kwargs):
             'max_examples': None,
             #'num_top': 3,
             'num_top': None,
+            'min_featweight': .99,
             'controlled': True,
             'colorspace': 'gray',
             'acfg_name': None,
-        }, verbose=True)
+        },
+        alias_dict={
+            'acfg_name': ['acfg']
+        },
+        verbose=True)
 
-    ut.embed()
+    #ut.get_func_kwargs(ingest_ibeis.get_aidpairs_and_matches)
+
     if datakw['acfg_name'] is not None:
         del datakw['controlled']
     if datakw['max_examples'] is None:

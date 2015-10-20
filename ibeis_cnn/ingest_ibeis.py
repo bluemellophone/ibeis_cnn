@@ -357,7 +357,7 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
 
 
 def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
-                             controlled=True, featweight_thresh=None,
+                             controlled=True, min_featweight=None,
                              acfg_name=None):
     """
 
@@ -390,12 +390,12 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>> max_examples = None
         >>> num_top = None
         >>> controlled = True
-        >>> featweight_thresh = .99
+        >>> min_featweight = .99
         >>> patchmatch_tup = get_aidpairs_and_matches(ibs,
         >>>                                           max_examples=max_examples,
         >>>                                           num_top=num_top,
         >>>                                           controlled=controlled,
-        >>>                                           featweight_thresh=featweight_thresh,
+        >>>                                           min_featweight=min_featweight,
         >>>                                           acfg_name=acfg_name)
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = patchmatch_tup
         >>> ut.quit_if_noshow()
@@ -504,8 +504,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         # Filters in place
         aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq, metadata_uneq = get_matchdata2()
 
-        #featweight_thresh = None
-        if featweight_thresh is not None:
+        #min_featweight = None
+        if min_featweight is not None:
             print('filter by featweight')
             # Remove feature matches where the foreground weight is under a threshold
             flags_list = []
@@ -518,8 +518,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                     [aid1], config2_=qreq_.get_internal_query_config2())[0][fm.T[0]]
                 fgweight2 = ibs.get_annot_fgweights(
                     [aid2], config2_=qreq_.get_internal_data_config2())[0][fm.T[1]]
-                flags = np.logical_and(fgweight1 > featweight_thresh,
-                                       fgweight2 > featweight_thresh)
+                flags = np.logical_and(fgweight1 > min_featweight,
+                                       fgweight2 > min_featweight)
                 flags_list.append(flags)
 
             import vtool as vt
