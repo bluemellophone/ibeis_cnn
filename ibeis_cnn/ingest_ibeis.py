@@ -482,6 +482,8 @@ def get_aidpairs_partmatch(ibs, acfg_name):
 
         """
         pt.imshow(vt.stack_images(rchip1, rchip2)[0])
+        pt.imshow(vt.stack_images(rchip1_sz, rchip2_sz)[0])
+
         """
 
 
