@@ -363,17 +363,31 @@ def get_aidpairs_partmatch(ibs, acfg_name):
         >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
-        >>> ibs = ibeis.opendb(defaultdb='PZ_Master1')
+        >>> #ibs = ibeis.opendb(defaultdb='PZ_Master1')
+        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
         ...                             type_=str,
-        ...                             default='timectrl:qindex=0:10,pername=None,excluderef=False')
+        ...                             default='ctrl:pername=None,excluderef=False')
     """
     print('NEW WAY OF FILTERING')
     from ibeis.experiments import experiment_helpers
-    acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
+    acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(
+        ibs, [acfg_name])
     #acfg = acfg_list[0]
     expanded_aids = expanded_aids_list[0]
     qaid_list, daid_list = expanded_aids
+
+    ibs.print_annotconfig_stats(qaid_list, daid_list, bigstr=True)
+
+    cfgdict = {
+        'affine_invariance': False,
+        'fg_on': not ut.WIN32,
+    }
+    cm_list, qreq_ = ibs.query_chips(
+        qaid_list, daid_list, return_request=True, cfgdict=cfgdict,
+        return_cm=True)
+
+    # FIXME: weird results on MTEST
     tup = ibs.partition_annots_into_corresponding_groups(qaid_list, daid_list)
     aids1_list, aids2_list, other_aids1, other_aids2 = tup
     # Build pairs
@@ -392,47 +406,83 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     yawdist = vt.ori_distance(yaws1, yaws2)
     TAU = np.pi * 2
     keep_if = np.logical_or(np.isnan(yawdist), yawdist < TAU / 8)
-
     pos_aids1 = ut.list_compress(pos_aids1, keep_if)
     pos_aids2 = ut.list_compress(pos_aids2, keep_if)
     rng = np.random.RandomState(0)
-
     _pairs = [(a1, a2) for a1, a2 in ut.iprod(aids1, aids2) if a1 != a2]
 
-    pos_set1 = set(pos_aids1)
-    pos_set2 = set(pos_aids2)
-    pos_set_both = pos_set1.intersection(pos_set2)
-    pos_set1_only = pos_set1 - pos_set_both
-    pos_set2_only = pos_set2 - pos_set_both
+    pos_pairs = np.array(list(zip(pos_aids1, pos_aids2)))
+    unique_pos_aids = np.unique(pos_pairs.flatten())
 
-    neg_aids1 = ut.flatten([
-        ut.list_compress(list(pos_set1_only), .75 < np.random.rand(len(pos_set1_only))),
-        ut.list_compress(list(pos_set2_only), .75 < np.random.rand(len(pos_set2_only))),
-        ut.list_compress(list(pos_set_both), .5 < np.random.rand(len(pos_set_both)))
+    # Hard Negatives
+    hard_neg_aids1 = [[cm.qaid] for cm in (cm_list)]
+    hard_neg_aids2 = [cm.get_top_gf_aids(ibs, ntop=1) for cm in cm_list]
+    hard_pairs = ut.flatten([
+        list(ut.iprod(*_))
+        for _ in zip(hard_neg_aids1, hard_neg_aids2)
     ])
-    num_else = len(pos_aids1) - len(neg_aids1)
-    if num_else > 0:
-        import random
-        others = ut.get_list_column(other_aids2, 0)
-        neg_aids1.extend(random.sample(others, num_else))
 
-    neg_aids2 = []
-    nids = np.array(ibs.get_annot_nids(others))
-    for aid in neg_aids1:
+    # Random Negatives
+    num_rand_seen = len(unique_pos_aids)
+    num_rand_unseen = len(unique_pos_aids)
+    unique_pos_aids = list(sorted(ut.unique_keep_order2(ut.flatten([
+        pos_aids1,
+        pos_aids2,
+        ut.flatten(hard_pairs),
+    ]))))
+    singletons = ut.flatten(other_aids2)
+    rand_aids1 = ut.random_sample(
+        unique_pos_aids, num_rand_seen, rng=rng)
+    rand_aids1 += ut.random_sample(
+        singletons, num_rand_unseen, rng=rng)
+
+    rand_pairs = []
+
+    available_aids = np.unique(ut.flatten([qaid_list, daid_list]))
+    nids = np.array(ibs.get_annot_nids(available_aids))
+    for aid in rand_aids1:
         nid = ibs.get_annot_nids(aid)
         is_valid = nids != nid
         p = is_valid / (is_valid.sum())
-        neg_aids2.extend(rng.choice(others, size=1, replace=False, p=p))
+        chosen = rng.choice(available_aids, size=2, replace=False, p=p)
+        chosen_pairs = list(ut.iprod([aid], chosen))
+        rand_pairs.extend(chosen_pairs)
+
+    neg_pairs = np.array(hard_pairs + rand_pairs)
+    idx = vt.unique_row_indexes(neg_pairs)
+    neg_pairs = neg_pairs.take(idx, axis=0)
+
+    print('neg_pairs.shape = %r' % (neg_pairs.shape,))
+    print('pos_pairs.shape = %r' % (pos_pairs.shape,))
 
     # TODO extract chips in a sane manner
     import ibeis
-    for aid1, aid2 in zip(pos_aids1, pos_aids2):
-        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
-
+    part_chip_width  = 256
+    part_chip_height = 128
+    size = (part_chip_width, part_chip_height)
     import ibeis
-    for aid1, aid2 in zip(neg_aids1, neg_aids2):
+
+    rchip1_list = []
+
+    for aid1, aid2 in pos_pairs:
         pass
         matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
+        rchip1 = metadata['rchip1_crop']
+        rchip2 = metadata['rchip2_crop']
+        rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
+        rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+
+    for aid1, aid2 in neg_pairs:
+        pass
+        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
+        rchip1 = metadata['rchip1_crop']
+        rchip2 = metadata['rchip2_crop']
+        rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
+        rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+
+        """
+        pt.imshow(vt.stack_images(rchip1, rchip2)[0])
+        """
 
 
 def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
@@ -485,9 +535,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>> for aid1, aid2, kpts1, kpts2, fm in _iter:
         >>>     pt.reset()
         >>>     print('aid2 = %r' % (aid2,))
-        >>>     print('aid1 = %r' % (aid1,))
-        >>>     print('len(fm) = %r' % (len(fm),))
-        >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
+        >>>     print('aid1 = %r' % (aid1,)) >>>     print('len(fm) = %r' % (len(fm),)) >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
         >>>     pt.update()
         >>> ut.show_if_requested()
     """
