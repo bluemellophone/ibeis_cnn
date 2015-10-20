@@ -356,11 +356,83 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
     return aid1_list, aid2_list
 
 
-def get_aidpairs_partmatch(ibs, qaid_list, daid_list):
+def get_aidpairs_partmatch(ibs, acfg_name):
+    """
+    Experiments:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> ibs = ibeis.opendb(defaultdb='PZ_Master1')
+        >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
+        ...                             type_=str,
+        ...                             default='timectrl:qindex=0:10,pername=None,excluderef=False')
+    """
+    print('NEW WAY OF FILTERING')
+    from ibeis.experiments import experiment_helpers
+    acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
+    #acfg = acfg_list[0]
+    expanded_aids = expanded_aids_list[0]
+    qaid_list, daid_list = expanded_aids
     tup = ibs.partition_annots_into_corresponding_groups(qaid_list, daid_list)
     aids1_list, aids2_list, other_aids1, other_aids2 = tup
+    # Build pairs
+    positive_aid_pair_list = []
     for aids1, aids2 in  zip(aids1_list, aids2_list):
+        _pairs = [(a1, a2) for a1, a2 in ut.iprod(aids1, aids2) if a1 != a2]
+        positive_aid_pair_list.extend(_pairs)
+    # Filter bad viewpoints
+    pos_aids1 = ut.get_list_column(positive_aid_pair_list, 0)
+    pos_aids2 = ut.get_list_column(positive_aid_pair_list, 1)
+    yaws1 = ibs.get_annot_yaws(pos_aids1)
+    yaws2 = ibs.get_annot_yaws(pos_aids2)
+    import vtool as vt
+    yaws1 = np.array(ut.replace_nones(yaws1, np.nan))
+    yaws2 = np.array(ut.replace_nones(yaws2, np.nan))
+    yawdist = vt.ori_distance(yaws1, yaws2)
+    TAU = np.pi * 2
+    keep_if = np.logical_or(np.isnan(yawdist), yawdist < TAU / 8)
+
+    pos_aids1 = ut.list_compress(pos_aids1, keep_if)
+    pos_aids2 = ut.list_compress(pos_aids2, keep_if)
+    rng = np.random.RandomState(0)
+
+    _pairs = [(a1, a2) for a1, a2 in ut.iprod(aids1, aids2) if a1 != a2]
+
+    pos_set1 = set(pos_aids1)
+    pos_set2 = set(pos_aids2)
+    pos_set_both = pos_set1.intersection(pos_set2)
+    pos_set1_only = pos_set1 - pos_set_both
+    pos_set2_only = pos_set2 - pos_set_both
+
+    neg_aids1 = ut.flatten([
+        ut.list_compress(list(pos_set1_only), .75 < np.random.rand(len(pos_set1_only))),
+        ut.list_compress(list(pos_set2_only), .75 < np.random.rand(len(pos_set2_only))),
+        ut.list_compress(list(pos_set_both), .5 < np.random.rand(len(pos_set_both)))
+    ])
+    num_else = len(pos_aids1) - len(neg_aids1)
+    if num_else > 0:
+        import random
+        others = ut.get_list_column(other_aids2, 0)
+        neg_aids1.extend(random.sample(others, num_else))
+
+    neg_aids2 = []
+    nids = np.array(ibs.get_annot_nids(others))
+    for aid in neg_aids1:
+        nid = ibs.get_annot_nids(aid)
+        is_valid = nids != nid
+        p = is_valid / (is_valid.sum())
+        neg_aids2.extend(rng.choice(others, size=1, replace=False, p=p))
+
+    # TODO extract chips in a sane manner
+    import ibeis
+    for aid1, aid2 in zip(pos_aids1, pos_aids2):
+        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
+
+    import ibeis
+    for aid1, aid2 in zip(neg_aids1, neg_aids2):
         pass
+        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
 
 
 def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
