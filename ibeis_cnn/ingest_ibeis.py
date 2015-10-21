@@ -460,7 +460,6 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     part_chip_width  = 256
     part_chip_height = 128
     size = (part_chip_width, part_chip_height)
-    import ibeis
 
     rchip1_list = []
 
