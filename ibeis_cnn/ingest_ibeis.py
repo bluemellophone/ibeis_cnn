@@ -4,6 +4,7 @@ import utool as ut
 import numpy as np
 import six
 import cv2
+import itertools
 #from ibeis_cnn import utils
 from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
@@ -40,11 +41,10 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata = tup
         >>> ut.quit_if_noshow()
         >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
-        >>> draw_results.interact_view_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata)
+        >>> draw_results.interact_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata)
         >>> ut.show_if_requested()
     """
     import vtool as vt
-    import itertools
     # Flatten to only apply chip operations once
     print('get_aidpair_patchmatch_training_data num_pairs = %r' % (len(aid1_list)))
     assert len(aid1_list) == len(aid2_list)
@@ -317,9 +317,9 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
     #        ut.move(labels_fpath_, labels_fpath)
 
     if NOCACHE_TRAIN or not (
-            ut.checkpath(data_fpath, verbose=True)
-            and ut.checkpath(labels_fpath, verbose=True)
-            and ut.checkpath(metadata_fpath, verbose=True)
+            ut.checkpath(data_fpath, verbose=True) and
+            ut.checkpath(labels_fpath, verbose=True) and
+            ut.checkpath(metadata_fpath, verbose=True)
     ):
         # Estimate how big the patches will be
         def estimate_data_bytes():
@@ -358,27 +358,64 @@ def remove_unknown_training_pairs(ibs, aid1_list, aid2_list):
 
 def get_aidpairs_partmatch(ibs, acfg_name):
     """
-    Experiments:
+
+    CommandLine:
+        python -m ibeis_cnn.ingest_ibeis --exec-get_aidpairs_partmatch
+
+    SeeAlso:
+        extract_annotpair_training_chips
+
+    Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
-        >>> #ibs = ibeis.opendb(defaultdb='PZ_Master1')
-        >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> ibs = ibeis.opendb(defaultdb='PZ_Master1')
+        >>> #ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>> #ibs = ibeis.opendb(defaultdb='PZ_FlankHack')
         >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
         ...                             type_=str,
-        ...                             default='ctrl:pername=None,excluderef=False')
+        ...                             default='ctrl:pername=None,excluderef=False,contrib_contains=FlankHack')
+        >>> aid_pairs, label_list, metadata_lists = get_aidpairs_partmatch(ibs, acfg_name)
     """
     print('NEW WAY OF FILTERING')
     from ibeis.experiments import experiment_helpers
+    import vtool as vt
     acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(
         ibs, [acfg_name])
     #acfg = acfg_list[0]
     expanded_aids = expanded_aids_list[0]
     qaid_list, daid_list = expanded_aids
+    available_aids = np.unique(ut.flatten([qaid_list, daid_list]))
+    tup = ibs.partition_annots_into_corresponding_groups(qaid_list, daid_list)
+    aids1_list, aids2_list, other_aids1, other_aids2 = tup
+    multiton_aids = np.unique(ut.flatten(aids1_list + aids2_list))
+    #singletons = ut.flatten(other_aids2 + other_aids1)
 
     ibs.print_annotconfig_stats(qaid_list, daid_list, bigstr=True)
 
+    # Positive Examples
+    print('Sampling positive examples')
+    nested_pairs = list(
+        map(list, itertools.starmap(ut.iprod, zip(aids1_list, aids2_list))))
+    pos_aid_pairs = np.vstack(nested_pairs)
+    # Filter Self
+    flag_list = pos_aid_pairs.T[0] != pos_aid_pairs.T[1]
+    pos_aid_pairs = pos_aid_pairs.compress(flag_list, axis=0)
+    # Filter bad viewpoints
+    TAU = np.pi * 2
+    _np_get_annot_yaws = ut.accepts_numpy(ibs.get_annot_yaws_asfloat.im_func)
+    yaw_pairs = _np_get_annot_yaws(ibs, pos_aid_pairs)
+    yawdist = vt.ori_distance(yaw_pairs.T[0], yaw_pairs.T[1])
+    flag_list = np.logical_or(np.isnan(yawdist), yawdist < TAU / 8.)
+    pos_aid_pairs = pos_aid_pairs.compress(flag_list, axis=0)
+    #pos_aid_pairs = vt.unique_rows(pos_aid_pairs)  # should be unncessary
+    assert len(vt.unique_rows(pos_aid_pairs)) == len(pos_aid_pairs)
+    print('pos_aid_pairs.shape = %r' % (pos_aid_pairs.shape,))
+
+    # Hard Negative Examples
+    print('Sampling hard negative examples')
+    num_hard_neg_per_aid = len(pos_aid_pairs) // len(multiton_aids)
     cfgdict = {
         'affine_invariance': False,
         'fg_on': not ut.WIN32,
@@ -386,104 +423,198 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     cm_list, qreq_ = ibs.query_chips(
         qaid_list, daid_list, return_request=True, cfgdict=cfgdict,
         return_cm=True)
+    hardneg_aids1 = [[cm.qaid] for cm in (cm_list)]
+    hardneg_aids2 = [cm.get_top_gf_aids(ibs, ntop=num_hard_neg_per_aid)
+                     for cm in cm_list]
+    hardneg_aid_pairs = np.array(ut.flatten(
+        itertools.starmap(ut.iprod, zip(hardneg_aids1, hardneg_aids2))))
 
-    # FIXME: weird results on MTEST
-    tup = ibs.partition_annots_into_corresponding_groups(qaid_list, daid_list)
-    aids1_list, aids2_list, other_aids1, other_aids2 = tup
-    # Build pairs
-    positive_aid_pair_list = []
-    for aids1, aids2 in  zip(aids1_list, aids2_list):
-        _pairs = [(a1, a2) for a1, a2 in ut.iprod(aids1, aids2) if a1 != a2]
-        positive_aid_pair_list.extend(_pairs)
-    # Filter bad viewpoints
-    pos_aids1 = ut.get_list_column(positive_aid_pair_list, 0)
-    pos_aids2 = ut.get_list_column(positive_aid_pair_list, 1)
-    yaws1 = ibs.get_annot_yaws(pos_aids1)
-    yaws2 = ibs.get_annot_yaws(pos_aids2)
-    import vtool as vt
-    yaws1 = np.array(ut.replace_nones(yaws1, np.nan))
-    yaws2 = np.array(ut.replace_nones(yaws2, np.nan))
-    yawdist = vt.ori_distance(yaws1, yaws2)
-    TAU = np.pi * 2
-    keep_if = np.logical_or(np.isnan(yawdist), yawdist < TAU / 8)
-    pos_aids1 = ut.list_compress(pos_aids1, keep_if)
-    pos_aids2 = ut.list_compress(pos_aids2, keep_if)
+    # Random Negative Examples
+    # TODO: may be able to say not a match from viewpoint?
+    print('Sampling random negative examples')
+    num_rand_neg_per_aid = len(pos_aid_pairs) // len(multiton_aids)
     rng = np.random.RandomState(0)
-    _pairs = [(a1, a2) for a1, a2 in ut.iprod(aids1, aids2) if a1 != a2]
-
-    pos_pairs = np.array(list(zip(pos_aids1, pos_aids2)))
-    unique_pos_aids = np.unique(pos_pairs.flatten())
-
-    # Hard Negatives
-    hard_neg_aids1 = [[cm.qaid] for cm in (cm_list)]
-    hard_neg_aids2 = [cm.get_top_gf_aids(ibs, ntop=1) for cm in cm_list]
-    hard_pairs = ut.flatten([
-        list(ut.iprod(*_))
-        for _ in zip(hard_neg_aids1, hard_neg_aids2)
-    ])
-
-    # Random Negatives
-    num_rand_seen = len(unique_pos_aids)
-    num_rand_unseen = len(unique_pos_aids)
-    unique_pos_aids = list(sorted(ut.unique_keep_order2(ut.flatten([
-        pos_aids1,
-        pos_aids2,
-        ut.flatten(hard_pairs),
-    ]))))
-    singletons = ut.flatten(other_aids2)
-    rand_aids1 = ut.random_sample(
-        unique_pos_aids, num_rand_seen, rng=rng)
-    rand_aids1 += ut.random_sample(
-        singletons, num_rand_unseen, rng=rng)
-
-    rand_pairs = []
-
-    available_aids = np.unique(ut.flatten([qaid_list, daid_list]))
-    nids = np.array(ibs.get_annot_nids(available_aids))
-    for aid in rand_aids1:
-        nid = ibs.get_annot_nids(aid)
-        is_valid = nids != nid
+    randneg_aid_pairs = []
+    neg_aid_pool = available_aids
+    neg_nid_pool = np.array(ibs.get_annot_nids(neg_aid_pool))
+    for aid, nid in zip(neg_aid_pool, neg_nid_pool):
+        is_valid = np.not_equal(neg_nid_pool, nid)
         p = is_valid / (is_valid.sum())
-        chosen = rng.choice(available_aids, size=2, replace=False, p=p)
+        chosen = rng.choice(neg_aid_pool, size=num_rand_neg_per_aid,
+                            replace=False, p=p)
         chosen_pairs = list(ut.iprod([aid], chosen))
-        rand_pairs.extend(chosen_pairs)
+        randneg_aid_pairs.extend(chosen_pairs)
+    randneg_aid_pairs = np.array(randneg_aid_pairs)
 
-    neg_pairs = np.array(hard_pairs + rand_pairs)
-    idx = vt.unique_row_indexes(neg_pairs)
-    neg_pairs = neg_pairs.take(idx, axis=0)
+    # Concatenate both types of negative examples
+    #print('Building negative examples')
+    #_neg_aid_pairs = np.vstack((hardneg_aid_pairs, randneg_aid_pairs))
+    #neg_aid_pairs = vt.unique_rows(_neg_aid_pairs)
+    #print('Filtered %d duplicate negative pairs' % (len(_neg_aid_pairs) - len(neg_aid_pairs)))
 
-    print('neg_pairs.shape = %r' % (neg_pairs.shape,))
-    print('pos_pairs.shape = %r' % (pos_pairs.shape,))
+    # Unsure Examples
+    # TODO: use quality and viewoint labelings to determine this
+    # as well as metadata from the annotmatch table
+    print('hardneg_aid_pairs.shape = %r' % (hardneg_aid_pairs.shape,))
+    print('randneg_aid_pairs.shape = %r' % (randneg_aid_pairs.shape,))
+    print('pos_aid_pairs.shape = %r' % (pos_aid_pairs.shape,))
+
+    print('Building labels')
+    const = ibs.const
+    unflat_pairs = (pos_aid_pairs, hardneg_aid_pairs, randneg_aid_pairs)
+    type_labels = (const.TRUTH_MATCH, const.TRUTH_NOT_MATCH, const.TRUTH_NOT_MATCH)
+    type_meta_labels = ('pos', 'hardneg', 'randneg')
+
+    def _expand(type_list):
+        return [[item] * len(pairs) for pairs, item in zip(unflat_pairs, type_list)]
+
+    _aid_pairs = np.vstack(unflat_pairs)
+    _labels = np.hstack(_expand(type_labels))
+
+    flat_metadata = {
+        'meta_label': ut.flatten(_expand(type_meta_labels))
+    }
+
+    print('Filtering Duplicates')
+    nonunique_flags = vt.nonunique_row_flags(_aid_pairs)
+    print('Filtered %d duplicate pairs' % (nonunique_flags.sum()))
+    print('Nonunique stats:')
+    for key, val in flat_metadata.items():
+        print(ut.dict_hist(ut.list_compress(val, nonunique_flags)))
+    unique_flags = ~nonunique_flags
+    # Do filtering
+    aid_pairs = _aid_pairs.compress(unique_flags, axis=0)
+    label_list = _labels.compress(unique_flags, axis=0)
+    for key, val in flat_metadata.items():
+        flat_metadata[key] = ut.list_compress(val, unique_flags)
+    print('Final Stats')
+    for key, val in flat_metadata.items():
+        print(ut.dict_hist(val))
+
+    groupsizes = map(len, vt.group_indices(aid_pairs.T[0])[1])
+    ut.print_dict(ut.dict_hist(groupsizes), 'groupsize freq')
+    flat_metadata['aid_pairs'] = aid_pairs
+    return aid_pairs, label_list, flat_metadata
+
+
+def extract_annotpair_training_chips(ibs, aid_pairs):
+    """
+
+    CommandLine:
+        python -m ibeis_cnn.ingest_ibeis --exec-extract_annotpair_training_chips --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
+        >>> import ibeis
+        >>> # build test data
+        >>> if True:
+        >>>     ibs = ibeis.opendb(defaultdb='PZ_Master1')
+        >>>     acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
+        >>>                                 type_=str,
+        >>>                                 default='ctrl:pername=None,excluderef=False,contrib_contains=FlankHack')
+        >>> else:
+        >>>     ibs = ibeis.opendb(defaultdb='PZ_MTEST')
+        >>>     acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
+        >>>                                  type_=str,
+        >>>                                  default='ctrl:pername=None,excluderef=False')
+        >>> #ibs = ibeis.opendb(defaultdb='PZ_FlankHack')
+        >>> aid_pairs, label_list, flat_metadata = get_aidpairs_partmatch(ibs, acfg_name)
+        >>> s = slice(2, len(aid_pairs), len(aid_pairs) // ut.get_argval('--x', type_=int, default=8))
+        >>> #aid_pairs = aid_pairs[s]
+        >>> #label_list = label_list[s]
+        >>> #flat_metadata = dict([(key, val[s]) for key, val in flat_metadata.items()])
+        >>> rchip1_list, rchip2_list = extract_annotpair_training_chips(ibs, aid_pairs)
+        >>> ut.quit_if_noshow()
+        >>> from ibeis_cnn import draw_results  # NOQA
+        >>> interact = draw_results.interact_patches(label_list, rchip1_list, rchip2_list, flat_metadata, chunck_sizes=(2, 4), ibs=ibs)
+        >>> ut.show_if_requested()
+    """
 
     # TODO extract chips in a sane manner
-    import ibeis
+    import ibeis.model.hots.vsone_pipeline
+    import vtool as vt
     part_chip_width  = 256
     part_chip_height = 128
     size = (part_chip_width, part_chip_height)
 
-    rchip1_list = []
+    #cfgdict = {}
+    import ibeis.control.IBEISControl
+    import ibeis.model.hots.query_request
+    assert isinstance(ibs, ibeis.control.IBEISControl.IBEISController)
+    qreq_ = ibs.new_query_request(aid_pairs.T[0][0:1], aid_pairs.T[1][0:1])
+    assert isinstance(qreq_, ibeis.model.hots.query_request.QueryRequest)
+    qconfig2_ = qreq_.extern_query_config2
+    dconfig2_ = qreq_.extern_data_config2
 
-    for aid1, aid2 in pos_pairs:
-        pass
-        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
-        rchip1 = metadata['rchip1_crop']
-        rchip2 = metadata['rchip2_crop']
-        rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
-        rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+    warped = False
 
-    for aid1, aid2 in neg_pairs:
-        pass
-        matches, metadata = ibeis.model.hots.vsone_pipeline.extract_aligned_parts(ibs, aid1, aid2)
-        rchip1 = metadata['rchip1_crop']
-        rchip2 = metadata['rchip2_crop']
-        rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
-        rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+    metadata_list = []
+    if warped:
+        for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Extracting Alignment Transforms', adjust=True):
+            matches, metadata = ibeis.model.hots.vsone_pipeline.vsone_single(aid1, aid2, qreq_)
+            metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
+            metadata_list.append(metadata)
+    else:
+        for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Building Info', adjust=True):
+            metadata = ibeis.model.hots.vsone_pipeline.get_annot_pair_lazy_dict(
+                ibs, aid1, aid2, qconfig2_, dconfig2_)
+            metadata_list.append(metadata)
 
-        """
-        pt.imshow(vt.stack_images(rchip1, rchip2)[0])
-        pt.imshow(vt.stack_images(rchip1_sz, rchip2_sz)[0])
+    rchip1_list = ut.LazyList()
+    rchip2_list = ut.LazyList()
 
-        """
+    if True:
+        def get_rchip1_sz(metadata):
+            rchip1 = metadata['rchip1']
+            rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
+            return rchip1_sz
+
+        def get_rchip2_sz(metadata):
+            rchip2 = metadata['rchip2']
+            rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+            return rchip2_sz
+
+        from functools import partial
+
+        for metadata in ut.ProgressIter(metadata_list, lbl='Warping Chips', adjust=True):
+            rchip1_list.append(partial(get_rchip1_sz, metadata))
+            rchip2_list.append(partial(get_rchip2_sz, metadata))
+    else:
+        #rchip1_list = []
+        #rchip2_list = []
+        for metadata in ut.ProgressIter(metadata_list, lbl='Warping Chips', adjust=True):
+            rchip1 = metadata['rchip1']
+            rchip2 = metadata['rchip2']
+            if warped:
+                H1 = metadata['H_RAT']
+                # Initial Warping
+                wh2 = vt.get_size(rchip2)
+                rchip1_ = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
+                # Cropping to remove parts of the image that (probably) cannot match
+                if True:
+                    rchip1_crop = rchip1_
+                    rchip2_crop = rchip2
+                else:
+                    isfill = vt.get_pixel_dist(rchip1_, np.array([0, 0, 0])) == 0
+                    rowslice, colslice = vt.get_crop_slices(isfill)
+                    rchip1_crop = rchip1_[rowslice, colslice]
+                    rchip2_crop = rchip2[rowslice, colslice]
+                    rchip1 = rchip1_crop
+                    rchip2 = rchip2_crop
+                # Make sure metadata doesn't take up too much memory
+                metadata.clear_evaluated()
+            # Resize to fit into a neural network
+            rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
+            rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+            rchip1_list.append(rchip1_sz)
+            rchip2_list.append(rchip2_sz)
+    return rchip1_list, rchip2_list
+    """
+    import plottool as pt
+    pt.imshow(vt.stack_images(rchip1, rchip2)[0])
+    pt.imshow(vt.stack_images(rchip1_sz, rchip2_sz)[0])
+    """
 
 
 def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
