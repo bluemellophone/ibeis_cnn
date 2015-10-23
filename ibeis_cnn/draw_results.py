@@ -2,13 +2,7 @@ from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
 import six
-from ibeis_cnn import utils
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.draw_results]')
-
-
-def interact_siamese_data_fpath_patches(data_fpath, labels_fpath, flat_metadata):
-    data, labels = utils.load(data_fpath, labels_fpath)
-    interact_siamsese_data_patches(labels, data, flat_metadata)
 
 
 def interact_siamsese_data_patches(labels, data, flat_metadata, **kwargs):
@@ -452,6 +446,7 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
                     #options = self.context_option_funcs[index]()
                     options += [
                         ('Embed', embed_ipy),
+                        ('Present', pt.present),
                     ]
                     self.show_popup_menu(options, event)
 

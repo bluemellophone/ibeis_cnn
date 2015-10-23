@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""
+TODO: depricate this file eventually when geral model and dataset structure is
+fully setup
+"""
 # utils.py
 # provides utilities for learning a neural network model
 from __future__ import absolute_import, division, print_function
@@ -236,6 +240,8 @@ def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
     r"""
     used to split datasets into two parts.
     Preserves class distributions using Stratified K-Fold sampling
+
+    DEPRICATE : prefer the one implemented in dataset
 
     Args:
         X (ndarray):
@@ -518,8 +524,12 @@ def float32(k):
 
 
 def expand_data_indicies(label_indices, data_per_label=1):
-    """ when data_per_label > 1, gives the corresponding data indicies for the data indicies """
-    expanded_indicies = [label_indices * data_per_label + count for count in range(data_per_label)]
+    """
+    when data_per_label > 1, gives the corresponding data indicies for the data
+    indicies
+    """
+    expanded_indicies = [label_indices * data_per_label + count
+                         for count in range(data_per_label)]
     data_indices = np.vstack(expanded_indicies).T.flatten()
     return data_indices
 
@@ -782,6 +792,7 @@ def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice
 
 
 def print_data_label_info(data, labels, key=''):
+    """ DEPRICATE """
     # print('[load] adding channels...')
     # data = utils.add_channels(data)
     print('[train] %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
