@@ -5,6 +5,7 @@ import numpy as np
 import six
 import cv2
 import itertools
+from functools import partial
 #from ibeis_cnn import utils
 from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
@@ -508,7 +509,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs):
         >>> from ibeis_cnn.ingest_ibeis import *  # NOQA
         >>> import ibeis
         >>> # build test data
-        >>> if True:
+        >>> if False:
         >>>     ibs = ibeis.opendb(defaultdb='PZ_Master1')
         >>>     acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
         >>>                                 type_=str,
@@ -527,7 +528,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs):
         >>> rchip1_list, rchip2_list = extract_annotpair_training_chips(ibs, aid_pairs)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results  # NOQA
-        >>> interact = draw_results.interact_patches(label_list, rchip1_list, rchip2_list, flat_metadata, chunck_sizes=(2, 4), ibs=ibs)
+        >>> interact = draw_results.interact_patches(label_list, rchip1_list, rchip2_list, flat_metadata, chunck_sizes=(2, 2), ibs=ibs)
         >>> ut.show_if_requested()
     """
 
@@ -547,68 +548,73 @@ def extract_annotpair_training_chips(ibs, aid_pairs):
     qconfig2_ = qreq_.extern_query_config2
     dconfig2_ = qreq_.extern_data_config2
 
-    warped = False
+    warped = True
 
-    metadata_list = []
-    if warped:
-        for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Extracting Alignment Transforms', adjust=True):
-            matches, metadata = ibeis.model.hots.vsone_pipeline.vsone_single(aid1, aid2, qreq_)
-            metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
-            metadata_list.append(metadata)
-    else:
-        for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Building Info', adjust=True):
-            metadata = ibeis.model.hots.vsone_pipeline.get_annot_pair_lazy_dict(
-                ibs, aid1, aid2, qconfig2_, dconfig2_)
-            metadata_list.append(metadata)
+    def compute_alignment(pair_metadata, qreq_=qreq_):
+        aid1, aid2 = pair_metadata['aid1'], pair_metadata['aid2']
+        print('Computing alignment aidpair=(%r, %r)' % (aid1, aid2))
+        matches, match_metadata = ibeis.model.hots.vsone_pipeline.vsone_single(aid1, aid2, qreq_)
+        match_metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
+        return match_metadata
 
-    rchip1_list = ut.LazyList()
-    rchip2_list = ut.LazyList()
+    def make_warped_chips(pair_metadata, size=size):
+        match_metadata = pair_metadata['match_metadata']
+        print('Warping Chips aidpair=(%r, %r)' % (
+            pair_metadata['aid1'], pair_metadata['aid2']))
+        rchip1 = match_metadata['rchip1']
+        rchip2 = match_metadata['rchip2']
+        if warped:
+            H1 = match_metadata['H_RAT']
+            print('WARPING')
+            # Initial Warping
+            wh2 = vt.get_size(rchip2)
+            rchip1_ = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
+            # Cropping to remove parts of the image that (probably) cannot match
+            if True:
+                isfill = vt.get_pixel_dist(rchip1_, np.array([0, 0, 0])) == 0
+                rowslice, colslice = vt.get_crop_slices(isfill)
+                rchip1_crop = rchip1_[rowslice, colslice]
+                rchip2_crop = rchip2[rowslice, colslice]
+            else:
+                rchip1_crop = rchip1_
+                rchip2_crop = rchip2
+            rchip1 = rchip1_crop
+            rchip2 = rchip2_crop
+            # Make sure match_metadata doesn't take up too much memory
+            match_metadata.clear_evaluated()
+        # Resize to fit into a neural network
+        rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
+        rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
+        return (rchip1_sz, rchip2_sz)
 
-    if True:
-        def get_rchip1_sz(metadata):
-            rchip1 = metadata['rchip1']
-            rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
-            return rchip1_sz
+    def make_lazy_resize_funcs(pair_metadata):
+        tmp_meta = ut.LazyDict(verbose=False)
+        tmp_meta['warped_chips'] = partial(make_warped_chips, pair_metadata)
+        def lazy_rchip1_sz(tmp_meta=tmp_meta):
+            return tmp_meta['warped_chips'][0]
+        def lazy_rchip2_sz(tmp_meta=tmp_meta):
+            return tmp_meta['warped_chips'][1]
+        return lazy_rchip1_sz, lazy_rchip2_sz
 
-        def get_rchip2_sz(metadata):
-            rchip2 = metadata['rchip2']
-            rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
-            return rchip2_sz
+    # Compute alignments
 
-        from functools import partial
+    pairmetadata_list = []
+    for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Align Info', adjust=True):
+        pair_metadata = ibeis.model.hots.vsone_pipeline.get_annot_pair_lazy_dict(
+            ibs, aid1, aid2, qconfig2_, dconfig2_)
+        pair_metadata['match_metadata'] = partial(compute_alignment, pair_metadata)
+        pairmetadata_list.append(pair_metadata)
 
-        for metadata in ut.ProgressIter(metadata_list, lbl='Warping Chips', adjust=True):
-            rchip1_list.append(partial(get_rchip1_sz, metadata))
-            rchip2_list.append(partial(get_rchip2_sz, metadata))
-    else:
-        #rchip1_list = []
-        #rchip2_list = []
-        for metadata in ut.ProgressIter(metadata_list, lbl='Warping Chips', adjust=True):
-            rchip1 = metadata['rchip1']
-            rchip2 = metadata['rchip2']
-            if warped:
-                H1 = metadata['H_RAT']
-                # Initial Warping
-                wh2 = vt.get_size(rchip2)
-                rchip1_ = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
-                # Cropping to remove parts of the image that (probably) cannot match
-                if True:
-                    rchip1_crop = rchip1_
-                    rchip2_crop = rchip2
-                else:
-                    isfill = vt.get_pixel_dist(rchip1_, np.array([0, 0, 0])) == 0
-                    rowslice, colslice = vt.get_crop_slices(isfill)
-                    rchip1_crop = rchip1_[rowslice, colslice]
-                    rchip2_crop = rchip2[rowslice, colslice]
-                    rchip1 = rchip1_crop
-                    rchip2 = rchip2_crop
-                # Make sure metadata doesn't take up too much memory
-                metadata.clear_evaluated()
-            # Resize to fit into a neural network
-            rchip1_sz = cv2.resize(rchip1, size, interpolation=cv2.INTER_LANCZOS4)
-            rchip2_sz = cv2.resize(rchip2, size, interpolation=cv2.INTER_LANCZOS4)
-            rchip1_list.append(rchip1_sz)
-            rchip2_list.append(rchip2_sz)
+    # Warp the Chips
+
+    rchip1_list = ut.LazyList(verbose=False)
+    rchip2_list = ut.LazyList(verbose=False)
+    for pair_metadata in ut.ProgressIter(pairmetadata_list, lbl='Building Warped Chips', adjust=True):
+        #rchip1_sz, rchip2_sz = make_warped_chips(pair_metadata)
+        rchip1_sz, rchip2_sz = make_lazy_resize_funcs(pair_metadata)
+        rchip1_list.append(rchip1_sz)
+        rchip2_list.append(rchip2_sz)
+
     return rchip1_list, rchip2_list
     """
     import plottool as pt
