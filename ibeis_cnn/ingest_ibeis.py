@@ -404,7 +404,7 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
     aid2_list_ = np.array(ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)]))
     # Flatten metadata
     flat_metadata = {key: np.array(ut.flatten(val)) for key, val in metadata_lists.items()}
-    flat_metadata['aid_pair'] = np.hstack(
+    flat_metadata['aid_pairs'] = np.hstack(
         (np.array(aid1_list_)[:, None],
          np.array(aid2_list_)[:, None]))
     flat_metadata['fm'] = np.vstack(fm_list)
@@ -587,7 +587,6 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
     ):
         estimate_data_bytes(len(aid_pairs), pmcfg.get_data_shape())
         # Extract the data and labels
-        ut.embed()
         rchip1_list, rchip2_list = extract_annotpair_training_chips(
             ibs, aid_pairs, **pmcfg.kw())
 
@@ -657,7 +656,7 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
     pmcfg = PatchMetricDataConfig(**kwargs)
     data_shape = pmcfg.get_data_shape()
 
-    NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
+    NOCACHE_TRAIN = ut.get_argflag(('--nocache-train', '--nocache-cnn'))
 
     semantic_uuids1 = ibs.get_annot_semantic_uuids(aid1_list)
     semantic_uuids2 = ibs.get_annot_semantic_uuids(aid2_list)
@@ -813,6 +812,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
 
         cfgdict = {
             'affine_invariance': False,
+            'fg_on': not ut.WIN32,
         }
 
         #import ibeis.other.dbinfo

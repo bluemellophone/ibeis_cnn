@@ -18,5 +18,7 @@ def ibeis_cnn_main():
     ut.main_function_tester('ibeis_cnn', ignore_prefix, ignore_suffix)
 
 if __name__ == '__main__':
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
     print('Checking ibeis_cnn main')
     ibeis_cnn_main()

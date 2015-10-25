@@ -98,4 +98,6 @@ if __name__ == '__main__':
         install_requires=INSTALL_REQUIRES
         #cython_files=CYTHON_FILES,
     )
+    import utool as ut
+    print('kwargs = %s' % (ut.dict_str(kwargs),))
     setup(**kwargs)

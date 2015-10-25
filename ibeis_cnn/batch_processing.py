@@ -4,11 +4,8 @@ from ibeis_cnn import utils
 from ibeis_cnn import draw_net
 #from lasagne import layers
 #from lasagne import objectives
-import lasagne
 import numpy as np
 import six
-import theano
-import theano.tensor as T
 import utool as ut
 #import warnings
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
@@ -316,110 +313,6 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         yield Xb, yb
     if verbose:
         print('[batchiter] END')
-
-
-def build_theano_funcs(model,
-                        input_type=T.tensor4, output_type=T.ivector,
-                        request_backprop=True,
-                        request_forward=True,
-                        request_predict=False):
-    """
-    build the Theano functions (symbolic expressions) that will be used in the
-    optimization refer to this link for info on tensor types:
-
-    References:
-        http://deeplearning.net/software/theano/library/tensor/basic.html
-    """
-    print('[batch.build_theano_funcs] enter')
-    X = input_type('x')
-    y = output_type('y')
-    X_batch = input_type('x_batch')
-    y_batch = output_type('y_batch')
-
-    loss, loss_determ, loss_regularized, network_output, network_output_determ = model.build_loss_expressions(X_batch, y_batch)
-    #network_output = lasagne.layers.get_output(model.output_layer, X_batch, deterministic=True)
-    #network_output.name = 'network_output'
-
-    # Run inference and get other_outputs
-    unlabeled_outputs = model.build_unlabeled_output_expressions(network_output_determ)
-    labeled_outputs   = model.build_labeled_output_expressions(network_output_determ, y_batch)
-    updates = None
-
-    if request_backprop:
-        print('[batch.build_theano_funcs] request_backprop')
-        learning_rate_theano = model.shared_learning_rate
-        momentum = model.learning_state['momentum']
-        # Define how to update network parameters based on the training loss
-        parameters = model.get_all_params(trainable=True)
-        gradients_regularized = theano.grad(loss_regularized, parameters, add_names=True)
-        updates = lasagne.updates.nesterov_momentum(gradients_regularized, parameters, learning_rate_theano, momentum)
-
-        # Build outputs to babysit training
-        import theano.tensor as T
-        monitor_outputs = []
-        for param in parameters:
-            # The vector each param was udpated with
-            param_update_vector = updates[param] - param
-            param_update_vector.name = 'param_update_vector_' + param.name
-            #param_update_magnitude = (param_update_vector.reshape(param_update_vector.shape[0], -1) ** 2).sum(-1)
-            flat_param_update_vector = param_update_vector.reshape((param_update_vector.shape[0], T.prod(param_update_vector.shape[1:])))
-            param_update_magnitude = (flat_param_update_vector ** 2).sum(-1)
-            param_update_magnitude.name = 'param_update_magnitude_' + param.name
-            monitor_outputs.append(param_update_magnitude)
-
-        theano_backprop = theano.function(
-            inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-            outputs=[loss_regularized, loss] + labeled_outputs + monitor_outputs,
-            updates=updates,
-            givens={
-                X: X_batch,
-                y: y_batch,
-            },
-        )
-        #theano_backprop = theano.function(
-        #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-        #    outputs=[loss_regularized] + labeled_outputs,
-        #    updates=updates,
-        #    givens={
-        #        X: X_batch,
-        #        y: y_batch,
-        #    },
-        #)
-        theano_backprop.name = ':theano_backprob:explicit'
-    else:
-        theano_backprop = None
-
-    if request_forward:
-        print('[batch.build_theano_funcs] request_forward')
-        theano_forward = theano.function(
-            inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-            outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
-            updates=None,
-            givens={
-                X: X_batch,
-                y: y_batch,
-            },
-        )
-        theano_forward.name = ':theano_forward:explicit'
-    else:
-        theano_forward = None
-
-    if request_predict:
-        print('[batch.build_theano_funcs] request_predict')
-        theano_predict = theano.function(
-            inputs=[theano.Param(X_batch)],
-            outputs=[network_output_determ] + unlabeled_outputs,
-            updates=None,
-            givens={
-                X: X_batch,
-            },
-        )
-        theano_predict.name = ':theano_predict:explicit'
-    else:
-        theano_predict = None
-
-    print('[batch.build_theano_funcs] exit')
-    return theano_backprop, theano_forward, theano_predict, updates
 
 
 def output_confusion_matrix(X_test, results_path,  test_results, model, **kwargs):

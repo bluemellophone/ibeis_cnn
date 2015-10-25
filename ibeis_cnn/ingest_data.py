@@ -149,17 +149,13 @@ def merge_datasets(dataset_list):
 
 
 def grab_siam_dataset(ds_tag=None):
-    """
-    Will build the dataset using the command line if it doesnt exist
+    r"""
+    Will build the dataset using the command line if it doesn't exist
 
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db NNP_Master3 --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_Master0 --show
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db mnist --show
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db liberty --show
-
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -168,14 +164,8 @@ def grab_siam_dataset(ds_tag=None):
         >>> dataset = grab_siam_dataset(ds_tag=ds_tag)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
-        >>> #ibsplugin.rrr()
-        >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('all')
         >>> ut.quit_if_noshow()
-        >>> warped_patch1_list = data[::2]
-        >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
-        >>> print(result)
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> ut.show_if_requested()
     """
     if ds_tag is not None:
@@ -258,7 +248,7 @@ def grab_mnist_siam_dataset():
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> print(result)
         >>> ut.show_if_requested()
     """
@@ -357,7 +347,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> print(result)
         >>> ut.show_if_requested()
     """
@@ -434,7 +424,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
             'max_examples': None,
             #'num_top': 3,
             'num_top': None,
-            'min_featweight': .99,
+            'min_featweight': .99 if not ut.WIN32 else None,
             'controlled': True,
             'colorspace': 'gray',
             'acfg_name': None,
@@ -469,8 +459,11 @@ def get_ibeis_patch_siam_dataset(**kwargs):
 
     alias_key = ibs.get_dbname() + ';' + ut.dict_str(datakw, nl=False, explicit=True)
     try:
+        if ut.get_argflag('--nocache-cnn'):
+            raise Exception('forced cache off')
         # Try and short circut cached loading
         dataset = DataSet.from_alias_key(alias_key)
+        dataset.setprop('ibs', lambda: ibeis.opendb(db=dbname))
         return dataset
     except Exception as ex:
         ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
@@ -508,6 +501,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
         output_dims=1,
         num_labels=num_labels,
     )
+    dataset.setprop('ibs', ibs)
     return dataset
 
 
@@ -552,6 +546,8 @@ def get_ibeis_part_siam_dataset(**kwargs):
     dbname = datakw.pop('db')
 
     try:
+        if ut.get_argflag('--nocache-cnn'):
+            raise Exception('forced cache off')
         # Try and short circut cached loading
         dataset = DataSet.from_alias_key(alias_key)
         dataset.setprop('ibs', lambda: ibeis.opendb(db=dbname))

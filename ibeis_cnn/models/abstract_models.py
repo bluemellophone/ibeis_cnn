@@ -7,6 +7,8 @@ except ImportError as ex:
     print('theano.__version__ = %r' % (theano.__version__,))
     print('theano.__file__ = %r' % (theano.__file__,))
     raise
+import theano
+import theano.tensor as T
 import functools
 import six
 import numpy as np
@@ -14,11 +16,10 @@ import numpy as np
 from ibeis_cnn import net_strs
 from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
-from ibeis_cnn import batch_processing as batch
 from ibeis_cnn import draw_net
 import sklearn.preprocessing
 import utool as ut
-from os.path import join, dirname
+from os.path import join, exists, dirname, basename
 import warnings
 from six.moves import cPickle as pickle
 #ut.noinject('ibeis_cnn.abstract_models')
@@ -46,7 +47,8 @@ def imwrite_wrapper(show_func):
         # Make the image
         fig = show_func(model, **kwargs)
         # Save the image
-        output_fpath = pt.save_figure(fig=fig, dpath=dpath, dpi=dpi, verbose=verbose)
+        output_fpath = pt.save_figure(fig=fig, dpath=dpath, dpi=dpi,
+                                      verbose=verbose)
         return output_fpath
     return imwrite_func
 
@@ -73,7 +75,8 @@ def evaluate_layer_list(network_layers_def, verbose=None):
                     print('  * took %.4s' % (tt.toc(),))
                     print('Evaluating layer %d' % (count,))
                     print('  * prev_layer = %r' % (prev_layer,))
-                    print('  * prev_layer.output_shape = %r' % (prev_layer.output_shape,))
+                    print('  * prev_layer.output_shape = %r' % (
+                        prev_layer.output_shape,))
                     tt.tic()
                 prev_layer = layer_fn(prev_layer)
                 network_layers.append(prev_layer)
@@ -109,7 +112,8 @@ def testdata_model_with_history():
         return epoch_info
     count = 0
     for era_length in [4, 4, 4]:
-        model.start_new_era(X_train, y_train, X_train, y_train, 'dummy_alias_key')
+        alias_key = 'dummy_alias_key'
+        model.start_new_era(X_train, y_train, X_train, y_train, alias_key)
         for count in range(count, count + era_length):
             model.record_epoch(dummy_epoch_dict(count))
     #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'train_loss': .9})
@@ -137,11 +141,14 @@ class BaseModel(object):
                 strict_batch_size = None
             else:
                 raise AssertionError('strict_batch_size must be a bool')
-            input_shape = (strict_batch_size, data_shape[2], data_shape[0], data_shape[1])
+            input_shape = (strict_batch_size,
+                           data_shape[2],
+                           data_shape[0],
+                           data_shape[1])
         if data_shape is None and input_shape is not None:
             data_shape = (input_shape[2], input_shape[3], input_shape[1])
         model.data_shape = data_shape
-        #model.network_layers = None  # We really don't need to save all of these
+        #model.network_layers = None  # We don't need to save all of these
         model.arch_tag = arch_tag
         model.output_layer = None
         model.output_dims = output_dims
@@ -150,8 +157,8 @@ class BaseModel(object):
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
-        model.data_per_label_input  = 1  # state when data goes into the network
-        model.data_per_label_output = 1  # state when data comes out of the network
+        model.data_per_label_input  = 1  # state of network input
+        model.data_per_label_output = 1  # state of network output
         model.training_dpath = training_dpath  # TODO
         # era=(group of epochs)
         model.current_era = None
@@ -182,13 +189,15 @@ class BaseModel(object):
         import utool as ut
         #if epoch is None:
         #    # use best epoch if not specified
-        #    # (WARNING: Make sure the weights in the model are model.best_weights)
+        #    # (WARNING: Make sure the weights in the model are
+        #    model.best_weights)
         #    # they may be out of sync
         #    epoch = model.best_results['epoch']
         history_hashid = model.get_model_history_hashid()
-        diagnostic_dpath = ut.ensuredir(ut.unixjoin(model.training_dpath, 'diagnostics'))
-        #epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, 'epoch_%r' % (epoch,)))
-        epoch_dpath = ut.ensuredir(ut.unixjoin(diagnostic_dpath, history_hashid))
+        diagnostic_dpath = ut.unixjoin(model.training_dpath, 'diagnostics')
+        ut.ensuredir(diagnostic_dpath )
+        epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
+        ut.ensuredir(epoch_dpath)
         return epoch_dpath
 
     def initialize_architecture(model):
@@ -198,7 +207,8 @@ class BaseModel(object):
         # Check to make sure data agrees with input
         # FIXME: This check should not be in this fuhnction
         input_layer = model.get_all_layers()[0]
-        expected_item_shape = tuple(ut.list_take(input_layer.shape[1:], [1, 2, 0]))
+        expected_item_shape = ut.list_take(input_layer.shape[1:], [1, 2, 0])
+        expected_item_shape = tuple(expected_item_shape)
         given_item_shape = X_train.shape[1:]
         assert given_item_shape == expected_item_shape, (
             'inconsistent item shape: ' +
@@ -212,14 +222,12 @@ class BaseModel(object):
             model.preproc_kw = {}
             model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
             if ut.is_int(X_train):
-                ut.assert_inbounds(X_train, 0, 255, eq=True, verbose=ut.VERBOSE)
-                #assert X_train.max() < 255
-                #assert X_train.min() > 0
+                ut.assert_inbounds(X_train, 0, 255, eq=True,
+                                   verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 255.0
             else:
-                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True, verbose=ut.VERBOSE)
-                #assert X_train.max() <= 1.0
-                #assert X_train.min() >= 0.0
+                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
+                                   verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 1.0
         if hasattr(model, 'initialize_encoder'):
             model.initialize_encoder(y_train)
@@ -240,7 +248,9 @@ class BaseModel(object):
     # --- HASH ID
 
     def get_architecture_hashid(model):
-        """ Returns a hash identifying the architecture of the determenistic net """
+        """
+        Returns a hash identifying the architecture of the determenistic net
+        """
         architecture_str = model.get_architecture_str(with_noise_layers=False)
         hashid = ut.hashstr27(architecture_str)
         return hashid
@@ -264,15 +274,18 @@ class BaseModel(object):
             hist_eras002_epochs0005_bdpueuzgkxvtwmpe
 
         """
-        era_history_hash = [ut.hashstr27(repr(era)) for era in  model.era_history]
+        era_history_hash = [ut.hashstr27(repr(era))
+                            for era in  model.era_history]
         hashid = ut.hashstr27(str(era_history_hash))
         total_epochs = model.get_total_epochs()
         total_eras = len(model.era_history)
-        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (total_eras, total_epochs, hashid)
+        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (
+            total_eras, total_epochs, hashid)
         return history_hashid
 
     def get_total_epochs(model):
-        total_epochs = sum([len(era['epoch_list']) for era in model.era_history])
+        total_epochs = sum([len(era['epoch_list'])
+                            for era in model.era_history])
         return total_epochs
 
     # --- Input/Output
@@ -283,8 +296,8 @@ class BaseModel(object):
             dpath = join(dpath, 'checkpoints', checkpoint_tag)
         return dpath
 
-    def _get_model_file_fpath(model, default_fname, fpath, dpath, fname, checkpoint_tag):
-        """ helper """
+    def _get_model_file_fpath(model, default_fname, fpath, dpath, fname,
+                              checkpoint_tag):
         if fpath is None:
             fname = default_fname if fname is None else fname
             dpath = model._get_model_dpath(dpath, checkpoint_tag)
@@ -295,17 +308,19 @@ class BaseModel(object):
             assert fname is None, 'fpath overrides all other settings'
         return fpath
 
-    def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern, extern_dpath=None):
+    def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern,
+                                         extern_dpath=None):
         """
-        tries to find a matching checkpoint so you dont have to type a full hash
+        tries to find a matching checkpoint so you dont have to type a full
+        hash
         """
         dpath = model._get_model_dpath(extern_dpath, checkpoint_pattern)
-        from os.path import exists, dirname, basename
         if exists(dpath):
             checkpoint_tag = checkpoint_pattern
         else:
             checkpoint_dpath = dirname(dpath)
-            matching_dpaths = ut.glob(checkpoint_dpath, '*' + checkpoint_pattern + '*')
+            checkpoint_globpat = '*' + checkpoint_pattern + '*'
+            matching_dpaths = ut.glob(checkpoint_dpath, checkpoint_globpat)
             if len(matching_dpaths) == 0:
                 raise RuntimeError(
                     'Could not resolve checkpoint_pattern=%r. No Matches' %
@@ -350,9 +365,6 @@ class BaseModel(object):
         fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
         ut.ensuredir(dirname(fpath))
         model.save_model_state(fpath=fpath)
-        #checkpoint_dir = ut.ensuredir(ut.unixjoin(model.training_dpath,
-        #'checkpoints'))
-        #dpath = ut.ensuredir(ut.unixjoin(checkpoint_dir, history_hashid))
 
     def checkpoint_save_model_info(model):
         history_hashid = model.get_model_history_hashid()
@@ -427,7 +439,8 @@ class BaseModel(object):
             model.set_all_param_values(model.best_weights)
 
     def load_state_from_dict(model, dict_):
-        # TODO: make this the general unserialize function that loads the model state
+        # TODO: make this the general unserialize function that loads the model
+        # state
         model.era_history  = dict_.get('era_history', model.era_history)
 
     def load_extern_weights(model, **kwargs):
@@ -440,8 +453,10 @@ class BaseModel(object):
             print('External Model State:')
             print(ut.dict_str(model_state, truncate=True))
         # check compatibility with this architecture
-        assert model_state['input_shape'][1:] == model.input_shape[1:], 'architecture disagreement'
-        assert model_state['output_dims'] == model.output_dims, 'architecture disagreement'
+        assert model_state['input_shape'][1:] == model.input_shape[1:], (
+            'architecture disagreement')
+        assert model_state['output_dims'] == model.output_dims, (
+            'architecture disagreement')
         # Just set the weights, no other training state variables
         model.set_all_param_values(model_state['best_weights'])
         # also need to make sure the same preprocessing is used
@@ -450,7 +465,8 @@ class BaseModel(object):
         model.era_history = model_state['era_history']
 
     def load_old_weights_kw(model, old_weights_fpath):
-        print('[model] loading old model state from: %s' % (old_weights_fpath,))
+        print('[model] loading old model state from: %s' % (
+            old_weights_fpath,))
         with open(old_weights_fpath, 'rb') as file_:
             oldkw = pickle.load(file_)
         # Model architecture and weight params
@@ -462,8 +478,10 @@ class BaseModel(object):
             model.output_dims = output_dims
 
         # Perform checks
-        assert input_shape[1:] == model.input_shape[1:], 'architecture disagreement'
-        assert output_dims == model.output_dims, 'architecture disagreement'
+        assert input_shape[1:] == model.input_shape[1:], (
+            'architecture disagreement')
+        assert output_dims == model.output_dims, (
+            'architecture disagreement')
 
         # Set class attributes
         model.best_weights = oldkw['best_weights']
@@ -527,10 +545,6 @@ class BaseModel(object):
         model.initialize_architecture()
         model.encoder = oldkw.get('data_label_encoder', None)
         model.batch_size = oldkw['train_batch_size']
-
-        # # Perform checks
-        # assert input_shape[1:] == model.input_shape[1:], 'architecture disagreement'
-        # assert output_dims == model.output_dims, 'architecture disagreement'
 
         # Set architecture weights
         weights_list = model.best_weights
@@ -629,26 +643,22 @@ class BaseModel(object):
         """
         with_noise_layers is a boolean that specifies if layers that doesnt
         affect the flow of information in the determenistic setting are to be
-        included.  Baseically it means get rid of dropout.
+        included. IE get rid of dropout.
         """
-        # TODO: allow for removal of layers without any parameters
-        #if getattr(model, 'network_layers', None) is None:
-        #    if getattr(model, 'output_layer', None) is None:
-        #        return None
-        #    else:
-        #        network_layers = lasagne.layers.get_all_layers(model.output_layer)
-        #else:
-        #    network_layers = model.network_layers
         if model.output_layer is None:
             return ''
         network_layers = model.get_all_layers()
         if with_noise_layers:
-            #weighted_layers = [layer_ for layer_ in network_layers if hasattr(layer_, 'W')]
+            #weighted_layers = [layer_ for layer_ in network_layers
+            #                   if hasattr(layer_, 'W')]
             valid_layers = [layer_ for layer_ in network_layers]
         else:
-            valid_layers = [layer_ for layer_ in network_layers if
-                            layer_.__class__.__name__ not in lasagne.layers.noise.__all__]
-        layer_str_list = [net_strs.make_layer_str(layer) for layer in valid_layers]
+            valid_layers = [
+                layer_ for layer_ in network_layers if
+                layer_.__class__.__name__ not in lasagne.layers.noise.__all__
+            ]
+        layer_str_list = [net_strs.make_layer_str(layer)
+                          for layer in valid_layers]
         architecture_str = sep.join(layer_str_list)
         return architecture_str
 
@@ -690,10 +700,10 @@ class BaseModel(object):
             fnum (int):  figure number(default = None)
 
         Returns:
-            ?: fig
+            mpl.Figure: fig
 
         CommandLine:
-            python -m ibeis_cnn.models.abstract_models --test-show_era_history --show
+            python -m ibeis_cnn --tf BaseModel.show_era_history --show
 
         Example:
             >>> # DISABLE_DOCTEST
@@ -727,14 +737,16 @@ class BaseModel(object):
             epochs = era['epoch_list']
             train_loss = np.array(era['train_loss_list'])
             valid_loss = np.array(era['valid_loss_list'])
-            valid_loss_std = np.array(era['valid_loss_std_list'])  # NOQA
+            #print('era = %s' % (ut.dict_str(era),))
+            #valid_loss_std = np.array(era['valid_loss_std_list'])  # NOQA
             trainvalid_ratio = train_loss / valid_loss
 
             era_color = colors[index]
             #yscale = 'linear'
             #yscale = 'log'
             if index == len(model.era_history) - 1:
-                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color, label='train/valid')
+                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color,
+                        label='train/valid')
             else:
                 pt.plot(epochs, trainvalid_ratio, '-o', color=era_color)
 
@@ -757,8 +769,13 @@ class BaseModel(object):
                 continue
             update_mags_list = era['param_update_mags_list']
             # Transpose keys and positions
-            param_keys = list(set(ut.flatten([dict_.keys() for dict_ in update_mags_list])))
-            param_val_list = [[list_[param] for list_ in update_mags_list] for param in param_keys]
+            param_keys = list(set(ut.flatten([
+                dict_.keys() for dict_ in update_mags_list
+            ])))
+            param_val_list = [
+                [list_[param] for list_ in update_mags_list]
+                for param in param_keys
+            ]
             colors = pt.distinct_colors(len(param_val_list))
             for key, val, color in zip(param_keys, param_val_list, colors):
                 update_mag_mean = ut.get_list_column(val, 0)
@@ -790,13 +807,18 @@ class BaseModel(object):
                 continue
             update_mags_list = era['update_mags_list']
             # Transpose keys and positions
-            param_keys = list(set(ut.flatten([dict_.keys() for dict_ in update_mags_list])))
-            param_val_list = [[list_[param] for list_ in update_mags_list] for param in param_keys]
+            param_keys = list(set(ut.flatten([
+                dict_.keys()
+                for dict_ in update_mags_list
+            ])))
+            param_val_list = [
+                [list_[param] for list_ in update_mags_list]
+                for param in param_keys
+            ]
             colors = pt.distinct_colors(len(param_val_list))
             for key, val, color in zip(param_keys, param_val_list, colors):
                 update_mag_mean = ut.get_list_column(val, 0)
-                update_mag_std = ut.get_list_column(val, 1)  # NOQA
-                #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
+                update_mag_std = ut.get_list_column(val, 1)
                 if index == len(model.era_history) - 1:
                     pt.interval_line_plot(epochs, update_mag_mean,
                                           update_mag_std, marker='x',
@@ -806,7 +828,6 @@ class BaseModel(object):
                     pt.interval_line_plot(epochs, update_mag_mean,
                                           update_mag_std, marker='x',
                                           linestyle='-', color=color)
-                #, label=valid_label, yscale=yscale)
             pass
         pt.legend()
 
@@ -830,16 +851,18 @@ class BaseModel(object):
                 train_label = 'train_loss ' + str(era['num_train'])
 
             era_color = colors[index]
-            #yscale = 'linear'
-            #yscale = 'log'
             if index == len(model.era_history) - 1:
-                pt.plot(epochs, valid_loss, '-x', color=era_color, label=valid_label, yscale=yscale)
-                pt.plot(epochs, train_loss, '-o', color=era_color, label=train_label, yscale=yscale)
+                pt.plot(epochs, valid_loss, '-x', color=era_color,
+                        label=valid_label, yscale=yscale)
+                pt.plot(epochs, train_loss, '-o', color=era_color,
+                        label=train_label, yscale=yscale)
             else:
-                pt.plot(epochs, valid_loss, '-x', color=era_color, yscale=yscale)
-                pt.plot(epochs, train_loss, '-o', color=era_color, yscale=yscale)
+                pt.plot(epochs, valid_loss, '-x', color=era_color,
+                        yscale=yscale)
+                pt.plot(epochs, train_loss, '-o', color=era_color,
+                        yscale=yscale)
 
-        #append_phantom_legend_label
+        # append_phantom_legend_label
         pt.set_xlabel('epoch')
         pt.set_ylabel('loss')
 
@@ -851,7 +874,8 @@ class BaseModel(object):
     def show_weights_image(model, index=0, *args, **kwargs):
         import plottool as pt
         network_layers = model.get_all_layers()
-        cnn_layers = [layer_ for layer_ in network_layers if hasattr(layer_, 'W')]
+        cnn_layers = [layer_ for layer_ in network_layers
+                      if hasattr(layer_, 'W')]
         layer = cnn_layers[index]
         all_weights = layer.W.get_value()
         layername = net_strs.make_layer_str(layer)
@@ -877,30 +901,13 @@ class BaseModel(object):
         draw_net.imwrite_architecture(layers, fpath)
         ut.startfile(fpath)
 
-    #def imwrite_weights(model, index=0, dpath=None, **kwargs):
-    #    import plottool as pt
-    #    fig = model.show_weights_image(index, **kwargs)
-    #    if dpath is None:
-    #        dpath = model.get_epoch_diagnostic_dpath()
-    #    output_fpath = pt.save_figure(fig, dpath=dpath)
-    #    return output_fpath
-
-    #def imwrite_all_conv_layer_weights(model, fnum=None):
-    #    # DEPRICATE
-    #    import plottool as pt
-    #    if fnum is None:
-    #        fnum = pt.next_fnum()
-    #    conv_layers = [layer_ for layer_ in model.get_all_layers() if
-    #    hasattr(layer_, 'W') and layer_.name.startswith('C')]
-    #    for index in range(len(conv_layers)):
-    #        model.imwrite_weights(index, fnum=fnum + index)
-
     # ---- UTILITY
 
     def set_all_param_values(model, weights_list):
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
-            lasagne.layers.set_all_param_values(model.output_layer, weights_list)
+            lasagne.layers.set_all_param_values(
+                model.output_layer, weights_list)
 
     def get_all_param_values(model):
         weights_list = lasagne.layers.get_all_param_values(model.output_layer)
@@ -909,14 +916,14 @@ class BaseModel(object):
     def get_all_params(model, **tags):
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
-            parameters = lasagne.layers.get_all_params(model.output_layer, **tags)
+            parameters = lasagne.layers.get_all_params(
+                model.output_layer, **tags)
             return parameters
 
     def get_all_layers(model):
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
-            #warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
             assert model.output_layer is not None
             network_layers = lasagne.layers.get_all_layers(model.output_layer)
         return network_layers
@@ -924,10 +931,10 @@ class BaseModel(object):
     def get_output_layer(model):
         if model.output_layer is not None:
             return model.output_layer
-        #else:
-        #    assert model.network_layers is not None, 'need to initialize architecture first'
-        #    output_layer = model.network_layers[-1]
-        #    return output_layer
+        else:
+            return None
+            #assert model.network_layers is not None, (
+            #    'need to initialize architecture first')
 
     @property
     def learning_rate(model):
@@ -951,23 +958,23 @@ class BaseModel(object):
     def shared_learning_rate(model):
         return model.shared_state.get('learning_rate', None)
 
-    def build_theano_funcs(model, **kwargs):
-        print('[model] creating Theano primitives...')
-        theano_funcs = batch.build_theano_funcs(model, **kwargs)
-        return theano_funcs
+    # --- LASAGNE EXPRESSIONS
 
-    def build_loss_expressions(model, X_batch, y_batch):
+    def _build_loss_expressions(model, X_batch, y_batch):
         r"""
+        Requires that a custom loss function is defined in the inherited class
+
         Args:
-            X_batch (theano.tensor.tensor4): symbolic expression for input
-            y_batch (theano.tensor.ivector): symbolic expression for labels
+            X_batch (T.tensor4): symbolic expression for input
+            y_batch (T.ivector): symbolic expression for labels
         """
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
             warnings.filterwarnings('ignore', '.*layer.get_output.*')
 
-            network_output = lasagne.layers.get_output(model.output_layer, X_batch)
+            network_output = lasagne.layers.get_output(model.output_layer,
+                                                       X_batch)
             network_output.name = 'network_output'
             network_output_determ = lasagne.layers.get_output(
                 model.output_layer, X_batch, deterministic=True)
@@ -977,21 +984,18 @@ class BaseModel(object):
                 print('Building symbolic loss function')
                 losses = model.loss_function(network_output, y_batch)
                 loss = lasagne.objectives.aggregate(losses, mode='mean')
-                #objective = lasagne.objectives.Objective(
-                #    model.output_layer, loss_function=model.loss_function, aggregation='mean')
-                #loss = objective.get_loss(X_batch, target=y_batch)
                 loss.name = 'loss'
 
                 print('Building symbolic loss function (determenistic)')
-                #loss_determ = objective.get_loss(X_batch, target=y_batch, deterministic=True)
-                #loss_determ = objective.get_loss(X_batch, target=y_batch,
-                #deterministic=True, aggregation='mean')
-                losses_determ = model.loss_function(network_output_determ, y_batch)
-                loss_determ = lasagne.objectives.aggregate(losses_determ, mode='mean')
+                losses_determ = model.loss_function(
+                    network_output_determ, y_batch)
+                loss_determ = lasagne.objectives.aggregate(
+                    losses_determ, mode='mean')
                 loss_determ.name = 'loss_determ'
 
                 # Regularize
-                # TODO: L2 should be one of many available options for regularization
+                # TODO: L2 should be one of many available options for
+                # regularization
                 L2 = lasagne.regularization.regularize_network_params(
                     model.output_layer, lasagne.regularization.l2)
                 weight_decay = model.learning_state['weight_decay']
@@ -1003,14 +1007,134 @@ class BaseModel(object):
             except TypeError:
                 loss, loss_determ, loss_regularized = None, None, None
 
-            return loss, loss_determ, loss_regularized, network_output, network_output_determ
+            loss_expr_dict = {
+                'loss': loss,
+                'loss_determ': loss_determ,
+                'loss_regularized': loss_regularized,
+                'network_output': network_output,
+                'network_output_determ': network_output_determ,
+            }
+
+            return loss_expr_dict
+
+    def build_theano_funcs(model,
+                           input_type=T.tensor4, output_type=T.ivector,
+                           request_backprop=True,
+                           request_forward=True,
+                           request_predict=False):
+        """
+        Builds the Theano functions (symbolic expressions) that will be used in
+        the optimization.  Requires that a custom loss function is defined in
+        the inherited class
+
+        References:
+            # refer to this link for info on tensor types:
+            http://deeplearning.net/software/theano/library/tensor/basic.html
+        """
+        print('[model] building Theano primitives...')
+        X = input_type('x')
+        y = output_type('y')
+        X_batch = input_type('x_batch')
+        y_batch = output_type('y_batch')
+
+        loss_expr_dict = model._build_loss_expressions(X_batch, y_batch)
+        loss             = loss_expr_dict['loss']
+        loss_determ      = loss_expr_dict['loss_determ']
+        loss_regularized = loss_expr_dict['loss_regularized']
+        network_output_determ   = loss_expr_dict['network_output_determ']
+
+        # Run inference and get other_outputs
+        unlabeled_outputs = model.build_unlabeled_output_expressions(
+            network_output_determ)
+        labeled_outputs   = model.build_labeled_output_expressions(
+            network_output_determ, y_batch)
+        updates = None
+
+        if request_backprop:
+            print('[batch.build_theano_funcs] request_backprop')
+            learning_rate_theano = model.shared_learning_rate
+            momentum = model.learning_state['momentum']
+            # Define updates network parameters based on the training loss
+            parameters = model.get_all_params(trainable=True)
+            gradients_regularized = theano.grad(
+                loss_regularized, parameters, add_names=True)
+            updates = lasagne.updates.nesterov_momentum(
+                gradients_regularized, parameters, learning_rate_theano,
+                momentum)
+
+            # Build outputs to babysit training
+            monitor_outputs = []
+            for param in parameters:
+                # The vector each param was udpated with
+                param_update_vec = updates[param] - param
+                param_update_vec.name = 'param_update_vector_' + param.name
+                flat_shape = (param_update_vec.shape[0],
+                              T.prod(param_update_vec.shape[1:]))
+                flat_param_update_vec = param_update_vec.reshape(flat_shape)
+                param_update_mag = (flat_param_update_vec ** 2).sum(-1)
+                param_update_mag.name = 'param_update_magnitude_' + param.name
+                monitor_outputs.append(param_update_mag)
+
+            theano_backprop = theano.function(
+                inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+                outputs=([loss_regularized, loss] + labeled_outputs +
+                         monitor_outputs),
+                updates=updates,
+                givens={
+                    X: X_batch,
+                    y: y_batch,
+                },
+            )
+            theano_backprop.name = ':theano_backprob:explicit'
+        else:
+            theano_backprop = None
+
+        if request_forward:
+            print('[batch.build_theano_funcs] request_forward')
+            theano_forward = theano.function(
+                inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+                outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
+                updates=None,
+                givens={
+                    X: X_batch,
+                    y: y_batch,
+                },
+            )
+            theano_forward.name = ':theano_forward:explicit'
+        else:
+            theano_forward = None
+
+        if request_predict:
+            print('[batch.build_theano_funcs] request_predict')
+            theano_predict = theano.function(
+                inputs=[theano.Param(X_batch)],
+                outputs=[network_output_determ] + unlabeled_outputs,
+                updates=None,
+                givens={
+                    X: X_batch,
+                },
+            )
+            theano_predict.name = ':theano_predict:explicit'
+        else:
+            theano_predict = None
+
+        print('[batch.build_theano_funcs] exit')
+        theano_funcs  = (theano_backprop, theano_forward, theano_predict,
+                         updates)
+        return theano_funcs
 
     def build_unlabeled_output_expressions(model, network_output):
-        # override in more specific subclasses
+        """
+        override in inherited subclass to enable custom symbolic expressions
+        based on the network output alone
+        """
         return []
 
     def build_labeled_output_expressions(model, network_output, y_batch):
-        # override in more specific subclasses
+        """
+        override in inherited subclass to enable custom symbolic expressions
+        based on the network output and the labels
+        """
         return []
 
     # Testing
@@ -1018,15 +1142,18 @@ class BaseModel(object):
     def make_random_testdata(model, num=1000, seed=0, cv2_format=False):
         print('made random testdata')
         rng = np.random.RandomState(seed)
-        #X_unshared = np.random.rand(num, * model.input_shape[1:]).astype(np.float32)
         num_labels = num
         num_data   = num * model.data_per_label_input
-        X_unshared = rng.rand(num_data, *model.data_shape).astype(np.float32)
-        y_unshared = (rng.rand(num_labels) * (model.output_dims + 1)).astype(np.int32)
+        X_unshared = rng.rand(num_data, *model.data_shape)
+        y_unshared = rng.rand(num_labels) * (model.output_dims + 1)
+        X_unshared = X_unshared.astype(np.float32)
+        y_unshared = y_unshared.astype(np.int32)
         if ut.VERBOSE:
             print('made random testdata')
-            print('size(X_unshared) = %r' % (ut.get_object_size_str(X_unshared),))
-            print('size(y_unshared) = %r' % (ut.get_object_size_str(y_unshared),))
+            print('size(X_unshared) = %r' % (
+                ut.get_object_size_str(X_unshared),))
+            print('size(y_unshared) = %r' % (
+                ut.get_object_size_str(y_unshared),))
         if cv2_format:
             pass
         return X_unshared, y_unshared
@@ -1050,11 +1177,9 @@ class AbstractCategoricalModel(BaseModel):
         print('[model] model.output_dims = %r' % (model.output_dims,))
 
     def loss_function(model, network_output, truth):
-        import theano.tensor as T
         return T.nnet.categorical_crossentropy(network_output, truth)
 
     def build_unlabeled_output_expressions(model, network_output):
-        import theano.tensor as T
         # Network outputs define category probabilities
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
@@ -1065,7 +1190,6 @@ class AbstractCategoricalModel(BaseModel):
         return unlabeled_outputs
 
     def build_labeled_output_expressions(model, network_output, y_batch):
-        import theano.tensor as T
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
         predictions.name = 'tmp_predictions'
@@ -1073,21 +1197,6 @@ class AbstractCategoricalModel(BaseModel):
         accuracy.name = 'accuracy'
         labeled_outputs = [accuracy]
         return labeled_outputs
-    #def build_objective(model):
-    #    pass
-
-    #def build_regularized_objective(model, loss, output_layer, regularization):
-    #    """ L2 weight decay """
-    #    import warnings
-    #    with warnings.catch_warnings():
-    #        warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
-    #        L2 = lasagne.regularization.l2(output_layer)
-    #        regularized_loss = L2 * regularization
-    #        regularized_loss.name = 'regularized_loss'
-    #    return regularized_loss
-
-    #avg_loss = lasange_ext.siamese_loss(G, Y_padded, data_per_label=2)
-    #return avg_loss
 
 
 class _PretrainedLayerInitializer(lasagne.init.Initializer):
@@ -1097,11 +1206,17 @@ class _PretrainedLayerInitializer(lasagne.init.Initializer):
     def sample(self, shape):
         fanout, fanin, height, width = shape
         fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
-        assert fanout <= fanout_, 'Cannot cast weights to a larger fan-out dimension'
-        assert fanin  <= fanin_,  'Cannot cast weights to a larger fan-in dimension'
-        assert height == height_, 'The height must be identical between the layer and weights'
-        assert width  == width_,  'The width must be identical between the layer and weights'
-        return lasagne.utils.floatX(self.pretrained_layer[:fanout, :fanin, :, :])
+        assert fanout <= fanout_, (
+            'Cannot cast weights to a larger fan-out dimension')
+        assert fanin  <= fanin_,  (
+            'Cannot cast weights to a larger fan-in dimension')
+        assert height == height_, (
+            'The height must be identical between the layer and weights')
+        assert width  == width_,  (
+            'The width must be identical between the layer and weights')
+        pretrained_weights = self.pretrained_layer[:fanout, :fanin, :, :]
+        pretrained_sample = lasagne.utils.floatX(pretrained_weights)
+        return pretrained_sample
 
 
 class PretrainedNetwork(object):
@@ -1112,8 +1227,8 @@ class PretrainedNetwork(object):
         layer (int) : int
 
     CommandLine:
-        python -m ibeis_cnn.models --test-PretrainedNetwork:0
-        python -m ibeis_cnn.models --test-PretrainedNetwork:1
+        python -m ibeis_cnn --tf PretrainedNetwork:0
+        python -m ibeis_cnn --tf PretrainedNetwork:1
 
     Example0:
         >>> # DISABLE_DOCTEST

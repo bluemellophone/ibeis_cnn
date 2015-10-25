@@ -34,6 +34,8 @@ PythonPrereqs:
     python setup.py develop
 
     python -c "import pylearn2; print(pylearn2.__file__)"
+    python -c "import theano; print(theano.__version__)"
+    python -c "import lasagne; print(lasagne.__version__)"
 """
 
 

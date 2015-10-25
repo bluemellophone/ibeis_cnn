@@ -454,50 +454,6 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
         interact.show_page()
         return interact
 
-    #iter_ = list(zip(range(len(label_list)), label_list, warped_patch1_list, warped_patch2_list))
-    #iter_ = list(ut.ichunks(iter_, chunck_size))
-    #import vtool as vt
-    ##for tup in ut.InteractiveIter(iter_, display_item=False):
-    #for tup in ut.InteractiveIter(iter_, display_item=False):
-    #    label_list = ut.get_list_column(tup, 1)
-    #    patch1_list = ut.get_list_column(tup, 2)
-    #    patch2_list = ut.get_list_column(tup, 3)
-    #    patch1_list = [patch.copy() for patch in patch1_list]
-    #    patch2_list = [patch.copy() for patch in patch2_list]
-    #    # draw label border
-    #    patch1_list = [vt.draw_border(patch, color=(green if label else red), thickness=3, out=patch)
-    #                   for label, patch in zip(label_list, patch1_list)]
-    #    patch2_list = [vt.draw_border(patch, color=(green if label else red), thickness=3, out=patch)
-    #                   for label, patch in zip(label_list, patch2_list)]
-    #    # draw black border
-    #    patch1_list = [vt.draw_border(patch, color=(0, 0, 0), thickness=1, out=patch) for patch in patch1_list]
-    #    patch2_list = [vt.draw_border(patch, color=(0, 0, 0), thickness=1, out=patch) for patch in patch2_list]
-    #    # stack and show
-    #    stack_kw = dict(modifysize=False, return_offset=True, return_sf=True)
-    #    stacked_patch1s, offset_list1, sf_list1 = vt.stack_image_list(patch1_list, vert=True, **stack_kw)
-    #    stacked_patch2s, offset_list2, sf_list2 = vt.stack_image_list(patch2_list, vert=True, **stack_kw)
-    #    #stacked_patches = vt.stack_images(stacked_patch1s, stacked_patch2s, vert=False)[0]
-    #    stacked_patches, offset_list, sf_list = vt.stack_multi_images(
-    #        stacked_patch1s, stacked_patch2s, offset_list1, sf_list1, offset_list2, sf_list2, vert=False, modifysize=False)
-    #    pt.figure(fnum=1, pnum=(1, 1, 1), doclf=True)
-    #    pt.imshow(stacked_patches)
-    #    pt.update()
-    #    #pt.imshow(stacked_patch1s, pnum=(1, 2, 1))
-    #    #pt.imshow(stacked_patch2s, pnum=(1, 2, 2))
-    #    #count, (label, patch1, patch2) = tup
-    #    #count, (label, patch1, patch2) = tup
-    #    #if aid1_list_ is not None:
-    #    #    aid1 = aid1_list_[count]
-    #    #    aid2 = aid2_list_[count]
-    #    #    print('aid1=%r, aid2=%r, label=%r' % (aid1, aid2, label))
-    #    #pt.figure(fnum=1, pnum=(1, 2, 1), doclf=True)
-    #    #pt.imshow(patch1, pnum=(1, 2, 1))
-    #    #pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-    #    #pt.imshow(patch2, pnum=(1, 2, 2))
-    #    #pt.draw_border(pt.gca(), color=vh.get_truth_color(label))
-    #    #pt.update()
-
-
 if __name__ == '__main__':
     """
     CommandLine:
