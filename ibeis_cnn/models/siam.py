@@ -262,7 +262,8 @@ class SiameseL2(AbstractSiameseModel):
         # TODO: remove output dims
         #_P = functools.partial
         print('[model] initialize_architecture')
-        (_, input_channels, input_width, input_height) = model.input_shape
+        #(_, input_channels, input_width, input_height) = model.input_shape
+        (_, input_channels, input_height, input_width) = model.input_shape
         if verbose:
             print('[model] Initialize center siamese l2 model architecture')
             print('[model]   * batch_size     = %r' % (model.batch_size,))

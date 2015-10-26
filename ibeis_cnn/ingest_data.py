@@ -9,6 +9,9 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
 
 
+NOCACHE_DATASET = ut.get_argflag(('--nocache-cnn', '--nocache-dataset'))
+
+
 def testdata_dataset():
     dataset = get_ibeis_patch_siam_dataset(max_examples=5, controlled=False)
     return dataset
@@ -468,7 +471,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
 
     alias_key = ibs.get_dbname() + ';' + ut.dict_str(datakw, nl=False, explicit=True)
     try:
-        if ut.get_argflag('--nocache-cnn'):
+        if NOCACHE_DATASET:
             raise Exception('forced cache off')
         # Try and short circut cached loading
         dataset = DataSet.from_alias_key(alias_key)
@@ -555,7 +558,7 @@ def get_ibeis_part_siam_dataset(**kwargs):
     dbname = datakw.pop('db')
 
     try:
-        if ut.get_argflag('--nocache-cnn'):
+        if NOCACHE_DATASET:
             raise Exception('forced cache off')
         # Try and short circut cached loading
         dataset = DataSet.from_alias_key(alias_key)

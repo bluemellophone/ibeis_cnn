@@ -551,7 +551,7 @@ class PartMatchDataConfig(NewConfigBase):
 
     def get_data_shape(pmcfg):
         channels = 1 if pmcfg.colorspace == 'gray' else 3
-        return (pmcfg.part_chip_width, pmcfg.part_chip_height, channels)
+        return (pmcfg.part_chip_height, pmcfg.part_chip_width, channels)
 
 
 def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
@@ -613,8 +613,8 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
         assert labels.shape[0] == data.shape[0] // 2
         #data, labels, flat_metadata
         # Save the data to cache
-        #ut.assert_eq(data.shape[1], pmcfg.part_chip_width)
-        #ut.assert_eq(data.shape[2], pmcfg.part_chip_height)
+        ut.assert_eq(data.shape[1], pmcfg.part_chip_height)
+        ut.assert_eq(data.shape[2], pmcfg.part_chip_width)
         # TODO; save metadata
         print('[write_part_data] np.shape(data) = %r' % (np.shape(data),))
         print('[write_part_labels] np.shape(labels) = %r' % (np.shape(labels),))

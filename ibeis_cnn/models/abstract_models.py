@@ -154,6 +154,12 @@ class BaseModel(object):
                  strict_batch_size=True, data_shape=None, training_dpath='.',
                  momentum=.9, weight_decay=.0005, learning_rate=.001,
                  arch_tag=None):
+        """
+
+        Guess on Shapes:
+            input_shape (tuple): in Theano format (b, c, h, w)
+            data_shape (tuple):  in  Numpy format (b, h, w, c)
+        """
 
         if input_shape is None and data_shape is not None:
             if strict_batch_size is True:
@@ -204,6 +210,23 @@ class BaseModel(object):
         # TODO: do not set learning rate until theano is initialized
         model.learning_rate = learning_rate
 
+    # --- OTHER
+    @property
+    def input_batchsize(model):
+        return model.input_shape[0]
+
+    @property
+    def input_channels(model):
+        return model.input_shape[1]
+
+    @property
+    def input_height(model):
+        return model.input_shape[2]
+
+    @property
+    def input_width(model):
+        return model.input_shape[3]
+
     # --- INITIALIZATION
 
     def get_epoch_diagnostic_dpath(model, epoch=None):
@@ -227,6 +250,7 @@ class BaseModel(object):
     def assert_valid_data(model, X_train):
         # Check to make sure data agrees with input
         # FIXME: This check should not be in this fuhnction
+        return
         input_layer = model.get_all_layers()[0]
         expected_item_shape = ut.list_take(input_layer.shape[1:], [1, 2, 0])
         expected_item_shape = tuple(expected_item_shape)

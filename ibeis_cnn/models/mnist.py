@@ -52,7 +52,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         )
         return network_layers_def
 
-    def get_mnist_model_def1(model, input_shape, output_dims):
+    def get_mnist_model_def1(model):
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         #orthog = dict(W=init.Orthogonal())
@@ -61,7 +61,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         hidden_initkw = ut.merge_dicts(weight_initkw, leaky)
 
         network_layers_def = [
-            _P(layers.InputLayer, shape=input_shape),
+            _P(layers.InputLayer, shape=model.input_shape),
             layers.GaussianNoiseLayer,
 
             _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
@@ -75,7 +75,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
             _P(layers.FeaturePoolLayer, pool_size=2),  # maxout
             _P(layers.DropoutLayer, p=0.5),
 
-            _P(layers.DenseLayer, num_units=output_dims,
+            _P(layers.DenseLayer, num_units=model.output_dims,
                nonlinearity=nonlinearities.softmax, **output_initkw),
         ]
         return network_layers_def
@@ -103,17 +103,14 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
             >>> ut.show_if_requested()
         """
         print('[model] initialize_architecture')
-        (_, input_channels, input_width, input_height) = model.input_shape
-        input_shape = model.input_shape
-        output_dims = model.output_dims
         if True:
             print('[model] Initialize MNIST model architecture')
             print('[model]   * batch_size     = %r' % (model.batch_size,))
-            print('[model]   * input_width    = %r' % (input_width,))
-            print('[model]   * input_height   = %r' % (input_height,))
-            print('[model]   * input_channels = %r' % (input_channels,))
+            print('[model]   * input_width    = %r' % (model.input_width,))
+            print('[model]   * input_height   = %r' % (model.input_height,))
+            print('[model]   * input_channels = %r' % (model.input_channels,))
             print('[model]   * output_dims    = %r' % (model.output_dims,))
-        network_layers_def = model.get_mnist_model_def1(input_shape, output_dims)
+        network_layers_def = model.get_mnist_model_def1()
         network_layers = abstract_models.evaluate_layer_list(network_layers_def)
         model.output_layer = network_layers[-1]
         return model.output_layer
