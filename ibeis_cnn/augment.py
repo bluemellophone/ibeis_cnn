@@ -317,7 +317,7 @@ def testdata_augment():
     yb_orig = yb.copy()
     return Xb_orig, yb_orig, Xb, yb
 
-
+@profile
 def augment_affine(Xb, yb=None, rng=np.random):
     """
     CommandLine:
@@ -403,6 +403,7 @@ def augment_affine(Xb, yb=None, rng=np.random):
     return Xb, yb
 
 
+@profile
 def augment_shadow(Xb, yb=None, rng=np.random, return_shadowmaps=False):
     """
     CommandLine:
@@ -490,6 +491,7 @@ def augment_shadow(Xb, yb=None, rng=np.random, return_shadowmaps=False):
     return Xb, yb
 
 
+@profile
 def augment_gamma(Xb, yb=None, rng=np.random):
     """
     CommandLine:
@@ -535,6 +537,7 @@ def augment_gamma(Xb, yb=None, rng=np.random):
     return Xb, yb
 
 
+@profile
 def augment_siamese_patches2(Xb, yb=None, rng=np.random):
     """
     CommandLine:

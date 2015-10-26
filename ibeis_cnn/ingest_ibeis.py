@@ -5,6 +5,7 @@ import numpy as np
 import six
 import cv2
 import itertools
+from six.moves import zip, map, range
 from functools import partial
 #from ibeis_cnn import utils
 from ibeis_cnn import draw_results  # NOQA
@@ -194,8 +195,8 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     import vtool as vt
     kwargs = kwargs.copy()
     part_chip_width  = kwargs.pop('part_chip_width', 256)
-    part_chip_height = kwargs.pop('part_chip_height', 256)
-    colorspace = kwargs.pop('colorspace', 256)
+    part_chip_height = kwargs.pop('part_chip_height', 128)
+    colorspace = kwargs.pop('colorspace', 'gray')
     assert len(kwargs) == 0, 'unhandled arguments %r' % (kwargs,)
 
     size = (part_chip_width, part_chip_height)
@@ -215,7 +216,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
         aid1, aid2 = pair_metadata['aid1'], pair_metadata['aid2']
         print('Computing alignment aidpair=(%r, %r)' % (aid1, aid2))
         matches, match_metadata = ibeis.model.hots.vsone_pipeline.vsone_single(
-            aid1, aid2, qreq_)
+            aid1, aid2, qreq_, verbose=False)
         match_metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
         return match_metadata
 
@@ -227,7 +228,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
         rchip2 = match_metadata['rchip2']
         if warped:
             H1 = match_metadata['H_RAT']
-            print('WARPING')
+            #print('WARPING')
             # Initial Warping
             wh2 = vt.get_size(rchip2)
             rchip1_ = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
@@ -555,6 +556,11 @@ class PartMatchDataConfig(NewConfigBase):
 
 def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
                                             flat_metadata, **kwargs):
+    """
+    CommandLine:
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl:pername=None,excluderef=False --ensuredata --show --datatype=siam-part --nocache-train --nocache-cnn
+
+    """
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
 
     pmcfg = PartMatchDataConfig(**kwargs)
@@ -590,9 +596,10 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
         rchip1_list, rchip2_list = extract_annotpair_training_chips(
             ibs, aid_pairs, **pmcfg.kw())
 
-        datagen = ut.ProgressIter(zip(rchip1_list, rchip2_list),
+        datagen_ = zip(rchip1_list, rchip2_list)
+        datagen = ut.ProgressIter(datagen_,
                                   nTotal=len(rchip1_list),
-                                  lbl='Evaluating')
+                                  lbl='Evaluating', adjust=False)
         data = np.array(list(ut.flatten(datagen)))
 
         flat_metadata = ut.map_dict_vals(np.array, flat_metadata)

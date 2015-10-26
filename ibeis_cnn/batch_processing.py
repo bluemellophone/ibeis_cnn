@@ -15,6 +15,7 @@ VERYVERBOSE_BATCH = (
     ut.VERYVERBOSE)
 
 
+@profile
 def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
                   show=False, spatial=False, **kwargs):
     """
