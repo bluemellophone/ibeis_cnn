@@ -31,8 +31,8 @@ try:
         MaxPool2DLayer = lasagne.layers.cuda_convnet.MaxPool2DCCLayer
     elif conv_impl == 'cuDNN':
         import lasagne.layers.dnn
-        Conv2DLayer = lasagne.layers.dnn.Conv2DLayer
-        MaxPool2DLayer = lasagne.layers.dnn.Conv2DLayer
+        Conv2DLayer = lasagne.layers.dnn.Conv2DDNNLayer
+        MaxPool2DLayer = lasagne.layers.dnn.MaxPool2DDNNLayer
     elif conv_impl == 'gemm':
         # Dont use gemm
         import lasagne.layers.corrmm

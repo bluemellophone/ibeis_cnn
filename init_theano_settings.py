@@ -23,6 +23,7 @@ PythonPrereqs:
     pip install git+git://github.com/lisa-lab/pylearn2.git
     #pip install lasagne
     #pip install pylearn2
+    git clone https://github.com/Theano/Theano.git
     git clone git://github.com/lisa-lab/pylearn2.git
     git clone https://github.com/Lasagne/Lasagne.git
     git clone https://github.com/Erotemic/Lasagne.git
