@@ -83,7 +83,7 @@ def netrun():
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor --DEBUG_AUGMENTATION
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
 
-        python -m ibeis_cnn --tf netrun --ds flankhack --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn --tf netrun --ds flankhack --weights=new --arch=siaml2_partmatch --train --monitor --learning_rate=.00001
 
         # Different ways to train mnist
         python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=mnist_siaml2 --train --monitor --datatype=siam-patch
@@ -138,7 +138,7 @@ def netrun():
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
             training_dpath=dataset.training_dpath, **hyperparams)
-    elif arch_tag in ['siaml2', 'siaml2_128', 'mnist_siaml2', 'siam2streaml2']:
+    elif arch_tag.startswith('siam'):
         model = models.SiameseL2(
             data_shape=dataset.data_shape,
             arch_tag=arch_tag,

@@ -160,6 +160,68 @@ class SiameseL2(AbstractSiameseModel):
         #raise NotImplementedError('The 2-channel part is not yet implemented')
         return network_layers_def
 
+    def get_siaml2_partmatch_def(model, verbose=True, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siaml2_partmatch --datashape=128,256,1 --verbose  --show
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        _tmp = [1]
+
+        def CDP_layer(num_filters=32,
+                              conv_size=(5, 5), conv_stride=(3, 3),
+                              pool_size=(2, 2), pool_stride=(2, 2),
+                              drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+                _P(MaxPool2DLayer, pool_size=pool_size, stride=pool_stride, name='P' + str(num)),
+            ]
+
+        def CD_layer(num_filters=32,
+                     conv_size=(5, 5), conv_stride=(3, 3),
+                     drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+            ]
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape)
+            ]  +
+            CDP_layer( 96, (3, 3), (2, 4), (2, 2), (2, 2), .1) +
+            CDP_layer(192, (3, 3), (2, 2), (2, 2), (1, 1), .1) +
+            CD_layer(128, (3, 3), (2, 2)) +
+            CD_layer(96, (2, 2), (1, 1)) +
+            CD_layer(64, (2, 2), (1, 1)) +
+            CD_layer(64, (1, 1), (1, 1)) +
+            #CD_layer(64, (2, 1), (2, 2)) +
+            [
+                #_P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C3_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C4_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(2, 1), stride=(2, 2), name='C4_128', **hidden_initkw),
+                _P(layers.FlattenLayer, outdim=2, name='flatten128'),
+                _P(custom_layers.L2NormalizeLayer, axis=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
     def get_siam2streaml2_def(model, verbose=True, **kwargs):
         """
         Notes:
@@ -167,6 +229,9 @@ class SiameseL2(AbstractSiameseModel):
                 branch of siam-2stream.
 
                 C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam2streaml2 --datashape=64,64,1 --verbose  --show
         """
         _P = functools.partial
 
@@ -204,6 +269,10 @@ class SiameseL2(AbstractSiameseModel):
         return network_layers_def
 
     def get_mnist_siaml2_def(model, verbose=True, **kwargs):
+        """
+        python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag mnist_siaml2 --datashape=28,28,1 --verbose  --show
+
+        """
         _P = functools.partial
 
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
@@ -220,12 +289,14 @@ class SiameseL2(AbstractSiameseModel):
                 #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 #_P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='C2', **hidden_initkw),
                 _P(layers.InputLayer, shape=model.input_shape),
-                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P3'),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P3'),
+                _P(Conv2DLayer, num_filters=128, filter_size=(1, 1), name='C2', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P3'),
                 #_P(layers.ReshapeLayer, shape=(-1, 128))
                 _P(layers.FlattenLayer, outdim=2)
                 #_P(Conv2DLayer, num_filters=256, filter_size=(2, 2), name='C3', **hidden_initkw),
@@ -245,19 +316,15 @@ class SiameseL2(AbstractSiameseModel):
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.siam import *  # NOQA
-            >>> # build test data
             >>> verbose = True
-            >>> model = SiameseL2(batch_size=128, data_shape=(64, 64, 3))
-            >>> # execute function
+            >>> arch_tag = ut.get_argval('--archtag', default='siaml2')
+            >>> data_shape = tuple(ut.get_argval('--datashape', type_=list, default=(64, 64, 3)))
+            >>> model = SiameseL2(batch_size=128, data_shape=data_shape, arch_tag=arch_tag)
             >>> output_layer = model.initialize_architecture()
             >>> model.print_dense_architecture_str()
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
             >>> ut.quit_if_noshow()
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()
-
         """
         # TODO: remove output dims
         #_P = functools.partial
@@ -273,14 +340,15 @@ class SiameseL2(AbstractSiameseModel):
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
         #network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
-        if model.arch_tag == 'siam2streaml2':
-            network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'siaml2':
-            network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'siaml2_128':
-            network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'mnist_siaml2':
-            network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
+        network_layers_def = getattr(model, 'get_' + model.arch_tag + '_def')(verbose=verbose, **kwargs)
+        #if model.arch_tag == 'siam2streaml2':
+        #    network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'siaml2':
+        #    network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'siaml2_128':
+        #    network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'mnist_siaml2':
+        #    network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
         # connect and record layers
         network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
         #model.network_layers = network_layers

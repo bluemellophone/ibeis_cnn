@@ -69,6 +69,12 @@ class L1NormalizeLayer(lasagne.layers.Layer):
 
 #@six.add_metaclass(ut.ReloadingMetaclass)
 class L2NormalizeLayer(lasagne.layers.Layer):
+    """
+    Normalizes the outputs of a layer to have an L2 norm of 1.
+    This is useful for siamese networks who's outputs will be comparsed using
+    the L2 distance.
+
+    """
     def __init__(self, input_layer, axis=1, **kwargs):
         super(L2NormalizeLayer, self).__init__(input_layer, **kwargs)
         self.axis = axis
