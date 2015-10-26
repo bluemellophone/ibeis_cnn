@@ -255,7 +255,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                                               fnum=2, verbose=0)
                 overwrite_latest_image(fpath, 'weights')
                 history_text = ut.list_str(model.era_history, newlines=True)
-                ut.write_to(history_text_fpath, history_text)
+                ut.write_to(history_text_fpath, history_text, verbose=False)
 
             # Learning rate schedule update
             if epoch % learning_rate_schedule == (learning_rate_schedule - 1):
