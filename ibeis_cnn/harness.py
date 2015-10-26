@@ -398,7 +398,6 @@ def test_data2(model, X_test, y_test):
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
-    print('[model] creating Theano primitives...')
     theano_funcs = model.build_theano_funcs(request_predict=True,
                                             request_forward=False,
                                             request_backprop=False)

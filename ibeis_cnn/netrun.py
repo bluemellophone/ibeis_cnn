@@ -70,6 +70,7 @@ def netrun():
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl:pername=None --ensuredata
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
+        python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=siam-patch
 
         # Parts based datasets
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
@@ -79,7 +80,9 @@ def netrun():
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor --DEBUG_AUGMENTATION
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
 
-        python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=siaml2_128 --train --monitor
+        # Different ways to train mnist
+        python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=mnist_siaml2 --train --monitor --datatype=siam-patch
+        python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=mnist-category --train --monitor --datatype=category
 
         # --- INITIALIZED-TRAINING ---
         python -m ibeis_cnn --tf netrun --ds pzmtest --arch=siaml2_128 --weights=gz-gray:current --train --monitor
@@ -130,21 +133,16 @@ def netrun():
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
             training_dpath=dataset.training_dpath, **hyperparams)
-    elif arch_tag in ['siaml2', 'siaml2_128']:
+    elif arch_tag in ['siaml2', 'siaml2_128', 'mnist_siaml2', 'siam2streaml2']:
         model = models.SiameseL2(
             data_shape=dataset.data_shape,
             arch_tag=arch_tag,
             training_dpath=dataset.training_dpath, **hyperparams)
-    elif arch_tag == 'siam2streaml2':
-        model = models.SiameseL2(
-            data_shape=dataset.data_shape,
-            arch_tag=arch_tag,
-            training_dpath=dataset.training_dpath,
-            **hyperparams)
     elif arch_tag == 'mnist-category':
         model = models.MNISTModel(
             data_shape=dataset.data_shape,
             output_dims=dataset.output_dims,
+            arch_tag=arch_tag,
             training_dpath=dataset.training_dpath, **hyperparams)
         pass
     else:

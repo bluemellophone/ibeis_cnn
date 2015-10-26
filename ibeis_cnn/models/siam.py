@@ -278,6 +278,8 @@ class SiameseL2(AbstractSiameseModel):
             network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
         elif model.arch_tag == 'siaml2_128':
             network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
+        elif model.arch_tag == 'mnist_siaml2':
+            network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
         # connect and record layers
         network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
         #model.network_layers = network_layers
