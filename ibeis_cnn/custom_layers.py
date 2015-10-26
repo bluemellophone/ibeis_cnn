@@ -19,12 +19,13 @@ try:
     # use cuda_convnet for a speed improvement
     # will not be available without a GPU
 
-    #conv_impl = 'cuDNN'
-    conv_impl = 'cuda_convnet'
+    conv_impl = 'cuDNN'
+    #conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
 
     if conv_impl == 'cuda_convnet':
+        # cannot handle non-square images
         import lasagne.layers.cuda_convnet
         Conv2DLayer = lasagne.layers.cuda_convnet.Conv2DCCLayer
         MaxPool2DLayer = lasagne.layers.cuda_convnet.MaxPool2DCCLayer
