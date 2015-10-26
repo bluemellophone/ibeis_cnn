@@ -258,6 +258,7 @@ def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None
 
 def make_conv_weight_image(all_weights, limit=144):
     """ just makes the image ndarray of the weights """
+    import vtool as vt
     # Try to infer if use_color should be shown
     num, channels, height, width = all_weights.shape
     # Try to infer if use_color should be shown
@@ -298,9 +299,28 @@ def make_conv_weight_image(all_weights, limit=144):
     bordered_features = np.zeros(border_shape, dtype=resized_features.dtype)
     bordered_features[:, nbp_:-nbp_, nbp_:-nbp_, :] = resized_features
     #img_list = bordered_features
-    import vtool as vt
     stacked_img = vt.stack_square_images(bordered_features)
     return stacked_img
+
+
+def output_confusion_matrix(X_test, results_path, test_results, model,
+                            **kwargs):
+    """ currently hacky implementation, fix it later """
+    loss, accu_test, prob_list, auglbl_list, pred_list, conf_list = test_results
+    # Output confusion matrix
+    mapping_fn = None
+    if model is not None:
+        mapping_fn = getattr(model, 'label_order_mapping', None)
+    # TODO: THIS NEEDS TO BE FIXED
+    label_list = list(range(kwargs.get('output_dims')))
+    # Encode labels if avaialble
+    #encoder = kwargs.get('encoder', None)
+    encoder = getattr(model, 'encoder', None)
+    if encoder is not None:
+        label_list = encoder.inverse_transform(label_list)
+    # Make confusion matrix (pass X to write out failed cases)
+    show_confusion_matrix(
+        auglbl_list, pred_list, label_list, results_path, mapping_fn, X_test)
 
 
 def save_confusion_matrix(results_path, correct_y, predict_y, category_list, mapping_fn=None, data_x=None):

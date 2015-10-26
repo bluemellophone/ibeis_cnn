@@ -40,15 +40,6 @@ def checkfreq(freqlike_, count):
         return freqlike_ is True
 
 
-def concatenate_hack(sequence, axis=0):
-    # Hack to fix numpy bug. concatenate should do hstacks on 0-dim arrays
-    if len(sequence) > 0 and len(sequence[1].shape) == 0:
-        res = np.hstack(sequence)
-    else:
-        res = np.concatenate(sequence, axis=axis)
-    return res
-
-
 def multiaxis_reduce(ufunc, arr, startaxis=0):
     """ todo: clean and move to vtool
     used to get max/min over all axes after <startaxis>

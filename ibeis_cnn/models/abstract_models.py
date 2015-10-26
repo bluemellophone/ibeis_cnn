@@ -14,7 +14,6 @@ import six
 import numpy as np
 #from lasagne import layers
 from ibeis_cnn import net_strs
-from ibeis_cnn import utils
 from ibeis_cnn import custom_layers
 from ibeis_cnn import draw_net
 import sklearn.preprocessing
@@ -22,8 +21,14 @@ import utool as ut
 from os.path import join, exists, dirname, basename
 import warnings
 from six.moves import cPickle as pickle
+from collections import namedtuple
+from ibeis_cnn import utils
 #ut.noinject('ibeis_cnn.abstract_models')
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
+
+
+TheanoFuncs = namedtuple('TheanoFuncs', (
+    'theano_backprop', 'theano_forward', 'theano_predict', 'updates'))
 
 
 Conv2DLayer = custom_layers.Conv2DLayer
@@ -949,10 +954,10 @@ class BaseModel(object):
         print('[model] setting learning rate to %.9f' % (rate))
         shared_learning_rate = model.shared_state.get('learning_rate', None)
         if shared_learning_rate is None:
-            shared_learning_rate = theano.shared(utils.float32(rate))
+            shared_learning_rate = theano.shared(np.cast['float32'](rate))
             model.shared_state['learning_rate'] = shared_learning_rate
         else:
-            shared_learning_rate.set_value(utils.float32(rate))
+            shared_learning_rate.set_value(np.cast['float32'](rate))
 
     @property
     def shared_learning_rate(model):
@@ -1119,8 +1124,8 @@ class BaseModel(object):
             theano_predict = None
 
         print('[batch.build_theano_funcs] exit')
-        theano_funcs  = (theano_backprop, theano_forward, theano_predict,
-                         updates)
+        theano_funcs  = TheanoFuncs(
+            theano_backprop, theano_forward, theano_predict, updates)
         return theano_funcs
 
     def build_unlabeled_output_expressions(model, network_output):

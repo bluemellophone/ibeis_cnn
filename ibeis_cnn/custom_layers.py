@@ -42,9 +42,11 @@ try:
 
     USING_GPU = True
 except ImportError as ex:
-    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
     Conv2DLayer = lasagne.layers.Conv2DLayer
     MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
+    print('Conv2DLayer = %r' % (Conv2DLayer,))
+    print('MaxPool2DLayer = %r' % (MaxPool2DLayer,))
+    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
     USING_GPU = False
 
 if utils.VERBOSE_CNN:

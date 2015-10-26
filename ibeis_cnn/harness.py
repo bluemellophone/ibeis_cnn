@@ -9,41 +9,14 @@ http://cs231n.github.io/neural-networks-3/#distr
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
 from ibeis_cnn import batch_processing as batch
-from six.moves import input
+#from ibeis_cnn import draw_net
+from six.moves import input, zip, range
 import numpy as np
 import utool as ut
 import time
 import cv2
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.harness]')
 
-
-def sample_train_valid_test(model, data, labels):
-    # TODO: make this less memory intensive
-    print('[train] creating train, validation datasaets...')
-    memtrack = ut.MemoryTracker(disable=True)
-    memtrack.report('sample_data0')
-    data_per_label = getattr(model, 'data_per_label', 1)
-    train_split = .2
-    #train_split = .4
-    #train_split = .5
-    _tup = utils.train_test_split(data, labels, eval_size=train_split,
-                                  data_per_label=data_per_label)
-    X_train, y_train, X_valid, y_valid = _tup
-    memtrack.report('sample_data1')
-    _tup = utils.train_test_split(X_train, y_train, eval_size=0.1, data_per_label=data_per_label)
-    X_train, y_train, X_test, y_test = _tup
-    memtrack.report('sample_data2')
-    #memtrack.report_obj(X_train, 'X_train')
-    #memtrack.report_obj(X_valid, 'X_valid')
-    #memtrack.report_obj(X_test, 'X_test')
-    #memtrack.report_obj(data, 'data')
-    print('len(X_train) = %r' % (len(X_train),))
-    print('len(X_valid) = %r' % (len(X_valid),))
-    print('len(X_test)  = %r' % (len(X_test),))
-    return X_train, y_train, X_valid, y_valid, X_test, y_test
-
-
-# ---------------
 
 @profile
 def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
@@ -81,18 +54,25 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     MONITOR_PROGRESS = ut.get_argflag('--monitor')
     if MONITOR_PROGRESS:
         # FIXME; put into better place
-        progress_dir = ut.ensuredir(ut.unixjoin(model.training_dpath, 'progress'))
+        progress_dir = ut.unixjoin(model.training_dpath, 'progress')
+        ut.ensuredir(progress_dir)
         def progress_metric_path(x):
             return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
         def progress_metric_dir(x):
             return ut.ensuredir(progress_metric_path(x))
-        history_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_history')
-        weights_progress_dir = progress_metric_dir(model.arch_tag + '_%02d_weights')
-        history_text_fpath = progress_metric_path(model.arch_tag + '_%02d_era_history.txt')
+        history_progress_dir = progress_metric_dir(
+            model.arch_tag + '_%02d_history')
+        weights_progress_dir = progress_metric_dir(
+            model.arch_tag + '_%02d_weights')
+        history_text_fpath = progress_metric_path(
+            model.arch_tag + '_%02d_era_history.txt')
         ut.vd(progress_dir)
 
         def overwrite_latest_image(fpath, new_name):
-            """ copies the new image to a path to be overwritten so new updates are shown """
+            """
+            copies the new image to a path to be overwritten so new updates are
+            shown
+            """
             from os.path import split, join, splitext, dirname
             import shutil
             dpath, fname = split(fpath)
@@ -101,7 +81,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
 
         # Write initial states of the weights
-        fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2, verbose=0)
+        fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2,
+                                      verbose=0)
         overwrite_latest_image(fpath, 'weights')
 
     # Create the Theano primitives
@@ -113,7 +94,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     #show_times    = kwargs.get('print_timing', False)
     #show_features = kwargs.get('show_features', False)
-    #test_freq      = kwargs.get('test_freq', None)
+    #test_freq     = kwargs.get('test_freq', None)
 
     epoch = model.best_results['epoch']
     #ut.embed()
@@ -142,11 +123,9 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     while True:
         try:
             # Begin epoch
-
             epoch_info = {
                 'epoch': epoch,
             }
-
             tt.tic()
 
             # ---------------------------------------
@@ -156,20 +135,21 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 randomize_batch_order=True, buffered=True, **batchiter_kw)
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
-            epoch_info['train_loss_regularized'] = train_outputs['loss_regularized'].mean()
+            epoch_info['train_loss_regularized'] = (
+                train_outputs['loss_regularized'].mean())
             #if 'valid_acc' in model.requested_headers:
             #    epoch_info['test_acc']  = train_outputs['accuracy']
 
             # If the training loss is nan, the training has diverged
-            regularization_amount  = train_outputs['loss_regularized'] - train_outputs['loss']
-            regularization_ratio   = regularization_amount / train_outputs['loss']
-            regularization_percent = regularization_amount / train_outputs['loss_regularized']
+            regularization_amount  = (
+                train_outputs['loss_regularized'] - train_outputs['loss'])
+            regularization_ratio   = (
+                regularization_amount / train_outputs['loss'])
+            regularization_percent = (
+                regularization_amount / train_outputs['loss_regularized'])
 
             epoch_info['regularization_percent'] = regularization_percent
             epoch_info['regularization_ratio'] = regularization_ratio
-
-            #print('regularization_ratio = %r' % (regularization_ratio,))
-            #print('regularization_percent = %r' % (regularization_percent,))
 
             param_update_mags = {}
             for key, val in train_outputs.items():
@@ -191,7 +171,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
             if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
-                #np.mean(valid_outputs['predictions'] == valid_outputs['auglbl_list'])
+                #np.mean(valid_outputs['predictions'] ==
+                #valid_outputs['auglbl_list'])
                 epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
 
             # TODO
@@ -200,7 +181,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 train_determ_outputs = batch.process_batch(
                     model, X_train, y_train, theano_forward, augment_on=False,
                     randomize_batch_order=False, **batchiter_kw)
-                epoch_info['train_loss_determ'] = train_determ_outputs['loss_determ'].mean()
+                epoch_info['train_loss_determ'] = (
+                    train_determ_outputs['loss_determ'].mean())
 
             # Calculate request_test before adding to the epoch counter
             request_test = utils.checkfreq(test_freq, epoch)
@@ -211,8 +193,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                     randomize_batch_order=False, **batchiter_kw)
                 test_loss = test_outputs['loss_determ'].mean()  # NOQA
                 #if kwargs.get('show_confusion', False):
-                #    #output_confusion_matrix(results_path, **kwargs)
-                #    batch.output_confusion_matrix(X_test, results_dpath,
+                #    draw_net.output_confusion_matrix(X_test, results_dpath,
                 #    test_results, model=model, **kwargs)
 
             # ---------------------------------------
@@ -220,7 +201,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             duration = tt.toc()
             epoch_info['duration'] = duration
-            epoch_info['trainval_rat'] = epoch_info['train_loss'] / epoch_info['valid_loss']
+            epoch_info['trainval_rat'] = (
+                epoch_info['train_loss'] / epoch_info['valid_loss'])
 
             # ---------------------------------------
             # Record this epoch in history
@@ -228,7 +210,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             # ---------------------------------------
             # Check how we are learning
-            best_found = epoch_info['valid_loss'] < model.best_results['valid_loss']
+            best_found = (
+                epoch_info['valid_loss'] < model.best_results['valid_loss'])
             if best_found:
                 model.best_weights = model.get_all_param_values()
                 model.best_results['epoch'] = epoch_info['epoch']
@@ -265,9 +248,11 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 model.save_model_state()
 
             if MONITOR_PROGRESS:
-                fpath = model.imwrite_era_history(dpath=history_progress_dir, fnum=1, verbose=0)
+                fpath = model.imwrite_era_history(dpath=history_progress_dir,
+                                                  fnum=1, verbose=0)
                 overwrite_latest_image(fpath, 'history')
-                fpath = model.imwrite_weights(dpath=weights_progress_dir, fnum=2, verbose=0)
+                fpath = model.imwrite_weights(dpath=weights_progress_dir,
+                                              fnum=2, verbose=0)
                 overwrite_latest_image(fpath, 'weights')
                 history_text = ut.list_str(model.era_history, newlines=True)
                 ut.write_to(history_text_fpath, history_text)
@@ -275,8 +260,10 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # Learning rate schedule update
             if epoch % learning_rate_schedule == (learning_rate_schedule - 1):
                 #epoch_marker = epoch
-                model.learning_rate = model.learning_rate * learning_rate_adjust
-                model.start_new_era(X_train, y_train, X_valid, y_valid, dataset.alias_key)
+                model.learning_rate = (
+                    model.learning_rate * learning_rate_adjust)
+                model.start_new_era(
+                    X_train, y_train, X_valid, y_valid, dataset.alias_key)
                 utils.print_header_columns(printcol_info)
 
             # Break on max epochs
@@ -288,7 +275,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             epoch += 1
 
         except KeyboardInterrupt:
-            # We have caught the Keyboard Interrupt, figure out what resolution mode
             print('\n[train] Caught CRTL+C')
             resolution = ''
             while not (resolution.isdigit()):
@@ -330,8 +316,10 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             elif resolution == 6:
                 print(model.get_state_str())
             elif resolution == 7:
-                y_train = _clean(model, theano_forward, X_train, y_train, **batchiter_kw)
-                y_valid = _clean(model, theano_forward, X_valid, y_valid, **batchiter_kw)
+                y_train = _clean(model, theano_forward, X_train, y_train,
+                                 **batchiter_kw)
+                y_valid = _clean(model, theano_forward, X_valid, y_valid,
+                                 **batchiter_kw)
             else:
                 # Terminate the network training
                 raise
@@ -340,7 +328,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     model.save_model_state()
 
 
-def _clean(model, theano_forward, X_list, y_list, min_conf=0.95, **batchiter_kw):
+def _clean(model, theano_forward, X_list, y_list, min_conf=0.95,
+           **batchiter_kw):
     import random
     # Perform testing
     clean_outputs = batch.process_batch(
@@ -416,7 +405,8 @@ def test_data2(model, X_test, y_test):
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     # Begin testing with the neural network
-    print('\n[test] starting testing with batch size %0.1f' % (model.batch_size))
+    print('\n[test] starting testing with batch size %0.1f' % (
+        model.batch_size))
 
     batchiter_kw = dict(
         showprog=True,
@@ -430,8 +420,9 @@ def test_data2(model, X_test, y_test):
     return test_outputs
 
 
-def test_convolutional(net, theano_predict, image, patch_size='auto', stride='auto',
-                       padding=32, batch_size=None, verbose=False, **kwargs):
+def test_convolutional(net, theano_predict, image, patch_size='auto',
+                       stride='auto', padding=32, batch_size=None,
+                       verbose=False, **kwargs):
     """ Using a network, test an entire image full convolutionally
 
     This function will test an entire image full convolutionally (or a close
@@ -524,7 +515,8 @@ def test_convolutional(net, theano_predict, image, patch_size='auto', stride='au
             spatial=True,
         )
 
-        test_results = batch.process_batch(net, data_list_, None, theano_predict, **batchiter_kw)
+        test_results = batch.process_batch(net, data_list_, None,
+                                           theano_predict, **batchiter_kw)
 
         label_list.extend(test_results['labeled_predictions'])
         confidence_list.extend(test_results['confidences'])

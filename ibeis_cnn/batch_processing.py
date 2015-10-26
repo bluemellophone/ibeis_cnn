@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
-from ibeis_cnn import draw_net
-#from lasagne import layers
-#from lasagne import objectives
 import numpy as np
 import six
 import utool as ut
@@ -11,8 +8,11 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
-VERBOSE_BATCH = ut.get_argflag(('--verbose-batch', '--verbbatch')) or utils.VERBOSE_CNN
-VERYVERBOSE_BATCH = ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or ut.VERYVERBOSE
+VERBOSE_BATCH = (ut.get_argflag(('--verbose-batch', '--verbbatch')) or
+                 utils.VERBOSE_CNN)
+VERYVERBOSE_BATCH = (
+    ut.get_argflag(('--veryverbose-batch', '--veryverbbatch')) or
+    ut.VERYVERBOSE)
 
 
 def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
@@ -21,9 +21,9 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
     compute the loss over all training batches
 
     CommandLine:
-        python -m ibeis_cnn.batch_processing --test-process_batch --verbose
-        python -m ibeis_cnn.batch_processing --test-process_batch:0 --verbose
-        python -m ibeis_cnn.batch_processing --test-process_batch:1 --verbose
+        python -m ibeis_cnn --tf process_batch --verbose
+        python -m ibeis_cnn --tf process_batch:0 --verbose
+        python -m ibeis_cnn --tf process_batch:1 --verbose
 
     Example0:
         >>> # ENABLE_DOCTEST
@@ -33,9 +33,10 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         >>> X, y = model.make_random_testdata(num=2000, seed=None)
         >>> model.initialize_architecture()
         >>> theano_funcs = model.build_theano_funcs(request_predict=True)
-        >>> theano_fn = theano_funcs[1]
-        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'randomize_batch_order': True}
-        >>> outputs_ = process_batch(model, X_train, y_train, theano_fn, **kwargs)
+        >>> theano_fn = theano_funcs.theano_forward
+        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True,
+        ...           'randomize_batch_order': True}
+        >>> outputs_ = process_batch(model, X, y, theano_fn, **kwargs)
         >>> result = ut.dict_str(outputs_)
         >>> print(result)
 
@@ -43,13 +44,15 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> model = models.SiameseL2(batch_size=128, data_shape=(32, 32, 1), strict_batch_size=True)
+        >>> model = models.SiameseL2(batch_size=128, data_shape=(32, 32, 1),
+        ...                          strict_batch_size=True)
         >>> X, y = model.make_random_testdata(num=2000, seed=None)
         >>> model.initialize_architecture()
         >>> theano_funcs = model.build_theano_funcs(request_predict=True)
         >>> theano_fn = theano_funcs[1]
-        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True, 'randomize_batch_order': True}
-        >>> outputs_ = process_batch(model, X_train, y_train, theano_fn, **kwargs)
+        >>> kwargs = {'X_is_cv2_native': False, 'showprog': True,
+        ...           'randomize_batch_order': True}
+        >>> outputs_ = process_batch(model, X, y, theano_fn, **kwargs)
         >>> result = ut.dict_str(outputs_)
         >>> print(result)
 
@@ -57,13 +60,40 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         Xb, yb = batch_iter.next()
         assert Xb.shape == (8, 1, 4, 4)
         yb.shape == (8,)
+
+    Ignore:
+        X, y = model.make_random_testdata(num=2000, seed=None)
+        kwargs = {'X_is_cv2_native': False, 'showprog': True,
+                  'randomize_batch_order': True, 'time_thresh': .5,
+                  'adjust': False,
+                  }
+
+        print('Testing Unbuffered')
+        batch_iter = batch_iterator(model, X, y, lbl=theano_fn.name, **kwargs)
+        for Xb, yb in ut.ProgressIter(batch_iter, lbl=':EXEC FG'):
+            [ut.is_prime(346373) for _ in range(2)]
+
+        # Notice how the progress iters are not interlaced like
+        # they are in the unbuffered version
+        import sys
+        sys.stdout.flush()
+        print('Testing Buffered')
+        sys.stdout.flush()
+        batch_iter2 = batch_iterator(model, X, y, lbl=theano_fn.name, **kwargs)
+        batch_iter2 = ut.buffered_generator(batch_iter2, buffer_size=4)
+        print('Iterating')
+        for Xb, yb in ut.ProgressIter(batch_iter2, lbl=':EXEC FG'):
+            [ut.is_prime(346373) for _ in range(2)]
     """
     batch_output_list = []
     output_names = [
-        str(outexpr.variable) if outexpr.variable.name is None else outexpr.variable.name
+        str(outexpr.variable)
+        if outexpr.variable.name is None else
+        outexpr.variable.name
         for outexpr in theano_fn.outputs
     ]
-    batch_target_list = []  # augmented label list
+    # augmented label list
+    batch_target_list = []
     show = VERBOSE_BATCH or show
 
     # Break data into generated batches
@@ -74,6 +104,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
     if y is None:
         # Labels are not known, only one argument
         for Xb, yb in batch_iter:
+            pass
             batch_output = theano_fn(Xb)
             batch_output_list.append(batch_output)
     else:
@@ -94,22 +125,20 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
                 show = False
 
     # get outputs of each type
-    if ut.inIPython():
-        unstacked_output_gen = [[bop[count] for bop in batch_output_list]
-                                for count, name in enumerate(output_names)]
-    else:
-        unstacked_output_gen = ([bop[count] for bop in batch_output_list]
-                                for count, name in enumerate(output_names))
+    unstacked_output_gen = ([bop[count] for bop in batch_output_list]
+                            for count, name in enumerate(output_names))
 
     if spatial:
         unstacked_output_gen = list(unstacked_output_gen)
-        stacked_output_list = [ [] for _ in range(len(unstacked_output_gen)) ]
+        stacked_output_list = [[] for _ in range(len(unstacked_output_gen))]
         for index, output in enumerate(unstacked_output_gen):
             output = np.vstack(output)
             stacked_output_list[index] = output
     else:
-        stacked_output_list  = [utils.concatenate_hack(_output_unstacked, axis=0)
-                                for _output_unstacked in unstacked_output_gen]
+        stacked_output_list  = [
+            concatenate_hack(_output_unstacked, axis=0)
+            for _output_unstacked in unstacked_output_gen
+        ]
 
     outputs_ = dict(zip(output_names, stacked_output_list))
 
@@ -124,8 +153,10 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         for key in six.iterkeys(outputs_):
             outputs_[key] = outputs_[key][0:num_outputs]
 
-    if getattr(model, 'encoder', None) is not None and 'predictions' in outputs_:
-        outputs_['labeled_predictions'] = model.encoder.inverse_transform(outputs_['predictions'])
+    encoder = getattr(model, 'encoder', None)
+    if encoder is not None and 'predictions' in outputs_:
+        pred = outputs_['predictions']
+        outputs_['labeled_predictions'] = encoder.inverse_transform(pred)
     return outputs_
 
 
@@ -134,15 +165,18 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
                    veryverbose=VERYVERBOSE_BATCH, showprog=ut.VERBOSE,
                    lbl='verbose batch iteration',
-                   time_thresh=10, time_thresh_growth=1.0):
+                   time_thresh=10, time_thresh_growth=1.0, adjust=True):
     r"""
-    CommandLine:
-        python -m ibeis_cnn.batch_processing --test-batch_iterator:0
-        python -m ibeis_cnn.batch_processing --test-batch_iterator:1
-        python -m ibeis_cnn.batch_processing --test-batch_iterator:1 --DEBUG_AUGMENTATION
+    Breaks up data into to batches
 
-        python -m ibeis_cnn.batch_processing --test-batch_iterator:1 --noaugment
-        python -m ibeis_cnn.batch_processing --test-batch_iterator:1 --augment
+    CommandLine:
+        python -m ibeis_cnn --tf batch_iterator:0
+        python -m ibeis_cnn --tf batch_iterator:1
+        python -m ibeis_cnn --tf batch_iterator:1 --DEBUG_AUGMENTATION
+
+        python -m ibeis_cnn --tf batch_iterator:1 --noaugment
+        # Threaded buffering seems to help a lot
+        python -m ibeis_cnn --tf batch_iterator:1 --augment
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -155,7 +189,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> encoder = None
         >>> randomize_batch_order = True
         >>> # execute function
-        >>> result_list = [(Xb, Yb) for Xb, Yb in batch_iterator(model, X, y, randomize_batch_order)]
+        >>> result_list = [(Xb, Yb) for Xb, Yb in batch_iterator(model, X, y,
+        ...                randomize_batch_order)]
         >>> # verify results
         >>> result = ut.depth_profile(result_list, compress_consecutive=True)
         >>> print(result)
@@ -165,27 +200,45 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
+        >>> import time
         >>> # build test data
-        >>> model = models.SiameseL2(batch_size=128, data_shape=(32, 32, 1), strict_batch_size=True)
-        >>> X, y = model.make_random_testdata(num=4000, seed=None, cv2_format=True)
+        >>> model = models.SiameseL2(batch_size=128, data_shape=(8, 8, 1),
+        ...                          strict_batch_size=True)
+        >>> X, y = model.make_random_testdata(num=1000, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
         >>> encoder = None
         >>> # execute function
         >>> result_list1 = []
         >>> result_list2 = []
-        >>> iterkw = dict(randomize_batch_order=True, augment_on=not ut.get_argflag('--noaugment'), showprog=True, verbose=ut.VERBOSE)
-        >>> import time
-        >>> sleep_time = .2
-        >>> with ut.Timer('unbuffered') as t:
+        >>> augment_on=not ut.get_argflag('--noaugment')
+        >>> iterkw = dict(randomize_batch_order=True,
+        >>>              augment_on=augment_on,
+        >>>              showprog=True, verbose=ut.VERBOSE)
+        >>> sleep_time = .05
+        >>> inside_time1 = 0
+        >>> inside_time2 = 0
+        >>> with ut.Timer('buffered') as t2:
+        >>>     generator =  batch_iterator(model, X, y, **iterkw)
+        >>>     for Xb, Yb in ut.buffered_generator(generator, buffer_size=3):
+        >>>         with ut.Timer('Inside', verbose=False) as t:
+        >>>             time.sleep(sleep_time)
+        >>>             result_list2.append(Xb.shape)
+        >>>         inside_time2 += t.ellapsed
+        >>> with ut.Timer('unbuffered') as t1:
         >>>     generator =  batch_iterator(model, X, y, **iterkw)
         >>>     for Xb, Yb in generator:
-        >>>         time.sleep(sleep_time)
-        >>>         result_list1.append(Xb.shape)
-        >>> with ut.Timer('buffered') as t:
-        >>>     generator =  batch_iterator(model, X, y, **iterkw)
-        >>>     for Xb, Yb in ut.buffered_generator(generator):
-        >>>         time.sleep(sleep_time)
-        >>>         result_list2.append(Xb.shape)
+        >>>         with ut.Timer('Inside', verbose=False) as t:
+        >>>             time.sleep(sleep_time)
+        >>>             result_list1.append(Xb.shape)
+        >>>         inside_time1 += t.ellapsed
+        >>> print('\nInside times should be the same')
+        >>> print('inside_time1 = %r' % (inside_time1,))
+        >>> print('inside_time2 = %r' % (inside_time2,))
+        >>> print('Outside times show the overhead of data augmentation')
+        >>> print('Overhead Unbuffered = %r' % (t1.ellapsed - inside_time1,))
+        >>> print('Overhead Buffered   = %r' % (t2.ellapsed - inside_time2,))
+        >>> print('Efficiency Unbuffered  = %.2f' % (100 * inside_time1 / t1.ellapsed,))
+        >>> print('Efficiency Buffered    = %.2f' % (100 * inside_time2 / t2.ellapsed,))
         >>> assert result_list1 == result_list2
         >>> print(len(result_list2))
         >>> # verify results
@@ -199,7 +252,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     # divides X and y into batches of size bs for sending to the GPU
     if randomize_batch_order:
         # Randomly shuffle data
-        X, y = utils.data_label_shuffle(X, y, data_per_label_input)  # 0.079 mnist time fraction
+        # 0.079 mnist time fraction
+        X, y = utils.data_label_shuffle(X, y, data_per_label_input)
     if verbose:
         print('[batchiter] BEGIN')
         print('[batchiter] X.shape %r' % (X.shape, ))
@@ -210,7 +264,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         print('[batchiter] equal_batch_sizes %r' % (equal_batch_sizes, ))
         print('[batchiter] data_per_label_input %r' % (data_per_label_input, ))
     if y is not None:
-        assert X.shape[0] == (y.shape[0] * data_per_label_input), 'bad data / label alignment'
+        assert X.shape[0] == (y.shape[0] * data_per_label_input), (
+            'bad data / label alignment')
     batch_size = model.batch_size
     num_batches = (X.shape[0] + batch_size - 1) // batch_size
     if verbose:
@@ -223,8 +278,10 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     if model.preproc_kw is not None:
         center_std  = np.array(model.preproc_kw['center_std'], dtype=np.float32)
         center_mean = np.array(model.preproc_kw['center_mean'], dtype=np.float32)
-    do_whitening = center_mean is not None and center_std is not None and center_std != 0.0
-    assert do_whitening, 'should be whitening'
+    do_whitening = (center_mean is not None and
+                    center_std is not None and
+                    center_std != 0.0)
+    #assert do_whitening, 'should be whitening'
 
     if showprog:
         # progress iterator should be outside of this function
@@ -232,7 +289,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                                            nTotal=num_batches, lbl=lbl,
                                            time_thresh=time_thresh,
                                            time_thresh_growth=time_thresh_growth,
-                                           adjust=True)
+                                           adjust=adjust)
 
     DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
 
@@ -247,9 +304,10 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
 
     for batch_index in batch_index_iter:
         # Get batch slice
+        # .113 time fraction
         Xb_orig, yb_orig = utils.slice_data_labels(
             X, y, batch_size, batch_index,
-            data_per_label_input, wraparound=equal_batch_sizes)  # .113 time fraction
+            data_per_label_input, wraparound=equal_batch_sizes)
         # FIRST CONVERT TO 0/1
         Xb = Xb_orig.copy().astype(np.float32)
         if needs_convert:
@@ -294,8 +352,10 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             if data_per_label_input > 1:
                 # TODO: FIX data_per_label_input ISSUES
                 if getattr(model, 'needs_padding', False):
-                    # most models will do the padding implicitly in the layer architecture
-                    yb_buffer = -np.ones(len(yb) * (data_per_label_input - 1), np.int32)
+                    # most models will do the padding implicitly
+                    # in the layer architecture
+                    pad_size = len(yb) * (data_per_label_input - 1)
+                    yb_buffer = -np.ones(pad_size, np.int32)
                     yb = np.hstack((yb, yb_buffer))
             yb = yb.astype(np.int32)
         # Convert cv2 format to Lasagne format for batching
@@ -303,9 +363,12 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             Xb = Xb.transpose((0, 3, 1, 2))
         if verbose or veryverbose:
             if veryverbose or (batch_index + 1) % num_batches <= 1:
-                print('[batchiter] Yielding batch: batch_index = %r ' % (batch_index,))
-                print('[batchiter]   * Xb.shape = %r, Xb.dtype=%r' % (Xb.shape, Xb.dtype))
-                print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (yb.shape, yb.dtype))
+                print('[batchiter] Yielding batch: batch_index = %r ' % (
+                    batch_index,))
+                print('[batchiter]   * Xb.shape = %r, Xb.dtype=%r' % (
+                    Xb.shape, Xb.dtype))
+                print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (
+                    yb.shape, yb.dtype))
                 print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
         # Ugg, we can't have data and labels of different lengths
         #del Xb_orig
@@ -315,181 +378,13 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         print('[batchiter] END')
 
 
-def output_confusion_matrix(X_test, results_path,  test_results, model, **kwargs):
-    """ currently hacky implementation, fix it later """
-    loss, accu_test, prob_list, auglbl_list, pred_list, conf_list = test_results
-    # Output confusion matrix
-    # Grab model
-    #model = kwargs.get('model', None)
-    mapping_fn = None
-    if model is not None:
-        mapping_fn = getattr(model, 'label_order_mapping', None)
-    # TODO: THIS NEEDS TO BE FIXED
-    label_list = list(range(kwargs.get('output_dims')))
-    # Encode labels if avaialble
-    #encoder = kwargs.get('encoder', None)
-    encoder = getattr(model, 'encoder', None)
-    if encoder is not None:
-        label_list = encoder.inverse_transform(label_list)
-    # Make confusion matrix (pass X to write out failed cases)
-    draw_net.show_confusion_matrix(auglbl_list, pred_list, label_list, results_path,
-                                   mapping_fn, X_test)
-
-
-#def create_sliced_iter_funcs_train2(model, X_unshared, y_unshared):
-#    """
-#    WIP: NEW IMPLEMENTATION WITH PRELOADING GPU DATA
-
-#    build the Theano functions (symbolic expressions) that will be used in the
-#    optimization refer to this link for info on tensor types:
-
-#    References:
-#        http://deeplearning.net/software/theano/library/tensor/basic.html
-#        http://deeplearning.net/software/theano/tutorial/aliasing.html#borrowing-when-creating-shared-variables
-#        http://deeplearning.net/tutorial/lenet.html
-#        # TODO: Deal with batching to the GPU by setting the value of the shared variables.
-
-#    CommandLine:
-#        python -m ibeis_cnn.batch_processing --test-create_sliced_iter_funcs_train2
-
-#    Example:
-#        >>> # DISABLE_DOCTEST
-#        >>> from ibeis_cnn.batch_processing import *  # NOQA
-#        >>> from ibeis_cnn import draw_net
-#        >>> from ibeis_cnn import models
-#        >>> model = models.DummyModel(autoinit=True)
-#        >>> X_unshared, y_unshared = model.make_random_testdata()
-#        >>> train_iter = model.build_theano_funcs(model)
-#        >>> print(train_iter)
-#        >>> loss_train, newtork_output, prediction, accuracy = train_iter(0)
-#        >>> print('loss = %r' % (loss,))
-#        >>> print('net_out = %r' % (outvec,))
-#        >>> print('newtork_output = %r' % (newtork_output,))
-#        >>> print('accuracy = %r' % (accuracy,))
-#        >>> #draw_net.draw_theano_symbolic_expression(train_iter)
-#        >>> assert outvec.shape == (model.batch_size, model.output_dims)
-#    """
-#    # Attempt to load data on to the GPU
-#    # Labels to go into the GPU as float32 and then cast to int32 once inside
-#    X_unshared = np.asarray(X_unshared, dtype=theano.config.floatX)
-#    y_unshared = np.asarray(y_unshared, dtype=theano.config.floatX)
-
-#    X_shared = theano.shared(X_unshared, borrow=True)
-#    y_shared = T.cast(theano.shared(y_unshared, borrow=True), 'int32')
-
-#    # Build expressions which sample a batch
-#    batch_size = model.batch_size
-
-#    # Initialize symbolic input variables
-#    index = T.lscalar(name='index')
-#    X_batch = T.tensor4(name='X_batch')
-#    y_batch = T.ivector(name='y_batch')
-
-#    WHITEN = False
-#    if WHITEN:
-#        # We might be able to perform some data augmentation here symbolicly
-#        data_mean = X_unshared.mean()
-#        data_std = X_unshared.std()
-#        givens = {
-#            X_batch: (X_shared[index * batch_size: (index + 1) * batch_size] - data_mean) / data_std,
-#            y_batch: y_shared[index * batch_size: (index + 1) * batch_size],
-#        }
-#    else:
-#        givens = {
-#            X_batch: X_shared[index * batch_size: (index + 1) * batch_size],
-#            y_batch: y_shared[index * batch_size: (index + 1) * batch_size],
-#        }
-
-#    output_layer = model.get_output_layer()
-
-#    # Build expression to evalute network output without dropout
-#    #newtork_output = output_layer.get_output(X_batch, deterministic=True)
-#    newtork_output = layers.get_output(output_layer, X_batch, deterministic=True)
-#    newtork_output.name = 'network_output'
-
-#    # Build expression to evaluate loss
-#    objective = objectives.Objective(output_layer, loss_function=model.loss_function)
-#    loss_train = objective.get_loss(X_batch, target=y_batch)  # + 0.0001 * lasagne.regularization.l2(output_layer)
-#    loss_train.name = 'loss_train'
-
-#    # Build expression to evaluate updates
-#    with warnings.catch_warnings():
-#        warnings.filterwarnings('ignore', '.*topo.*')
-#        all_params = lasagne.layers.get_all_params(output_layer, trainable=True)
-#    updates = lasagne.updates.nesterov_momentum(loss_train, all_params, model.learning_rate, model.momentum)
-
-#    # Get performance indicator outputs:
-
-#    # Build expression to convert network output into a prediction
-#    prediction = model.make_prediction_expr(newtork_output)
-
-#    # Build expression to compute accuracy
-#    accuracy = model.make_accuracy_expr(prediction, y_batch)
-
-#    theano_backprop = theano.function(
-#        inputs=[index],
-#        outputs=[loss_train, newtork_output, prediction, accuracy],
-#        updates=updates,
-#        givens=givens
-#    )
-#    theano_backprop.name += ':theano_backprob:indexed'
-
-#    #other_outputs = [probabilities, predictions, confidences]
-
-#    #theano_backprop = theano.function(
-#    #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-#    #    outputs=[loss] + other_outputs,
-#    #    updates=updates,
-#    #    givens={
-#    #        X: X_batch,
-#    #        y: y_batch,
-#    #    },
-#    #)
-
-#    #theano_forward = theano.function(
-#    #    inputs=[theano.Param(X_batch), theano.Param(y_batch)],
-#    #    outputs=[loss_determ] + other_outputs,
-#    #    updates=None,
-#    #    givens={
-#    #        X: X_batch,
-#    #        y: y_batch,
-#    #    },
-#    #)
-
-#    #theano_predict = theano.function(
-#    #    inputs=[theano.Param(X_batch)],
-#    #    outputs=other_outputs,
-#    #    updates=None,
-#    #    givens={
-#    #        X: X_batch,
-#    #    },
-#    #)
-
-#    return theano_backprop
-
-
-#def create_sliced_network_output_func(model):
-#    # Initialize symbolic input variables
-#    X_batch = T.tensor4(name='X_batch')
-#    # weird, idk why X and y exist
-#    X = T.tensor4(name='X_batch')
-
-#    output_layer = model.get_output_layer()
-
-#    # Build expression to evalute network output without dropout
-#    #newtork_output = output_layer.get_output(X_batch, deterministic=True)
-#    newtork_output = layers.get_output(output_layer, X_batch, deterministic=True)
-#    newtork_output.name = 'network_output'
-
-#    theano_forward = theano.function(
-#        inputs=[theano.Param(X_batch)],
-#        outputs=[newtork_output],
-#        givens={
-#            X: X_batch,
-#        }
-#    )
-#    theano_forward.name += ':theano_forward:sliced'
-#    return theano_forward
+def concatenate_hack(sequence, axis=0):
+    # Hack to fix numpy bug. concatenate should do hstacks on 0-dim arrays
+    if len(sequence) > 0 and len(sequence[1].shape) == 0:
+        res = np.hstack(sequence)
+    else:
+        res = np.concatenate(sequence, axis=axis)
+    return res
 
 
 if __name__ == '__main__':
