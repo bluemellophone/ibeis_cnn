@@ -240,6 +240,7 @@ class SiameseL2(AbstractSiameseModel):
 
         CommandLine:
             python -m ibeis_cnn.models.siam --test-SiameseL2.initialize_architecture --verbcnn --show
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --verbcnn --show
 
         Example:
             >>> # ENABLE_DOCTEST

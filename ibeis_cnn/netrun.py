@@ -66,16 +66,20 @@ def netrun():
         # --- DATASET BUILDING ---
         # Build Dataset Aliases
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
-        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl --ensuredata
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl:pername=None --ensuredata
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show
+        python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
 
+        # Parts based datasets
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
 
         # --- TRAINING ---
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --train --weights=new --arch=siaml2_128  --monitor  # NOQA
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor --DEBUG_AUGMENTATION
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
+
+        python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=siaml2_128 --train --monitor
 
         # --- INITIALIZED-TRAINING ---
         python -m ibeis_cnn --tf netrun --ds pzmtest --arch=siaml2_128 --weights=gz-gray:current --train --monitor
@@ -139,7 +143,8 @@ def netrun():
             **hyperparams)
     elif arch_tag == 'mnist-category':
         model = models.MNISTModel(
-            data_shape=dataset.data_shape, output_dims=dataset.output_dims,
+            data_shape=dataset.data_shape,
+            output_dims=dataset.output_dims,
             training_dpath=dataset.training_dpath, **hyperparams)
         pass
     else:

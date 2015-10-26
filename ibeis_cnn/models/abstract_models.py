@@ -62,36 +62,52 @@ def evaluate_layer_list(network_layers_def, verbose=None):
     """ compiles a sequence of partial functions into a network """
     if verbose is None:
         verbose = utils.VERBOSE_CNN
+    total = len(network_layers_def)
     network_layers = []
+    if verbose:
+        print('Evaluting List of %d Layers' % (total,))
     layer_fn_iter = iter(network_layers_def)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            'ignore', '.*The uniform initializer no longer uses Glorot.*')
-        try:
-            count = 0
-            if verbose:
-                tt = ut.Timer(verbose=False)
-                print('Evaluating layer %d' % (count,))
-                tt.tic()
-            prev_layer = six.next(layer_fn_iter)()
-            network_layers.append(prev_layer)
+    #if True:
+    #with warnings.catch_warnings():
+    #    warnings.filterwarnings(
+    #        'ignore', '.*The uniform initializer no longer uses Glorot.*')
+    try:
+        with ut.Indenter(' ' * 4, enabled=verbose):
+            next_args = tuple()
             for count, layer_fn in enumerate(layer_fn_iter, start=1):
                 if verbose:
-                    print('  * took %.4s' % (tt.toc(),))
-                    print('Evaluating layer %d' % (count,))
-                    print('  * prev_layer = %r' % (prev_layer,))
-                    print('  * prev_layer.output_shape = %r' % (
-                        prev_layer.output_shape,))
-                    tt.tic()
-                prev_layer = layer_fn(prev_layer)
-                network_layers.append(prev_layer)
-        except Exception as ex:
-            ut.printex(
-                ex,
-                ('Error buildling layers.\n'
-                 'prev_layer.name=%r\n'
-                 'count=%r') % (prev_layer, count))
-            raise
+                    print('Evaluating layer %d/%d (%s) ' %
+                          (count, total, ut.get_funcname(layer_fn), ))
+                with ut.Timer(verbose=False) as tt:
+                    layer = layer_fn(*next_args)
+                next_args = (layer,)
+                network_layers.append(layer)
+                if verbose:
+                    print('  * took %.4fs' % (tt.toc(),))
+                    print('  * layer = %r' % (layer,))
+                    if hasattr(layer, 'input_shape'):
+                        print('  * layer.input_shape = %r' % (
+                            layer.input_shape,))
+                    if hasattr(layer, 'shape'):
+                        print('  * layer.shape = %r' % (
+                            layer.shape,))
+                    print('  * layer.output_shape = %r' % (
+                        layer.output_shape,))
+    except Exception as ex:
+        ut.printex(
+            ex,
+            ('Error buildling layers.\n'
+             'layer.name=%r') % (layer),
+            keys=[
+                'layer_fn',
+                'layer_fn.func',
+                'layer_fn.args',
+                'layer_fn.keywords',
+                'layer',
+                'count'
+            ],
+        )
+        raise
     return network_layers
 
 

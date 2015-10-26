@@ -194,16 +194,22 @@ class DataSet(object):
         return dataset.load_subset_metadata()
 
     def interact(dataset, **kwargs):
+        """
+        python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
+        """
         from ibeis_cnn import draw_results
-        interact_func = draw_results.interact_siamsese_data_patches
+        #interact_func = draw_results.interact_siamsese_data_patches
+        interact_func = draw_results.interact_dataset
         # Automatically infer which lazy properties are needed for the
         # interaction.
         kwargs_list = ut.recursive_parse_kwargs(interact_func)
-        interact_kw = {key: dataset.getprop(key) for key in kwargs_list if dataset.hasprop(key)}
+        interact_kw = {key: dataset.getprop(key)
+                       for key in kwargs_list if dataset.hasprop(key)}
         interact_kw.update(**kwargs)
         # TODO : generalize
         return interact_func(
-            dataset.labels, dataset.data, dataset.metadata, **interact_kw)
+            dataset.labels, dataset.data, dataset.metadata, dataset.data_per_label,
+            **interact_kw)
 
 
 def get_alias_dict_fpath():

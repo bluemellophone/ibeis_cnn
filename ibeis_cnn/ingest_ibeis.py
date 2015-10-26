@@ -185,7 +185,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
         >>> rchip1_list, rchip2_list = extract_annotpair_training_chips(ibs, aid_pairs)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results  # NOQA
-        >>> interact = draw_results.interact_patches(label_list, rchip1_list, rchip2_list, flat_metadata, chunck_sizes=(2, 2), ibs=ibs)
+        >>> interact = draw_results.interact_patches(label_list, (rchip1_list, rchip2_list), flat_metadata, chunck_sizes=(2, 2), ibs=ibs)
         >>> ut.show_if_requested()
     """
 
@@ -316,7 +316,7 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         >>> aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata = tup
         >>> ut.quit_if_noshow()
         >>> label_list = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
-        >>> draw_results.interact_patches(label_list, warped_patch1_list, warped_patch2_list, flat_metadata)
+        >>> draw_results.interact_patches(label_list, (warped_patch1_list, warped_patch2_list), flat_metadata)
         >>> ut.show_if_requested()
     """
     import vtool as vt

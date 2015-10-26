@@ -153,6 +153,8 @@ def grab_dataset(ds_tag=None, datatype='siam-patch'):
         return grab_siam_dataset(ds_tag=ds_tag)
     elif datatype == 'siam-part':
         return get_ibeis_part_siam_dataset()
+    elif datatype == 'category':
+        return grab_mnist_category_dataset()
 
 
 def grab_siam_dataset(ds_tag=None):
