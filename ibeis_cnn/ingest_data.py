@@ -148,6 +148,13 @@ def merge_datasets(dataset_list):
     return merged_dataset
 
 
+def grab_dataset(ds_tag=None, datatype='siam-patch'):
+    if datatype == 'siam-patch':
+        return grab_siam_dataset(ds_tag=ds_tag)
+    elif datatype == 'siam-part':
+        return get_ibeis_part_siam_dataset()
+
+
 def grab_siam_dataset(ds_tag=None):
     r"""
     Will build the dataset using the command line if it doesn't exist

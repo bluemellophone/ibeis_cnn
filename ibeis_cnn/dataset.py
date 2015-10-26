@@ -67,6 +67,9 @@ class DataSet(object):
         # Probably should be refactored
         dataset._lazy_cache = ut.LazyDict()
 
+    def hasprop(dataset, key):
+        return key in dataset._lazy_cache.keys()
+
     def getprop(dataset, key):
         return dataset._lazy_cache[key]
 
@@ -192,9 +195,15 @@ class DataSet(object):
 
     def interact(dataset, **kwargs):
         from ibeis_cnn import draw_results
+        interact_func = draw_results.interact_siamsese_data_patches
+        # Automatically infer which lazy properties are needed for the
+        # interaction.
+        kwargs_list = ut.recursive_parse_kwargs(interact_func)
+        interact_kw = {key: dataset.getprop(key) for key in kwargs_list if dataset.hasprop(key)}
+        interact_kw.update(**kwargs)
         # TODO : generalize
-        return draw_results.interact_siamsese_data_patches(
-            dataset.labels, dataset.data, dataset.metadata, **kwargs)
+        return interact_func(
+            dataset.labels, dataset.data, dataset.metadata, **interact_kw)
 
 
 def get_alias_dict_fpath():

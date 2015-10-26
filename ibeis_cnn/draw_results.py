@@ -201,7 +201,10 @@ def get_patch_chunk(warped_patch1_list, warped_patch2_list, label_list,
 
     # Draw scores
     # Ipython embed hates dict comprehensions and locals
-    with ut.embed_on_exception_context:
+    #with ut.embed_on_exception_context:
+    if flat_metadata is None:
+        flat_metadata_subset = {}
+    else:
         flat_metadata_subset = dict([(key, ut.list_take(vals, indicies))
                                      for key, vals in six.iteritems(flat_metadata)])
     patch_texts = None
@@ -289,7 +292,10 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
         else:
             raise NotImplementedError('sortby = %r' % (sortby,))
     else:
-        index_list = list(range(len(label_list)))
+        import vtool as vt
+        unique_labels, groupxs = vt.group_indices(label_list)
+        index_list = list(ut.interleave(groupxs[::-1]))
+        #index_list = list(range(len(label_list)))
 
     #chunck_sizes = (6, 8)
     if chunck_sizes is None:
@@ -330,19 +336,22 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
             if figtitle is not None:
                 print(figtitle)
                 pt.set_figtitle(figtitle)
-            pt.adjust_subplots(left=0, right=1.0, top=1.0, bottom=0.0, wspace=.1, hspace=0)
+            pt.adjust_subplots(left=0, right=1.0, top=1.0, bottom=0.0,
+                               wspace=.1, hspace=0)
             pt.show_figure(fig)
             if once_:
                 pt.present()
                 once_ = False
     else:
         from plottool import abstract_interaction
+        BASE_CLASS = abstract_interaction.AbstractPagedInteraction
         assert len(chunck_sizes) == 2
         nCols = chunck_sizes[0]
 
-        class InteractSiamPatches(abstract_interaction.AbstractPagedInteraction):
+        class InteractSiamPatches(BASE_CLASS):
             def __init__(self, **kwargs):
-                super(InteractSiamPatches, self).__init__(nPages=len(multi_chunked_indicies), **kwargs)
+                nPages = len(multi_chunked_indicies)
+                super(InteractSiamPatches, self).__init__(nPages, **kwargs)
                 self.multi_chunked_indicies = multi_chunked_indicies
                 self.warped_patch1_list = warped_patch1_list
                 self.warped_patch2_list = warped_patch2_list
@@ -412,7 +421,8 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
                         size_list = np.array(orig_size_list) * sf_list
                         num_cols = 2
                         num_rows = (len(offset_list) // num_cols)
-                        _subindex = find_offset_index(offset_list, size_list, x, y)
+                        _subindex = find_offset_index(
+                            offset_list, size_list, x, y)
                         row_index = _subindex % num_rows
                         col_index = _subindex // num_rows
                         label_index = self.multiindicies[plot_index][row_index]
@@ -429,7 +439,8 @@ def interact_patches(label_list, warped_patch1_list, warped_patch2_list,
                 if label_index is not None:
                     for key, val in self.flat_metadata.items():
                         if len(val) == len(self.label_list):
-                            print('self.flat_metadata[%s][%d] = %r' % (key, label_index, val[label_index]) )
+                            print('self.flat_metadata[%s][%d] = %r' % (
+                                key, label_index, val[label_index]) )
 
                     if 'aid_pairs' in self.flat_metadata:
                         aid1, aid2 = self.flat_metadata['aid_pairs'][label_index]

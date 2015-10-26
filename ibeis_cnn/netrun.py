@@ -65,9 +65,12 @@ def netrun():
 
         # --- DATASET BUILDING ---
         # Build Dataset Aliases
-        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl --ensuredata
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl:pername=None --ensuredata
+        python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show
+
 
         # --- TRAINING ---
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --train --weights=new --arch=siaml2_128  --monitor  # NOQA
@@ -90,6 +93,7 @@ def netrun():
 
     requests, hyperparams, tags = parse_args()
     ds_tag         = tags['ds_tag']
+    datatype       = tags['datatype']
     extern_ds_tag  = tags['extern_ds_tag']
     arch_tag       = tags['arch_tag']
     checkpoint_tag = tags['checkpoint_tag']
@@ -97,7 +101,7 @@ def netrun():
     # ----------------------------
     # Choose the main dataset
     ut.colorprint('[netrun] Ensuring Dataset', 'white')
-    dataset = ingest_data.grab_siam_dataset(ds_tag)
+    dataset = ingest_data.grab_dataset(ds_tag, datatype)
     if extern_ds_tag is not None:
         extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
     else:
@@ -108,6 +112,9 @@ def netrun():
         print('Dataset Alias Key: %r' % (dataset.alias_key,))
         print('Current Dataset Tag: %r' % (
             ut.invert_dict(DS_TAG_ALIAS2).get(dataset.alias_key, None),))
+        if ut.show_was_requested():
+            interact_ = dataset.interact()  # NOQA
+            return
         sys.exit(1)
 
     # ----------------------------
@@ -216,8 +223,24 @@ def parse_args():
 
     # Parse commandline args
     ds_tag      = ut.get_argval(('--dataset', '--ds'), type_=str, default=ds_default)
+    datatype    = ut.get_argval(('--datatype', '--dt'), type_=str, default='siam-patch')
     arch_tag    = ut.get_argval(('--arch', '-a'), default=arch_default)
     weights_tag = ut.get_argval(('--weights', '+w'), type_=str, default=weights_tag_default)
+
+    # Incorporate new config stuff?
+    #NEW = False
+    #if NEW:
+    #    from ibeis.experiments import cfghelpers
+    #    default_dstag_cfg = {
+    #        'ds': 'PZ_MTEST',
+    #        'mode': 'patches',
+    #        'arch': arch_default
+    #    }
+    #    named_defaults_dict = {
+    #        '': default_dstag_cfg
+    #    }
+    #    cfghelpers.parse_argv_cfg('dstag', named_defaults_dict=named_defaults_dict)
+
     hyperparams = ut.argparse_dict(
         {
             #'batch_size': 128,
@@ -259,6 +282,7 @@ def parse_args():
         'extern_ds_tag': extern_ds_tag,
         'checkpoint_tag': checkpoint_tag,
         'arch_tag': arch_tag,
+        'datatype': datatype,
     }
     ut.colorprint('[netrun] * ds_tag=%r' % (ds_tag,), 'lightgray')
     ut.colorprint('[netrun] * arch_tag=%r' % (arch_tag,), 'lightgray')
