@@ -84,6 +84,7 @@ def netrun():
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
 
         python -m ibeis_cnn --tf netrun --ds flankhack --weights=new --arch=siaml2_partmatch --train --monitor --learning_rate=.00001
+        python -m ibeis_cnn --tf netrun --ds flankhack --weights=new --arch=siam_deepfaceish --train --monitor --learning_rate=.00001
 
         # Different ways to train mnist
         python -m ibeis_cnn --tf netrun --db mnist --weights=new --arch=mnist_siaml2 --train --monitor --datatype=siam-patch

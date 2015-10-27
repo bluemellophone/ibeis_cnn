@@ -42,6 +42,23 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         time_thresh_growth=ut.PHI * 2,
     )
 
+    batchtrain_kw = ut.merge_dicts(
+        batchiter_kw,
+        {
+            'augment_on': True,
+            'randomize_batch_order': True,
+            'buffered': True,
+        }
+    )
+
+    batchtest_kw = ut.merge_dicts(
+        batchiter_kw,
+        {
+            'augment_on': False,
+            'randomize_batch_order': False,
+        }
+    )
+
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
     model.assert_valid_data(X_train)
@@ -131,8 +148,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # ---------------------------------------
             # Run training set
             train_outputs = batch.process_batch(
-                model, X_train, y_train, theano_backprop, augment_on=True,
-                randomize_batch_order=True, buffered=True, **batchiter_kw)
+                model, X_train, y_train, theano_backprop, **batchtrain_kw)
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
             epoch_info['train_loss_regularized'] = (
@@ -165,8 +181,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             # Run validation set
             valid_outputs = batch.process_batch(
-                model, X_valid, y_valid, theano_forward, augment_on=False,
-                randomize_batch_order=False, **batchiter_kw)
+                model, X_valid, y_valid, theano_forward, **batchtest_kw)
             epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
             epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
             if 'valid_acc' in model.requested_headers:
@@ -179,8 +194,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             request_determ_loss = False
             if request_determ_loss:
                 train_determ_outputs = batch.process_batch(
-                    model, X_train, y_train, theano_forward, augment_on=False,
-                    randomize_batch_order=False, **batchiter_kw)
+                    model, X_train, y_train, theano_forward, **batchiter_kw)
                 epoch_info['train_loss_determ'] = (
                     train_determ_outputs['loss_determ'].mean())
 
@@ -189,8 +203,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             if request_test:
                 raise NotImplementedError('not done yet')
                 test_outputs = batch.process_batch(
-                    model, X_train, y_train, theano_forward, augment_on=False,
-                    randomize_batch_order=False, **batchiter_kw)
+                    model, X_train, y_train, theano_forward, **batchiter_kw)
                 test_loss = test_outputs['loss_determ'].mean()  # NOQA
                 #if kwargs.get('show_confusion', False):
                 #    draw_net.output_confusion_matrix(X_test, results_dpath,

@@ -160,6 +160,77 @@ class SiameseL2(AbstractSiameseModel):
         #raise NotImplementedError('The 2-channel part is not yet implemented')
         return network_layers_def
 
+    def get_siam_deepfaceish_def(model, verbose=True, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam_deepfaceish --datashape=128,256,1 --verbose  --show
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam_deepface --datashape=152,152,3 --verbose  --show
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        _tmp = [1]
+
+        def CDP_layer(num_filters=32,
+                              conv_size=(5, 5), conv_stride=(3, 3),
+                              pool_size=(2, 2), pool_stride=(2, 2),
+                              drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+                _P(MaxPool2DLayer, pool_size=pool_size, stride=pool_stride, name='P' + str(num)),
+            ]
+
+        def CD_layer(num_filters=32,
+                     conv_size=(5, 5), conv_stride=(3, 3),
+                     drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+            ]
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape)
+            ]  +
+            CDP_layer( 32, (11, 11), (1, 1), (3, 3), (2, 2)) +
+            CD_layer( 16, ( 9,  9), (1, 2)) +
+            CD_layer( 16, ( 9,  9), (1, 1)) +
+            CD_layer( 16, ( 9,  9), (1, 1)) +
+            CD_layer( 16, ( 9,  9), (2, 2)) +
+            [
+                _P(layers.DenseLayer, num_units=128, name='F1',  **hidden_initkw),
+                _P(layers.DenseLayer, num_units=64, name='F2',  **hidden_initkw),
+                _P(layers.DenseLayer, num_units=64, name='F3',  **hidden_initkw),
+            ] +
+            #CD_layer(128, (3, 3), (2, 2)) +
+            #CD_layer(96, (2, 2), (1, 1)) +
+            #CD_layer(64, (2, 2), (1, 1)) +
+            #CD_layer(64, (1, 1), (1, 1)) +
+            #CD_layer(64, (2, 1), (2, 2)) +
+            [
+                #_P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C3_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C4_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(2, 1), stride=(2, 2), name='C4_128', **hidden_initkw),
+                #_P(layers.FlattenLayer, outdim=2, name='flatten128'),
+                _P(custom_layers.L2NormalizeLayer, axis=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
     def get_siaml2_partmatch_def(model, verbose=True, **kwargs):
         """
         CommandLine:
@@ -390,8 +461,8 @@ class SiameseL2(AbstractSiameseModel):
         dist_l2 = T.sqrt(((vecs1 - vecs2) ** 2).sum(axis=1))
         loss = constrastive_loss(dist_l2, labels, margin, T=T)
         # Ignore the hardest cases
-        num_ignore = 3
-        loss = ignore_hardest_cases(loss, labels, num_ignore=num_ignore, T=T)
+        #num_ignore = 3
+        #loss = ignore_hardest_cases(loss, labels, num_ignore=num_ignore, T=T)
         return loss
 
     def learn_encoder(model, labels, scores, **kwargs):
