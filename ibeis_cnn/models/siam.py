@@ -213,7 +213,7 @@ class SiameseL2(AbstractSiameseModel):
             [
                 _P(layers.DenseLayer, num_units=128, name='F1',  **hidden_initkw),
                 _P(layers.DenseLayer, num_units=64, name='F2',  **hidden_initkw),
-                _P(layers.DenseLayer, num_units=64, name='F3',  **hidden_initkw),
+                #_P(layers.DenseLayer, num_units=64, name='F3',  **hidden_initkw),
             ] +
             #CD_layer(128, (3, 3), (2, 2)) +
             #CD_layer(96, (2, 2), (1, 1)) +
