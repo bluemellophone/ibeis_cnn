@@ -564,8 +564,8 @@ def augment_siamese_patches2(Xb, yb=None, rng=np.random):
         >>> ut.show_if_requested()
     """
     augment_affine(Xb, yb, rng)
-    augment_shadow(Xb, yb, rng)
-    augment_gamma(Xb, yb, rng)
+    #augment_shadow(Xb, yb, rng)
+    #augment_gamma(Xb, yb, rng)
     return Xb, yb
 
 

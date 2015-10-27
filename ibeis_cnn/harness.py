@@ -46,6 +46,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         batchiter_kw,
         {
             'augment_on': True,
+            #'augment_on': False,
             'randomize_batch_order': True,
             'buffered': True,
         }
