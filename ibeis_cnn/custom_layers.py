@@ -20,7 +20,7 @@ try:
     # will not be available without a GPU
 
     conv_impl = 'cuDNN'
-    #conv_impl = 'cuda_convnet'
+    conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
 
@@ -33,6 +33,18 @@ try:
         import lasagne.layers.dnn
         Conv2DLayer = lasagne.layers.dnn.Conv2DDNNLayer
         MaxPool2DLayer = lasagne.layers.dnn.MaxPool2DDNNLayer
+        """
+        Need cuda convnet for background model otherwise
+        <type 'exceptions.ValueError'>: GpuReshape: cannot reshape input of shape (128, 12, 26, 26) to shape (128, 676).
+        Apply node that caused the error: GpuReshape{2}(GpuElemwise{Composite{((i0 * (i1 + i2)) + (i3 * Abs((i1 + i2))))}}[(0, 1)].0, TensorConstant{[128 676]})
+        Toposort index: 36
+        Inputs types: [CudaNdarrayType(float32, 4D), TensorType(int64, vector)]
+        Inputs shapes: [(128, 12, 26, 26), (2,)]
+        Inputs strides: [(676, 86528, 26, 1), (8,)]
+        Inputs values: ['not shown', array([128, 676])]
+        Outputs clients: [[GpuDot22(GpuReshape{2}.0, GpuReshape{2}.0)]]
+
+        """
     elif conv_impl == 'gemm':
         # Dont use gemm
         import lasagne.layers.corrmm
