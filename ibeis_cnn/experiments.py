@@ -110,7 +110,8 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Save
     pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
-    pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
+    if SIFT:
+        pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
 
     # Save out examples of hard errors
     #cnn_fp_label_indicies, cnn_fn_label_indicies =
