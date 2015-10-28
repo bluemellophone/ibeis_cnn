@@ -899,7 +899,7 @@ def get_background_training_patches2(ibs, dest_path=None, patch_size=48,
     return args
 
 
-def get_cnn_detector_training_images(ibs, dest_path=None, image_size=256):
+def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
     from os.path import join, expanduser
 
     def resize_target(image, target_height=None, target_width=None):
