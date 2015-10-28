@@ -210,7 +210,8 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
             chip_list = list(chip_list)
             nInput = len(chip_list)
 
-    batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
+    # batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
+    batch_size = None
 
     OLD = False
     if OLD:
@@ -537,7 +538,8 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     data_shape = (96, 96, 3)
     # Define model and load weights
     print('Loading model...')
-    batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_list_resized)))))
+    # batch_size = int(min(128, 2 ** np.floor(np.log2(len(chip_list_resized)))))
+    batch_size = None
     model = models.ViewpointModel(batch_size=batch_size, data_shape=data_shape)
     weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
     old_weights_fpath = weights_path
