@@ -72,8 +72,10 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
-    sift_scores = sift_scores.astype(np.float64)
+    SIFT = False
+    if SIFT:
+        sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
+        sift_scores = sift_scores.astype(np.float64)
 
     ut.colorprint('[siam_perf] Learning Encoders', 'white')
     # Learn encoders
@@ -84,8 +86,9 @@ def test_siamese_performance(model, data, labels, dataname=''):
     cnn_encoder = vt.ScoreNormalizer(**encoder_kw)
     cnn_encoder.fit(cnn_scores, labels)
 
-    sift_encoder = vt.ScoreNormalizer(**encoder_kw)
-    sift_encoder.fit(sift_scores, labels)
+    if SIFT:
+        sift_encoder = vt.ScoreNormalizer(**encoder_kw)
+        sift_encoder.fit(sift_scores, labels)
 
     #ut.embed()
 
@@ -100,9 +103,10 @@ def test_siamese_performance(model, data, labels, dataname=''):
     inter_cnn = cnn_encoder.visualize(
         figtitle=dataname + ' CNN scores. #data=' + str(len(data)),
         fnum=fnum_gen(), **viz_kw)
-    inter_sift = sift_encoder.visualize(
-        figtitle=dataname + ' SIFT scores. #data=' + str(len(data)),
-        fnum=fnum_gen(), **viz_kw)
+    if SIFT:
+        inter_sift = sift_encoder.visualize(
+            figtitle=dataname + ' SIFT scores. #data=' + str(len(data)),
+            fnum=fnum_gen(), **viz_kw)
 
     # Save
     pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
@@ -118,7 +122,8 @@ def test_siamese_performance(model, data, labels, dataname=''):
     if with_patch_examples:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
-        sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
+        if SIFT:
+            sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
 
         warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
         _sample = functools.partial(draw_results.get_patch_sample_img,
@@ -129,10 +134,11 @@ def test_siamese_performance(model, data, labels, dataname=''):
         cnn_tp_img = _sample({'fs': cnn_scores}, cnn_indicies.tp)[0]
         cnn_tn_img = _sample({'fs': cnn_scores}, cnn_indicies.tn)[0]
 
-        sift_fp_img = _sample({'fs': sift_scores}, sift_indicies.fp)[0]
-        sift_fn_img = _sample({'fs': sift_scores}, sift_indicies.fn)[0]
-        sift_tp_img = _sample({'fs': sift_scores}, sift_indicies.tp)[0]
-        sift_tn_img = _sample({'fs': sift_scores}, sift_indicies.tn)[0]
+        if SIFT:
+            sift_fp_img = _sample({'fs': sift_scores}, sift_indicies.fp)[0]
+            sift_fn_img = _sample({'fs': sift_scores}, sift_indicies.fn)[0]
+            sift_tp_img = _sample({'fs': sift_scores}, sift_indicies.tp)[0]
+            sift_tn_img = _sample({'fs': sift_scores}, sift_indicies.tn)[0]
 
         #if ut.show_was_requested():
         #def rectify(arr):
