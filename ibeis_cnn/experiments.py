@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import functools
@@ -7,14 +8,16 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.experiments]')
 
 
 def test_siamese_performance(model, data, labels, dataname=''):
-    """
-    python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
-    python -m ibeis_cnn.train --test-train_patchmatch_pz --show --test
+    r"""
+    CommandLine:
+        python -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
+        python -m ibeis_cnn --tf pz_patchmatch --db pzmtest --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
     """
     import vtool as vt
     from ibeis_cnn import harness
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
+    ut.colorprint('\n[siam_perf] Testing Siamese Performance', 'white')
     epoch_dpath = model.get_epoch_diagnostic_dpath()
     ut.vd(epoch_dpath)
 
@@ -36,10 +39,12 @@ def test_siamese_performance(model, data, labels, dataname=''):
     import plottool as pt
     fnum_gen = pt.make_fnum_nextgen()
 
+    ut.colorprint('[siam_perf] Show era history', 'white')
     fig = model.show_era_history(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
 
     # hack
+    ut.colorprint('[siam_perf] Show weights image', 'white')
     fig = model.show_weights_image(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
     #model.draw_all_conv_layer_weights(fnum=fnum_gen())
@@ -48,6 +53,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #ut.embed()
 
     # Compute each type of score
+    ut.colorprint('[siam_perf] Building Scores', 'white')
     test_outputs = harness.test_data2(model, data, labels)
     network_output = test_outputs['network_output_determ']
     # hack converting network output to distances for non-descriptor networks
@@ -62,11 +68,16 @@ def test_siamese_performance(model, data, labels, dataname=''):
         cnn_scores = vt.L2(vecs1, vecs2)
     else:
         assert False
+    cnn_scores = cnn_scores.astype(np.float64)
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
+    SIFT = False
+    if SIFT:
+        sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
+        sift_scores = sift_scores.astype(np.float64)
 
+    ut.colorprint('[siam_perf] Learning Encoders', 'white')
     # Learn encoders
     encoder_kw = {
         #'monotonize': False,
@@ -75,94 +86,118 @@ def test_siamese_performance(model, data, labels, dataname=''):
     cnn_encoder = vt.ScoreNormalizer(**encoder_kw)
     cnn_encoder.fit(cnn_scores, labels)
 
-    sift_encoder = vt.ScoreNormalizer(**encoder_kw)
-    sift_encoder.fit(sift_scores, labels)
+    if SIFT:
+        sift_encoder = vt.ScoreNormalizer(**encoder_kw)
+        sift_encoder.fit(sift_scores, labels)
 
     #ut.embed()
 
     # Visualize
-    inter_cnn = cnn_encoder.visualize(figtitle=dataname + ' CNN scores. #data=' + str(len(data)), fnum=fnum_gen())
-    inter_sift = sift_encoder.visualize(figtitle=dataname + ' SIFT scores. #data=' + str(len(data)), fnum=fnum_gen())
+    ut.colorprint('[siam_perf] Visualize Encoders', 'white')
+    viz_kw = dict(
+        with_scores=False,
+        with_postbayes=False,
+        with_prebayes=False,
+        target_tpr=.95,
+    )
+    inter_cnn = cnn_encoder.visualize(
+        figtitle=dataname + ' CNN scores. #data=' + str(len(data)),
+        fnum=fnum_gen(), **viz_kw)
+    if SIFT:
+        inter_sift = sift_encoder.visualize(
+            figtitle=dataname + ' SIFT scores. #data=' + str(len(data)),
+            fnum=fnum_gen(), **viz_kw)
 
     # Save
     pt.save_figure(fig=inter_cnn.fig, dpath=epoch_dpath)
-    pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
+    if SIFT:
+        pt.save_figure(fig=inter_sift.fig, dpath=epoch_dpath)
 
     # Save out examples of hard errors
-    #cnn_fp_label_indicies, cnn_fn_label_indicies = cnn_encoder.get_error_indicies(cnn_scores, labels)
-    #sift_fp_label_indicies, sift_fn_label_indicies = sift_encoder.get_error_indicies(sift_scores, labels)
+    #cnn_fp_label_indicies, cnn_fn_label_indicies =
+    #cnn_encoder.get_error_indicies(cnn_scores, labels)
+    #sift_fp_label_indicies, sift_fn_label_indicies =
+    #sift_encoder.get_error_indicies(sift_scores, labels)
 
-    cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
-    sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
+    with_patch_examples = False
+    if with_patch_examples:
+        ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
+        cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
+        if SIFT:
+            sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
 
-    warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
-    _sample = functools.partial(draw_results.get_patch_sample_img, warped_patch1_list, warped_patch2_list, labels)
+        warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
+        _sample = functools.partial(draw_results.get_patch_sample_img,
+                                    warped_patch1_list, warped_patch2_list, labels)
 
-    cnn_fp_img = _sample({'fs': cnn_scores}, cnn_indicies.fp)[0]
-    cnn_fn_img = _sample({'fs': cnn_scores}, cnn_indicies.fn)[0]
-    cnn_tp_img = _sample({'fs': cnn_scores}, cnn_indicies.tp)[0]
-    cnn_tn_img = _sample({'fs': cnn_scores}, cnn_indicies.tn)[0]
+        cnn_fp_img = _sample({'fs': cnn_scores}, cnn_indicies.fp)[0]
+        cnn_fn_img = _sample({'fs': cnn_scores}, cnn_indicies.fn)[0]
+        cnn_tp_img = _sample({'fs': cnn_scores}, cnn_indicies.tp)[0]
+        cnn_tn_img = _sample({'fs': cnn_scores}, cnn_indicies.tn)[0]
 
-    sift_fp_img = _sample({'fs': sift_scores}, sift_indicies.fp)[0]
-    sift_fn_img = _sample({'fs': sift_scores}, sift_indicies.fn)[0]
-    sift_tp_img = _sample({'fs': sift_scores}, sift_indicies.tp)[0]
-    sift_tn_img = _sample({'fs': sift_scores}, sift_indicies.tn)[0]
+        if SIFT:
+            sift_fp_img = _sample({'fs': sift_scores}, sift_indicies.fp)[0]
+            sift_fn_img = _sample({'fs': sift_scores}, sift_indicies.fn)[0]
+            sift_tp_img = _sample({'fs': sift_scores}, sift_indicies.tp)[0]
+            sift_tn_img = _sample({'fs': sift_scores}, sift_indicies.tn)[0]
 
-    #if ut.show_was_requested():
-    #def rectify(arr):
-    #    return np.flipud(arr)
-    SINGLE_FIG = False
-    if SINGLE_FIG:
-        def dump_img(img_, lbl, fnum):
-            fig, ax = pt.imshow(img_, figtitle=dataname + ' ' + lbl, fnum=fnum)
-            pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
-        dump_img(cnn_fp_img, 'cnn_fp_img', fnum_gen())
-        dump_img(cnn_fn_img, 'cnn_fn_img', fnum_gen())
-        dump_img(cnn_tp_img, 'cnn_tp_img', fnum_gen())
-        dump_img(cnn_tn_img, 'cnn_tn_img', fnum_gen())
+        #if ut.show_was_requested():
+        #def rectify(arr):
+        #    return np.flipud(arr)
+        SINGLE_FIG = False
+        if SINGLE_FIG:
+            def dump_img(img_, lbl, fnum):
+                fig, ax = pt.imshow(img_, figtitle=dataname + ' ' + lbl, fnum=fnum)
+                pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
+            dump_img(cnn_fp_img, 'cnn_fp_img', fnum_gen())
+            dump_img(cnn_fn_img, 'cnn_fn_img', fnum_gen())
+            dump_img(cnn_tp_img, 'cnn_tp_img', fnum_gen())
+            dump_img(cnn_tn_img, 'cnn_tn_img', fnum_gen())
 
-        dump_img(sift_fp_img, 'sift_fp_img', fnum_gen())
-        dump_img(sift_fn_img, 'sift_fn_img', fnum_gen())
-        dump_img(sift_tp_img, 'sift_tp_img', fnum_gen())
-        dump_img(sift_tn_img, 'sift_tn_img', fnum_gen())
-        #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', (cnn_fp_img))
-        #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', (cnn_fn_img))
-        #vt.imwrite(dataname + '_' + 'sift_fp_img.png', (sift_fp_img))
-        #vt.imwrite(dataname + '_' + 'sift_fn_img.png', (sift_fn_img))
-    else:
-        print('Drawing TP FP TN FN')
+            dump_img(sift_fp_img, 'sift_fp_img', fnum_gen())
+            dump_img(sift_fn_img, 'sift_fn_img', fnum_gen())
+            dump_img(sift_tp_img, 'sift_tp_img', fnum_gen())
+            dump_img(sift_tn_img, 'sift_tn_img', fnum_gen())
+            #vt.imwrite(dataname + '_' + 'cnn_fp_img.png', (cnn_fp_img))
+            #vt.imwrite(dataname + '_' + 'cnn_fn_img.png', (cnn_fn_img))
+            #vt.imwrite(dataname + '_' + 'sift_fp_img.png', (sift_fp_img))
+            #vt.imwrite(dataname + '_' + 'sift_fn_img.png', (sift_fn_img))
+        else:
+            print('Drawing TP FP TN FN')
+            fnum = fnum_gen()
+            pnum_gen = pt.make_pnum_nextgen(4, 2)
+            fig = pt.figure(fnum)
+            pt.imshow(cnn_fp_img,  title='CNN FP',  fnum=fnum, pnum=pnum_gen())
+            pt.imshow(sift_fp_img, title='SIFT FP', fnum=fnum, pnum=pnum_gen())
+            pt.imshow(cnn_fn_img,  title='CNN FN',  fnum=fnum, pnum=pnum_gen())
+            pt.imshow(sift_fn_img, title='SIFT FN', fnum=fnum, pnum=pnum_gen())
+            pt.imshow(cnn_tp_img,  title='CNN TP',  fnum=fnum, pnum=pnum_gen())
+            pt.imshow(sift_tp_img, title='SIFT TP', fnum=fnum, pnum=pnum_gen())
+            pt.imshow(cnn_tn_img,  title='CNN TN',  fnum=fnum, pnum=pnum_gen())
+            pt.imshow(sift_tn_img, title='SIFT TN', fnum=fnum, pnum=pnum_gen())
+            pt.set_figtitle(dataname + ' confusions')
+            pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
+            pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
+
+    with_patch_desc = False
+    if with_patch_desc:
+        ut.colorprint('[siam_perf] Visualize Patch Descriptors', 'white')
         fnum = fnum_gen()
-        pnum_gen = pt.make_pnum_nextgen(4, 2)
-        fig = pt.figure(fnum)
-        pt.imshow(cnn_fp_img,  title='CNN FP',  fnum=fnum, pnum=pnum_gen())
-        pt.imshow(sift_fp_img, title='SIFT FP', fnum=fnum, pnum=pnum_gen())
-        pt.imshow(cnn_fn_img,  title='CNN FN',  fnum=fnum, pnum=pnum_gen())
-        pt.imshow(sift_fn_img, title='SIFT FN', fnum=fnum, pnum=pnum_gen())
-        pt.imshow(cnn_tp_img,  title='CNN TP',  fnum=fnum, pnum=pnum_gen())
-        pt.imshow(sift_tp_img, title='SIFT TP', fnum=fnum, pnum=pnum_gen())
-        pt.imshow(cnn_tn_img,  title='CNN TN',  fnum=fnum, pnum=pnum_gen())
-        pt.imshow(sift_tn_img, title='SIFT TN', fnum=fnum, pnum=pnum_gen())
-        pt.set_figtitle(dataname + ' confusions')
-        pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
+        fig = pt.figure(fnum=fnum, pnum=(1, 1, 1))
+        num_rows = 7
+        pnum_gen = pt.make_pnum_nextgen(num_rows, 3)
+        # Compare actual output descriptors
+        for index in ut.random_indexes(len(sift_list), num_rows):
+            vec_sift = sift_list[index]
+            vec_cnn = network_output[index]
+            patch = data[index]
+            pt.imshow(patch, fnum=fnum, pnum=pnum_gen())
+            pt.plot_descriptor_signature(vec_cnn, 'cnn vec',  fnum=fnum, pnum=pnum_gen())
+            pt.plot_sift_signature(vec_sift, 'sift vec',  fnum=fnum, pnum=pnum_gen())
+        pt.set_figtitle('Patch Descriptors')
+        pt.adjust_subplots(left=0, right=0.95, bottom=0., wspace=.1, hspace=.15)
         pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
-
-    print('Drawing Patch Descriptors')
-    fnum = fnum_gen()
-    fig = pt.figure(fnum=fnum, pnum=(1, 1, 1))
-    num_rows = 7
-    pnum_gen = pt.make_pnum_nextgen(num_rows, 3)
-    # Compare actual output descriptors
-    for index in ut.random_indexes(len(sift_list), num_rows):
-        vec_sift = sift_list[index]
-        vec_cnn = network_output[index]
-        patch = data[index]
-        pt.imshow(patch, fnum=fnum, pnum=pnum_gen())
-        pt.plot_descriptor_signature(vec_cnn, 'cnn vec',  fnum=fnum, pnum=pnum_gen())
-        pt.plot_sift_signature(vec_sift, 'sift vec',  fnum=fnum, pnum=pnum_gen())
-    pt.set_figtitle('Patch Descriptors')
-    pt.adjust_subplots(left=0, right=0.95, bottom=0., wspace=.1, hspace=.15)
-    pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
-    #ut.vd(epoch_dpath)
+        #ut.vd(epoch_dpath)
 
 
 def show_hard_cases(model, data, labels, scores):
@@ -188,8 +223,10 @@ def show_hard_cases(model, data, labels, scores):
 
     from ibeis_cnn import draw_results
     draw_results.rrr()
-    draw_results.interact_siamsese_data_patches(fn_labels, fn_data, {'fs': fn_scores}, figtitle='FN')
-    draw_results.interact_siamsese_data_patches(fp_labels, fp_data, {'fs': fp_scores}, figtitle='FP')
+    draw_results.interact_siamsese_data_patches(
+        fn_labels, fn_data, {'fs': fn_scores}, figtitle='FN')
+    draw_results.interact_siamsese_data_patches(
+        fp_labels, fp_data, {'fs': fp_scores}, figtitle='FP')
 
 
 def test_sift_patchmatch_scores(data, labels):
@@ -206,11 +243,15 @@ def test_sift_patchmatch_scores(data, labels):
         # TODO use dataset to infer data colorspace
         data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
     patch_list = data
+    print('Extract SIFT descr')
     vecs_list = pyhesaff.extract_desc_from_patches(patch_list)
-    sqrddist = ((vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
+    print('Compute SIFT dist')
+    sqrddist = (
+        (vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
     sqrddist_ = sqrddist[None, :].T
     VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
-    sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
+    #sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
+    sift_scores = (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
     sift_list = vecs_list
     return sift_scores, sift_list
     #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')

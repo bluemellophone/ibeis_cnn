@@ -23,6 +23,7 @@ PythonPrereqs:
     pip install git+git://github.com/lisa-lab/pylearn2.git
     #pip install lasagne
     #pip install pylearn2
+    git clone https://github.com/Theano/Theano.git
     git clone git://github.com/lisa-lab/pylearn2.git
     git clone https://github.com/Lasagne/Lasagne.git
     git clone https://github.com/Erotemic/Lasagne.git
@@ -32,6 +33,10 @@ PythonPrereqs:
     cd Lesagne
     git checkout 8758ac1434175159e5c1f30123041799c2b6098a
     python setup.py develop
+
+    python -c "import pylearn2; print(pylearn2.__file__)"
+    python -c "import theano; print(theano.__version__)"
+    python -c "import lasagne; print(lasagne.__version__)"
 """
 
 

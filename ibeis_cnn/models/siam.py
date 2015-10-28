@@ -60,12 +60,15 @@ class SiameseL2(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, data_shape=(64, 64, 3), arch_tag='siaml2', **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(64, 64, 3),
+                 arch_tag='siaml2', **kwargs):
         #if data_shape is not None:
         #    input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         #if input_shape is None:
         #    (batch_size, 3, 64, 64)
-        super(SiameseL2, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
+        super(SiameseL2, model).__init__(batch_size=batch_size,
+                                         data_shape=data_shape,
+                                         arch_tag=arch_tag, **kwargs)
         #model.network_layers = None
         #model.batch_size = batch_size
         model.output_dims = 1
@@ -157,6 +160,140 @@ class SiameseL2(AbstractSiameseModel):
         #raise NotImplementedError('The 2-channel part is not yet implemented')
         return network_layers_def
 
+    def get_siam_deepfaceish_def(model, verbose=True, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam_deepfaceish --datashape=128,256,1 --verbose  --show
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam_deepface --datashape=152,152,3 --verbose  --show
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        _tmp = [1]
+
+        def CDP_layer(num_filters=32,
+                              conv_size=(5, 5), conv_stride=(3, 3),
+                              pool_size=(2, 2), pool_stride=(2, 2),
+                              drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+                _P(MaxPool2DLayer, pool_size=pool_size, stride=pool_stride, name='P' + str(num)),
+            ]
+
+        def CD_layer(num_filters=32,
+                     conv_size=(5, 5), conv_stride=(3, 3),
+                     drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+            ]
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape)
+            ]  +
+            CDP_layer( 32, (11, 11), (1, 1), (3, 3), (2, 2)) +
+            CD_layer( 16, ( 9,  9), (1, 2)) +
+            CD_layer( 16, ( 9,  9), (1, 1)) +
+            CD_layer( 16, ( 9,  9), (1, 1)) +
+            CD_layer( 16, ( 9,  9), (2, 2)) +
+            CD_layer( 16, ( 9,  9), (2, 2)) +
+            [
+                _P(layers.DenseLayer, num_units=128, name='F1',  **hidden_initkw),
+                _P(layers.DenseLayer, num_units=64, name='F2',  **hidden_initkw),
+                #_P(layers.DenseLayer, num_units=64, name='F3',  **hidden_initkw),
+            ] +
+            #CD_layer(128, (3, 3), (2, 2)) +
+            #CD_layer(96, (2, 2), (1, 1)) +
+            #CD_layer(64, (2, 2), (1, 1)) +
+            #CD_layer(64, (1, 1), (1, 1)) +
+            #CD_layer(64, (2, 1), (2, 2)) +
+            [
+                #_P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C3_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C4_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(2, 1), stride=(2, 2), name='C4_128', **hidden_initkw),
+                #_P(layers.FlattenLayer, outdim=2, name='flatten128'),
+                _P(custom_layers.L2NormalizeLayer, axis=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
+    def get_siaml2_partmatch_def(model, verbose=True, **kwargs):
+        """
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siaml2_partmatch --datashape=128,256,1 --verbose  --show
+        """
+        _P = functools.partial
+
+        leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #orthog_kw = dict(W=init.Orthogonal())
+        #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
+        hidden_initkw = leaky_kw
+
+        #ReshapeLayer = layers.ReshapeLayer
+
+        _tmp = [1]
+
+        def CDP_layer(num_filters=32,
+                              conv_size=(5, 5), conv_stride=(3, 3),
+                              pool_size=(2, 2), pool_stride=(2, 2),
+                              drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+                _P(MaxPool2DLayer, pool_size=pool_size, stride=pool_stride, name='P' + str(num)),
+            ]
+
+        def CD_layer(num_filters=32,
+                     conv_size=(5, 5), conv_stride=(3, 3),
+                     drop_p=.1):
+            num = _tmp[0]
+            _tmp[0] += 1
+            return [
+                _P(Conv2DLayer, num_filters=num_filters, filter_size=conv_size,
+                   stride=conv_stride, name='C' + str(num), **hidden_initkw),
+                _P(layers.DropoutLayer, p=drop_p, name='D' + str(num)),
+            ]
+
+        network_layers_def = (
+            [
+                _P(layers.InputLayer, shape=model.input_shape)
+            ]  +
+            CDP_layer( 96, (3, 3), (2, 4), (2, 2), (2, 2), .1) +
+            CDP_layer(192, (3, 3), (2, 2), (2, 2), (1, 1), .1) +
+            CD_layer(128, (3, 3), (2, 2)) +
+            CD_layer(96, (2, 2), (1, 1)) +
+            CD_layer(64, (2, 2), (1, 1)) +
+            CD_layer(64, (1, 1), (1, 1)) +
+            #CD_layer(64, (2, 1), (2, 2)) +
+            [
+                #_P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C3_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(3, 3), name='C4_128', **hidden_initkw),
+                #_P(Conv2DLayer, num_filters=64, filter_size=(2, 1), stride=(2, 2), name='C4_128', **hidden_initkw),
+                _P(layers.FlattenLayer, outdim=2, name='flatten128'),
+                _P(custom_layers.L2NormalizeLayer, axis=2),
+            ]
+        )
+        #raise NotImplementedError('The 2-channel part is not yet implemented')
+        return network_layers_def
+
     def get_siam2streaml2_def(model, verbose=True, **kwargs):
         """
         Notes:
@@ -164,6 +301,9 @@ class SiameseL2(AbstractSiameseModel):
                 branch of siam-2stream.
 
                 C0(96, 7, 3) - ReLU - P0(2, 2) - C1(192, 5, 1) - ReLU - P1(2, 2) - C2(256, 3, 1)
+
+        CommandLine:
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag siam2streaml2 --datashape=64,64,1 --verbose  --show
         """
         _P = functools.partial
 
@@ -201,6 +341,10 @@ class SiameseL2(AbstractSiameseModel):
         return network_layers_def
 
     def get_mnist_siaml2_def(model, verbose=True, **kwargs):
+        """
+        python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --archtag mnist_siaml2 --datashape=28,28,1 --verbose  --show
+
+        """
         _P = functools.partial
 
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
@@ -217,12 +361,14 @@ class SiameseL2(AbstractSiameseModel):
                 #_P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 #_P(Conv2DLayer, num_filters=256, filter_size=(4, 4), name='C2', **hidden_initkw),
                 _P(layers.InputLayer, shape=model.input_shape),
-                _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(1, 1), name='C0', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-                _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P3'),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P3'),
+                _P(Conv2DLayer, num_filters=128, filter_size=(1, 1), name='C2', **hidden_initkw),
+                _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P3'),
                 #_P(layers.ReshapeLayer, shape=(-1, 128))
                 _P(layers.FlattenLayer, outdim=2)
                 #_P(Conv2DLayer, num_filters=256, filter_size=(2, 2), name='C3', **hidden_initkw),
@@ -237,27 +383,26 @@ class SiameseL2(AbstractSiameseModel):
 
         CommandLine:
             python -m ibeis_cnn.models.siam --test-SiameseL2.initialize_architecture --verbcnn --show
+            python -m ibeis_cnn --tf  SiameseL2.initialize_architecture --verbcnn --show
 
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.siam import *  # NOQA
-            >>> # build test data
             >>> verbose = True
-            >>> model = SiameseL2(batch_size=128, data_shape=(64, 64, 3))
-            >>> # execute function
+            >>> arch_tag = ut.get_argval('--archtag', default='siaml2')
+            >>> data_shape = tuple(ut.get_argval('--datashape', type_=list, default=(64, 64, 3)))
+            >>> model = SiameseL2(batch_size=128, data_shape=data_shape, arch_tag=arch_tag)
             >>> output_layer = model.initialize_architecture()
             >>> model.print_dense_architecture_str()
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
             >>> ut.quit_if_noshow()
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()
-
         """
         # TODO: remove output dims
         #_P = functools.partial
-        (_, input_channels, input_width, input_height) = model.input_shape
+        print('[model] initialize_architecture')
+        #(_, input_channels, input_width, input_height) = model.input_shape
+        (_, input_channels, input_height, input_width) = model.input_shape
         if verbose:
             print('[model] Initialize center siamese l2 model architecture')
             print('[model]   * batch_size     = %r' % (model.batch_size,))
@@ -267,12 +412,15 @@ class SiameseL2(AbstractSiameseModel):
             print('[model]   * output_dims    = %r' % (model.output_dims,))
 
         #network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
-        if model.arch_tag == 'siam2streaml2':
-            network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'siaml2':
-            network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
-        elif model.arch_tag == 'siaml2_128':
-            network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
+        network_layers_def = getattr(model, 'get_' + model.arch_tag + '_def')(verbose=verbose, **kwargs)
+        #if model.arch_tag == 'siam2streaml2':
+        #    network_layers_def = model.get_siam2streaml2_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'siaml2':
+        #    network_layers_def = model.get_siaml2_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'siaml2_128':
+        #    network_layers_def = model.get_siaml2_128_def(verbose=verbose, **kwargs)
+        #elif model.arch_tag == 'mnist_siaml2':
+        #    network_layers_def = model.get_mnist_siaml2_def(verbose=verbose, **kwargs)
         # connect and record layers
         network_layers = abstract_models.evaluate_layer_list(network_layers_def, verbose=verbose)
         #model.network_layers = network_layers
@@ -314,8 +462,8 @@ class SiameseL2(AbstractSiameseModel):
         dist_l2 = T.sqrt(((vecs1 - vecs2) ** 2).sum(axis=1))
         loss = constrastive_loss(dist_l2, labels, margin, T=T)
         # Ignore the hardest cases
-        num_ignore = 3
-        loss = ignore_hardest_cases(loss, labels, num_ignore=num_ignore, T=T)
+        #num_ignore = 3
+        #loss = ignore_hardest_cases(loss, labels, num_ignore=num_ignore, T=T)
         return loss
 
     def learn_encoder(model, labels, scores, **kwargs):
@@ -345,6 +493,7 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
 
     Example0:
         >>> # ENABLE_DOCTEST
+        >>> # Test numpy version
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> loss_arr   = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int32)
         >>> labels_arr = np.array([1, 0, 0, 1, 1, 1, 1, 1, 0], dtype=np.int32)
@@ -352,13 +501,13 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         >>> labels = labels_arr
         >>> num_ignore = 2
         >>> T = np
-        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
-        >>> result = ('loss = %s' % (ut.numpy_str(loss),))
+        >>> ignored_loss_arr = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> result = ('ignored_loss_arr = %s' % (ut.numpy_str(ignored_loss_arr),))
         >>> print(result)
-        loss = np.array([1, 2, 0, 4, 5, 6, 0, 0, 0], dtype=np.int32)
+        ignored_loss = np.array([0, 1, 0, 3, 4, 5, 0, 0, 0], dtype=np.int32)
 
      Example1:
-        >>> # DISABLE_DOCTEST
+        >>> # ENABLE_DOCTEST
         >>> # Test theano version
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> import theano.tensor
@@ -368,11 +517,15 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         >>> loss = T.ivector(name='loss')
         >>> labels = T.ivector(name='labels')
         >>> num_ignore = 2
-        >>> loss = ignore_hardest_cases(loss, labels, num_ignore, T)
-        >>> output_T = output_expr.eval({input_expr: inputdata_})
+        >>> ignored_loss = ignore_hardest_cases(loss, labels, num_ignore, T)
+        >>> ignored_loss_arr = ignored_loss.eval({loss: loss_arr, labels: labels_arr})
+        >>> result = ('ignored_loss = %s' % (ut.numpy_str(ignored_loss_arr),))
+        >>> print(result)
+        ignored_loss = np.array([0, 1, 0, 3, 4, 5, 0, 0, 0], dtype=np.int32)
 
     Example2:
         >>> # ENABLE_DOCTEST
+        >>> # Test version compatiblity
         >>> from ibeis_cnn.models.siam import *  # NOQA
         >>> import ibeis_cnn.theano_ext as theano_ext
         >>> import theano.tensor
@@ -405,9 +558,17 @@ def ignore_hardest_cases(loss, labels, num_ignore=3, T=T):
         ...     if not np.all(theano_values[key] == numpy_targets[key]):
         ...         prefix = ' !!! '
         ...         noerror = False
-        ...     print(prefix + 'numpy_value  = %r' % (numpy_targets[key],))
+        ...     # Cast to compatible dtype
+        ...     numpy_value = numpy_targets[key]
+        ...     result_dtype = np.result_type(numpy_value, theano_value)
+        ...     numpy_value = numpy_value.astype(result_dtype)
+        ...     theano_value = theano_value.astype(result_dtype)
+        ...     numpy_targets[key] = numpy_value
+        ...     theano_values[key] = theano_value
+        ...     print(prefix + 'numpy_value  = %r' % (numpy_value,))
         ...     print(prefix + 'theano_value = %r' % (theano_value,))
-        >>> print(ut.dict_str(numpy_targets))
+        >>> print('numpy_targets = ' + ut.dict_str(numpy_targets, align=True))
+        >>> print('theano_values = ' + ut.dict_str(theano_values, align=True))
         >>> assert noerror, 'There was an error'
 
     """
@@ -519,12 +680,15 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
     """
     Model for individual identification
     """
-    def __init__(model, autoinit=False, batch_size=128, input_shape=None, data_shape=(64, 64, 3), **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, input_shape=None,
+                 data_shape=(64, 64, 3), **kwargs):
         if data_shape is not None:
             input_shape = (batch_size, data_shape[2], data_shape[0], data_shape[1])
         if input_shape is None:
             (batch_size, 3, 64, 64)
-        super(SiameseCenterSurroundModel, model).__init__(input_shape=input_shape, batch_size=batch_size, **kwargs)
+        super(SiameseCenterSurroundModel,
+              model).__init__(input_shape=input_shape, batch_size=batch_size,
+                              **kwargs)
         #model.network_layers = None
         model.input_shape = input_shape
         model.batch_size = batch_size
@@ -546,8 +710,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture --verbcnn
             python -m ibeis_cnn.models.siam --test-SiameseCenterSurroundModel.initialize_architecture --verbcnn --show
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
-            python -m ibeis_cnn.train --test-train_patchmatch_pz --vtd
+            python -m ibeis_cnn.train --test-pz_patchmatch --vtd --max-examples=5 --batch_size=128 --learning_rate .0000001 --verbcnn
+            python -m ibeis_cnn.train --test-pz_patchmatch --vtd
 
         Example:
             >>> # ENABLE_DOCTEST
@@ -567,6 +731,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()
         """
+        print('[model] initialize_architecture')
         (_, input_channels, input_width, input_height) = model.input_shape
         if verbose:
             print('[model] Initialize center surround siamese model architecture')
@@ -657,7 +822,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         """
         Notes:
             (i) 2ch-2stream consists of two branches
-                C(95, 5, 1)- ReLU- P(2, 2)- C(96, 3, 1)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(192, 3, 1)- ReLU,
+                C(95, 5, 1)- ReLU- P(2, 2)- C(96, 3, 1)- ReLU- P(2, 2)- C(192, 3, 1)-
+                  ReLU- C(192, 3, 1)- ReLU,
                 one for central and one for surround parts, followed by
                 F(768)- ReLU- F(1)
         """
@@ -696,7 +862,8 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         """
         Notes:
             (viii) siam-2stream has 4 branches
-                C(96, 4, 2)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(256, 3, 1)- ReLU- C(256, 3, 1)- ReLU
+                C(96, 4, 2)- ReLU- P(2, 2)- C(192, 3, 1)- ReLU- C(256, 3, 1)- ReLU- C(256, 3, 1)-
+                  ReLU
                 (coupled in pairs for central and surround streams, and decision layer)
                 F(512)-ReLU- F(1)
         """

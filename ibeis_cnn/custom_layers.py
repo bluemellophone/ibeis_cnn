@@ -6,8 +6,9 @@ import warnings
 import theano
 import theano.tensor as T
 import functools
-#import six
+import six  # NOQA
 from ibeis_cnn import utils
+#import pylearn2  # NOQA
 ut.noinject('custom_layers')
 
 
@@ -17,14 +18,48 @@ try:
         raise ImportError('GPU is forced off')
     # use cuda_convnet for a speed improvement
     # will not be available without a GPU
-    import lasagne.layers.cuda_convnet as convnet
-    Conv2DLayer = convnet.Conv2DCCLayer
-    MaxPool2DLayer = convnet.MaxPool2DCCLayer
+
+    conv_impl = 'cuDNN'
+    conv_impl = 'cuda_convnet'
+
+    # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
+
+    if conv_impl == 'cuda_convnet':
+        # cannot handle non-square images
+        import lasagne.layers.cuda_convnet
+        Conv2DLayer = lasagne.layers.cuda_convnet.Conv2DCCLayer
+        MaxPool2DLayer = lasagne.layers.cuda_convnet.MaxPool2DCCLayer
+    elif conv_impl == 'cuDNN':
+        import lasagne.layers.dnn
+        Conv2DLayer = lasagne.layers.dnn.Conv2DDNNLayer
+        MaxPool2DLayer = lasagne.layers.dnn.MaxPool2DDNNLayer
+        """
+        Need cuda convnet for background model otherwise
+        <type 'exceptions.ValueError'>: GpuReshape: cannot reshape input of shape (128, 12, 26, 26) to shape (128, 676).
+        Apply node that caused the error: GpuReshape{2}(GpuElemwise{Composite{((i0 * (i1 + i2)) + (i3 * Abs((i1 + i2))))}}[(0, 1)].0, TensorConstant{[128 676]})
+        Toposort index: 36
+        Inputs types: [CudaNdarrayType(float32, 4D), TensorType(int64, vector)]
+        Inputs shapes: [(128, 12, 26, 26), (2,)]
+        Inputs strides: [(676, 86528, 26, 1), (8,)]
+        Inputs values: ['not shown', array([128, 676])]
+        Outputs clients: [[GpuDot22(GpuReshape{2}.0, GpuReshape{2}.0)]]
+
+        """
+    elif conv_impl == 'gemm':
+        # Dont use gemm
+        import lasagne.layers.corrmm
+        Conv2DLayer = lasagne.layers.corrmm.Conv2DLayer
+        MaxPool2DLayer = lasagne.layers.corrmm.Conv2DLayer
+    else:
+        raise NotImplementedError('conv_impl = %r' % (conv_impl,))
+
     USING_GPU = True
 except ImportError as ex:
-    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
     Conv2DLayer = lasagne.layers.Conv2DLayer
     MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
+    print('Conv2DLayer = %r' % (Conv2DLayer,))
+    print('MaxPool2DLayer = %r' % (MaxPool2DLayer,))
+    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
     USING_GPU = False
 
 if utils.VERBOSE_CNN:
@@ -44,8 +79,180 @@ class L1NormalizeLayer(lasagne.layers.Layer):
         return output_
 
 
+@six.add_metaclass(ut.ReloadingMetaclass)
+class LocallyConnected2DLayer(lasagne.layers.Layer):
+    """
+    Copy of the Conv2D layer that needs to be adapted into a locally connected layer
+
+    Args:
+        incoming (lasagne.layers.Layer):
+        num_filters (?):
+        filter_size (?):
+        stride (tuple): (default = (1, 1))
+        pad (int): (default = 0)
+        untie_biases (bool): (default = False)
+        W (GlorotUniform): (default = <lasagne.init.GlorotUniform object at 0x7f551a3537d0>)
+        b (Constant): (default = <lasagne.init.Constant object at 0x7f551a33ecd0>)
+        nonlinearity (function): (default = <function rectify at 0x7f55307989b0>)
+        convolution (function): (default = <function conv2d at 0x7f55330148c0>)
+
+    CommandLine:
+        python -m ibeis_cnn.custom_layers --exec-__init__
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.custom_layers import *  # NOQA
+        >>> incoming = testdata_input_layer(item_shape=(3,8,8), batch_size=4)
+        >>> num_filters = 64
+        >>> filter_size = (3, 3)
+        >>> stride = (1, 1)
+        >>> pad = 0
+        >>> untie_biases = False
+        >>> W = lasagne.init.GlorotUniform()
+        >>> b = lasagne.init.Constant(0.)
+        >>> nonlinearity = lasagne.nonlinearities.rectify
+        >>> convolution = T.nnet.conv2d
+        >>> self = LocallyConnected2DLayer(incoming, num_filters, filter_size,
+        >>>                                stride, pad, untie_biases, W, b,
+        >>>                                nonlinearity, convolution)
+
+    Ignore:
+        self.get_output_rc(self.input_shape)
+    """
+
+    def __init__(self, incoming, num_filters, filter_size, stride=(1, 1),
+                 pad=0, untie_biases=False,
+                 W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.),
+                 nonlinearity=lasagne.nonlinearities.rectify,
+                 convolution=T.nnet.conv2d, **kwargs):
+        super(LocallyConnected2DLayer, self).__init__(incoming, **kwargs)
+        if nonlinearity is None:
+            self.nonlinearity = lasagne.nonlinearities.identity
+        else:
+            self.nonlinearity = nonlinearity
+
+        self.num_filters = num_filters
+        self.filter_size = lasagne.utils.as_tuple(filter_size, 2)
+        self.stride = lasagne.utils.as_tuple(stride, 2)
+        self.untie_biases = untie_biases
+        self.convolution = convolution
+
+        if pad == 'same':
+            if any(s % 2 == 0 for s in self.filter_size):
+                raise NotImplementedError(
+                    '`same` padding requires odd filter size.')
+
+        if pad == 'valid':
+            self.pad = (0, 0)
+        elif pad in ('full', 'same'):
+            self.pad = pad
+        else:
+            self.pad = lasagne.utils.as_tuple(pad, 2, int)
+
+        self.W = self.add_param(W, self.get_W_shape(), name="W")
+        if b is None:
+            self.b = None
+        else:
+            if self.untie_biases:
+                biases_shape = (num_filters, self.output_shape[2], self.
+                                output_shape[3])
+            else:
+                biases_shape = (num_filters,)
+            self.b = self.add_param(b, biases_shape, name="b",
+                                    regularizable=False)
+
+    def get_W_shape(self):
+        """Get the shape of the weight matrix `W`.
+
+        Returns
+        -------
+        tuple of int
+            The shape of the weight matrix.
+
+            (should have a different conv matrix for each output node)
+            (ie NO WEIGHT SHARING)
+        """
+        num_input_channels = self.input_shape[1]
+        output_rows, output_cols = self.get_output_rc(self.input_shape)
+        return (self.num_filters, num_input_channels, self.filter_size[0],
+                self.filter_size[1], output_rows, output_cols)
+
+    def get_output_rc(self, input_shape):
+        pad = self.pad if isinstance(self.pad, tuple) else (self.pad,) * 2
+
+        output_rows = lasagne.layers.conv.conv_output_length(
+            input_shape[2], self.filter_size[0], self.stride[0], pad[0])
+
+        output_columns = lasagne.layers.conv.conv_output_length(
+            input_shape[3], self.filter_size[1], self.stride[1], pad[1])
+
+        return output_rows, output_columns
+
+    def get_output_shape_for(self, input_shape):
+        output_rows, output_columns = self.get_output_rc(input_shape)
+        return (input_shape[0], self.num_filters, output_rows, output_columns)
+
+    def get_output_for(self, input, input_shape=None, **kwargs):
+        # The optional input_shape argument is for when get_output_for is
+        # called directly with a different shape than self.input_shape.
+        if input_shape is None:
+            input_shape = self.input_shape
+
+        if self.stride == (1, 1) and self.pad == 'same':
+            # simulate same convolution by cropping a full convolution
+            conved = self.convolution(input, self.W, subsample=self.stride,
+                                      image_shape=input_shape,
+                                      filter_shape=self.get_W_shape(),
+                                      border_mode='full')
+            crop_x = self.filter_size[0] // 2
+            crop_y = self.filter_size[1] // 2
+            conved = conved[:, :, crop_x:-crop_x or None,
+                            crop_y:-crop_y or None]
+        else:
+            # no padding needed, or explicit padding of input needed
+            if self.pad == 'full':
+                border_mode = 'full'
+                pad = [(0, 0), (0, 0)]
+            elif self.pad == 'same':
+                border_mode = 'valid'
+                pad = [(self.filter_size[0] // 2,
+                        self.filter_size[0] // 2),
+                       (self.filter_size[1] // 2,
+                        self.filter_size[1] // 2)]
+            else:
+                border_mode = 'valid'
+                pad = [(self.pad[0], self.pad[0]), (self.pad[1], self.pad[1])]
+            if pad != [(0, 0), (0, 0)]:
+                input = lasagne.theano_extensions.padding.pad(input, pad,
+                                                              batch_ndim=2)
+                input_shape = (input_shape[0], input_shape[1],
+                               None if input_shape[2] is None else
+                               input_shape[2] + pad[0][0] + pad[0][1],
+                               None if input_shape[3] is None else
+                               input_shape[3] + pad[1][0] + pad[1][1])
+            conved = self.convolution(input, self.W, subsample=self.stride,
+                                      image_shape=input_shape,
+                                      filter_shape=self.get_W_shape(),
+                                      border_mode=border_mode)
+
+        if self.b is None:
+            activation = conved
+        elif self.untie_biases:
+            activation = conved + self.b.dimshuffle('x', 0, 1, 2)
+        else:
+            activation = conved + self.b.dimshuffle('x', 0, 'x', 'x')
+
+        return self.nonlinearity(activation)
+
+
 #@six.add_metaclass(ut.ReloadingMetaclass)
 class L2NormalizeLayer(lasagne.layers.Layer):
+    """
+    Normalizes the outputs of a layer to have an L2 norm of 1.
+    This is useful for siamese networks who's outputs will be comparsed using
+    the L2 distance.
+
+    """
     def __init__(self, input_layer, axis=1, **kwargs):
         super(L2NormalizeLayer, self).__init__(input_layer, **kwargs)
         self.axis = axis
@@ -250,7 +457,7 @@ class SiameseConcatLayer(lasagne.layers.Layer):
         Example1:
             >>> # DISABLE_DOCTEST
             >>> from ibeis_cnn.custom_layers import *  # NOQA
-            >>> from ibeis_cnn.custom_layers import *  # NOQA
+item_shape            >>> from ibeis_cnn.custom_layers import *  # NOQA
             >>> from ibeis_cnn import utils
             >>> from ibeis_cnn import draw_net
             >>> import theano

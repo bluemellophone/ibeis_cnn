@@ -9,8 +9,11 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest]')
 
 
+NOCACHE_DATASET = ut.get_argflag(('--nocache-cnn', '--nocache-dataset'))
+
+
 def testdata_dataset():
-    dataset = get_ibeis_siam_dataset(max_examples=5, controlled=False)
+    dataset = get_ibeis_patch_siam_dataset(max_examples=5, controlled=False)
     return dataset
 
 
@@ -18,7 +21,7 @@ def testdata_patchmatch():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    dataset = get_ibeis_siam_dataset(max_examples=5)
+    dataset = get_ibeis_patch_siam_dataset(max_examples=5)
     data_fpath = dataset.data_fpath
     labels_fpath = dataset.labels_fpath
     data_cv2, labels = utils.load(data_fpath, labels_fpath)
@@ -30,7 +33,7 @@ def testdata_patchmatch2():
     """
         >>> from ibeis_cnn.ingest_data import *  # NOQA
     """
-    dataset = get_ibeis_siam_dataset(max_examples=5)
+    dataset = get_ibeis_patch_siam_dataset(max_examples=5)
     data_fpath = dataset.data_fpath
     labels_fpath = dataset.labels_fpath
     data, labels = utils.load(data_fpath, labels_fpath)
@@ -90,7 +93,8 @@ def merge_datasets(dataset_list):
         merged_dataset = DataSet.from_alias_key(alias_key)
         return merged_dataset
     except Exception as ex:
-        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
+                   (alias_key,), iswarning=True)
 
     # Build the dataset
     consensus_check = consensus_check_factory()
@@ -137,6 +141,7 @@ def merge_datasets(dataset_list):
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=None,
         training_dpath=training_dpath,
         data_shape=data_shape,
         data_per_label=data_per_label,
@@ -146,18 +151,23 @@ def merge_datasets(dataset_list):
     return merged_dataset
 
 
+def grab_dataset(ds_tag=None, datatype='siam-patch'):
+    if datatype == 'siam-patch':
+        return grab_siam_dataset(ds_tag=ds_tag)
+    elif datatype == 'siam-part':
+        return get_ibeis_part_siam_dataset()
+    elif datatype == 'category':
+        return grab_mnist_category_dataset()
+
+
 def grab_siam_dataset(ds_tag=None):
-    """
-    Will build the dataset using the command line if it doesnt exist
+    r"""
+    Will build the dataset using the command line if it doesn't exist
 
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db NNP_Master3 --show
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_Master0 --show
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db mnist --show
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db liberty --show
-
-        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -166,14 +176,8 @@ def grab_siam_dataset(ds_tag=None):
         >>> dataset = grab_siam_dataset(ds_tag=ds_tag)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
-        >>> #ibsplugin.rrr()
-        >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('all')
         >>> ut.quit_if_noshow()
-        >>> warped_patch1_list = data[::2]
-        >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
-        >>> print(result)
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> ut.show_if_requested()
     """
     if ds_tag is not None:
@@ -190,7 +194,7 @@ def grab_siam_dataset(ds_tag=None):
     elif dbname == 'mnist':
         dataset = grab_mnist_siam_dataset()
     else:
-        dataset = get_ibeis_siam_dataset()
+        dataset = get_ibeis_patch_siam_dataset()
     return dataset
 
 
@@ -228,6 +232,7 @@ def grab_mnist_category_dataset():
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=None,
         training_dpath=training_dpath,
         data_per_label=1,
         data_shape=(28, 28, 1),
@@ -255,7 +260,7 @@ def grab_mnist_siam_dataset():
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> print(result)
         >>> ut.show_if_requested()
     """
@@ -300,6 +305,7 @@ def grab_mnist_siam_dataset():
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=None,
         training_dpath=training_dpath,
         data_per_label=2,
         data_shape=(28, 28, 1),
@@ -353,7 +359,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> draw_results.interact_patches(labels, warped_patch1_list, warped_patch2_list, flat_metadata, sortby='rand')
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
         >>> print(result)
         >>> ut.show_if_requested()
     """
@@ -396,6 +402,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=None,
         training_dpath=training_dpath,
         data_shape=(64, 64, 1),
         data_per_label=2,
@@ -405,11 +412,12 @@ def grab_liberty_siam_dataset(pairs=250000):
     return dataset
 
 
-def get_ibeis_siam_dataset(**kwargs):
+def get_ibeis_patch_siam_dataset(**kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show
-        python -m ibeis_cnn.ingest_data --test-get_ibeis_siam_dataset --show --db PZ_Master0
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_Master1 --acfg_name timectrl
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -417,11 +425,9 @@ def get_ibeis_siam_dataset(**kwargs):
         >>> from ibeis_cnn import draw_results
         >>> import ibeis
         >>> kwargs = {}  # ut.argparse_dict({'max_examples': None, 'num_top': 3})
-        >>> dataset = get_ibeis_siam_dataset(**kwargs)
-        >>> data_fpath = dataset.data_fpath
-        >>> labels_fpath = dataset.labels_fpath
+        >>> dataset = get_ibeis_patch_siam_dataset(**kwargs)
         >>> ut.quit_if_noshow()
-        >>> draw_results.interact_siamese_data_fpath_patches(data_fpath, labels_fpath, {})
+        >>> dataset.interact()
         >>> ut.show_if_requested()
     """
     datakw = ut.argparse_dict(
@@ -430,9 +436,27 @@ def get_ibeis_siam_dataset(**kwargs):
             'max_examples': None,
             #'num_top': 3,
             'num_top': None,
+            'min_featweight': .99 if not ut.WIN32 else None,
             'controlled': True,
             'colorspace': 'gray',
-        }, verbose=True)
+            'acfg_name': None,
+        },
+        alias_dict={
+            'acfg_name': ['acfg']
+        },
+        verbose=True)
+
+    datakw.update(kwargs)
+
+    #ut.get_func_kwargs(ingest_ibeis.get_aidpairs_and_matches)
+
+    if datakw['acfg_name'] is not None:
+        del datakw['controlled']
+    if datakw['max_examples'] is None:
+        del datakw['max_examples']
+    if datakw['num_top'] is None:
+        del datakw['num_top']
+
     with ut.Indenter('[LOAD IBEIS DB]'):
         import ibeis
         dbname = ut.get_argval('--db', default='PZ_MTEST')
@@ -441,29 +465,38 @@ def get_ibeis_siam_dataset(**kwargs):
     # Nets dir is the root dir for all training on this data
     training_dpath = ibs.get_neuralnet_dir()
     ut.ensuredir(training_dpath)
-    datakw.update(kwargs)
-    print('\n\n[get_ibeis_siam_dataset] START')
+    print('\n\n[get_ibeis_patch_siam_dataset] START')
     #log_dir = join(training_dpath, 'logs')
     #ut.start_logging(log_dir=log_dir)
 
     alias_key = ibs.get_dbname() + ';' + ut.dict_str(datakw, nl=False, explicit=True)
     try:
+        if NOCACHE_DATASET:
+            raise Exception('forced cache off')
         # Try and short circut cached loading
         dataset = DataSet.from_alias_key(alias_key)
+        dataset.setprop('ibs', lambda: ibeis.opendb(db=dbname))
         return dataset
     except Exception as ex:
-        ut.printex(ex, 'alias definitions have changed. alias_key=%r' % (alias_key,), iswarning=True)
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
+                   (alias_key,), iswarning=True)
 
-    with ut.Indenter('[CHECKDATA]'):
+    with ut.Indenter('[BuildDS]'):
         # Get training data pairs
         colorspace = datakw.pop('colorspace')
         patchmatch_tup = ingest_ibeis.get_aidpairs_and_matches(ibs, **datakw)
         aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists = patchmatch_tup
         # Extract and cache the data
         # TODO: metadata
-        data_fpath, labels_fpath, training_dpath, data_shape = ingest_ibeis.cached_patchmetric_training_data_fpaths(
-            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists, colorspace=colorspace)
-        print('\n[get_ibeis_siam_dataset] FINISH\n\n')
+        if ut.get_argflag('--dryrun'):
+            print('exiting due to dry run')
+            import sys
+            sys.exit(0)
+        tup = ingest_ibeis.cached_patchmetric_training_data_fpaths(
+            ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+            metadata_lists, colorspace=colorspace)
+        data_fpath, labels_fpath, metadata_fpath, training_dpath, data_shape = tup
+        print('\n[get_ibeis_patch_siam_dataset] FINISH\n\n')
 
     # hack for caching num_labels
     labels = ut.load_data(labels_fpath)
@@ -473,12 +506,107 @@ def get_ibeis_siam_dataset(**kwargs):
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=metadata_fpath,
         training_dpath=training_dpath,
         data_shape=data_shape,
         data_per_label=2,
         output_dims=1,
         num_labels=num_labels,
     )
+    dataset.setprop('ibs', ibs)
+    return dataset
+
+
+def get_ibeis_part_siam_dataset(**kwargs):
+    """
+    PARTS based network data
+
+    CommandLine:
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_part_siam_dataset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_part_siam_dataset --show --db PZ_Master1 --acfg_name timectrl
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_part_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+        >>> from ibeis_cnn import draw_results
+        >>> import ibeis
+        >>> kwargs = {}  # ut.argparse_dict({'max_examples': None, 'num_top': 3})
+        >>> dataset = get_ibeis_part_siam_dataset(**kwargs)
+        >>> ut.quit_if_noshow()
+        >>> dataset.interact(ibs=dataset.getprop('ibs'))
+        >>> ut.show_if_requested()
+    """
+    import ibeis
+    datakw = ut.argparse_dict(
+        {
+            'colorspace': 'gray',
+            'acfg_name': 'ctrl',
+            #'db': None,
+            'db': 'PZ_MTEST',
+        },
+        alias_dict={
+            'acfg_name': ['acfg']
+        },
+        verbose=True)
+
+    datakw.update(kwargs)
+    print('\n\n[get_ibeis_part_siam_dataset] START')
+
+    alias_key = ut.dict_str(datakw, nl=False, explicit=True)
+
+    dbname = datakw.pop('db')
+
+    try:
+        if NOCACHE_DATASET:
+            raise Exception('forced cache off')
+        # Try and short circut cached loading
+        dataset = DataSet.from_alias_key(alias_key)
+        dataset.setprop('ibs', lambda: ibeis.opendb(db=dbname))
+        return dataset
+    except Exception as ex:
+        ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
+                   (alias_key,), iswarning=True)
+
+    with ut.Indenter('[LOAD IBEIS DB]'):
+        ibs = ibeis.opendb(db=dbname)
+
+    # Nets dir is the root dir for all training on this data
+    training_dpath = ibs.get_neuralnet_dir()
+    ut.ensuredir(training_dpath)
+
+    with ut.Indenter('[BuildDS]'):
+        # Get training data pairs
+        colorspace = datakw.pop('colorspace')
+        (aid_pairs, label_list,
+         flat_metadata) = ingest_ibeis.get_aidpairs_partmatch(ibs, **datakw)
+        # Extract and cache the data
+        # TODO: metadata
+        if ut.get_argflag('--dryrun'):
+            print('exiting due to dry run')
+            import sys
+            sys.exit(0)
+        tup = ingest_ibeis.cached_part_match_training_data_fpaths(
+            ibs, aid_pairs, label_list, flat_metadata, colorspace=colorspace)
+        data_fpath, labels_fpath, metadata_fpath, training_dpath, data_shape = tup
+        print('\n[get_ibeis_part_siam_dataset] FINISH\n\n')
+
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
+    dataset = DataSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        metadata_fpath=metadata_fpath,
+        training_dpath=training_dpath,
+        data_shape=data_shape,
+        data_per_label=2,
+        output_dims=1,
+        num_labels=num_labels,
+    )
+    dataset.setprop('ibs', ibs)
     return dataset
 
 
@@ -499,6 +627,7 @@ def get_numpy_dataset(data_fpath, labels_fpath, training_dpath):
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
+        metadata_fpath=None,
         training_dpath=training_dpath,
         data_shape=data_shape,
         data_per_label=1,

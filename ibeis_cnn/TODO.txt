@@ -1,0 +1,33 @@
+
+
+TODO:
+    A model architecture should have a data-agnostic directory
+    Allow multiple different datasets to train the same model
+      * The adjustments that that model makes should be saved in a data-specific directory
+    Show bad training examples
+
+    Model Weight Tags
+    Model Architecture Tags
+    Dataset Tags
+    Checkpoint Tag?
+
+    * Training Babysitting:
+    * Graph of weight magnitude updates - per layer as well
+    * validation loss variance - per example -
+    * determenistic loss ratios
+    * loss ratios without weight decay
+
+    * Baysian Hyperparamater optimization
+
+
+HAVEDONE:
+    * Combine datasets
+
+    Data Metadata - Along with ability to go back and check the context of fail cases
+    - need to use original SIFT descriptors from ibeis db if available
+
+Ideas:
+    Neural Network Vocabulary?
+    Input a patch
+    Output a word
+    Training: unsupervised sparse autoencoder

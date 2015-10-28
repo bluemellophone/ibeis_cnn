@@ -28,8 +28,20 @@ CLUTTER_DIRS = [
     '__pycache__/',
 ]
 
+"""
+Need special theano
+References:
+    http://lasagne.readthedocs.org/en/latest/user/installation.html
+    pip install -r https://raw.githubusercontent.com/Lasagne/Lasagne/v0.1/requirements.txt
+"""
+
 INSTALL_REQUIRES = [
     'scikit-learn >= 0.16.1',
+    'theano',
+    'lasagne',
+    #'pylearn2',
+    #'git+git://github.com/lisa-lab/pylearn2.git'
+
     #'utool >= 1.0.0.dev1',
     #'vtool >= 1.0.0.dev1',
     ##'pyhesaff >= 1.0.0.dev1',
@@ -86,4 +98,6 @@ if __name__ == '__main__':
         install_requires=INSTALL_REQUIRES
         #cython_files=CYTHON_FILES,
     )
+    import utool as ut
+    print('kwargs = %s' % (ut.dict_str(kwargs),))
     setup(**kwargs)
