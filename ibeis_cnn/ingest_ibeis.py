@@ -266,7 +266,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
 
     pairmetadata_list = []
     for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Align Info', adjust=True):
-        pair_metadata = ibeis.model.hots.vsone_pipeline.get_annot_pair_lazy_dict(
+        pair_metadata = ibs.get_annot_pair_lazy_dict(
             ibs, aid1, aid2, qconfig2_, dconfig2_)
         pair_metadata['match_metadata'] = partial(compute_alignment, pair_metadata)
         pairmetadata_list.append(pair_metadata)

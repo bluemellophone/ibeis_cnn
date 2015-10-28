@@ -257,6 +257,9 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
 
     # TODO: metadata fpath
 
+    # TODO: ENSURE THAT VALIDATION / TEST SET CONTAINS DISJOINT IMAGES FROM
+    # TRAINING
+
     split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]
 
     TODO: maybe use folds instead of fractions
