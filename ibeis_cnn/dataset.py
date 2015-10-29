@@ -196,15 +196,17 @@ class DataSet(object):
     def interact(dataset, **kwargs):
         """
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
         """
         from ibeis_cnn import draw_results
         #interact_func = draw_results.interact_siamsese_data_patches
         interact_func = draw_results.interact_dataset
         # Automatically infer which lazy properties are needed for the
         # interaction.
-        kwargs_list = ut.recursive_parse_kwargs(interact_func)
+        kwarg_items = ut.recursive_parse_kwargs(interact_func)
+        kwarg_keys = ut.get_list_column(kwarg_items, 0)
         interact_kw = {key: dataset.getprop(key)
-                       for key in kwargs_list if dataset.hasprop(key)}
+                       for key in kwarg_keys if dataset.hasprop(key)}
         interact_kw.update(**kwargs)
         # TODO : generalize
         return interact_func(
