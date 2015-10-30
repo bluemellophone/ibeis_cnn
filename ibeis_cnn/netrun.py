@@ -239,7 +239,7 @@ def parse_args():
     # Incorporate new config stuff?
     #NEW = False
     #if NEW:
-    #    from ibeis.experiments import cfghelpers
+    #    from ibeis.expt import cfghelpers
     #    default_dstag_cfg = {
     #        'ds': 'PZ_MTEST',
     #        'mode': 'patches',

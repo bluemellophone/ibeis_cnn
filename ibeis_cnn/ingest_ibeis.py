@@ -38,7 +38,7 @@ def get_aidpairs_partmatch(ibs, acfg_name):
         >>> aid_pairs, label_list, flat_metadata = get_aidpairs_partmatch(ibs, acfg_name)
     """
     print('NEW WAY OF FILTERING')
-    from ibeis.experiments import experiment_helpers
+    from ibeis.expt import experiment_helpers
     import vtool as vt
     acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(
         ibs, [acfg_name])
@@ -794,7 +794,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     def get_query_results():
         if acfg_name is not None:
             print('NEW WAY OF FILTERING')
-            from ibeis.experiments import experiment_helpers
+            from ibeis.expt import experiment_helpers
             acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(ibs, [acfg_name])
             #acfg = acfg_list[0]
             expanded_aids = expanded_aids_list[0]
