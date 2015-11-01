@@ -185,6 +185,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
         >>> #pt.imshow(mask_list[0])
         >>> ut.show_if_requested()
 
+    Ignore:
         #>>> from ibeis_cnn.draw_results import *  # NOQA
         #>>> from ibeis_cnn import ingest_data
         #>>> data, labels = ingest_data.testdata_patchmatch2()
@@ -213,17 +214,17 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     # batch_size = int(min(128, 2 ** np.floor(np.log2(nInput))))
     batch_size = None
 
-    OLD = False
-    if OLD:
-        assert species in ['zebra_plains']
-        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
-        weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
-        canvas_key = 'positive'
-    else:
+    NEW = True
+    if NEW:
         assert species in ['zebra_plains', 'zebra_grevys']
         model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
         weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
         canvas_key = species
+    else:
+        assert species in ['zebra_plains']
+        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+        weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
+        canvas_key = 'positive'
 
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)
@@ -239,13 +240,19 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
 
     print('[harness] Performing inference...')
 
-    for chip in ut.ProgressIter(chip_list, nTotal=nInput, lbl=species + ' background inference'):
-        samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
-        if OLD:
-            mask = canvas_dict[canvas_key]
-        else:
-            mask = np.maximum(255 - canvas_dict['negative'], canvas_dict[canvas_key])
-        #ut.embed()
+    _iter = ut.ProgressIter(chip_list, nTotal=nInput, lbl=species + ' background inference')
+    for chip in _iter:
+        try:
+            samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
+            if NEW:
+                mask = np.maximum(255 - canvas_dict['negative'], canvas_dict[canvas_key])
+            else:
+                mask = canvas_dict[canvas_key]
+        except Exception as ex:
+            ut.printex(ex, ('Error running convnet with '
+                            'chip.shape=%r, chip.dtype=%r') % (
+                                chip.shape, chip.dtype))
+            raise
         yield mask
 
 
