@@ -475,112 +475,111 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
             labels as the strings and the numpy array image as the values.
     """
 
-    with ut.embed_on_exception_context:
-        def _add_pad(data_):
-            if len(data_.shape) == 2:
-                data_padded = np.pad(data_, padding, 'reflect', reflect_type='even')
-            else:
-                h, w, c = data_.shape
-                data_padded = np.dstack([
-                    np.pad(data_[:, :, _], padding, 'reflect', reflect_type='even')
-                    for _ in range(c)
-                ])
-            return data_padded
-
-        if verbose:
-            # Start timer
-            t0 = time.time()
-            print('[harness] Loading the testing data (convolutional)...')
-        # Try to get the image's shape
-        try:
-            h, w, c = image.shape
-        except ValueError:
-            h, w = image.shape
-
-        #GLOBAL_LIMIT = min(256, w, h)
-        # HACK, this only works for square data shapes
-        GLOBAL_LIMIT = model.data_shape[0]
-        # Inference
-        if patch_size == 'auto':
-            patch_size = (GLOBAL_LIMIT - 2 * padding, GLOBAL_LIMIT - 2 * padding)
-        if stride == 'auto':
-            psx, psy = patch_size
-            stride = (psx - padding, psy - padding)
-        _tup = utils.extract_patches_stride(image, patch_size, stride)
-        data_list, coord_list = _tup
-        samples = len(data_list)
-        if batch_size is None:
-            batch_size = samples
-        start = 0
-        label_list = []
-        confidence_list = []
-        while start < samples:
-            end = min(samples, start + batch_size)
-            data_list_segment = data_list[start: end]
-            # coord_list_segment = coord_list[start: end]
-
-            # Augment the data_list by adding a reflected pad
-            data_list_ = np.array([
-                _add_pad(data_)
-                for data_ in data_list_segment
+    def _add_pad(data_):
+        if len(data_.shape) == 2:
+            data_padded = np.pad(data_, padding, 'reflect', reflect_type='even')
+        else:
+            h, w, c = data_.shape
+            data_padded = np.dstack([
+                np.pad(data_[:, :, _], padding, 'reflect', reflect_type='even')
+                for _ in range(c)
             ])
+        return data_padded
 
-            batchiter_kw = dict(
-                fix_output=False,
-                showprog=False,
-                time_thresh=10,
-                spatial=True,
-            )
+    if verbose:
+        # Start timer
+        t0 = time.time()
+        print('[harness] Loading the testing data (convolutional)...')
+    # Try to get the image's shape
+    try:
+        h, w, c = image.shape
+    except ValueError:
+        h, w = image.shape
 
-            test_results = batch.process_batch(model, data_list_, None,
-                                               theano_predict, **batchiter_kw)
+    #GLOBAL_LIMIT = min(256, w, h)
+    # HACK, this only works for square data shapes
+    GLOBAL_LIMIT = model.data_shape[0]
+    # Inference
+    if patch_size == 'auto':
+        patch_size = (GLOBAL_LIMIT - 2 * padding, GLOBAL_LIMIT - 2 * padding)
+    if stride == 'auto':
+        psx, psy = patch_size
+        stride = (psx - padding, psy - padding)
+    _tup = utils.extract_patches_stride(image, patch_size, stride)
+    data_list, coord_list = _tup
+    samples = len(data_list)
+    if batch_size is None:
+        batch_size = samples
+    start = 0
+    label_list = []
+    confidence_list = []
+    while start < samples:
+        end = min(samples, start + batch_size)
+        data_list_segment = data_list[start: end]
+        # coord_list_segment = coord_list[start: end]
 
-            label_list.extend(test_results['labeled_predictions'])
-            confidence_list.extend(test_results['confidences'])
-            start += batch_size
+        # Augment the data_list by adding a reflected pad
+        data_list_ = np.array([
+            _add_pad(data_)
+            for data_ in data_list_segment
+        ])
 
-        # Get all of the labels for the data, inheritted from the model
-        label_list_ = list(model.encoder.classes_)
-        # Create a dictionary of canvases
-        canvas_dict = {}
-        for label in label_list_:
-            canvas_dict[label] = np.zeros((h, w))  # We want float precision
-        # Construct the canvases using the forward inference results
-        label_list_ = label_list_[::-1]
-        # print('[harness] Labels: %r' %(label_list_, ))
-        zipped = list(zip(data_list, coord_list, label_list, confidence_list))
-        for label in label_list_:
-            for data, coord, label_, confidence in zipped:
-                x1, y1, x2, y2 = coord
-                # Get label and apply to confidence
-                confidence_ = np.copy(confidence)
-                confidence_[label_ != label] = 0
-                confidence_ *= 255.0
-                # Blow up canvas
-                mask = cv2.resize(confidence_, data.shape[0:2])
-                # Get the current values
-                current = canvas_dict[label][y1:y2, x1:x2]
-                # Where the current canvas is zero (most of it), make it mask
-                flags = current == 0
-                current[flags] = mask[flags]
-                # Average the current with the mask, which address overlapping areas
-                mask = 0.5 * mask + 0.5 * current
-                # Aggregate
-                canvas_dict[label][y1:y2, x1:x2] = mask
-            # Blur
-            # FIXME: Should this postprocessing step applied here?
-            # There is postprocessing in ibeis/models/preproc/preproc_probchip.py
-            ksize = 3
-            kernel = (ksize, ksize)
-            canvas_dict[label] = cv2.blur(canvas_dict[label], kernel)
-        # Cast all images to uint8
-        for label in label_list_:
-            canvas = np.around(canvas_dict[label])
-            canvas_dict[label] = canvas.astype(np.uint8)
-        if verbose:
-            # End timer
-            t1 = time.time()
-            duration = t1 - t0
-            print('[harness] Interface took %s seconds...' % (duration, ))
-        # Return the canvas dict
-        return samples, canvas_dict
+        batchiter_kw = dict(
+            fix_output=False,
+            showprog=False,
+            time_thresh=10,
+            spatial=True,
+        )
+
+        test_results = batch.process_batch(model, data_list_, None,
+                                           theano_predict, **batchiter_kw)
+
+        label_list.extend(test_results['labeled_predictions'])
+        confidence_list.extend(test_results['confidences'])
+        start += batch_size
+
+    # Get all of the labels for the data, inheritted from the model
+    label_list_ = list(model.encoder.classes_)
+    # Create a dictionary of canvases
+    canvas_dict = {}
+    for label in label_list_:
+        canvas_dict[label] = np.zeros((h, w))  # We want float precision
+    # Construct the canvases using the forward inference results
+    label_list_ = label_list_[::-1]
+    # print('[harness] Labels: %r' %(label_list_, ))
+    zipped = list(zip(data_list, coord_list, label_list, confidence_list))
+    for label in label_list_:
+        for data, coord, label_, confidence in zipped:
+            x1, y1, x2, y2 = coord
+            # Get label and apply to confidence
+            confidence_ = np.copy(confidence)
+            confidence_[label_ != label] = 0
+            confidence_ *= 255.0
+            # Blow up canvas
+            mask = cv2.resize(confidence_, data.shape[0:2])
+            # Get the current values
+            current = canvas_dict[label][y1:y2, x1:x2]
+            # Where the current canvas is zero (most of it), make it mask
+            flags = current == 0
+            current[flags] = mask[flags]
+            # Average the current with the mask, which address overlapping areas
+            mask = 0.5 * mask + 0.5 * current
+            # Aggregate
+            canvas_dict[label][y1:y2, x1:x2] = mask
+        # Blur
+        # FIXME: Should this postprocessing step applied here?
+        # There is postprocessing in ibeis/models/preproc/preproc_probchip.py
+        ksize = 3
+        kernel = (ksize, ksize)
+        canvas_dict[label] = cv2.blur(canvas_dict[label], kernel)
+    # Cast all images to uint8
+    for label in label_list_:
+        canvas = np.around(canvas_dict[label])
+        canvas_dict[label] = canvas.astype(np.uint8)
+    if verbose:
+        # End timer
+        t1 = time.time()
+        duration = t1 - t0
+        print('[harness] Interface took %s seconds...' % (duration, ))
+    # Return the canvas dict
+    return samples, canvas_dict

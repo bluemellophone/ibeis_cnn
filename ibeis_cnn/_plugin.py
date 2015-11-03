@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 tests a test set of data using a specified, pre-trained model and weights
 
 python -c "import ibeis_cnn"
 """
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 # from ibeis_cnn import utils
 from ibeis_cnn import models
 #from ibeis_cnn import test
@@ -141,12 +142,21 @@ def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     # Read the data
     print('\n[harness] Loading chips...')
     import vtool as vt
-    chip_list = (
-        vt.imread(fpath)
-        for fpath in ut.ProgressIter(chip_fpath_list, lbl='loading chips',
-                                     adjust=True))
-    mask_list = list(generate_species_background(ibs, chip_list, species=species))
-    return mask_list
+    nInput = len(chip_fpath_list)
+
+    def bufgen2(_iter, size=64, nInput=None, **kwargs):
+        nTotal = None if nInput is None else int(np.ceil(nInput / size))
+        chunk_iter = ut.ichunks(_iter, size)
+        chunk_iter_ = ut.ProgressIter(chunk_iter, nTotal=nTotal, **kwargs)
+        for chunk in chunk_iter_:
+            for item in chunk:
+                yield item
+    chip_list = bufgen2(
+        (vt.imread(fpath) for fpath in chip_fpath_list),
+        lbl='loading chip chunk', nInput=nInput, adjust=True, time_thresh=30.0)
+    #mask_list = list(generate_species_background(ibs, chip_list, species=species, nInput=nInput))
+    mask_gen = generate_species_background(ibs, chip_list, species=species, nInput=nInput)
+    return mask_gen
 
 
 @register_ibs_method
@@ -208,6 +218,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
         except TypeError:
             print('Warning passed in generator without specifying nInput hint')
             print('Explicitly evaluating generator')
+            print('type(chip_list) = %r' % (type(chip_list),))
             chip_list = list(chip_list)
             nInput = len(chip_list)
 
@@ -240,7 +251,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
 
     print('[harness] Performing inference...')
 
-    _iter = ut.ProgressIter(chip_list, nTotal=nInput, lbl=species + ' background inference')
+    _iter = ut.ProgressIter(chip_list, nTotal=nInput, lbl=species + ' fgdetect', adjust=True, freq=10, time_thresh=30.0)
     for chip in _iter:
         try:
             samples, canvas_dict = harness.test_convolutional(model, theano_predict, chip, padding=24)
