@@ -359,8 +359,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]
-        >>> dataset.interact(ibs=dataset.getprop('ibs'))
-        >>> print(result)
+        >>> dataset.interact()
         >>> ut.show_if_requested()
     """
     datakw = {

@@ -7,6 +7,63 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.experiments]')
 
 
+def sift_dataset_separability(dataset):
+    """
+    VERY HACKED RIGHT NOW. ONLY LIBERTY. BLINDLY CACHES
+
+    Args:
+        dataset (?):
+
+    CommandLine:
+        python -m ibeis_cnn.experiments --exec-sift_dataset_separability --show
+
+    Example:
+        >>> # SCRIPT
+        >>> from ibeis_cnn.experiments import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> dataset = ingest_data.grab_liberty_siam_dataset(250000)
+        >>> ut.quit_if_noshow()
+        >>> sift_dataset_separability(dataset)
+        >>> ut.show_if_requested()
+    """
+    import vtool as vt
+    @ut.cached_func('tmpsiftscorecache', cache_dir='.')
+    def cached_siftscores():
+        data, labels = dataset.load_subset('test')
+        sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
+        sift_scores = sift_scores.astype(np.float64)
+        return sift_scores, labels
+    sift_scores, labels = cached_siftscores()
+    encoder_kw = {
+        #'monotonize': False,
+        'monotonize': True,
+    }
+    sift_encoder = vt.ScoreNormalizer(**encoder_kw)
+    sift_encoder.fit(sift_scores, labels)
+    dataname = dataset.alias_key
+    viz_kw = dict(
+        with_scores=False,
+        with_postbayes=False,
+        with_prebayes=False,
+        target_tpr=.95,
+    )
+    inter_sift = sift_encoder.visualize(
+        figtitle=dataname + ' SIFT scores. #data=' + str(len(labels)),
+        fnum=None, **viz_kw)
+
+    import plottool as pt
+
+    #icon = ibs.get_database_icon()
+    icon = 'http://www.councilchronicle.com/wp-content/uploads/2015/08/West-Virginia-Arrested-over-Bogus-Statue-of-Liberty-Bomb-Threat.jpg'
+    if icon is not None:
+        pt.overlay_icon(icon, coords=(1, 0), bbox_alignment=(1, 0), max_dsize=(None, 192))
+
+    if ut.get_argflag('--contextadjust'):
+        pt.adjust_subplots(left=.1, bottom=.25, wspace=.2, hspace=.2)
+        pt.adjust_subplots2(use_argv=True)
+    return inter_sift
+
+
 def test_siamese_performance(model, data, labels, dataname=''):
     r"""
     CommandLine:
@@ -298,3 +355,16 @@ def test_siamese_thresholds(network_output, y_test, **kwargs):
     #score_normalization.plot_postbayes_pdf(
     #    score_domain, 1 - p_tp_given_score, p_tp_given_score, fnum=fnum, pnum=(2, 1, 2))
     #pass
+
+
+if __name__ == '__main__':
+    """
+    CommandLine:
+        python -m ibeis_cnn.experiments
+        python -m ibeis_cnn.experiments --allexamples
+        python -m ibeis_cnn.experiments --allexamples --noface --nosrc
+    """
+    import multiprocessing
+    multiprocessing.freeze_support()  # for win32
+    import utool as ut  # NOQA
+    ut.doctest_funcs()

@@ -113,6 +113,7 @@ class DataSet(object):
             ut.assert_exists(data_dict['training_dpath'])
             ut.assert_exists(data_dict['data_fpath'])
             ut.assert_exists(data_dict['labels_fpath'])
+            ut.assert_exists(data_dict['metadata_fpath'])
             dataset = cls(**data_dict)
             print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
             return dataset
