@@ -70,8 +70,15 @@ class DataSet(object):
     def hasprop(dataset, key):
         return key in dataset._lazy_cache.keys()
 
-    def getprop(dataset, key):
-        return dataset._lazy_cache[key]
+    def getprop(dataset, key, *d):
+        if len(d) == 0:
+            return dataset._lazy_cache[key]
+        else:
+            assert len(d) == 1
+            if key in dataset._lazy_cache:
+                return dataset._lazy_cache[key]
+            else:
+                return d[0]
 
     def setprop(dataset, key, val):
         dataset._lazy_cache[key] = val
@@ -194,7 +201,7 @@ class DataSet(object):
     def metadata(dataset):
         return dataset.load_subset_metadata()
 
-    def interact(dataset, **kwargs):
+    def interact(dataset, key='all', **kwargs):
         """
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
@@ -206,12 +213,15 @@ class DataSet(object):
         # interaction.
         kwarg_items = ut.recursive_parse_kwargs(interact_func)
         kwarg_keys = ut.get_list_column(kwarg_items, 0)
-        interact_kw = {key: dataset.getprop(key)
-                       for key in kwarg_keys if dataset.hasprop(key)}
+        interact_kw = {key_: dataset.getprop(key_)
+                       for key_ in kwarg_keys if dataset.hasprop(key_)}
         interact_kw.update(**kwargs)
         # TODO : generalize
+        data     = dataset.load_subset_data(key)
+        labels   = dataset.load_subset_labels(key)
+        metadata = dataset.load_subset_metadata(key)
         return interact_func(
-            dataset.labels, dataset.data, dataset.metadata, dataset.data_per_label,
+            labels, data, metadata, dataset.data_per_label,
             **interact_kw)
 
 

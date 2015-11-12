@@ -169,6 +169,9 @@ def grab_siam_dataset(ds_tag=None):
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db liberty --show
         python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show
 
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db PZ_MTEST --show --nohud --nometa
+        python -m ibeis_cnn.ingest_data --test-grab_siam_dataset --db liberty --show --nohud --nometa
+
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
@@ -177,7 +180,7 @@ def grab_siam_dataset(ds_tag=None):
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
         >>> ut.quit_if_noshow()
-        >>> dataset.interact(ibs=dataset.getprop('ibs'))
+        >>> dataset.interact(ibs=dataset.getprop('ibs', None), key='test', chunck_sizes=(8, 4))
         >>> ut.show_if_requested()
     """
     if ds_tag is not None:
@@ -435,7 +438,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
             'max_examples': None,
             #'num_top': 3,
             'num_top': None,
-            'min_featweight': .99 if not ut.WIN32 else None,
+            'min_featweight': .8 if not ut.WIN32 else None,
             'controlled': True,
             'colorspace': 'gray',
             'acfg_name': None,

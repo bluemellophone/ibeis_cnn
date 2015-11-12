@@ -46,6 +46,7 @@ def sift_dataset_separability(dataset):
         with_postbayes=False,
         with_prebayes=False,
         target_tpr=.95,
+        score_range=(0, 1)
     )
     inter_sift = sift_encoder.visualize(
         figtitle=dataname + ' SIFT scores. #data=' + str(len(labels)),

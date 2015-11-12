@@ -54,7 +54,7 @@ DS_TAG_ALIAS2 = {
     'liberty'      : "liberty;dict(detector='dog', pairs=250000)",
 
     'combo'        : 'combo_vdsujffw',
-    'timectrl_pzmaster1'    : "PZ_Master1;dict(acfg_name='timectrl', colorspace='gray', min_featweight=0.99)"  # NOQA
+    'timectrl_pzmaster1'    : "PZ_Master1;dict(acfg_name='timectrl', colorspace='gray', min_featweight=0.8)"  # NOQA
 }
 
 
