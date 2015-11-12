@@ -170,6 +170,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
         python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --species=zebra_plains --save cnn_detect_results_pz.png --diskshow --clipwhite
         python -m ibeis_cnn._plugin --exec-generate_species_background --db PZ_Master1 --show
         python -m ibeis_cnn._plugin --exec-generate_species_background --db GZ_Master1 --show
+        python -m ibeis_cnn._plugin --exec-generate_species_background --db GIRM_Master1 --show --species=giraffe_masai
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -226,16 +227,24 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     batch_size = None
 
     NEW = True
-    if NEW:
-        assert species in ['zebra_plains', 'zebra_grevys']
-        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
-        weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
-        canvas_key = species
-    else:
-        assert species in ['zebra_plains']
+    if species in ['zebra_plains', 'zebra_grevys']:
+        if NEW:
+            assert species in ['zebra_plains', 'zebra_grevys']
+            model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape, num_output=3)
+            weights_path = grabmodels.ensure_model('background_zebra_plains_grevys', redownload=False)
+            canvas_key = species
+        else:
+            assert species in ['zebra_plains']
+            model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+            weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
+            canvas_key = 'positive'
+    elif species in ['giraffe_masai']:
         model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
-        weights_path = grabmodels.ensure_model('background_zebra_plains', redownload=False)
-        canvas_key = 'positive'
+        weights_path = grabmodels.ensure_model('background_giraffe_masai', redownload=False)
+        canvas_key = species
+
+    else:
+        raise ValueError('species key does not have a trained model')
 
     old_weights_fpath = weights_path
     model.load_old_weights_kw2(old_weights_fpath)

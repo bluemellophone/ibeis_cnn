@@ -7,6 +7,7 @@ import utool as ut
 #DEFAULT_CNNMODELS_DIR = ut.get_app_resource_dir('ibeis_cnn', 'pretrained')
 
 MODEL_URLS = {
+    'background_giraffe_masai':       'https://www.dropbox.com/s/livo71nz15l28mt/giraffe_masai_background.npy?dl=0',
     'background_zebra_plains':        'https://www.dropbox.com/s/fihag18cowf02g1/zebra_plains_background.npy?dl=0',
     'background_zebra_plains_grevys': 'https://www.dropbox.com/s/7r1cu5lag6e8wh3/zebra_plains_grevys_background.pny?dl=0',
     'viewpoint':     'https://www.dropbox.com/s/6xjtcz8qrdj2cof/viewpoint.pickle?dl=0',

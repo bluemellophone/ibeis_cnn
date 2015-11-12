@@ -1461,6 +1461,10 @@ def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
     zipped_list = zip(gid_list, aids_list, bboxes_list)
     global_bbox_list = []
     for gid, aid_list, bbox_list in zipped_list:
+
+        # if gid > 20:
+        #     continue
+
         image = ibs.get_images(gid)
         height, width, channels = image.shape
 
