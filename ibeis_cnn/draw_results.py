@@ -85,10 +85,11 @@ def interact_patches(label_list, data_lists,
 
     #chunck_sizes = (6, 8)
     if chunck_sizes is None:
-        #chunck_sizes = (6, 10)
-        chunck_sizes = (3, 3)
+        chunck_sizes = (6, 10)
+        #chunck_sizes = (3, 3)
 
     # Check out the score pdfs
+    print('sortby = %r' % (sortby,))
     if sortby is not None:
         if sortby == 'fs':
             index_list = ut.list_argsort(flat_metadata['fs'])[::-1]

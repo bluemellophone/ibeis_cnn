@@ -418,6 +418,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
     """
     CommandLine:
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_Master1 --acfg_name default
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_Master1 --acfg_name timectrl
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
 

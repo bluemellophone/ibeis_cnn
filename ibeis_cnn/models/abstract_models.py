@@ -1111,6 +1111,7 @@ class BaseModel(object):
             monitor_outputs = []
             for param in parameters:
                 # The vector each param was udpated with
+                # (one vector per channel)
                 param_update_vec = updates[param] - param
                 param_update_vec.name = 'param_update_vector_' + param.name
                 flat_shape = (param_update_vec.shape[0],

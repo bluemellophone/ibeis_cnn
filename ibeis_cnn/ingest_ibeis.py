@@ -740,6 +740,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                              controlled=True, min_featweight=None,
                              acfg_name=None):
     """
+    Gets data for training a patch match network.
 
     Args:
         ibs (IBEISController):  ibeis controller object
@@ -755,7 +756,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
 
     CommandLine:
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master0
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg_name default --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg ctrl:qindex=0:10 --show
+       python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg_name default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db NNP_Master3
 
     Example:
@@ -764,7 +767,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>> import ibeis
         >>> # build test data
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
-        >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
+        >>> acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a', '--acfg-name'),
         ...                             type_=str,
         ...                             default='ctrl:qindex=0:10')
         >>> max_examples = None
@@ -786,7 +789,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>> for aid1, aid2, kpts1, kpts2, fm in _iter:
         >>>     pt.reset()
         >>>     print('aid2 = %r' % (aid2,))
-        >>>     print('aid1 = %r' % (aid1,)) >>>     print('len(fm) = %r' % (len(fm),)) >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
+        >>>     print('aid1 = %r' % (aid1,))
+        >>>     print('len(fm) = %r' % (len(fm),))
+        >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
         >>>     pt.update()
         >>> ut.show_if_requested()
     """

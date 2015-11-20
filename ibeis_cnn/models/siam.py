@@ -651,15 +651,16 @@ def constrastive_loss(dist_l2, labels, margin, T=T):
         >>> dist_l2 = np.linspace(0, 2.5, 200)
         >>> labels = np.tile([True, False], 100)
         >>> # margin, T = 1.25, np
-        >>> margin, T = 1.0, np
+        >>> margin, T = 1.25, np
         >>> loss = constrastive_loss(dist_l2, labels, margin, T)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> xdat_genuine, ydat_genuine = dist_l2[labels], loss[labels] * 2.0
         >>> xdat_imposter, ydat_imposter = dist_l2[~labels], loss[~labels] * 2.0
-        >>> pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
-        >>> pt.plot(xdat_genuine, ydat_genuine, '--', color=pt.TRUE, label='Genuine Distance')
-        >>> pt.plot(xdat_imposter, ydat_imposter, '-', color=pt.FALSE,  label='Imposter Distance')
+        >>> #pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
+        >>> pt.presetup_axes(x_label='Energy (E)', y_label='Loss (L)', equal_aspect=False)
+        >>> pt.plot(xdat_genuine, ydat_genuine, '--', lw=2, color=pt.TRUE, label='Correct training pairs')
+        >>> pt.plot(xdat_imposter, ydat_imposter, '-', lw=2, color=pt.FALSE,  label='Incorrect training pairs')
         >>> pt.pad_axes(.03, ylim=(0, 3.5))
         >>> pt.postsetup_axes()
         >>> ut.show_if_requested()
