@@ -56,6 +56,9 @@ DS_TAG_ALIAS2 = {
     'combo'        : 'combo_vdsujffw',
     'timectrl_pzmaster1'    : "PZ_Master1;dict(acfg_name='timectrl', colorspace='gray', min_featweight=0.8)",  # NOQA
     'pzm2'    : "PZ_Master1;dict(acfg_name='timectrl:pername=None', colorspace='gray', min_featweight=0.8)",  # NOQA
+    'pzm3'   : "PZ_Master1;dict(acfg_name=None, colorspace='gray', controlled=True, min_featweight=0.8)",
+    #'pzm3'    : "PZ_Master1;dict(acfg_name='default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok', colorspace='gray', min_featweight=0.8)",  # NOQA
+    'pzm4' : "PZ_Master1;dict(acfg_name='default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok', colorspace='gray', min_featweight=0.8)"
 }
 
 
@@ -79,6 +82,10 @@ def netrun():
 
         # Parts based datasets
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
+
+        % Patch based dataset (big one)
+        python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --ensuredata --show --vtd
+        python -m ibeis_cnn --tf netrun --ds pzm4 --weights=new --arch=siaml2_128 --train --monitor
 
         # --- TRAINING ---
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --acfg ctrl:pername=None,excluderef=False,contrib_contains=FlankHack --train --weights=new --arch=siaml2_128  --monitor  # NOQA
@@ -123,11 +130,14 @@ def netrun():
     else:
         extern_dpath = None
 
+    print('dataset.training_dpath = %r' % (dataset.training_dpath,))
+
+    print('Dataset Alias Key: %r' % (dataset.alias_key,))
+    print('Current Dataset Tag: %r' % (
+        ut.invert_dict(DS_TAG_ALIAS2).get(dataset.alias_key, None),))
+
     if requests['ensuredata']:
         # Print alias key that maps to this particular dataset
-        print('Dataset Alias Key: %r' % (dataset.alias_key,))
-        print('Current Dataset Tag: %r' % (
-            ut.invert_dict(DS_TAG_ALIAS2).get(dataset.alias_key, None),))
         if ut.show_was_requested():
             interact_ = dataset.interact()  # NOQA
             return

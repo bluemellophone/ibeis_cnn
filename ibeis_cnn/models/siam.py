@@ -105,10 +105,10 @@ class SiameseL2(AbstractSiameseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
                 #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
@@ -144,10 +144,10 @@ class SiameseL2(AbstractSiameseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2_128', **hidden_initkw),
                 #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
@@ -180,7 +180,7 @@ class SiameseL2(AbstractSiameseModel):
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
                               pool_size=(2, 2), pool_stride=(2, 2),
-                              drop_p=.1):
+                              drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -192,7 +192,7 @@ class SiameseL2(AbstractSiameseModel):
 
         def CD_layer(num_filters=32,
                      conv_size=(5, 5), conv_stride=(3, 3),
-                     drop_p=.1):
+                     drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -251,7 +251,7 @@ class SiameseL2(AbstractSiameseModel):
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
                               pool_size=(2, 2), pool_stride=(2, 2),
-                              drop_p=.1):
+                              drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -263,7 +263,7 @@ class SiameseL2(AbstractSiameseModel):
 
         def CD_layer(num_filters=32,
                      conv_size=(5, 5), conv_stride=(3, 3),
-                     drop_p=.1):
+                     drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -321,13 +321,13 @@ class SiameseL2(AbstractSiameseModel):
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(custom_layers.CenterSurroundLayer, name='CentSuround'),
                 _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P0'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network

@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function
 import utool as ut
 import numpy as np
+import vtool as vt
 import six
 import cv2
 import itertools
@@ -39,7 +40,6 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     """
     print('NEW WAY OF FILTERING')
     from ibeis.expt import experiment_helpers
-    import vtool as vt
     acfg_list, expanded_aids_list = experiment_helpers.get_annotcfg_list(
         ibs, [acfg_name])
     #acfg = acfg_list[0]
@@ -109,7 +109,6 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     #print('Building negative examples')
     #_neg_aid_pairs = np.vstack((hardneg_aid_pairs, randneg_aid_pairs))
     #neg_aid_pairs = vt.unique_rows(_neg_aid_pairs)
-    #print('Filtered %d duplicate negative pairs' % (len(_neg_aid_pairs) - len(neg_aid_pairs)))
 
     # Unsure Examples
     # TODO: use quality and viewoint labelings to determine this
@@ -121,11 +120,13 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     print('Building labels')
     const = ibs.const
     unflat_pairs = (pos_aid_pairs, hardneg_aid_pairs, randneg_aid_pairs)
-    type_labels = (const.TRUTH_MATCH, const.TRUTH_NOT_MATCH, const.TRUTH_NOT_MATCH)
+    type_labels = (const.TRUTH_MATCH, const.TRUTH_NOT_MATCH,
+                   const.TRUTH_NOT_MATCH)
     type_meta_labels = ('pos', 'hardneg', 'randneg')
 
     def _expand(type_list):
-        return [[item] * len(pairs) for pairs, item in zip(unflat_pairs, type_list)]
+        return [[item] * len(pairs)
+                for pairs, item in zip(unflat_pairs, type_list)]
 
     _aid_pairs = np.vstack(unflat_pairs)
     _labels = np.hstack(_expand(type_labels))
@@ -192,7 +193,6 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
 
     # TODO extract chips in a sane manner
     import ibeis.model.hots.vsone_pipeline
-    import vtool as vt
     kwargs = kwargs.copy()
     part_chip_width  = kwargs.pop('part_chip_width', 256)
     part_chip_height = kwargs.pop('part_chip_height', 128)
@@ -320,7 +320,6 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         >>> draw_results.interact_patches(label_list, (warped_patch1_list, warped_patch2_list), flat_metadata)
         >>> ut.show_if_requested()
     """
-    import vtool as vt
     # Flatten to only apply chip operations once
     print('get_aidpair_patchmatch_training_data num_pairs = %r' % (len(aid1_list)))
     assert len(aid1_list) == len(aid2_list)
@@ -337,16 +336,19 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
     chip1_list, chip2_list = ut.uninvert_unique_two_lists(chip_list, reconstruct_tup)
     print('warping')
 
-    USE_CACHEFUNC = True
+    class PatchExtractCache(object):
 
-    if USE_CACHEFUNC:
-        def idcache_find_misses(id_list, cache_):
+        def __init__(self, patch_size):
+            self.patch_size = patch_size
+            self.cache_ = {}
+
+        def idcache_find_misses(self, id_list, cache_):
             # Generalize?
             val_list = [cache_.get(id_, None) for id_ in id_list]
             ismiss_list = [val is None for val in val_list]
             return val_list, ismiss_list
 
-        def idcache_save(ismiss_list, miss_vals, id_list, val_list, cache_):
+        def idcache_save(self, ismiss_list, miss_vals, id_list, val_list, cache_):
             # Generalize?
             miss_indices = ut.list_where(ismiss_list)
             miss_ids  = ut.filter_items(id_list, ismiss_list)
@@ -357,49 +359,51 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
             for id_, val in zip(miss_ids, miss_vals):
                 cache_[id_] = val
 
-        def cacheget_wraped_patches(aid, fxs, chip, kpts, cache_={}):
+        def cacheget_wraped_patches(self, aid, fxs, chip, kpts):
             # +-- Custom ids
             id_list = [(aid, fx) for fx in fxs]
             # L__
-            val_list, ismiss_list = idcache_find_misses(id_list, cache_)
+            val_list, ismiss_list = self.idcache_find_misses(id_list, self.cache_)
             if any(ismiss_list):
                 # +-- Custom evaluate misses
                 kpts_miss = kpts.compress(ismiss_list, axis=0)
-                miss_vals = vt.get_warped_patches(chip, kpts_miss, patch_size=patch_size)[0]
+                miss_vals = vt.get_warped_patches(chip, kpts_miss, patch_size=self.patch_size)[0]
                 # L__
-                idcache_save(ismiss_list, miss_vals, id_list, val_list, cache_)
+                self.idcache_save(ismiss_list, miss_vals, id_list, val_list, self.cache_)
             return val_list
-        fx1_list = [fm.T[0] for fm in fm_list]
-        fx2_list = [fm.T[1] for fm in fm_list]
-        warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list,
-                                         kpts1_m_list),
-                                     nTotal=len(kpts1_m_list), lbl='warp1',
-                                     adjust=True)
-        warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list,
-                                         kpts2_m_list),
-                                     nTotal=len(kpts2_m_list), lbl='warp2',
-                                     adjust=True)
-        warped_patches1_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter1))
-        warped_patches2_list = list(itertools.starmap(cacheget_wraped_patches, warp_iter2))
-    else:
-        warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list),
-                                     nTotal=len(kpts1_m_list), lbl='warp1',
-                                     adjust=True)
-        warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list),
-                                     nTotal=len(kpts2_m_list), lbl='warp2',
-                                     adjust=True)
-        warped_patches1_list = [vt.get_warped_patches(chip1, kpts1, patch_size=patch_size)[0]
-                                for chip1, kpts1 in warp_iter1]
-        warped_patches2_list = [vt.get_warped_patches(chip2, kpts2, patch_size=patch_size)[0]
-                                for chip2, kpts2 in warp_iter2]
 
-    del chip_list
-    del chip1_list
-    del chip2_list
+    fx1_list = [fm.T[0] for fm in fm_list]
+    fx2_list = [fm.T[1] for fm in fm_list]
+    warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list,
+                                     kpts1_m_list),
+                                 nTotal=len(kpts1_m_list), lbl='warp1',
+                                 adjust=True)
+    warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list,
+                                     kpts2_m_list),
+                                 nTotal=len(kpts2_m_list), lbl='warp2',
+                                 adjust=True)
+    pec = PatchExtractCache(patch_size=patch_size)
+    warped_patches1_list = list(itertools.starmap(pec.cacheget_wraped_patches, warp_iter1))
+    warped_patches2_list = list(itertools.starmap(pec.cacheget_wraped_patches, warp_iter2))
+    #warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list),
+    #                             nTotal=len(kpts1_m_list), lbl='warp1',
+    #                             adjust=True)
+    #warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list),
+    #                             nTotal=len(kpts2_m_list), lbl='warp2',
+    #                             adjust=True)
+    #warped_patches1_list = [vt.get_warped_patches(chip1, kpts1, patch_size=patch_size)[0]
+    #                        for chip1, kpts1 in warp_iter1]
+    #warped_patches2_list = [vt.get_warped_patches(chip2, kpts2, patch_size=patch_size)[0]
+    #                        for chip2, kpts2 in warp_iter2]
+
+    #del chip_list
+    #del chip1_list
+    #del chip2_list
     ut.print_object_size(warped_patches1_list, 'warped_patches1_list')
     ut.print_object_size(warped_patches2_list, 'warped_patches2_list')
-    len1_list = list(map(len, warped_patches1_list))
-    assert len1_list == list(map(len, warped_patches2_list))
+    len1_list = list(map(len, fm_list))
+    assert ut.lmap(len, warped_patches1_list) == ut.lmap(len, warped_patches2_list), 'bug'
+    assert ut.lmap(len, warped_patches1_list) == len1_list, 'bug'
     print('flattening')
     aid1_list_ = np.array(ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)]))
     aid2_list_ = np.array(ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)]))
@@ -415,10 +419,29 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
     #flat_metadata = ut.map_dict_vals(np.array, flat_metadata)
 
     warped_patch1_list = ut.flatten(warped_patches1_list)
-    del warped_patches1_list
     warped_patch2_list = ut.flatten(warped_patches2_list)
-    del warped_patches2_list
+    #del warped_patches1_list
+    #del warped_patches2_list
     return aid1_list_, aid2_list_, warped_patch1_list, warped_patch2_list, flat_metadata
+
+
+def flatten_patch_data(ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists):
+    # TODO; rectify
+    len1_list = list(map(len, fm_list))
+    print('flattening')
+    aid1_list_ = np.array(ut.flatten([[aid1] * len1 for len1, aid1 in zip(len1_list, aid1_list)]))
+    aid2_list_ = np.array(ut.flatten([[aid2] * len1 for len1, aid2 in zip(len1_list, aid2_list)]))
+    # Flatten metadata
+    flat_metadata = {key: np.array(ut.flatten(val)) for key, val in metadata_lists.items()}
+    flat_metadata['aid_pairs'] = np.hstack(
+        (np.array(aid1_list_)[:, None],
+         np.array(aid2_list_)[:, None]))
+    flat_metadata['fm'] = np.vstack(fm_list)
+    flat_metadata['kpts1_m'] = np.vstack(kpts1_m_list)
+    flat_metadata['kpts2_m'] = np.vstack(kpts2_m_list)
+    labels = get_aidpair_training_labels(ibs, aid1_list_, aid2_list_)
+    return aid1_list_, aid2_list_, labels, flat_metadata
+    # TEMP
 
 
 def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
@@ -470,7 +493,6 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
 
 
 def mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list):
-    import vtool as vt
     yaw1_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid2_list), np.nan))
     yaw2_list = np.array(ut.replace_nones(ibs.get_annot_yaws(aid1_list), np.nan))
     yawdist_list = vt.ori_distance(yaw1_list, yaw2_list)
@@ -479,7 +501,7 @@ def mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list):
     return isinconsistent_list
 
 
-def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
+def get_aidpair_training_labels(ibs, aid1_list_, aid2_list_):
     """
     Returns:
         ndarray: true in positions of matching, and false in positions of not matching
@@ -500,12 +522,11 @@ def get_aidpair_training_labels(ibs, aid1_list, aid2_list):
         >>> print(result)
         labels = np.array([1, 0, 0, ..., 0, 1, 0], dtype=np.int32)
     """
-    from ibeis import const
-    truth_list = ibs.get_aidpair_truths(aid1_list, aid2_list)
+    truth_list = ibs.get_aidpair_truths(aid1_list_, aid2_list_)
     labels = truth_list
     # Mark different viewpoints as unknown for training
-    isinconsistent_list = mark_inconsistent_viewpoints(ibs, aid1_list, aid2_list)
-    labels[isinconsistent_list] = const.TRUTH_UNKNOWN
+    isinconsistent_list = mark_inconsistent_viewpoints(ibs, aid1_list_, aid2_list_)
+    labels[isinconsistent_list] = ibs.const.TRUTH_UNKNOWN
     return labels
 
 
@@ -756,10 +777,13 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
 
     CommandLine:
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master0
-        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg_name default --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg default --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg ctrl:qindex=0:10 --show
-       python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg_name default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db NNP_Master3
+
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
+
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -782,6 +806,17 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>>                                           acfg_name=acfg_name)
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = patchmatch_tup
         >>> ut.quit_if_noshow()
+        >>> print('Visualizing')
+        >>> # Visualize feature scores
+        >>> tup = flatten_patch_data(
+        >>>     ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
+        >>>     metadata_lists)
+        >>> labels, flat_metadata = tup[2:]
+        >>> fs = flat_metadata['fs']
+        >>> encoder = vt.ScoreNormalizer(adjust=1)
+        >>> encoder.fit(fs, labels)
+        >>> encoder.visualize(bin_width=.001, fnum=None)
+        >>> # Visualize parent matches
         >>> _iter = list(zip(aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list))
         >>> _iter = ut.InteractiveIter(_iter, display_item=False)
         >>> import plottool as pt
@@ -794,6 +829,10 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
         >>>     pt.update()
         >>> ut.show_if_requested()
+
+    Ignore:
+
+
     """
 
     def get_query_results():
@@ -833,7 +872,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         qres_list, qreq_ = ibs.query_chips(
             qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
         # TODO: Use ChipMatch2 instead of QueryResult
-        #cm_list = [chip_match.ChipMatch2.from_qres(qres) for qres in qres_list]
+        #cm_list = [chip_match.ChipMatch2.from_qres(cm) for cm in qres_list]
         #for cm in cm_list:
         #    cm.evaluate_nsum_score(qreq_=qreq_)
         #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
@@ -844,29 +883,82 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     def get_matchdata1():
         # Get aid pairs and feature matches
         if num_top is None:
-            aids2_list = [qres.get_top_aids() for qres in qres_list]
+            aids2_list = [cm.get_top_aids() for cm in qres_list]
         else:
-            aids2_list = [qres.get_top_aids()[0:num_top] for qres in qres_list]
-        aids1_list = [[qres.qaid] * len(aids2)
-                      for qres, aids2 in zip(qres_list, aids2_list)]
+            aids2_list = [cm.get_top_aids()[0:num_top] for cm in qres_list]
+        aids1_list = [[cm.qaid] * len(aids2)
+                      for cm, aids2 in zip(qres_list, aids2_list)]
         aid1_list_all = np.array(ut.flatten(aids1_list))
         aid2_list_all = np.array(ut.flatten(aids2_list))
+
         def take_qres_list_attr(attr):
-            attrs_list = [ut.dict_take(getattr(qres, attr), aids2)
-                          for qres, aids2 in zip(qres_list, aids2_list)]
+            attrs_list = [ut.dict_take(getattr(cm, attr), aids2)
+                          for cm, aids2 in zip(qres_list, aids2_list)]
             attr_list = ut.flatten(attrs_list)
             return attr_list
         fm_list_all = take_qres_list_attr(attr='aid2_fm')
         metadata_all = {}
-        filtkey_lists = ut.unique_unordered([tuple(qres.filtkey_list) for qres in qres_list])
+        filtkey_lists = ut.unique_unordered([tuple(cm.filtkey_list) for cm in qres_list])
         assert len(filtkey_lists) == 1, 'multiple fitlers used in this query'
         filtkey_list = filtkey_lists[0]
         fsv_list = take_qres_list_attr('aid2_fsv')
         for index, key in enumerate(filtkey_list):
             metadata_all[key] = [fsv.T[index] for fsv in fsv_list]
         metadata_all['fs'] = take_qres_list_attr('aid2_fs')
+
+        if True:
+            neg_aid_pool = np.unique(ut.flatten([aid1_list_all, aid2_list_all]))
+            randneg_aid1 = []
+            randneg_aid2 = []
+            randneg_fm = []
+            rand_meta = {key: [] for key in metadata_all.keys()}
+            neg_nid_pool = np.array(ibs.get_annot_nids(neg_aid_pool))
+            rng = np.random.RandomState(0)
+            num_rand_neg_per_aid = 3
+            num_rand_fm = 50
+            for aid, nid in ut.ProgIter(list(zip(neg_aid_pool, neg_nid_pool)), 'sample rand', adjust=True):
+                is_valid = get_badtag_flags(ibs, [aid] * len(neg_aid_pool), neg_aid_pool)
+                is_valid = np.logical_and(np.not_equal(neg_nid_pool, nid), is_valid)
+                p = is_valid / (is_valid.sum())
+                chosen = rng.choice(neg_aid_pool, size=num_rand_neg_per_aid,
+                                    replace=False, p=p)
+                chosen_pairs = list(ut.iprod([aid], chosen))
+                for aid1, aid2 in chosen_pairs:
+                    fw1 = ibs.get_annot_fgweights([aid1], config2_=qreq_.get_internal_query_config2())[0]
+                    fw2 = ibs.get_annot_fgweights([aid2], config2_=qreq_.get_internal_data_config2())[0]
+                    valid_fx1s = np.where(fw1 > min_featweight)[0]
+                    valid_fx2s = np.where(fw2 > min_featweight)[0]
+                    size = min(num_rand_fm, len(valid_fx1s), len(valid_fx2s))
+                    if size > 0:
+                        chosen_fx1 = rng.choice(valid_fx1s, size=size, replace=False)
+                        chosen_fx2 = rng.choice(valid_fx2s, size=size, replace=False)
+                        fm = np.vstack([chosen_fx1, chosen_fx2]).T
+                        # HACK, probably very slow
+                        randneg_aid1.append(aid1)
+                        randneg_aid2.append(aid2)
+                        randneg_fm.append(fm)
+                        for key in rand_meta.keys():
+                            rand_meta[key].append(np.array([0] * len(fm)))
+
+            metadata_all = ut.dict_isect_combine(metadata_all, rand_meta)
+            fm_list_all = fm_list_all + randneg_fm
+            aid1_list_all = np.append(aid1_list_all, randneg_aid1)
+            aid2_list_all = np.append(aid2_list_all, randneg_aid2)
+
         # extract metadata (like feature scores and whatnot)
         return aid1_list_all, aid2_list_all, fm_list_all, metadata_all
+
+    def get_badtag_flags(ibs, aid1_list, aid2_list):
+        from ibeis import tag_funcs
+        tag_filter_kw = dict(has_none=['photobomb', 'scenerymatch', 'joincase', 'splitcase'])
+        am_rowids1 = ibs.get_annotmatch_rowid_from_superkey(aid1_list, aid2_list)
+        am_rowids2 = ibs.get_annotmatch_rowid_from_superkey(aid2_list, aid1_list)
+        case_tags1 = ibs.get_annotmatch_case_tags(am_rowids1)
+        case_tags2 = ibs.get_annotmatch_case_tags(am_rowids2)
+        flags1 = tag_funcs.filterflags_general_tags(case_tags1, **tag_filter_kw)
+        flags2 = tag_funcs.filterflags_general_tags(case_tags2, **tag_filter_kw)
+        flags_tag = ut.and_lists(flags1, flags2)
+        return flags_tag
 
     def get_matchdata2():
         aid1_list_all, aid2_list_all, fm_list_all, metadata_all = get_matchdata1()
@@ -875,7 +967,23 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         labels_all = get_aidpair_training_labels(ibs, aid1_list_all, aid2_list_all)
         has_gt = (labels_all != ibs.const.TRUTH_UNKNOWN)
         nonempty = [len(fm) > 0 for fm in fm_list_all]
-        isvalid = np.logical_and(has_gt, nonempty)
+        # Filter pairs bad pairs of aids
+        # using case tags
+
+        flags_tag = get_badtag_flags(ibs, aid1_list_all, aid2_list_all)
+        print(ut.filtered_infostr(flags_tag, 'annots', 'tag filters'))
+        flags = ut.and_lists(flags_tag, flags_tag)
+        #
+        MIN_TD = 5 * 60  # 5 minutes at least
+        timedelta_list = np.abs(ibs.get_annot_pair_timdelta(aid1_list_all, aid2_list_all))
+        #isnan = np.isnan(timedelta_list)
+        gf_tdflags = np.logical_or(labels_all == ibs.const.TRUTH_MATCH, timedelta_list > MIN_TD)
+        print(ut.filtered_infostr(gf_tdflags, 'gf annots', 'timestamp'))
+        flags = ut.and_lists(flags, gf_tdflags)
+        # Remove small time deltas
+        # --
+        print(ut.filtered_infostr(flags, 'total invalid annots'))
+        isvalid = np.logical_and(np.logical_and(has_gt, nonempty), flags)
         aid1_list_uneq = ut.list_compress(aid1_list_all, isvalid)
         aid2_list_uneq = ut.list_compress(aid2_list_all, isvalid)
         labels_uneq    = ut.list_compress(labels_all, isvalid)
@@ -893,11 +1001,10 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             print('filter by featweight')
             # Remove feature matches where the foreground weight is under a threshold
             flags_list = []
-            for index in range(len(aid1_list_uneq)):
+            for index in ut.ProgIter(range(len(aid1_list_uneq)), 'filt fw', adjust=True):
                 aid1 = aid1_list_uneq[index]
                 aid2 = aid2_list_uneq[index]
                 fm = fm_list_uneq[index]
-
                 fgweight1 = ibs.get_annot_fgweights(
                     [aid1], config2_=qreq_.get_internal_query_config2())[0][fm.T[0]]
                 fgweight2 = ibs.get_annot_fgweights(
@@ -906,10 +1013,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                                        fgweight2 > min_featweight)
                 flags_list.append(flags)
 
-            import vtool as vt
-            num_keep = sum([x.sum() for x in flags_list])
-            num_total = sum([len(x) for x in flags_list])
-            print('Kept ' + str(100 * num_keep / num_total) + '% of matches')
+            print(ut.filtered_infostr(ut.flatten(flags_list), 'feat matches', 'featweight'))
             fm_list_uneq2 = vt.zipcompress_safe(fm_list_uneq, flags_list, axis=0)
             metadata_uneq2  = {key: vt.zipcompress_safe(vals, flags_list, axis=0)
                                for key, vals in metadata_uneq.items()}
@@ -920,8 +1024,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         return aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq2, metadata_uneq2
 
     def equalize_flat_flags(flat_labels, flat_scores):
-        import vtool as vt  # NOQA
-
         labelhist = ut.dict_hist(flat_labels)
         # Print input distribution of labels
         print('[ingest_ibeis] original label histogram = \n' + ut.dict_str(labelhist))
@@ -977,7 +1079,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     def equalize_labels():
         (aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq2,
          metadata_uneq2) = get_matchdata3()
-        import vtool as vt
         print('flattening')
         # Find out how many examples each source holds
         len1_list = list(map(len, fm_list_uneq2))
@@ -1034,9 +1135,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     fx1_list = [fm.T[0] for fm in fm_list_eq]
     fx2_list = [fm.T[1] for fm in fm_list_eq]
     # Hack: use the ibeis cache to make quick lookups
-    with ut.Timer('Reading keypoint sets (caching unique keypoints)'):
-        ibs.get_annot_kpts(list(set(aid1_list_eq + aid2_list_eq)),
-                           config2_=qreq_.get_internal_query_config2())
+    #with ut.Timer('Reading keypoint sets (caching unique keypoints)'):
+    #    ibs.get_annot_kpts(list(set(aid1_list_eq + aid2_list_eq)),
+    #                       config2_=qreq_.get_internal_query_config2())
     with ut.Timer('Reading keypoint sets from cache'):
         kpts1_list = ibs.get_annot_kpts(aid1_list_eq,
                                         config2_=qreq_.get_internal_query_config2())
@@ -1059,132 +1160,13 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     return patchmatch_tup
 
 
-# def get_background_training_patches(ibs, min_percent=0.80, max_percent=2.0,
-#                                     dest_path=None, patch_size=96, patches_per_image=200):
-#     """
-#     """
-#     import random
-#     from os.path import join, expanduser
-
-#     def resize_target(image, target_height=None, target_width=None):
-#         assert target_height is not None or target_width is not None
-#         height, width = image.shape[:2]
-#         if target_height is not None and target_width is not None:
-#             h = target_height
-#             w = target_width
-#         elif target_height is not None:
-#             h = target_height
-#             w = (width / height) * h
-#         elif target_width is not None:
-#             w = target_width
-#             h = (height / width) * w
-#         w, h = int(w), int(h)
-#         return cv2.resize(image, (w, h))
-
-#     def point_inside((x, y), (x0, y0, w, h)):
-#         x1 = x0 + w
-#         y1 = y0 + h
-#         return x0 <= x and x <= x1 and y0 <= y and y <= y1
-
-#     if dest_path is None:
-#         dest_path = expanduser(join('~', 'Desktop', 'extracted'))
-
-#     name = 'background_patches'
-#     raw_path = join(dest_path, 'raw', name)
-#     labels_path = join(dest_path, 'labels', name)
-
-#     ut.remove_dirs(dest_path)
-#     ut.ensuredir(dest_path)
-#     ut.ensuredir(raw_path)
-#     ut.ensuredir(labels_path)
-
-#     gid_list = ibs.get_valid_gids()
-#     size_list = ibs.get_image_sizes(gid_list)
-#     aids_list = ibs.get_image_aids(gid_list)
-#     bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
-
-#     min_size = int(min_percent * patch_size)
-#     max_size = int(max_percent * patch_size)
-
-#     patch_size = (patch_size, patch_size)
-#     zipped = zip(gid_list, size_list, aids_list, bboxes_list)
-#     label_list = []
-#     for gid, (width, height), aid_list, bbox_list in zipped:
-#         image = ibs.get_images(gid)
-
-#         # smallest_size = min(width, height)
-#         # min_size = int(min_percent * smallest_size)
-#         # max_size = int(max_percent * smallest_size)
-#         # min_size = max(min_size, patch_size)
-
-#         print('Processing GID: %r' % (gid, ))
-#         print('\tAIDS  : %r' % (aid_list, ))
-#         print('\tBBOXES: %r' % (bbox_list, ))
-
-#         for (x0, y0, w, h) in bbox_list:
-#             x1 = x0 + w
-#             y1 = y0 + h
-#             cv2.rectangle(image, (x0, y0), (x1, y1), (255, 0, 0))
-
-#         for _ in range(patches_per_image):
-#             x0 = random.randint(0, width)
-#             y0 = random.randint(0, height)
-
-#             x1, y1 = None, None
-#             while x1 is None or y1 is None:
-#                 x1_ = random.randint(0, width)
-#                 y1_ = random.randint(0, height)
-#                 dist_x = abs(x0 - x1_)
-#                 dist_y = abs(y0 - y1_)
-#                 if dist_x < min_size or max_size < dist_x:
-#                     continue
-#                 if dist_y < min_size or max_size < dist_y:
-#                     continue
-#                 x1 = x1_
-#                 y1 = y1_
-
-#             if x1 < x0:
-#                 x0, x1 = x1, x0
-#             if y1 < y0:
-#                 y0, y1 = y1, y0
-
-#             size = min(x1 - x0, y1 - y0)
-#             x1 = x0 + size
-#             y1 = y0 + size
-#             center = ( int(np.mean((x0, x1))), int(np.mean((y0, y1))) )
-
-#             inside = False
-#             for bbox in bbox_list:
-#                 if point_inside(center, bbox):
-#                     inside = True
-#                     break
-
-#             patch = image[y0: y1, x0: x1]
-#             patch = cv2.resize(patch, patch_size, interpolation=cv2.INTER_LANCZOS4)
-#             patch_filename = 'patch_gid_%s_bbox_%d_%d_%d_%d.png' % (gid, x0, y0, size, size, )
-#             patch_class = 'positive' if inside else 'negative'
-#             patch_color = (0, 0, 255) if inside else (0, 255, 0)
-
-#             patch_filepath = join(raw_path, patch_filename)
-#             cv2.imwrite(patch_filepath, patch)
-#             cv2.rectangle(image, (x0, y0), (x1, y1), patch_color)
-
-#             label = '%s,%s' % (patch_filename, patch_class)
-#             label_list.append(label)
-
-#         image = resize_target(image, target_width=1000)
-#         cv2.imshow('', image)
-#         cv2.waitKey(0)
-
-#     with open(join(labels_path, 'labels.csv'), 'w') as labels:
-#         label_str = '\n'.join(label_list)
-#         labels.write(label_str)
-
-
 def get_background_training_patches2(ibs, dest_path=None, patch_size=48,
                                      patch_size_min=0.80, patch_size_max=1.25,
                                      annot_size=300, patience=20,
                                      patches_per_annotation=30):
+    """
+    Get data for bg
+    """
     import random
     from os.path import join, expanduser
 

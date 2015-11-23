@@ -445,7 +445,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
             'acfg_name': None,
         },
         alias_dict={
-            'acfg_name': ['acfg']
+            'acfg_name': ['acfg', 'a']
         },
         verbose=True)
 
@@ -583,8 +583,7 @@ def get_ibeis_part_siam_dataset(**kwargs):
         colorspace = datakw.pop('colorspace')
         (aid_pairs, label_list,
          flat_metadata) = ingest_ibeis.get_aidpairs_partmatch(ibs, **datakw)
-        # Extract and cache the data
-        # TODO: metadata
+        # Extract and cache the data, labels, and metadata
         if ut.get_argflag('--dryrun'):
             print('exiting due to dry run')
             import sys

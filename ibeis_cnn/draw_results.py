@@ -107,17 +107,28 @@ def interact_patches(label_list, data_lists,
                 rng = np.random.RandomState(0)
                 # Re order idx lists by score if available
                 # weighted random sorting
+
                 fs_lists = [flat_metadata['fs'].take(idxs) for idxs in idx_lists]
                 randfs_lists = [fs * rng.rand(*fs.shape) for fs in fs_lists]
                 sortx_lists = [rfs.argsort()[::-1] for rfs in randfs_lists]
                 sortx_lists = [flat_metadata['fs'].take(idxs).argsort()[::-1] for idxs in idx_lists]
                 idx_lists = vt.ziptake(idx_lists, sortx_lists)
 
+                # FILTER TO ONLY SHOW ONE PER AID
+                if 'aid_pairs' in flat_metadata:
+                    aid_pairs = flat_metadata['aid_pairs']
+                    dataids = vt.get_undirected_edge_ids(aid_pairs)
+                    new_idx_lists = []
+                    for idxs in idx_lists:
+                        unique_xs = np.unique(dataids.take(idxs), return_index=True)[1]
+                        unique_xs.sort()
+                        new_idx_lists.append(idxs.take(unique_xs))
+                    idx_lists = new_idx_lists
+
         index_list = ut.flatten(list(ut.interleave(
             [ut.ichunks(idxs, chunck_sizes[1] * chunck_sizes[0] // 2)
              for idxs in idx_lists])))
         #index_list0 = list(ut.interleave(idx_lists))
-        #ut.embed()
         #index_list = list(range(len(label_list)))
 
     assert len(chunck_sizes) == 2
@@ -188,9 +199,6 @@ def make_InteractSiamPatches(*args, **kwargs):
         def on_click_inside(self, event, ax):
             print('click inside')
 
-            def embed_ipy(self=self, event=event, ax=ax):
-                ut.embed()
-
             def get_label_index(self, event, ax):
                 """ generalize """
                 x, y = event.xdata, event.ydata
@@ -230,6 +238,20 @@ def make_InteractSiamPatches(*args, **kwargs):
                     print('label_index = %r' % (label_index,))
                 return label_index
 
+            def embed_ipy(self=self, event=event, ax=ax):
+                ut.embed()
+                len(self.data_lists[0])
+                len(self.data_lists[1])
+
+            def dostuff(self=self, event=event, ax=ax):
+                label_index = get_label_index(self, event, ax)
+                d1 = self.data_lists[0][label_index]
+                d2 = self.data_lists[1][label_index]
+                import plottool as pt
+                pt.imshow(d1, pnum=(2, 1, 1), fnum=2)
+                pt.imshow(d2, pnum=(2, 1, 2), fnum=2)
+                pt.update()
+
             options = []
 
             label_index = get_label_index(self, event, ax)
@@ -248,6 +270,13 @@ def make_InteractSiamPatches(*args, **kwargs):
                         aid1, aid2 = self.flat_metadata['aid_pairs'][label_index]
                         from ibeis.gui import inspect_gui
 
+                        print(ut.repr3(self.ibs.get_annot_info(
+                            [aid1], reference_aid=[aid2], case_tags=True,
+                            match_tags=True, timedelta=True)))
+                        print(ut.repr3(self.ibs.get_annot_info(
+                            [aid2], reference_aid=[aid1], case_tags=True,
+                            match_tags=True, timedelta=True)))
+
                         if self.ibs is not None:
                             options += inspect_gui.get_aidpair_context_menu_options(
                                 self.ibs, aid1, aid2, None, qreq_=None,
@@ -260,6 +289,7 @@ def make_InteractSiamPatches(*args, **kwargs):
                 options += [
                     ('Embed', embed_ipy),
                     ('Present', pt.present),
+                    ('dostuff', dostuff),
                 ]
                 self.show_popup_menu(options, event)
     return InteractSiamPatches(*args, **kwargs)
@@ -350,6 +380,7 @@ def get_patch_chunk(data_lists, label_list,
     indicies = chunked_indicies[0]
 
     Args:
+        data_lists (list) : list of lists. The first dimension is the data_per_label dim.
         warped_patch1_list (list):
         warped_patch2_list (list):
         label_list (list):
