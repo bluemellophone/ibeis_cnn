@@ -88,6 +88,8 @@ def netrun():
         python -m ibeis_cnn --tf netrun --ds pzm4 --weights=new --arch=siaml2_128 --train --monitor
 
         # --- TRAINING ---
+        python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --weights=new --arch=siaml2_128 --train --monitor
+
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --acfg ctrl:pername=None,excluderef=False,contrib_contains=FlankHack --train --weights=new --arch=siaml2_128  --monitor  # NOQA
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --acfg ctrl:pername=None,excluderef=False --train --weights=new --arch=siaml2_128  --monitor  # NOQA
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor --DEBUG_AUGMENTATION
