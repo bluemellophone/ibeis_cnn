@@ -915,30 +915,39 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             neg_nid_pool = np.array(ibs.get_annot_nids(neg_aid_pool))
             rng = np.random.RandomState(0)
             num_rand_neg_per_aid = 3
-            num_rand_fm = 50
-            for aid, nid in ut.ProgIter(list(zip(neg_aid_pool, neg_nid_pool)), 'sample rand', adjust=True):
-                is_valid = get_badtag_flags(ibs, [aid] * len(neg_aid_pool), neg_aid_pool)
-                is_valid = np.logical_and(np.not_equal(neg_nid_pool, nid), is_valid)
+            num_rand_fm = 30
+            for aid, nid in ut.ProgIter(list(zip(neg_aid_pool, neg_nid_pool)), 'sample aid rand'):
+                #is_valid = get_badtag_flags(ibs, [aid] * len(neg_aid_pool), neg_aid_pool)
+                is_valid = np.not_equal(neg_nid_pool, nid)
+                #is_valid = np.logical_and(, is_valid)
                 p = is_valid / (is_valid.sum())
                 chosen = rng.choice(neg_aid_pool, size=num_rand_neg_per_aid,
                                     replace=False, p=p)
-                chosen_pairs = list(ut.iprod([aid], chosen))
-                for aid1, aid2 in chosen_pairs:
-                    fw1 = ibs.get_annot_fgweights([aid1], config2_=qreq_.get_internal_query_config2())[0]
-                    fw2 = ibs.get_annot_fgweights([aid2], config2_=qreq_.get_internal_data_config2())[0]
-                    valid_fx1s = np.where(fw1 > min_featweight)[0]
-                    valid_fx2s = np.where(fw2 > min_featweight)[0]
-                    size = min(num_rand_fm, len(valid_fx1s), len(valid_fx2s))
-                    if size > 0:
-                        chosen_fx1 = rng.choice(valid_fx1s, size=size, replace=False)
-                        chosen_fx2 = rng.choice(valid_fx2s, size=size, replace=False)
-                        fm = np.vstack([chosen_fx1, chosen_fx2]).T
-                        # HACK, probably very slow
-                        randneg_aid1.append(aid1)
-                        randneg_aid2.append(aid2)
-                        randneg_fm.append(fm)
-                        for key in rand_meta.keys():
-                            rand_meta[key].append(np.array([0] * len(fm)))
+                #chosen_pairs = list(ut.iprod([aid], chosen))
+                randneg_aid1.extend([aid] * len(chosen))
+                randneg_aid2.extend(chosen)
+
+            neg_fws1 = ibs.get_annot_fgweights(randneg_aid1, config2_=qreq_.get_internal_query_config2())
+            neg_fws2 = ibs.get_annot_fgweights(randneg_aid2, config2_=qreq_.get_internal_data_config2())
+
+            for fw1, fw2 in ut.ProgIter(list(zip(neg_fws1, neg_fws2)), 'sample fm rand'):
+                valid_fx1s = np.where(fw1 > min_featweight)[0]
+                valid_fx2s = np.where(fw2 > min_featweight)[0]
+                size = min(num_rand_fm, len(valid_fx1s), len(valid_fx2s))
+                if size > 0:
+                    chosen_fx1 = rng.choice(valid_fx1s, size=size, replace=False)
+                    chosen_fx2 = rng.choice(valid_fx2s, size=size, replace=False)
+                    fm = np.vstack([chosen_fx1, chosen_fx2]).T
+                else:
+                    fm = np.empty((0, 2), dtype=np.int)
+                randneg_fm.append(fm)
+                for key in rand_meta.keys():
+                    rand_meta[key].append(np.array([0] * len(fm)))
+
+            prev_total = sum(map(len, fm_list_all))
+            adding = sum(map(len, randneg_fm))
+            print('prev_total = %r' % (prev_total,))
+            print('adding     = %r' % (adding,))
 
             metadata_all = ut.dict_isect_combine(metadata_all, rand_meta)
             fm_list_all = fm_list_all + randneg_fm
