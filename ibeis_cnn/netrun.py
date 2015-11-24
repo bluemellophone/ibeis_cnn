@@ -198,7 +198,7 @@ def netrun():
         # parse training arguments
         config = ut.argparse_dict(dict(
             learning_rate_schedule=15,
-            max_epochs=120,
+            max_epochs=1200,
             learning_rate_adjust=.8,
         ))
         X_train, y_train = dataset.load_subset('train')
