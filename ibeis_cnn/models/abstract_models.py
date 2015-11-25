@@ -265,9 +265,9 @@ class BaseModel(object):
         if model.preproc_kw is None:
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
-            int('computing center mean.')
+            print('computing center mean.')
             model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
-            int('computing center std.')
+            print('computing center std.')
             if ut.is_int(X_train):
                 ut.assert_inbounds(X_train, 0, 255, eq=True,
                                    verbose=ut.VERBOSE)
