@@ -29,3 +29,5 @@ write_theano_flags(theano_flags)
 
 with ut.Timer():
     import theano
+
+print(ut.get_memstats_str())
