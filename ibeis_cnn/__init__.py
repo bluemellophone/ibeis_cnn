@@ -21,12 +21,18 @@ def write_theano_flags(theano_flags):
     os.environ['THEANO_FLAGS'] = theano_flags_str
 
 if DEVICE is not None:
+    # http://deeplearning.net/software/theano/library/config.html
     print('Change device to %r' % (DEVICE,))
     theano_flags = parse_theano_flags()
+    theano_flags['cnmem'] = False
     theano_flags['device'] = DEVICE
+    #theano_flags['print_active_device'] = False
     write_theano_flags(theano_flags)
+
     #python -c 'import theano; print theano.config'
 
+import sys
+assert 'theano' not in sys.modules, 'Theano should not be imported yet'
 from ibeis_cnn import __THEANO__
 from ibeis_cnn import __LASAGNE__
 from ibeis_cnn import models

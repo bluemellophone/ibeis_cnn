@@ -65,7 +65,8 @@ def sift_dataset_separability(dataset):
     import plottool as pt
 
     #icon = ibs.get_database_icon()
-    icon = 'http://www.councilchronicle.com/wp-content/uploads/2015/08/West-Virginia-Arrested-over-Bogus-Statue-of-Liberty-Bomb-Threat.jpg'
+    icon = ('http://www.councilchronicle.com/wp-content/uploads/2015/08/'
+            'West-Virginia-Arrested-over-Bogus-Statue-of-Liberty-Bomb-Threat.jpg')
     if icon is not None:
         pt.overlay_icon(icon, coords=(1, 0), bbox_alignment=(1, 0), max_dsize=(None, 192))
 

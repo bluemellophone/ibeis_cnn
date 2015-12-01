@@ -249,7 +249,8 @@ def netrun():
             publish_dpath, model.arch_tag + '_model_state.pkl')
         ut.copy(model.get_model_state_fpath(), published_model_state)
         ut.view_directory(publish_dpath)
-        print('You need to get the dropbox link and register it into the appropriate file')
+        print('You need to get the dropbox link and '
+              'register it into the appropriate file')
         # pip install dropbox
         # https://www.dropbox.com/developers/core/start/python
         # import dropbox  # need oauth
@@ -271,10 +272,13 @@ def parse_args():
         assert ut.inIPython()
 
     # Parse commandline args
-    ds_tag      = ut.get_argval(('--dataset', '--ds'), type_=str, default=ds_default)
-    datatype    = ut.get_argval(('--datatype', '--dt'), type_=str, default='siam-patch')
+    ds_tag      = ut.get_argval(('--dataset', '--ds'), type_=str,
+                                default=ds_default)
+    datatype    = ut.get_argval(('--datatype', '--dt'), type_=str,
+                                default='siam-patch')
     arch_tag    = ut.get_argval(('--arch', '-a'), default=arch_default)
-    weights_tag = ut.get_argval(('--weights', '+w'), type_=str, default=weights_tag_default)
+    weights_tag = ut.get_argval(('--weights', '+w'), type_=str,
+                                default=weights_tag_default)
 
     # Incorporate new config stuff?
     #NEW = False
@@ -343,7 +347,7 @@ def parse_args():
 def merge_ds_tags(ds_alias_list):
     r"""
     CommandLine:
-        python -m ibeis_cnn.train --test-merge_ds_tags --alias-list gz-gray girm pzmtest nnp
+        python -m ibeis_cnn --tf merge_ds_tags --alias-list gz-gray girm pzmtest nnp
 
     TODO:
         http://stackoverflow.com/questions/18492273/combining-hdf5-files
