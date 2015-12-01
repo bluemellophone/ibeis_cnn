@@ -147,7 +147,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     #from ibeis_cnn import utils
     #data, labels = utils.random_xy_sample(data, labels, 10000, model.data_per_label_input)
 
-    FULL = not ut.getargflag('--quick')
+    FULL = not ut.get_argflag('--quick')
 
     import plottool as pt
     fnum_gen = pt.make_fnum_nextgen()
