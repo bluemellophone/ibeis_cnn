@@ -5,20 +5,8 @@ tests a test set of data using a specified, pre0trained model and weights
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
-from ibeis_cnn import models
-from ibeis_cnn import net_strs
-from ibeis_cnn import batch_processing as batch
-
-from six.moves import cPickle as pickle
-from lasagne import layers
-
-import theano
-import time
-import numpy as np
 import utool as ut
-import cv2
 import six  # NOQA
-from os.path import join, abspath
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.test]')
 
 
@@ -43,7 +31,7 @@ def test(data_fpath, model, weights_fpath, results_dpath=None, labels_fpath=None
         # add channel dimension for implicit grayscale
         X_test.shape = X_test.shape + (1,)
 
-    return test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
+    #return test_data(X_test, y_test, model, weights_fpath, results_dpath, **kwargs)
 
 
 if __name__ == '__main__':

@@ -27,6 +27,8 @@ if DEVICE is not None:
     write_theano_flags(theano_flags)
     #python -c 'import theano; print theano.config'
 
+from ibeis_cnn import __THEANO__
+from ibeis_cnn import __LASAGNE__
 from ibeis_cnn import models
 from ibeis_cnn import process
 from ibeis_cnn import netrun

@@ -234,7 +234,6 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
 
     with_patch_examples = FULL
     if with_patch_examples:
-       with ut.embed_on_exception_context:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
         if SIFT:

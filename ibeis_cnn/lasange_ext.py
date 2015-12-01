@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-from lasagne import layers
 import warnings
-import theano
-import theano.tensor as T
 import utool as ut
+from ibeis_cnn.__LASAGNE__ import layers
+from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn import __THEANO__ as theano
 ut.noinject('lasange_ext')
 
 

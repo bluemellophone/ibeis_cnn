@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import utool as ut
-(print, print_, printDBG, rrr, profile) = ut.inject(
-    __name__, '[ibeis_cnn._plugin_grabmodels]', DEBUG=False)
+(print, rrr, profile) = ut.inject2(
+    __name__, '[ibeis_cnn._plugin_grabmodels]')
 
 
 #DEFAULT_CNNMODELS_DIR = ut.get_app_resource_dir('ibeis_cnn', 'pretrained')

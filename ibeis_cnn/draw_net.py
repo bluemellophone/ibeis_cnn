@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Functions to create network diagrams from a list of Layers.
 
@@ -6,13 +7,11 @@ References:
     https://github.com/ebenolson/Lasagne/blob/master/examples/draw_net.py
 """
 from __future__ import absolute_import, division, print_function
-#import warnings
 from operator import itemgetter
+from os.path import join, exists
 import numpy as np
 import cv2
-from os.path import join, exists
 import utool as ut
-#from lasagne import layers
 from ibeis_cnn import utils
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.draw_net]')
 

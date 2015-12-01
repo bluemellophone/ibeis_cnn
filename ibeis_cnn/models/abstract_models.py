@@ -1,27 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import theano
-try:
-    import lasagne
-except ImportError as ex:
-    print('theano.__version__ = %r' % (theano.__version__,))
-    print('theano.__file__ = %r' % (theano.__file__,))
-    raise
-import theano
-import theano.tensor as T
 import functools
 import six
 import numpy as np
-#from lasagne import layers
+import utool as ut
+from collections import namedtuple
+from os.path import join, exists, dirname, basename
+from six.moves import cPickle as pickle
+import warnings
+import sklearn.preprocessing
+import ibeis_cnn.__THEANO__ as theano
+from ibeis_cnn.__THEANO__ import tensor as T
+import ibeis_cnn.__LASAGNE__ as lasagne
 from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers
 from ibeis_cnn import draw_net
-import sklearn.preprocessing
-import utool as ut
-from os.path import join, exists, dirname, basename
-import warnings
-from six.moves import cPickle as pickle
-from collections import namedtuple
 from ibeis_cnn import utils
 #ut.noinject('ibeis_cnn.abstract_models')
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
