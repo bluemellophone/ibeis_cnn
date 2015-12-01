@@ -116,7 +116,7 @@ def netrun():
         >>> netrun()
         >>> ut.show_if_requested()
     """
-    ut.colorprint('[netrun] NET RUN', 'blue')
+    ut.colorprint('[netrun] NET RUN', 'red')
 
     requests, hyperparams, tags = parse_args()
     ds_tag         = tags['ds_tag']

@@ -137,9 +137,9 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     ut.write_to(ut.unixjoin(epoch_dpath, 'era_history.txt'), history_text)
 
-    if True:
-        import matplotlib as mpl
-        mpl.rcParams['agg.path.chunksize'] = 100000
+    #if True:
+    #    import matplotlib as mpl
+    #    mpl.rcParams['agg.path.chunksize'] = 100000
 
     #data   = data[::50]
     #labels = labels[::50]
@@ -182,7 +182,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    SIFT = False
+    SIFT = True
     if SIFT:
         sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
         sift_scores = sift_scores.astype(np.float64)
@@ -229,7 +229,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #sift_fp_label_indicies, sift_fn_label_indicies =
     #sift_encoder.get_error_indicies(sift_scores, labels)
 
-    with_patch_examples = False
+    with_patch_examples = True
     if with_patch_examples:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
@@ -289,7 +289,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
             pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
             pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
-    with_patch_desc = False
+    with_patch_desc = True
     if with_patch_desc:
         ut.colorprint('[siam_perf] Visualize Patch Descriptors', 'white')
         fnum = fnum_gen()
@@ -319,9 +319,12 @@ def show_hard_cases(model, data, labels, scores):
     #encoder.normalize_scores(x)
     #encoder.inverse_normalize(np.cast['float32'](encoder.learned_thresh))
 
-    fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores, labels)
-    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies, model.data_per_label_input)
-    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies, model.data_per_label_input)
+    fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores,
+                                                                      labels)
+    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies,
+                                                  model.data_per_label_input)
+    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies,
+                                                  model.data_per_label_input)
 
     fn_data   = data.take(fn_data_indicies, axis=0)
     fn_labels = labels.take(fn_label_indicies, axis=0)
