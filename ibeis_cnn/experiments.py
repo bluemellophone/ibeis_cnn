@@ -120,6 +120,7 @@ def test_sift_patchmatch_scores(data, labels):
 def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     r"""
     CommandLine:
+        utprof.py -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
         python -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
         python -m ibeis_cnn --tf pz_patchmatch --db pzmtest --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
     """
@@ -145,6 +146,8 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     #labels = labels[::50]
     #from ibeis_cnn import utils
     #data, labels = utils.random_xy_sample(data, labels, 10000, model.data_per_label_input)
+
+    FULL = not ut.getargflag('--quick')
 
     import plottool as pt
     fnum_gen = pt.make_fnum_nextgen()
@@ -182,7 +185,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    SIFT = True
+    SIFT = FULL
     if SIFT:
         sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
         sift_scores = sift_scores.astype(np.float64)
@@ -229,7 +232,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     #sift_fp_label_indicies, sift_fn_label_indicies =
     #sift_encoder.get_error_indicies(sift_scores, labels)
 
-    with_patch_examples = True
+    with_patch_examples = FULL
     if with_patch_examples:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
@@ -290,7 +293,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
             pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
             pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
-    with_patch_desc = True
+    with_patch_desc = FULL
     if with_patch_desc:
         ut.colorprint('[siam_perf] Visualize Patch Descriptors', 'white')
         fnum = fnum_gen()
