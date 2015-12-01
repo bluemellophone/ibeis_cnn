@@ -183,17 +183,21 @@ def netrun():
             ut.colorprint('[netrun] * Initializing new weights', 'lightgray')
             model.reinit_weights()
         else:
-            checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
+            checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(
+                checkpoint_tag, extern_dpath)
             ut.colorprint('[netrun] * Resolving weights checkpoint_tag=%r' %
                           (checkpoint_tag,), 'lightgray')
             if extern_dpath is not None:
-                model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
+                model.load_extern_weights(dpath=extern_dpath,
+                                          checkpoint_tag=checkpoint_tag)
             elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
                 model.load_model_state(checkpoint_tag=checkpoint_tag)
             else:
-                model_state_fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
+                model_state_fpath = model.get_model_state_fpath(
+                    checkpoint_tag=checkpoint_tag)
                 print('model_state_fpath = %r' % (model_state_fpath,))
                 ut.checkpath(model_state_fpath, verbose=True)
+                print('Known checkpoints are: ')
                 raise ValueError(('Unresolved weight init: '
                                   'checkpoint_tag=%r, extern_ds_tag=%r') % (
                                       checkpoint_tag, extern_ds_tag,))

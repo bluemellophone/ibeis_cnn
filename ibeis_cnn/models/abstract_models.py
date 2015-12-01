@@ -29,7 +29,7 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 def imwrite_wrapper(show_func):
-    """ helper to convert show funcs into imwrite funcs """
+    r""" helper to convert show funcs into imwrite funcs """
     def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True,
                      ascheckpoint=None, verbose=1, **kwargs):
         import plottool as pt
@@ -52,7 +52,7 @@ def imwrite_wrapper(show_func):
 
 
 def evaluate_layer_list(network_layers_def, verbose=None):
-    """ compiles a sequence of partial functions into a network """
+    r""" compiles a sequence of partial functions into a network """
     if verbose is None:
         verbose = utils.VERBOSE_CNN
     total = len(network_layers_def)
@@ -336,10 +336,19 @@ class BaseModel(object):
 
     # --- Input/Output
 
+    def list_saved_checkpoints(model):
+        dpath = model._get_model_dpath(None, True)
+        checkpoint_dirs = sorted(ut.glob(dpath, '*', fullpath=False))
+        return checkpoint_dirs
+
     def _get_model_dpath(model, dpath, checkpoint_tag):
         dpath = model.training_dpath if dpath is None else dpath
         if checkpoint_tag is not None:
-            dpath = join(dpath, 'checkpoints', checkpoint_tag)
+            # checkpoint dir requested
+            dpath = join(dpath, 'checkpoints')
+            if checkpoint_tag is not True:
+                # specific checkpoint requested
+                dpath = join(dpath, checkpoint_tag)
         return dpath
 
     def _get_model_file_fpath(model, default_fname, fpath, dpath, fname,
@@ -356,7 +365,7 @@ class BaseModel(object):
 
     def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern,
                                          extern_dpath=None):
-        """
+        r"""
         tries to find a matching checkpoint so you dont have to type a full
         hash
         """
@@ -383,6 +392,9 @@ class BaseModel(object):
         return checkpoint_tag
 
     def has_saved_state(model, checkpoint_tag=None):
+        """
+        Check if there are any saved model states matching the checkpoing tag.
+        """
         fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
         if checkpoint_tag is not None:
             ut.assertpath(fpath)
