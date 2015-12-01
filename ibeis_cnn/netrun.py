@@ -86,6 +86,7 @@ def netrun():
         % Patch based dataset (big one)
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --ensuredata --show --vtd
         python -m ibeis_cnn --tf netrun --ds pzm4 --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn --tf netrun --ds pzm4 --arch=siaml2_128 --test
 
         # --- TRAINING ---
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --weights=new --arch=siaml2_128 --train --monitor
@@ -115,6 +116,7 @@ def netrun():
         >>> netrun()
         >>> ut.show_if_requested()
     """
+    ut.colorprint('[netrun] NET RUN', 'blue')
 
     requests, hyperparams, tags = parse_args()
     ds_tag         = tags['ds_tag']
@@ -125,7 +127,7 @@ def netrun():
 
     # ----------------------------
     # Choose the main dataset
-    ut.colorprint('[netrun] Ensuring Dataset', 'white')
+    ut.colorprint('[netrun] Ensuring Dataset', 'yellow')
     dataset = ingest_data.grab_dataset(ds_tag, datatype)
     if extern_ds_tag is not None:
         extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
@@ -149,7 +151,7 @@ def netrun():
     # Choose model architecture
     # TODO: data will need to return info about number of labels in viewpoint models
     # Specify model archichitecture
-    ut.colorprint('[netrun] Architecture Specification', 'white')
+    ut.colorprint('[netrun] Architecture Specification', 'yellow')
     if arch_tag == 'siam2stream':
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
@@ -169,12 +171,12 @@ def netrun():
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
 
-    ut.colorprint('[netrun] Initialize archchitecture', 'white')
+    ut.colorprint('[netrun] Initialize archchitecture', 'yellow')
     model.initialize_architecture()
 
     # ----------------------------
     # Choose weight initialization
-    ut.colorprint('[netrun] Setting weights', 'white')
+    ut.colorprint('[netrun] Setting weights', 'yellow')
     if checkpoint_tag == 'new':
         ut.colorprint('[netrun] * Initializing new weights', 'lightgray')
         model.reinit_weights()
@@ -196,7 +198,7 @@ def netrun():
     # ----------------------------
     # Run Actions
     if requests['train']:
-        ut.colorprint('[netrun] Training Requested', 'white')
+        ut.colorprint('[netrun] Training Requested', 'yellow')
         # parse training arguments
         config = ut.argparse_dict(dict(
             learning_rate_schedule=15,
@@ -221,7 +223,7 @@ def netrun():
         raise ValueError('nothing here. need to train or test')
 
     if requests['publish']:
-        ut.colorprint('[netrun] Publish Requested', 'white')
+        ut.colorprint('[netrun] Publish Requested', 'yellow')
         publish_dpath = ut.truepath('~/Dropbox/IBEIS')
         published_model_state = ut.unixjoin(
             publish_dpath, model.arch_tag + '_model_state.pkl')
