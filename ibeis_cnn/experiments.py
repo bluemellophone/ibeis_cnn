@@ -42,7 +42,6 @@ def sift_dataset_separability(dataset):
     #flann = pyflann.FLANN()
     #flann.build_index(sift_list)
     #idxs, dists = flann.nn_index(sift_list, 10)
-    #ut.embed()
 
     encoder_kw = {
         #'monotonize': False,
@@ -167,7 +166,6 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     #model.draw_all_conv_layer_weights(fnum=fnum_gen())
     #model.imwrite_weights(1)
     #model.imwrite_weights(2)
-    #ut.embed()
 
     # Compute each type of score
     ut.colorprint('[siam_perf] Building Scores', 'white')
@@ -206,8 +204,6 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     if SIFT:
         sift_encoder = vt.ScoreNormalizer(**encoder_kw)
         sift_encoder.fit(sift_scores, labels)
-
-    #ut.embed()
 
     # Visualize
     ut.colorprint('[siam_perf] Visualize Encoders', 'white')
