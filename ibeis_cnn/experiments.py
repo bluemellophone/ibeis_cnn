@@ -122,7 +122,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     CommandLine:
         utprof.py -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test
         python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --test  --ensure
-        python -m ibeis_cnn --tf netrun --db pzmtest --arch=siaml2_128 --test  --ensure --weights=new
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --test  --ensure --weights=new
         python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --train --weights=new
         python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128 --test  # NOQA
         python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128
