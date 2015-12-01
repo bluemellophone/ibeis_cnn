@@ -303,7 +303,8 @@ def get_sample_pairimg_from_X(Xb, index_list):
     return stacked_img
 
 
-def get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, index_list, chunck_sizes=(6, 10)):
+def get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list,
+                         flat_metadata, index_list, chunck_sizes=(6, 10)):
     #with ut.eoxc
     try:
         multiindices = six.next(ut.iter_multichunks(index_list, chunck_sizes))

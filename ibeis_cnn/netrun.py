@@ -145,6 +145,7 @@ def netrun():
         if ut.show_was_requested():
             interact_ = dataset.interact()  # NOQA
             return
+        print('...exiting')
         sys.exit(1)
 
     # ----------------------------
@@ -214,12 +215,15 @@ def netrun():
         if requests['testall']:
             ut.colorprint('[netrun]  * Testing on all data', 'lightgray')
             X_test, y_test = dataset.load_subset('all')
+            flat_metadata = dataset.load_subset_metadata('all')
         else:
             ut.colorprint('[netrun]  * Testing on test subset', 'lightgray')
             X_test, y_test = dataset.load_subset('test')
+            flat_metadata = dataset.load_subset_metadata('test')
         data, labels = X_test, y_test
         dataname = dataset.alias_key
-        experiments.test_siamese_performance(model, data, labels, dataname)
+        experiments.test_siamese_performance(model, data, labels,
+                                             flat_metadata, dataname)
     else:
         raise ValueError('nothing here. need to train or test')
 

@@ -117,7 +117,7 @@ def test_sift_patchmatch_scores(data, labels):
     #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
 
 
-def test_siamese_performance(model, data, labels, dataname=''):
+def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     r"""
     CommandLine:
         python -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
@@ -237,8 +237,9 @@ def test_siamese_performance(model, data, labels, dataname=''):
             sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
 
         warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
-        _sample = functools.partial(draw_results.get_patch_sample_img,
-                                    warped_patch1_list, warped_patch2_list, labels)
+        _sample = functools.partial(
+            draw_results.get_patch_sample_img, warped_patch1_list,
+            warped_patch2_list, labels, flat_metadata)
 
         cnn_fp_img = _sample({'fs': cnn_scores}, cnn_indicies.fp)[0]
         cnn_fn_img = _sample({'fs': cnn_scores}, cnn_indicies.fn)[0]
