@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 import numpy as np
 import functools
 from ibeis_cnn import draw_results
@@ -125,6 +125,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
         python -m ibeis_cnn --tf pz_patchmatch --db pzmtest --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
     """
     import vtool as vt
+    import plottool as pt
     from ibeis_cnn import harness
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
@@ -149,7 +150,6 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
 
     FULL = not ut.get_argflag('--quick')
 
-    import plottool as pt
     fnum_gen = pt.make_fnum_nextgen()
 
     ut.colorprint('[siam_perf] Show era history', 'white')
@@ -234,15 +234,15 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
 
     with_patch_examples = FULL
     if with_patch_examples:
+       with ut.embed_on_exception_context:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
         if SIFT:
             sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
 
         warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
-        _sample = functools.partial(
-            draw_results.get_patch_sample_img, warped_patch1_list,
-            warped_patch2_list, labels, flat_metadata)
+        samp_args = (warped_patch1_list, warped_patch2_list, labels)
+        _sample = functools.partial(draw_results.get_patch_sample_img, *samp_args)
 
         cnn_fp_img = _sample({'fs': cnn_scores}, cnn_indicies.fp)[0]
         cnn_fn_img = _sample({'fs': cnn_scores}, cnn_indicies.fn)[0]

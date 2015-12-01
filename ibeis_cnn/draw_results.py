@@ -308,7 +308,9 @@ def get_patch_sample_img(warped_patch1_list, warped_patch2_list, label_list,
     #with ut.eoxc
     try:
         multiindices = six.next(ut.iter_multichunks(index_list, chunck_sizes))
-        tup = get_patch_multichunks(warped_patch1_list, warped_patch2_list, label_list, flat_metadata, multiindices)
+        data_lists = [warped_patch1_list, warped_patch2_list]
+        tup = get_patch_multichunks(data_lists, label_list, flat_metadata,
+                                    multiindices)
         stacked_img, stacked_offsets, stacked_sfs = tup
         return stacked_img, stacked_offsets, stacked_sfs
     except StopIteration:
