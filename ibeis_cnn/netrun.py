@@ -210,6 +210,7 @@ def netrun():
         harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
     elif requests['test']:
         #assert model.best_results['epoch'] is not None
+        ut.colorprint('[netrun] Test Requested', 'yellow')
         if requests['testall']:
             ut.colorprint('[netrun]  * Testing on all data', 'lightgray')
             X_test, y_test = dataset.load_subset('all')
