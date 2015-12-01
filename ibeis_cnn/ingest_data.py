@@ -92,7 +92,7 @@ def merge_datasets(dataset_list):
         # Try and short circut cached loading
         merged_dataset = DataSet.from_alias_key(alias_key)
         return merged_dataset
-    except Exception as ex:
+    except (Exception, AssertionError) as ex:
         ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
                    (alias_key,), iswarning=True)
 

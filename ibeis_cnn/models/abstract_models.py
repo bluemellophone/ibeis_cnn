@@ -254,7 +254,12 @@ class BaseModel(object):
             ('given_item_shape = %r' % (given_item_shape,))
         )
 
+    def is_train_state_initialized(model):
+        # TODO: move to dataset. This is independant of the model.
+        return model.preproc_kw is not None
+
     def ensure_training_state(model, X_train, y_train):
+        # TODO: move to dataset. This is independant of the model.
         if model.preproc_kw is None:
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
@@ -269,8 +274,9 @@ class BaseModel(object):
                 ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
                                    verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 1.0
-        if hasattr(model, 'initialize_encoder'):
-            model.initialize_encoder(y_train)
+        if getattr(model, 'encoder', None) is None:
+            if hasattr(model, 'initialize_encoder'):
+                model.initialize_encoder(y_train)
 
     def reinit_weights(model, W=lasagne.init.Orthogonal()):
         """
@@ -773,6 +779,7 @@ class BaseModel(object):
 
         fig = pt.figure(fnum=fnum, pnum=pnum)
         colors = pt.distinct_colors(len(model.era_history))
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             train_loss = np.array(era['train_loss_list'])
@@ -794,8 +801,8 @@ class BaseModel(object):
         pt.set_xlabel('epoch')
         pt.set_ylabel('train/valid ratio')
 
-        pt.legend()
-
+        if num_eras > 0:
+            pt.legend()
         pt.dark_background()
         return fig
 
@@ -803,6 +810,7 @@ class BaseModel(object):
         import plottool as pt
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=pnum)
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             if 'param_update_mags_list' not in era:
@@ -832,7 +840,8 @@ class BaseModel(object):
                                           linestyle='-', color=color)
                 #, label=valid_label, yscale=yscale)
             pass
-        pt.legend()
+        if num_eras > 0:
+            pt.legend()
 
         pt.dark_background()
         return fig
@@ -841,6 +850,7 @@ class BaseModel(object):
         import plottool as pt
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=pnum)
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             if 'update_mags_list' not in era:
@@ -869,7 +879,8 @@ class BaseModel(object):
                                           update_mag_std, marker='x',
                                           linestyle='-', color=color)
             pass
-        pt.legend()
+        if num_eras > 0:
+            pt.legend()
 
         pt.dark_background()
         return fig
@@ -880,7 +891,8 @@ class BaseModel(object):
         fnum = pt.ensure_fnum(fnum)
 
         fig = pt.figure(fnum=fnum, pnum=pnum)
-        colors = pt.distinct_colors(len(model.era_history))
+        num_eras = len(model.era_history)
+        colors = pt.distinct_colors(num_eras)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             train_loss = era['train_loss_list']
@@ -905,9 +917,8 @@ class BaseModel(object):
         # append_phantom_legend_label
         pt.set_xlabel('epoch')
         pt.set_ylabel('loss')
-
-        pt.legend()
-
+        if num_eras > 0:
+            pt.legend()
         pt.dark_background()
         return fig
 

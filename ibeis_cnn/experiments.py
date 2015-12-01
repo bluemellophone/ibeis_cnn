@@ -120,9 +120,12 @@ def test_sift_patchmatch_scores(data, labels):
 def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     r"""
     CommandLine:
-        utprof.py -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
-        python -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
-        python -m ibeis_cnn --tf pz_patchmatch --db pzmtest --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
+        utprof.py -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --test  --ensure
+        python -m ibeis_cnn --tf netrun --db pzmtest --arch=siaml2_128 --test  --ensure --weights=new
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --train --weights=new
+        python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128 --test  # NOQA
+        python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128
     """
     import vtool as vt
     import plottool as pt

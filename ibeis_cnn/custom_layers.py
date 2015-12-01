@@ -19,7 +19,7 @@ try:
     # will not be available without a GPU
 
     conv_impl = 'cuDNN'
-    conv_impl = 'cuda_convnet'
+    #conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
 

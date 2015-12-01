@@ -190,6 +190,9 @@ def netrun():
         elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
             model.load_model_state(checkpoint_tag=checkpoint_tag)
         else:
+            model_state_fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
+            print('model_state_fpath = %r' % (model_state_fpath,))
+            ut.checkpath(model_state_fpath, verbose=True)
             raise ValueError(('Unresolved weight init: '
                               'checkpoint_tag=%r, extern_ds_tag=%r') % (
                                   checkpoint_tag, extern_ds_tag,))
@@ -197,6 +200,11 @@ def netrun():
     #print('Model State:')
     #print(model.get_state_str())
     # ----------------------------
+    if not model.is_train_state_initialized():
+        ut.colorprint('[netrun] Need to initialize training state', 'yellow')
+        X_train, y_train = dataset.load_subset('train')
+        model.ensure_training_state(X_train, y_train)
+
     # Run Actions
     if requests['train']:
         ut.colorprint('[netrun] Training Requested', 'yellow')
