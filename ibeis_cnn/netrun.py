@@ -197,7 +197,7 @@ def netrun():
                     checkpoint_tag=checkpoint_tag)
                 print('model_state_fpath = %r' % (model_state_fpath,))
                 ut.checkpath(model_state_fpath, verbose=True)
-                print('Known checkpoints are: ')
+                print('Known checkpoints are: ' + ut.repr3(model.list_saved_checkpoints()))
                 raise ValueError(('Unresolved weight init: '
                                   'checkpoint_tag=%r, extern_ds_tag=%r') % (
                                       checkpoint_tag, extern_ds_tag,))
@@ -238,7 +238,8 @@ def netrun():
         experiments.test_siamese_performance(model, data, labels,
                                              flat_metadata, dataname)
     else:
-        raise ValueError('nothing here. need to train or test')
+        if not ut.get_argflag('--cmd'):
+            raise ValueError('nothing here. need to train or test')
 
     if requests['publish']:
         ut.colorprint('[netrun] Publish Requested', 'yellow')
@@ -253,6 +254,9 @@ def netrun():
         # import dropbox  # need oauth
         #client.share('/myfile.txt', short_url=False)
         # https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl
+
+    if ut.get_argflag('--cmd'):
+        ut.embed()
 
 
 def parse_args():
