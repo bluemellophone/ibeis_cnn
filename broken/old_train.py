@@ -1,155 +1,82 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
-from ibeis_cnn import utils
-from ibeis_cnn import models
-from ibeis_cnn import ingest_ibeis
-from ibeis_cnn import ingest_data
-from ibeis_cnn import harness
-import utool as ut
-from os.path import join, abspath
+# Build Dataset Aliases
+python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master0 --colorspace='gray' --num-top=None --controlled=True --aliasexit
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --colorspace='gray' --aliasexit
+python -m ibeis_cnn --tf pz_patchmatch --db PZ_MTEST --colorspace='gray' --num-top=None --controlled=True --aliasexit
+python -m ibeis_cnn --tf pz_patchmatch --db NNP_Master3 --colorspace='gray' --num-top=None --controlled=True --aliasexit
+python -m ibeis_cnn --tf pz_patchmatch --db GZ_ALL --colorspace='gray' --num-top=None --controlled=True --aliasexit
+python -m ibeis_cnn --tf pz_patchmatch --db NNP_MasterGIRM_core --colorspace='gray' --num-top=None --controlled=True --aliasexit
 
-def train_viewpoint_pz():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_viewpoint_pz
+# --- TRAINING ---
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_viewpoint_pz()
-    """
-    project_name             = 'viewpoint_pz'
-    model                    = models.ViewpointModel()
-    root                     = abspath(join('..', 'data'))
+# Train liberty
+python -m ibeis_cnn --tf pz_patchmatch --ds liberty --weights=new --arch=siaml2_128 --train --monitor
 
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
+# Train NNP_Master
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=nnp3-2:epochs0011 --arch=siaml2 --train --monitor
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
 
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
 
-def train_quality_pz():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_quality_pz
+# Train COMBO
+python -m ibeis_cnn --tf pz_patchmatch --ds combo --weights=new --arch=siaml2_128 --train --monitor
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_quality_pz()
-    """
-    project_name             = 'quality_pz'
-    model                    = models.QualityModel()
-    root                     = abspath(join('..', 'data'))
+# Train Liberty (Make sure that our structures continue to work on liberty data)
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --weights=new --arch=siaml2_128 --train --monitor
 
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
+# Continue training
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --weights=current --arch=siaml2_128 --train --monitor --learning-rate=.03
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --weights=current --arch=siaml2_128 --test
 
+# --- MONITOR TRAINING ---
 
-def train_viewpoint():
-    r"""
-    CommandLine:
-        python -m ibeis_cnn.train --test-train_viewpoint
+# Hyperparameter settings
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=new --arch=siaml2 --train --monitor
 
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.train import *  # NOQA
-        >>> train_viewpoint()
-    """
-    project_name             = 'viewpoint'
-    model                    = models.ViewpointModel()
-    root                     = abspath(join('..', 'data'))
+# Grevys
+python -m ibeis_cnn --tf pz_patchmatch --ds gz-gray --weights=new --arch=siaml2 --train --weight_decay=0.0001 --monitor
 
-    train_data_fpath         = join(root, 'numpy',   project_name, 'X.npy')
-    train_labels_fpath       = join(root, 'numpy',   project_name, 'y.npy')
-    results_dpath            = join(root, 'results', project_name)
-    weights_fpath            = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')
-    pretrained_weights_fpath = join(root, 'nets',    project_name, 'ibeis_cnn_weights.pickle')  # NOQA
-    config                   = {
-        'patience': 10,
-        'regularization': 0.0001,
-        'pretrained_weights_fpath': pretrained_weights_fpath,
-    }
-    harness.train(model, train_data_fpath, train_labels_fpath, weights_fpath, results_dpath, **config)
+# THIS DID WELL VERY QUICKLY
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=new --arch=siaml2 --train --monitor --learning_rate=.1 --weight_decay=0.0005
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=new --arch=siaml2 --train --monitor --DEBUG_AUGMENTATION
 
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=new --arch=siaml2 --train --monitor
 
-#def train_patchmatch_liberty():
-#    r"""
-#    CommandLine:
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --vtd
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --show --test
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --test
-#        python -m ibeis_cnn.train --test-train_patchmatch_liberty --train
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=new --arch=siaml2 --train --monitor
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=new --arch=siam2streaml2 --train --monitor
 
-#    Example:
-#        >>> # ENABLE_DOCTEST
-#        >>> from ibeis_cnn.train import *  # NOQA
-#        >>> result = train_patchmatch_liberty()
-#        >>> ut.show_if_requested()
-#        >>> print(result)
-#    """
-#    # TODO; integrate into data tagging system
-#    train_params = ut.argparse_dict(
-#        {
-#            #'learning_rate': .01,
-#            #'weight_decay': 0.0005,
-#            'batch_size': 128,
-#            'learning_rate': .007,
-#            'momentum': .9,
-#            'weight_decay': 0.0008,
-#        }
-#    )
-#    #pairs = 500
-#    pairs = 250000
-#    dataset = ingest_data.grab_cached_liberty_data(pairs)
-#    #model = models.SiameseModel()
-#    model = models.SiameseCenterSurroundModel(data_shape=dataset.data_shape, training_dpath=dataset.training_dpath, **train_params)
+python -m ibeis_cnn --tf pz_patchmatch --db NNP_Master3 --weights=new --arch=siaml2 --train --monitor --colorspace='bgr' --num_top=None
 
-#    model.initialize_architecture()
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmaster-bgr --weights=nnp3-2-bgr:epochs0023_rttjuahuhhraphyb --arch=siaml2 --test
+--monitor --colorspace='bgr' --num_top=None
 
-#    if ut.get_argflag('--test'):
-#        # Use external state
-#        extern_training_dpath = ingest_data.get_extern_training_dpath('NNP_Master3;dict(max_examples=None, num_top=3,)')
-#        model.load_extern_weights(dpath=extern_training_dpath)
-#    else:
-#        if model.has_saved_state():
-#            model.load_model_state()
-#        else:
-#            model.reinit_weights()
-#    print(model.get_state_str())
+# --- INITIALIZED-TRAINING ---
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --arch=siaml2 --weights=gz-gray:current --train --monitor
 
-#    if ut.get_argflag('--train'):
-#        config = dict(
-#            patience=100,
-#        )
-#        X_train, y_train = dataset.load_subset('train')
-#        X_valid, y_valid = dataset.load_subset('valid')
-#        #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
-#        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-#    elif ut.get_argflag('--test'):
+# --- TESTING ---
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --weights=liberty:current --arch=siaml2_128 --test
 
-#        X_test, y_test = dataset.load_subset('test')
-#        data, labels = X_test, y_test
-#        data, labels = utils.random_xy_sample(X_test, y_test, 1000, model.data_per_label)
-#        dataname = dataset.alias_key
-#        experiments.test_siamese_performance(model, data, labels, dataname)
+# test combo
+python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master0 --weights=combo:hist_eras007_epochs0098_gvmylbm --arch=siaml2_128 --testall
+python -m ibeis_cnn --tf pz_patchmatch --db PZ_Master0 --weights=combo:current --arch=siaml2_128 --testall
 
-#    else:
-#        raise NotImplementedError('nothing here. need to train or test')
+python -m ibeis_cnn --tf pz_patchmatch --db liberty --weights=liberty:current --arch=siaml2_128 --test
+
+python -m ibeis_cnn --tf pz_patchmatch --ds gz-gray --arch=siaml2 --weights=gz-gray:current --test
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --arch=siaml2 --weights=gz-gray:current --test
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --arch=siaml2 --weights=gz-gray:current --test
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmaster --arch=siaml2 --weights=gz-gray:current --test
+
+# Test NNP_Master on in sample
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=current --arch=siaml2 --test
+python -m ibeis_cnn --tf pz_patchmatch --ds nnp3-2 --weights=nnp3-2 --arch=siaml2 --test
+
+# Test NNP_Master3 weights on out of sample data
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=nnp3-2:epochs0011 --arch=siaml2 --test
+
+# Now can use the alias
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmtest --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+python -m ibeis_cnn --tf pz_patchmatch --ds pzmaster --weights=nnp3-2:epochs0021 --arch=siaml2 --test
+

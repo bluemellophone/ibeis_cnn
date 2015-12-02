@@ -14,7 +14,7 @@ import utool as ut
 import cv2
 import numpy as np
 import random
-print, print_, printDBG, rrr, profile = ut.inject(__name__, '[ibeis_cnn._plugin]')
+print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn._plugin]')
 
 
 try:

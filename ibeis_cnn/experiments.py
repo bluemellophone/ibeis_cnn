@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 import numpy as np
 import functools
 from ibeis_cnn import draw_results
@@ -27,13 +27,22 @@ def sift_dataset_separability(dataset):
         >>> ut.show_if_requested()
     """
     import vtool as vt
-    @ut.cached_func('tmpsiftscorecache', cache_dir='.')
+    @ut.cached_func('tempsiftscorecache', cache_dir='.')
     def cached_siftscores():
         data, labels = dataset.load_subset('test')
         sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
         sift_scores = sift_scores.astype(np.float64)
-        return sift_scores, labels
-    sift_scores, labels = cached_siftscores()
+        return sift_scores, labels, sift_list
+    sift_scores, labels, sift_list = cached_siftscores()
+
+    # I dont think we can compare lnbnn on liberty
+    # because we dont have a set of id labels, we have
+    # pairs of correspondences.
+    #import pyflann
+    #flann = pyflann.FLANN()
+    #flann.build_index(sift_list)
+    #idxs, dists = flann.nn_index(sift_list, 10)
+
     encoder_kw = {
         #'monotonize': False,
         'monotonize': True,
@@ -55,7 +64,8 @@ def sift_dataset_separability(dataset):
     import plottool as pt
 
     #icon = ibs.get_database_icon()
-    icon = 'http://www.councilchronicle.com/wp-content/uploads/2015/08/West-Virginia-Arrested-over-Bogus-Statue-of-Liberty-Bomb-Threat.jpg'
+    icon = ('http://www.councilchronicle.com/wp-content/uploads/2015/08/'
+            'West-Virginia-Arrested-over-Bogus-Statue-of-Liberty-Bomb-Threat.jpg')
     if icon is not None:
         pt.overlay_icon(icon, coords=(1, 0), bbox_alignment=(1, 0), max_dsize=(None, 192))
 
@@ -65,13 +75,60 @@ def sift_dataset_separability(dataset):
     return inter_sift
 
 
-def test_siamese_performance(model, data, labels, dataname=''):
+#def extract_sifts(data, labels):
+#    import pyhesaff
+#    if len(data.shape) == 4 and data.shape[-1] == 1:
+#        data = data.reshape(data.shape[0:3])
+#    elif len(data.shape) == 4 and data.shape[-1] == 3:
+#        import vtool as vt
+#        # TODO use dataset to infer data colorspace
+#        data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
+#    patch_list = data
+#    print('Extract SIFT descr')
+#    vecs_list = pyhesaff.extract_desc_from_patches(patch_list)
+#    return vecs_list
+
+
+def test_sift_patchmatch_scores(data, labels):
+    """
+    data = X_test
+    labels = y_test
+    """
+    import pyhesaff
+    import numpy as np
+    if len(data.shape) == 4 and data.shape[-1] == 1:
+        data = data.reshape(data.shape[0:3])
+    elif len(data.shape) == 4 and data.shape[-1] == 3:
+        import vtool as vt
+        # TODO use dataset to infer data colorspace
+        data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
+    patch_list = data
+    print('Extract SIFT descr')
+    vecs_list = pyhesaff.extract_desc_from_patches(patch_list)
+    print('Compute SIFT dist')
+    sqrddist = (
+        (vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
+    sqrddist_ = sqrddist[None, :].T
+    VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
+    #sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
+    sift_scores = (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
+    sift_list = vecs_list
+    return sift_scores, sift_list
+    #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
+
+
+def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     r"""
     CommandLine:
-        python -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
-        python -m ibeis_cnn --tf pz_patchmatch --db pzmtest --test --weights=liberty:current --arch=siaml2_128 --test  # NOQA
+        utprof.py -m ibeis_cnn --tf pz_patchmatch --db liberty --test --weights=liberty:current --arch=siaml2_128 --test
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --test  --ensure
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --test  --ensure --weights=new
+        python -m ibeis_cnn --tf netrun --db liberty --arch=siaml2_128 --train --weights=new
+        python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128 --test  # NOQA
+        python -m ibeis_cnn --tf netrun --db pzmtest --weights=liberty:current --arch=siaml2_128
     """
     import vtool as vt
+    import plottool as pt
     from ibeis_cnn import harness
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
@@ -85,16 +142,17 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     ut.write_to(ut.unixjoin(epoch_dpath, 'era_history.txt'), history_text)
 
-    if True:
-        import matplotlib as mpl
-        mpl.rcParams['agg.path.chunksize'] = 100000
+    #if True:
+    #    import matplotlib as mpl
+    #    mpl.rcParams['agg.path.chunksize'] = 100000
 
     #data   = data[::50]
     #labels = labels[::50]
     #from ibeis_cnn import utils
     #data, labels = utils.random_xy_sample(data, labels, 10000, model.data_per_label_input)
 
-    import plottool as pt
+    FULL = not ut.get_argflag('--quick')
+
     fnum_gen = pt.make_fnum_nextgen()
 
     ut.colorprint('[siam_perf] Show era history', 'white')
@@ -108,7 +166,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #model.draw_all_conv_layer_weights(fnum=fnum_gen())
     #model.imwrite_weights(1)
     #model.imwrite_weights(2)
-    #ut.embed()
 
     # Compute each type of score
     ut.colorprint('[siam_perf] Building Scores', 'white')
@@ -130,7 +187,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
 
     # Segfaults with the data passed in is large (AND MEMMAPPED apparently)
     # Fixed in hesaff implementation
-    SIFT = False
+    SIFT = FULL
     if SIFT:
         sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
         sift_scores = sift_scores.astype(np.float64)
@@ -147,8 +204,6 @@ def test_siamese_performance(model, data, labels, dataname=''):
     if SIFT:
         sift_encoder = vt.ScoreNormalizer(**encoder_kw)
         sift_encoder.fit(sift_scores, labels)
-
-    #ut.embed()
 
     # Visualize
     ut.colorprint('[siam_perf] Visualize Encoders', 'white')
@@ -177,7 +232,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
     #sift_fp_label_indicies, sift_fn_label_indicies =
     #sift_encoder.get_error_indicies(sift_scores, labels)
 
-    with_patch_examples = False
+    with_patch_examples = FULL
     if with_patch_examples:
         ut.colorprint('[siam_perf] Visualize Confusion Examples', 'white')
         cnn_indicies = cnn_encoder.get_confusion_indicies(cnn_scores, labels)
@@ -185,8 +240,8 @@ def test_siamese_performance(model, data, labels, dataname=''):
             sift_indicies = sift_encoder.get_confusion_indicies(sift_scores, labels)
 
         warped_patch1_list, warped_patch2_list = list(zip(*ut.ichunks(data, 2)))
-        _sample = functools.partial(draw_results.get_patch_sample_img,
-                                    warped_patch1_list, warped_patch2_list, labels)
+        samp_args = (warped_patch1_list, warped_patch2_list, labels)
+        _sample = functools.partial(draw_results.get_patch_sample_img, *samp_args)
 
         cnn_fp_img = _sample({'fs': cnn_scores}, cnn_indicies.fp)[0]
         cnn_fn_img = _sample({'fs': cnn_scores}, cnn_indicies.fn)[0]
@@ -237,7 +292,7 @@ def test_siamese_performance(model, data, labels, dataname=''):
             pt.adjust_subplots(left=0, right=1.0, bottom=0., wspace=.01, hspace=.05)
             pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180, figsize=(9, 18))
 
-    with_patch_desc = False
+    with_patch_desc = FULL
     if with_patch_desc:
         ut.colorprint('[siam_perf] Visualize Patch Descriptors', 'white')
         fnum = fnum_gen()
@@ -267,9 +322,12 @@ def show_hard_cases(model, data, labels, scores):
     #encoder.normalize_scores(x)
     #encoder.inverse_normalize(np.cast['float32'](encoder.learned_thresh))
 
-    fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores, labels)
-    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies, model.data_per_label_input)
-    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies, model.data_per_label_input)
+    fp_label_indicies, fn_label_indicies = encoder.get_error_indicies(scores,
+                                                                      labels)
+    fn_data_indicies = utils.expand_data_indicies(fn_label_indicies,
+                                                  model.data_per_label_input)
+    fp_data_indicies = utils.expand_data_indicies(fp_label_indicies,
+                                                  model.data_per_label_input)
 
     fn_data   = data.take(fn_data_indicies, axis=0)
     fn_labels = labels.take(fn_label_indicies, axis=0)
@@ -285,34 +343,6 @@ def show_hard_cases(model, data, labels, scores):
         fn_labels, fn_data, {'fs': fn_scores}, figtitle='FN')
     draw_results.interact_siamsese_data_patches(
         fp_labels, fp_data, {'fs': fp_scores}, figtitle='FP')
-
-
-def test_sift_patchmatch_scores(data, labels):
-    """
-    data = X_test
-    labels = y_test
-    """
-    import pyhesaff
-    import numpy as np
-    if len(data.shape) == 4 and data.shape[-1] == 1:
-        data = data.reshape(data.shape[0:3])
-    elif len(data.shape) == 4 and data.shape[-1] == 3:
-        import vtool as vt
-        # TODO use dataset to infer data colorspace
-        data = vt.convert_image_list_colorspace(data, 'GRAY', src_colorspace='BGR')
-    patch_list = data
-    print('Extract SIFT descr')
-    vecs_list = pyhesaff.extract_desc_from_patches(patch_list)
-    print('Compute SIFT dist')
-    sqrddist = (
-        (vecs_list[0::2].astype(np.float32) - vecs_list[1::2].astype(np.float32)) ** 2).sum(axis=1)
-    sqrddist_ = sqrddist[None, :].T
-    VEC_PSEUDO_MAX_DISTANCE_SQRD = 2.0 * (512.0 ** 2.0)
-    #sift_scores = 1 - (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
-    sift_scores = (sqrddist_.flatten() / VEC_PSEUDO_MAX_DISTANCE_SQRD)
-    sift_list = vecs_list
-    return sift_scores, sift_list
-    #test_siamese_thresholds(sqrddist_, labels, figtitle='SIFT descriptor distances')
 
 
 def test_siamese_thresholds(network_output, y_test, **kwargs):

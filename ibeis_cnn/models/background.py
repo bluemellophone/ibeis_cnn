@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import lasagne  # NOQA
-from lasagne import layers
-from lasagne import nonlinearities
-from ibeis_cnn import custom_layers
-from ibeis_cnn.models import abstract_models
 import functools
 import six
 import utool as ut
-import theano.tensor as T
+from ibeis_cnn import custom_layers
+import ibeis_cnn.__LASAGNE__ as lasagne
+from ibeis_cnn.__LASAGNE__ import layers
+from ibeis_cnn.__LASAGNE__ import nonlinearities
+from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.models import abstract_models
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.background]')
 
 

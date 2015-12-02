@@ -1,14 +1,13 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
-import lasagne
-import utool as ut
 import warnings
+import six
 import theano
-import theano.tensor as T
 import functools
-import six  # NOQA
+from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn import __LASAGNE__ as lasagne
 from ibeis_cnn import utils
-#import pylearn2  # NOQA
+import utool as ut
 ut.noinject('custom_layers')
 
 
@@ -19,7 +18,7 @@ try:
     # use cuda_convnet for a speed improvement
     # will not be available without a GPU
 
-    conv_impl = 'cuDNN'
+    #conv_impl = 'cuDNN'
     conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer

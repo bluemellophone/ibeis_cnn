@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Core functions for data augmentation
 

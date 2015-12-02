@@ -4,6 +4,9 @@ from __future__ import absolute_import, division, print_function
 import utool as ut
 
 
+DEVICE = ut.get_argval('--device', type_=str, default=None)
+
+
 def parse_theano_flags():
     import os
     theano_flags_str = os.environ.get('THEANO_FLAGS', '')
@@ -17,23 +20,28 @@ def write_theano_flags(theano_flags):
     theano_flags_str = ','.join(theano_flags_itemstrs)
     os.environ['THEANO_FLAGS'] = theano_flags_str
 
-DEVICE = ut.get_argval('--device', type_=str, default=None)
-
 if DEVICE is not None:
+    # http://deeplearning.net/software/theano/library/config.html
     print('Change device to %r' % (DEVICE,))
     theano_flags = parse_theano_flags()
+    theano_flags['cnmem'] = False
     theano_flags['device'] = DEVICE
+    #theano_flags['print_active_device'] = False
     write_theano_flags(theano_flags)
+
     #python -c 'import theano; print theano.config'
 
+import sys
+assert 'theano' not in sys.modules, 'Theano should not be imported yet'
+from ibeis_cnn import __THEANO__
+from ibeis_cnn import __LASAGNE__
 from ibeis_cnn import models
 from ibeis_cnn import process
 from ibeis_cnn import netrun
 from ibeis_cnn import utils
 from ibeis_cnn import theano_ext
 #from ibeis_cnn import _plugin
-print, print_, printDBG, rrr, profile = ut.inject(
-    __name__, '[ibeis_cnn]')
+print, print_, profile = ut.inject2(__name__, '[ibeis_cnn]')
 
 __version__ = '1.0.0.dev1'
 

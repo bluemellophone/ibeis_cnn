@@ -92,7 +92,7 @@ def merge_datasets(dataset_list):
         # Try and short circut cached loading
         merged_dataset = DataSet.from_alias_key(alias_key)
         return merged_dataset
-    except Exception as ex:
+    except (Exception, AssertionError) as ex:
         ut.printex(ex, 'alias definitions have changed. alias_key=%r' %
                    (alias_key,), iswarning=True)
 
@@ -418,6 +418,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
     """
     CommandLine:
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show
+        python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_Master1 --acfg_name default
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_Master1 --acfg_name timectrl
         python -m ibeis_cnn.ingest_data --test-get_ibeis_patch_siam_dataset --show --db PZ_MTEST --acfg_name unctrl --dryrun
 
@@ -444,7 +445,7 @@ def get_ibeis_patch_siam_dataset(**kwargs):
             'acfg_name': None,
         },
         alias_dict={
-            'acfg_name': ['acfg']
+            'acfg_name': ['acfg', 'a']
         },
         verbose=True)
 
@@ -582,8 +583,7 @@ def get_ibeis_part_siam_dataset(**kwargs):
         colorspace = datakw.pop('colorspace')
         (aid_pairs, label_list,
          flat_metadata) = ingest_ibeis.get_aidpairs_partmatch(ibs, **datakw)
-        # Extract and cache the data
-        # TODO: metadata
+        # Extract and cache the data, labels, and metadata
         if ut.get_argflag('--dryrun'):
             print('exiting due to dry run')
             import sys

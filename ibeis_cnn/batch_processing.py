@@ -187,6 +187,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> model = models.DummyModel(batch_size=16, strict_batch_size=False)
         >>> X, y = model.make_random_testdata(num=99, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
+        >>> y = None
         >>> encoder = None
         >>> randomize_batch_order = True
         >>> # execute function
@@ -368,9 +369,10 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                     batch_index,))
                 print('[batchiter]   * Xb.shape = %r, Xb.dtype=%r' % (
                     Xb.shape, Xb.dtype))
-                print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (
-                    yb.shape, yb.dtype))
-                print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
+                if y is not None:
+                    print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (
+                        yb.shape, yb.dtype))
+                    print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
         # Ugg, we can't have data and labels of different lengths
         #del Xb_orig
         #del yb_orig

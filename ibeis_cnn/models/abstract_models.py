@@ -1,27 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import theano
-try:
-    import lasagne
-except ImportError as ex:
-    print('theano.__version__ = %r' % (theano.__version__,))
-    print('theano.__file__ = %r' % (theano.__file__,))
-    raise
-import theano
-import theano.tensor as T
 import functools
 import six
 import numpy as np
-#from lasagne import layers
+import utool as ut
+from collections import namedtuple
+from os.path import join, exists, dirname, basename
+from six.moves import cPickle as pickle
+import warnings
+import sklearn.preprocessing
+import ibeis_cnn.__THEANO__ as theano
+from ibeis_cnn.__THEANO__ import tensor as T
+import ibeis_cnn.__LASAGNE__ as lasagne
 from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers
 from ibeis_cnn import draw_net
-import sklearn.preprocessing
-import utool as ut
-from os.path import join, exists, dirname, basename
-import warnings
-from six.moves import cPickle as pickle
-from collections import namedtuple
 from ibeis_cnn import utils
 #ut.noinject('ibeis_cnn.abstract_models')
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
@@ -36,7 +29,7 @@ MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 def imwrite_wrapper(show_func):
-    """ helper to convert show funcs into imwrite funcs """
+    r""" helper to convert show funcs into imwrite funcs """
     def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True,
                      ascheckpoint=None, verbose=1, **kwargs):
         import plottool as pt
@@ -59,7 +52,7 @@ def imwrite_wrapper(show_func):
 
 
 def evaluate_layer_list(network_layers_def, verbose=None):
-    """ compiles a sequence of partial functions into a network """
+    r""" compiles a sequence of partial functions into a network """
     if verbose is None:
         verbose = utils.VERBOSE_CNN
     total = len(network_layers_def)
@@ -261,11 +254,18 @@ class BaseModel(object):
             ('given_item_shape = %r' % (given_item_shape,))
         )
 
+    def is_train_state_initialized(model):
+        # TODO: move to dataset. This is independant of the model.
+        return model.preproc_kw is not None
+
     def ensure_training_state(model, X_train, y_train):
+        # TODO: move to dataset. This is independant of the model.
         if model.preproc_kw is None:
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
+            print('computing center mean.')
             model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
+            print('computing center std.')
             if ut.is_int(X_train):
                 ut.assert_inbounds(X_train, 0, 255, eq=True,
                                    verbose=ut.VERBOSE)
@@ -274,8 +274,9 @@ class BaseModel(object):
                 ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
                                    verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 1.0
-        if hasattr(model, 'initialize_encoder'):
-            model.initialize_encoder(y_train)
+        if getattr(model, 'encoder', None) is None:
+            if hasattr(model, 'initialize_encoder'):
+                model.initialize_encoder(y_train)
 
     def reinit_weights(model, W=lasagne.init.Orthogonal()):
         """
@@ -335,10 +336,19 @@ class BaseModel(object):
 
     # --- Input/Output
 
+    def list_saved_checkpoints(model):
+        dpath = model._get_model_dpath(None, True)
+        checkpoint_dirs = sorted(ut.glob(dpath, '*', fullpath=False))
+        return checkpoint_dirs
+
     def _get_model_dpath(model, dpath, checkpoint_tag):
         dpath = model.training_dpath if dpath is None else dpath
         if checkpoint_tag is not None:
-            dpath = join(dpath, 'checkpoints', checkpoint_tag)
+            # checkpoint dir requested
+            dpath = join(dpath, 'checkpoints')
+            if checkpoint_tag is not True:
+                # specific checkpoint requested
+                dpath = join(dpath, checkpoint_tag)
         return dpath
 
     def _get_model_file_fpath(model, default_fname, fpath, dpath, fname,
@@ -355,7 +365,7 @@ class BaseModel(object):
 
     def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern,
                                          extern_dpath=None):
-        """
+        r"""
         tries to find a matching checkpoint so you dont have to type a full
         hash
         """
@@ -382,6 +392,9 @@ class BaseModel(object):
         return checkpoint_tag
 
     def has_saved_state(model, checkpoint_tag=None):
+        """
+        Check if there are any saved model states matching the checkpoing tag.
+        """
         fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
         if checkpoint_tag is not None:
             ut.assertpath(fpath)
@@ -778,6 +791,7 @@ class BaseModel(object):
 
         fig = pt.figure(fnum=fnum, pnum=pnum)
         colors = pt.distinct_colors(len(model.era_history))
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             train_loss = np.array(era['train_loss_list'])
@@ -799,8 +813,8 @@ class BaseModel(object):
         pt.set_xlabel('epoch')
         pt.set_ylabel('train/valid ratio')
 
-        pt.legend()
-
+        if num_eras > 0:
+            pt.legend()
         pt.dark_background()
         return fig
 
@@ -808,6 +822,7 @@ class BaseModel(object):
         import plottool as pt
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=pnum)
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             if 'param_update_mags_list' not in era:
@@ -837,7 +852,8 @@ class BaseModel(object):
                                           linestyle='-', color=color)
                 #, label=valid_label, yscale=yscale)
             pass
-        pt.legend()
+        if num_eras > 0:
+            pt.legend()
 
         pt.dark_background()
         return fig
@@ -846,6 +862,7 @@ class BaseModel(object):
         import plottool as pt
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=pnum)
+        num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             if 'update_mags_list' not in era:
@@ -874,7 +891,8 @@ class BaseModel(object):
                                           update_mag_std, marker='x',
                                           linestyle='-', color=color)
             pass
-        pt.legend()
+        if num_eras > 0:
+            pt.legend()
 
         pt.dark_background()
         return fig
@@ -885,7 +903,8 @@ class BaseModel(object):
         fnum = pt.ensure_fnum(fnum)
 
         fig = pt.figure(fnum=fnum, pnum=pnum)
-        colors = pt.distinct_colors(len(model.era_history))
+        num_eras = len(model.era_history)
+        colors = pt.distinct_colors(num_eras)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             train_loss = era['train_loss_list']
@@ -910,9 +929,8 @@ class BaseModel(object):
         # append_phantom_legend_label
         pt.set_xlabel('epoch')
         pt.set_ylabel('loss')
-
-        pt.legend()
-
+        if num_eras > 0:
+            pt.legend()
         pt.dark_background()
         return fig
 
@@ -1111,6 +1129,7 @@ class BaseModel(object):
             monitor_outputs = []
             for param in parameters:
                 # The vector each param was udpated with
+                # (one vector per channel)
                 param_update_vec = updates[param] - param
                 param_update_vec.name = 'param_update_vector_' + param.name
                 flat_shape = (param_update_vec.shape[0],

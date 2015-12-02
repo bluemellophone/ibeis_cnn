@@ -6,22 +6,17 @@ fully setup
 # utils.py
 # provides utilities for learning a neural network model
 from __future__ import absolute_import, division, print_function
-#import warnings
 import time
 import numpy as np
-#import functools
-#import operator
-import theano
-import theano.tensor as T
-from lasagne import layers
-import sklearn.cross_validation
-import cv2
 from six.moves import cPickle as pickle
 import utool as ut
 import six
-#from os.path import splitext
 from ibeis_cnn import net_strs
-#from six.moves import range, zip
+import ibeis_cnn.__THEANO__ as theano
+from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.__LASAGNE__ import layers
+import sklearn.cross_validation
+import cv2
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
 

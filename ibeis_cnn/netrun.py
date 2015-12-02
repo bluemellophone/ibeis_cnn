@@ -54,7 +54,11 @@ DS_TAG_ALIAS2 = {
     'liberty'      : "liberty;dict(detector='dog', pairs=250000)",
 
     'combo'        : 'combo_vdsujffw',
-    'timectrl_pzmaster1'    : "PZ_Master1;dict(acfg_name='timectrl', colorspace='gray', min_featweight=0.8)"  # NOQA
+    'timectrl_pzmaster1'    : "PZ_Master1;dict(acfg_name='timectrl', colorspace='gray', min_featweight=0.8)",  # NOQA
+    'pzm2'    : "PZ_Master1;dict(acfg_name='timectrl:pername=None', colorspace='gray', min_featweight=0.8)",  # NOQA
+    'pzm3'   : "PZ_Master1;dict(acfg_name=None, colorspace='gray', controlled=True, min_featweight=0.8)",
+    #'pzm3'    : "PZ_Master1;dict(acfg_name='default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok', colorspace='gray', min_featweight=0.8)",  # NOQA
+    'pzm4' : "PZ_Master1;dict(acfg_name='default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok', colorspace='gray', min_featweight=0.8)"
 }
 
 
@@ -69,6 +73,7 @@ def netrun():
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl --ensuredata
         python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl:pername=None --ensuredata
+        python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg timectrl:pername=None --ensuredata
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=siam-patch
@@ -78,8 +83,17 @@ def netrun():
         # Parts based datasets
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --datatype=siam-part --ensuredata --show
 
+        % Patch based dataset (big one)
+        python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --ensuredata --show --vtd
+        python -m ibeis_cnn --tf netrun --ds pzm4 --weights=new --arch=siaml2_128 --train --monitor
+        python -m ibeis_cnn --tf netrun --ds pzm4 --arch=siaml2_128 --test
+        python -m ibeis_cnn --tf netrun --ds pzm4 --arch=siaml2_128 --veryverbose --no-flask
+
         # --- TRAINING ---
+        python -m ibeis_cnn --tf netrun --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --weights=new --arch=siaml2_128 --train --monitor
+
         python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --acfg ctrl:pername=None,excluderef=False,contrib_contains=FlankHack --train --weights=new --arch=siaml2_128  --monitor  # NOQA
+        python -m ibeis_cnn --tf netrun --ds timectrl_pzmaster1 --acfg ctrl:pername=None,excluderef=False --train --weights=new --arch=siaml2_128  --monitor  # NOQA
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor --DEBUG_AUGMENTATION
         python -m ibeis_cnn --tf netrun --ds pzmtest --weights=new --arch=siaml2_128 --train --monitor
 
@@ -103,6 +117,7 @@ def netrun():
         >>> netrun()
         >>> ut.show_if_requested()
     """
+    ut.colorprint('[netrun] NET RUN', 'red')
 
     requests, hyperparams, tags = parse_args()
     ds_tag         = tags['ds_tag']
@@ -113,28 +128,32 @@ def netrun():
 
     # ----------------------------
     # Choose the main dataset
-    ut.colorprint('[netrun] Ensuring Dataset', 'white')
+    ut.colorprint('[netrun] Ensuring Dataset', 'yellow')
     dataset = ingest_data.grab_dataset(ds_tag, datatype)
     if extern_ds_tag is not None:
         extern_dpath = ingest_data.get_extern_training_dpath(extern_ds_tag)
     else:
         extern_dpath = None
 
+    print('dataset.training_dpath = %r' % (dataset.training_dpath,))
+
+    print('Dataset Alias Key: %r' % (dataset.alias_key,))
+    print('Current Dataset Tag: %r' % (
+        ut.invert_dict(DS_TAG_ALIAS2).get(dataset.alias_key, None),))
+
     if requests['ensuredata']:
         # Print alias key that maps to this particular dataset
-        print('Dataset Alias Key: %r' % (dataset.alias_key,))
-        print('Current Dataset Tag: %r' % (
-            ut.invert_dict(DS_TAG_ALIAS2).get(dataset.alias_key, None),))
         if ut.show_was_requested():
             interact_ = dataset.interact()  # NOQA
             return
+        print('...exiting')
         sys.exit(1)
 
     # ----------------------------
     # Choose model architecture
     # TODO: data will need to return info about number of labels in viewpoint models
     # Specify model archichitecture
-    ut.colorprint('[netrun] Architecture Specification', 'white')
+    ut.colorprint('[netrun] Architecture Specification', 'yellow')
     if arch_tag == 'siam2stream':
         model = models.SiameseCenterSurroundModel(
             data_shape=dataset.data_shape,
@@ -154,24 +173,31 @@ def netrun():
     else:
         raise ValueError('Unknown arch_tag=%r' % (arch_tag,))
 
-    ut.colorprint('[netrun] Initialize archchitecture', 'white')
+    ut.colorprint('[netrun] Initialize archchitecture', 'yellow')
     model.initialize_architecture()
 
     # ----------------------------
     # Choose weight initialization
-    ut.colorprint('[netrun] Setting weights', 'white')
+    ut.colorprint('[netrun] Setting weights', 'yellow')
     if checkpoint_tag == 'new':
         ut.colorprint('[netrun] * Initializing new weights', 'lightgray')
         model.reinit_weights()
     else:
-        checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(checkpoint_tag, extern_dpath)
+        checkpoint_tag = model.resolve_fuzzy_checkpoint_pattern(
+            checkpoint_tag, extern_dpath)
         ut.colorprint('[netrun] * Resolving weights checkpoint_tag=%r' %
                       (checkpoint_tag,), 'lightgray')
         if extern_dpath is not None:
-            model.load_extern_weights(dpath=extern_dpath, checkpoint_tag=checkpoint_tag)
+            model.load_extern_weights(dpath=extern_dpath,
+                                      checkpoint_tag=checkpoint_tag)
         elif model.has_saved_state(checkpoint_tag=checkpoint_tag):
             model.load_model_state(checkpoint_tag=checkpoint_tag)
         else:
+            model_state_fpath = model.get_model_state_fpath(
+                checkpoint_tag=checkpoint_tag)
+            print('model_state_fpath = %r' % (model_state_fpath,))
+            ut.checkpath(model_state_fpath, verbose=True)
+            print('Known checkpoints are: ' + ut.repr3(model.list_saved_checkpoints()))
             raise ValueError(('Unresolved weight init: '
                               'checkpoint_tag=%r, extern_ds_tag=%r') % (
                                   checkpoint_tag, extern_ds_tag,))
@@ -179,13 +205,18 @@ def netrun():
     #print('Model State:')
     #print(model.get_state_str())
     # ----------------------------
+    if not model.is_train_state_initialized():
+        ut.colorprint('[netrun] Need to initialize training state', 'yellow')
+        X_train, y_train = dataset.load_subset('train')
+        model.ensure_training_state(X_train, y_train)
+
     # Run Actions
     if requests['train']:
-        ut.colorprint('[netrun] Training Requested', 'white')
+        ut.colorprint('[netrun] Training Requested', 'yellow')
         # parse training arguments
         config = ut.argparse_dict(dict(
             learning_rate_schedule=15,
-            max_epochs=120,
+            max_epochs=1200,
             learning_rate_adjust=.8,
         ))
         X_train, y_train = dataset.load_subset('train')
@@ -193,31 +224,40 @@ def netrun():
         harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
     elif requests['test']:
         #assert model.best_results['epoch'] is not None
+        ut.colorprint('[netrun] Test Requested', 'yellow')
         if requests['testall']:
             ut.colorprint('[netrun]  * Testing on all data', 'lightgray')
             X_test, y_test = dataset.load_subset('all')
+            flat_metadata = dataset.load_subset_metadata('all')
         else:
             ut.colorprint('[netrun]  * Testing on test subset', 'lightgray')
             X_test, y_test = dataset.load_subset('test')
+            flat_metadata = dataset.load_subset_metadata('test')
         data, labels = X_test, y_test
         dataname = dataset.alias_key
-        experiments.test_siamese_performance(model, data, labels, dataname)
+        experiments.test_siamese_performance(model, data, labels,
+                                             flat_metadata, dataname)
     else:
-        raise ValueError('nothing here. need to train or test')
+        if not ut.get_argflag('--cmd'):
+            raise ValueError('nothing here. need to train or test')
 
     if requests['publish']:
-        ut.colorprint('[netrun] Publish Requested', 'white')
+        ut.colorprint('[netrun] Publish Requested', 'yellow')
         publish_dpath = ut.truepath('~/Dropbox/IBEIS')
         published_model_state = ut.unixjoin(
             publish_dpath, model.arch_tag + '_model_state.pkl')
         ut.copy(model.get_model_state_fpath(), published_model_state)
         ut.view_directory(publish_dpath)
-        print('You need to get the dropbox link and register it into the appropriate file')
+        print('You need to get the dropbox link and '
+              'register it into the appropriate file')
         # pip install dropbox
         # https://www.dropbox.com/developers/core/start/python
         # import dropbox  # need oauth
         #client.share('/myfile.txt', short_url=False)
         # https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl
+
+    if ut.get_argflag('--cmd'):
+        ut.embed()
 
 
 def parse_args():
@@ -231,10 +271,13 @@ def parse_args():
         assert ut.inIPython()
 
     # Parse commandline args
-    ds_tag      = ut.get_argval(('--dataset', '--ds'), type_=str, default=ds_default)
-    datatype    = ut.get_argval(('--datatype', '--dt'), type_=str, default='siam-patch')
+    ds_tag      = ut.get_argval(('--dataset', '--ds'), type_=str,
+                                default=ds_default)
+    datatype    = ut.get_argval(('--datatype', '--dt'), type_=str,
+                                default='siam-patch')
     arch_tag    = ut.get_argval(('--arch', '-a'), default=arch_default)
-    weights_tag = ut.get_argval(('--weights', '+w'), type_=str, default=weights_tag_default)
+    weights_tag = ut.get_argval(('--weights', '+w'), type_=str,
+                                default=weights_tag_default)
 
     # Incorporate new config stuff?
     #NEW = False
@@ -303,7 +346,7 @@ def parse_args():
 def merge_ds_tags(ds_alias_list):
     r"""
     CommandLine:
-        python -m ibeis_cnn.train --test-merge_ds_tags --alias-list gz-gray girm pzmtest nnp
+        python -m ibeis_cnn --tf merge_ds_tags --alias-list gz-gray girm pzmtest nnp
 
     TODO:
         http://stackoverflow.com/questions/18492273/combining-hdf5-files

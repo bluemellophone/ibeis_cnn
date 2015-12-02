@@ -27,7 +27,8 @@ from lasagne import nonlinearities
 from lasagne import init
 import functools
 import six
-import theano.tensor as T
+#import theano.tensor as T
+from ibeis_cnn.__THEANO__ import tensor as T
 import numpy as np
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn import custom_layers
@@ -105,10 +106,10 @@ class SiameseL2(AbstractSiameseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
                 #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
@@ -144,10 +145,10 @@ class SiameseL2(AbstractSiameseModel):
                 # TODO: Stack Inputs by making a 2 Channel Layer
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(Conv2DLayer, num_filters=96, filter_size=(7, 7), stride=(3, 3), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(5, 5), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
                 _P(Conv2DLayer, num_filters=128, filter_size=(3, 3), name='C2_128', **hidden_initkw),
                 #_P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
@@ -180,7 +181,7 @@ class SiameseL2(AbstractSiameseModel):
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
                               pool_size=(2, 2), pool_stride=(2, 2),
-                              drop_p=.1):
+                              drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -192,7 +193,7 @@ class SiameseL2(AbstractSiameseModel):
 
         def CD_layer(num_filters=32,
                      conv_size=(5, 5), conv_stride=(3, 3),
-                     drop_p=.1):
+                     drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -251,7 +252,7 @@ class SiameseL2(AbstractSiameseModel):
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
                               pool_size=(2, 2), pool_stride=(2, 2),
-                              drop_p=.1):
+                              drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -263,7 +264,7 @@ class SiameseL2(AbstractSiameseModel):
 
         def CD_layer(num_filters=32,
                      conv_size=(5, 5), conv_stride=(3, 3),
-                     drop_p=.1):
+                     drop_p=0.3):
             num = _tmp[0]
             _tmp[0] += 1
             return [
@@ -321,13 +322,13 @@ class SiameseL2(AbstractSiameseModel):
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
                 _P(custom_layers.CenterSurroundLayer, name='CentSuround'),
                 _P(Conv2DLayer, num_filters=96, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C1', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C2', **hidden_initkw),
-                _P(layers.DropoutLayer, p=0.1),
+                _P(layers.DropoutLayer, p=0.3),
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(1, 1), name='P0'),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=2, name='concat'),  # 2 when CenterSurroundIsOn but two channel network
@@ -651,15 +652,16 @@ def constrastive_loss(dist_l2, labels, margin, T=T):
         >>> dist_l2 = np.linspace(0, 2.5, 200)
         >>> labels = np.tile([True, False], 100)
         >>> # margin, T = 1.25, np
-        >>> margin, T = 1.0, np
+        >>> margin, T = 1.25, np
         >>> loss = constrastive_loss(dist_l2, labels, margin, T)
         >>> ut.quit_if_noshow()
         >>> import plottool as pt
         >>> xdat_genuine, ydat_genuine = dist_l2[labels], loss[labels] * 2.0
         >>> xdat_imposter, ydat_imposter = dist_l2[~labels], loss[~labels] * 2.0
-        >>> pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
-        >>> pt.plot(xdat_genuine, ydat_genuine, '--', color=pt.TRUE, label='Genuine Distance')
-        >>> pt.plot(xdat_imposter, ydat_imposter, '-', color=pt.FALSE,  label='Imposter Distance')
+        >>> #pt.presetup_axes(x_label='Energy (D_w)', y_label='Loss (L)', equal_aspect=False)
+        >>> pt.presetup_axes(x_label='Energy (E)', y_label='Loss (L)', equal_aspect=False)
+        >>> pt.plot(xdat_genuine, ydat_genuine, '--', lw=2, color=pt.TRUE, label='Correct training pairs')
+        >>> pt.plot(xdat_imposter, ydat_imposter, '-', lw=2, color=pt.FALSE,  label='Incorrect training pairs')
         >>> pt.pad_axes(.03, ylim=(0, 3.5))
         >>> pt.postsetup_axes()
         >>> ut.show_if_requested()
