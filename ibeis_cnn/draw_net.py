@@ -225,8 +225,9 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
         netx_graph.add_nodes_from(netx_nodes)
         netx_graph.add_edges_from(netx_edges)
 
-        netx_graph.graph.setdefault('graph', {})['rankdir'] = 'LR'
-        netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
+        #netx_graph.graph.setdefault('graph', {})['rankdir'] = 'LR'
+        netx_graph.graph.setdefault('graph', {})['rankdir'] = 'TB'
+        #netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
         netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
 
         pos_dict = netx.pydot_layout(netx_graph, prog='dot')
