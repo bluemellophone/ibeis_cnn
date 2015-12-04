@@ -384,6 +384,8 @@ def grab_liberty_siam_dataset(pairs=250000):
     alias_key = 'liberty;' + ut.dict_str(datakw, nl=False, explicit=True)
     cfgstr = ','.join([str(val) for key, val in ut.iteritems_sorted(datakw)])
 
+    # TODO: allow a move of the base data prefix
+
     training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training', ds_name)
     if ut.get_argflag('--vtd'):
         ut.vd(training_dpath)
