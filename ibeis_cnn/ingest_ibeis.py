@@ -1194,7 +1194,9 @@ def get_background_training_patches2(ibs, dest_path=None, patch_size=48,
         w, h = int(w), int(h)
         return cv2.resize(image, (w, h), interpolation=cv2.INTER_LANCZOS4)
 
-    def point_inside((x, y), (x0, y0, w, h)):
+    def point_inside(tup1, tup2):
+        (x, y) = tup1
+        (x0, y0, w, h) = tup2
         x1 = x0 + w
         y1 = y0 + h
         return x0 <= x and x <= x1 and y0 <= y and y <= y1
