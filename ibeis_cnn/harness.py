@@ -486,15 +486,37 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
             ])
         return data_padded
 
+    def _resize_target(image, target_height=None, target_width=None):
+        assert target_height is not None or target_width is not None
+        height, width = image.shape[:2]
+        if target_height is not None and target_width is not None:
+            h = target_height
+            w = target_width
+        elif target_height is not None:
+            h = target_height
+            w = (width / height) * h
+        elif target_width is not None:
+            w = target_width
+            h = (height / width) * w
+        w, h = int(w), int(h)
+        return cv2.resize(image, (w, h), interpolation=cv2.INTER_LANCZOS4)
+
     if verbose:
         # Start timer
         t0 = time.time()
         print('[harness] Loading the testing data (convolutional)...')
     # Try to get the image's shape
-    try:
-        h, w, c = image.shape
-    except ValueError:
-        h, w = image.shape
+    h, w = image.shape[:2]
+
+    original_shape = None
+    if h < w and h < 256:
+        original_shape = image.shape
+        image = _resize_target(image, target_height=256)
+    if w < h and w < 256:
+        original_shape = image.shape
+        image = _resize_target(image, target_width=256)
+
+    h, w = image.shape[:2]
 
     #GLOBAL_LIMIT = min(256, w, h)
     # HACK, this only works for square data shapes
@@ -575,7 +597,14 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
     # Cast all images to uint8
     for label in label_list_:
         canvas = np.around(canvas_dict[label])
-        canvas_dict[label] = canvas.astype(np.uint8)
+        canvas = canvas.astype(np.uint8)
+        if original_shape is not None:
+            canvas = _resize_target(
+                canvas,
+                target_height=original_shape[0],
+                target_width=original_shape[1]
+            )
+        canvas_dict[label] = canvas
     if verbose:
         # End timer
         t1 = time.time()

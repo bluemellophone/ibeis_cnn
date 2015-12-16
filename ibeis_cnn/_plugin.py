@@ -103,6 +103,23 @@ def detect_annot_zebra_background_mask(ibs, aid_list, species=None, config2_=Non
 
 
 @register_ibs_method
+def detect_annot_whale_fluke_background_mask(ibs, aid_list, species='whale_fluke', config2_=None):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+
+    Returns:
+        list: mask_list
+    """
+    # Read the data
+    print('\n[harness] Loading chips...')
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_)
+    mask_list = list(generate_species_background(ibs, chip_list, species=species))
+    return mask_list
+
+
+@register_ibs_method
 def generate_species_background_mask(ibs, chip_fpath_list, species=None):
     r"""
     Args:
@@ -227,6 +244,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     batch_size = None
 
     NEW = True
+    print(species)
     if species in ['zebra_plains', 'zebra_grevys']:
         if NEW:
             assert species in ['zebra_plains', 'zebra_grevys']
@@ -241,6 +259,10 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     elif species in ['giraffe_masai']:
         model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
         weights_path = grabmodels.ensure_model('background_giraffe_masai', redownload=False)
+        canvas_key = species
+    elif species in ['whale_fluke']:
+        model = models.BackgroundModel(batch_size=batch_size, data_shape=data_shape)
+        weights_path = grabmodels.ensure_model('background_whale_fluke', redownload=False)
         canvas_key = species
 
     else:
