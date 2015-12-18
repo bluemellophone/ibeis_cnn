@@ -351,7 +351,7 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         def idcache_save(self, ismiss_list, miss_vals, id_list, val_list, cache_):
             # Generalize?
             miss_indices = ut.list_where(ismiss_list)
-            miss_ids  = ut.filter_items(id_list, ismiss_list)
+            miss_ids  = ut.list_compress(id_list, ismiss_list)
             # overwrite missed output
             for index, val in zip(miss_indices, miss_vals):
                 val_list[index] = val
