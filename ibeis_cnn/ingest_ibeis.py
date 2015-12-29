@@ -266,8 +266,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
 
     pairmetadata_list = []
     for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Align Info', adjust=True):
-        pair_metadata = ibs.get_annot_pair_lazy_dict(
-            ibs, aid1, aid2, qconfig2_, dconfig2_)
+        pair_metadata = ibs.get_annot_pair_lazy_dict(aid1, aid2, qconfig2_, dconfig2_)
         pair_metadata['match_metadata'] = partial(compute_alignment, pair_metadata)
         pairmetadata_list.append(pair_metadata)
 
@@ -869,36 +868,37 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         #import ibeis.other.dbinfo
         ibs.print_annotconfig_stats(qaid_list, daid_list, bigstr=True)
         #ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
-        qres_list, qreq_ = ibs.query_chips(
+        cm_list, qreq_ = ibs.query_chips(
             qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
         # TODO: Use ChipMatch2 instead of QueryResult
-        #cm_list = [chip_match.ChipMatch2.from_qres(cm) for cm in qres_list]
+        #cm_list = [chip_match.ChipMatch2.from_qres(cm) for cm in cm_list]
         #for cm in cm_list:
         #    cm.evaluate_nsum_score(qreq_=qreq_)
         #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
         #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
-        return qres_list, qreq_
-    qres_list, qreq_ = get_query_results()
+        return cm_list, qreq_
+    cm_list, qreq_ = get_query_results()
 
     def get_matchdata1():
+        # TODO: rectify with code in viz_nearest_descriptors to compute the flat lists
         # Get aid pairs and feature matches
         if num_top is None:
-            aids2_list = [cm.get_top_aids() for cm in qres_list]
+            aids2_list = [cm.get_top_aids() for cm in cm_list]
         else:
-            aids2_list = [cm.get_top_aids()[0:num_top] for cm in qres_list]
+            aids2_list = [cm.get_top_aids()[0:num_top] for cm in cm_list]
         aids1_list = [[cm.qaid] * len(aids2)
-                      for cm, aids2 in zip(qres_list, aids2_list)]
+                      for cm, aids2 in zip(cm_list, aids2_list)]
         aid1_list_all = np.array(ut.flatten(aids1_list))
         aid2_list_all = np.array(ut.flatten(aids2_list))
 
         def take_qres_list_attr(attr):
             attrs_list = [ut.dict_take(getattr(cm, attr), aids2)
-                          for cm, aids2 in zip(qres_list, aids2_list)]
+                          for cm, aids2 in zip(cm_list, aids2_list)]
             attr_list = ut.flatten(attrs_list)
             return attr_list
         fm_list_all = take_qres_list_attr(attr='aid2_fm')
         metadata_all = {}
-        filtkey_lists = ut.unique_unordered([tuple(cm.filtkey_list) for cm in qres_list])
+        filtkey_lists = ut.unique_unordered([tuple(cm.filtkey_list) for cm in cm_list])
         assert len(filtkey_lists) == 1, 'multiple fitlers used in this query'
         filtkey_list = filtkey_lists[0]
         fsv_list = take_qres_list_attr('aid2_fsv')
