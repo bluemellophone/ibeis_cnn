@@ -13,7 +13,7 @@ def interact_siamsese_data_patches(labels, data, flat_metadata, **kwargs):
         flat_metadata (?):
 
     CommandLine:
-        python -m ibeis_cnn.draw_results --test-interact_siamsese_data_patches
+        python -m ibeis_cnn.draw_results --test-interact_siamsese_data_patches --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -37,7 +37,7 @@ def interact_dataset(labels, data, flat_metadata, data_per_label, **kwargs):
         flat_metadata (?):
 
     CommandLine:
-        python -m ibeis_cnn.draw_results --test-interact_siamsese_data_patches
+        python -m ibeis_cnn.draw_results --test-interact_dataset --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -54,7 +54,8 @@ def interact_dataset(labels, data, flat_metadata, data_per_label, **kwargs):
 
 def interact_patches(label_list, data_lists,
                      flat_metadata, sortby=None, figtitle=None,
-                     chunck_sizes=None, ibs=None):
+                     chunck_sizes=None, ibs=None, hack_one_per_aid=True,
+                     qreq_=None):
     r"""
     Args:
         label_list (list):
@@ -73,7 +74,6 @@ def interact_patches(label_list, data_lists,
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.draw_results import *  # NOQA
-        >>> from ibeis_cnn.draw_results import *  # NOQA
         >>> from ibeis_cnn import ingest_data
         >>> data, labels = ingest_data.testdata_patchmatch2()
         >>> flat_metadata = {'fs': np.arange(len(labels))}
@@ -82,6 +82,14 @@ def interact_patches(label_list, data_lists,
         >>> print(result)
     """
     #from ibeis.viz import viz_helpers as vh
+    print('Building patch interaction')
+    num_datas = list(map(len, data_lists))
+    num_data = num_datas[0]
+    ut.assert_all_eq(num_datas)
+    print('num_datas = %r' % (num_data,))
+    if label_list is not None:
+        assert len(label_list) == num_data, 'datas must be corresponding'
+        print('len(label_list) = %r' % (len(label_list),))
 
     #chunck_sizes = (6, 8)
     if chunck_sizes is None:
@@ -115,7 +123,8 @@ def interact_patches(label_list, data_lists,
                 idx_lists = vt.ziptake(idx_lists, sortx_lists)
 
                 # FILTER TO ONLY SHOW ONE PER AID
-                if 'aid_pairs' in flat_metadata:
+                if hack_one_per_aid and 'aid_pairs' in flat_metadata:
+                    print('hacking one per aid')
                     aid_pairs = flat_metadata['aid_pairs']
                     dataids = vt.get_undirected_edge_ids(aid_pairs)
                     new_idx_lists = []
@@ -139,7 +148,7 @@ def interact_patches(label_list, data_lists,
     interact = make_InteractSiamPatches(ibs, data_lists, label_list,
                                         flat_metadata, chunck_sizes,
                                         index_list, draw_meta=draw_meta,
-                                        draw_hud=draw_hud)
+                                        draw_hud=draw_hud, qreq_=qreq_)
 
     interact.show_page()
     return interact
@@ -153,11 +162,15 @@ def make_InteractSiamPatches(*args, **kwargs):
     class InteractSiamPatches(BASE_CLASS):
         def __init__(self, ibs, data_lists, label_list, flat_metadata,
                      chunck_sizes, index_list=None, figtitle=None,
-                     draw_meta=True, **kwargs):
+                     draw_meta=True, qreq_=None, **kwargs):
             self.nCols = chunck_sizes[0]
             if index_list is None:
                 index_list = list(range(label_list))
+            print('len(index_list) = %r' % (len(index_list),))
+            print('len(label_list) = %r' % (len(label_list),))
+            print('chunck_sizes = %r' % (chunck_sizes,))
             self.multi_chunked_indicies = list(ut.iter_multichunks(index_list, chunck_sizes))
+            # print('ut.depth_profile(self.multi_chunked_indicies) = %r' % (ut.depth_profile(self.multi_chunked_indicies),))
             nPages = len(self.multi_chunked_indicies)
             super(InteractSiamPatches, self).__init__(nPages, **kwargs)
             self.data_lists = data_lists
@@ -165,6 +178,7 @@ def make_InteractSiamPatches(*args, **kwargs):
             self.label_list = label_list
             self.flat_metadata = flat_metadata
             self.draw_meta = draw_meta
+            self.qreq_ = qreq_
             self.ibs = ibs
 
         def show_page(self, pagenum=None, **kwargs):
@@ -279,7 +293,7 @@ def make_InteractSiamPatches(*args, **kwargs):
 
                         if self.ibs is not None:
                             options += inspect_gui.get_aidpair_context_menu_options(
-                                self.ibs, aid1, aid2, None, qreq_=None,
+                                self.ibs, aid1, aid2, None, qreq_=self.qreq_,
                             )
                             #update_callback=update_callback,
                             #backend_callback=backend_callback, aid_list=aid_list)
