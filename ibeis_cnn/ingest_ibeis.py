@@ -192,7 +192,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     """
 
     # TODO extract chips in a sane manner
-    import ibeis.model.hots.vsone_pipeline
+    import ibeis.algo.hots.vsone_pipeline
     kwargs = kwargs.copy()
     part_chip_width  = kwargs.pop('part_chip_width', 256)
     part_chip_height = kwargs.pop('part_chip_height', 128)
@@ -203,10 +203,10 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
 
     #cfgdict = {}
     import ibeis.control.IBEISControl
-    import ibeis.model.hots.query_request
+    import ibeis.algo.hots.query_request
     assert isinstance(ibs, ibeis.control.IBEISControl.IBEISController)
     qreq_ = ibs.new_query_request(aid_pairs.T[0][0:1], aid_pairs.T[1][0:1])
-    assert isinstance(qreq_, ibeis.model.hots.query_request.QueryRequest)
+    assert isinstance(qreq_, ibeis.algo.hots.query_request.QueryRequest)
     qconfig2_ = qreq_.extern_query_config2
     dconfig2_ = qreq_.extern_data_config2
 
@@ -215,7 +215,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     def compute_alignment(pair_metadata, qreq_=qreq_):
         aid1, aid2 = pair_metadata['aid1'], pair_metadata['aid2']
         print('Computing alignment aidpair=(%r, %r)' % (aid1, aid2))
-        matches, match_metadata = ibeis.model.hots.vsone_pipeline.vsone_single(
+        matches, match_metadata = ibeis.algo.hots.vsone_pipeline.vsone_single(
             aid1, aid2, qreq_, verbose=False)
         match_metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
         return match_metadata
@@ -851,7 +851,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
                 daid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=False)
             else:
                 qaid_list = ibs.get_valid_aids()
-                #from ibeis.model.hots import chip_match
+                #from ibeis.algo.hots import chip_match
                 qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
                 daid_list = qaid_list
                 if max_examples is not None:
