@@ -870,8 +870,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         #ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
         cm_list, qreq_ = ibs.query_chips(
             qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
-        # TODO: Use ChipMatch2 instead of QueryResult
-        #cm_list = [chip_match.ChipMatch2.from_qres(cm) for cm in cm_list]
+        # TODO: Use ChipMatch instead of QueryResult
+        #cm_list = [chip_match.ChipMatch.from_qres(cm) for cm in cm_list]
         #for cm in cm_list:
         #    cm.evaluate_nsum_score(qreq_=qreq_)
         #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
