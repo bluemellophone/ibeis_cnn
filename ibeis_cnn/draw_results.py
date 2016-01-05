@@ -436,19 +436,19 @@ def get_patch_chunk(data_lists, label_list,
     if flat_metadata is None:
         flat_metadata_subset = {}
     else:
-        flat_metadata_subset = dict([(key, ut.list_take(vals, indicies))
+        flat_metadata_subset = dict([(key, ut.take(vals, indicies))
                                      for key, vals in six.iteritems(flat_metadata)])
 
     patch_list_subsets_ = [
         [vt.ensure_3channel(patch)
-         for patch in ut.list_take(warped_patch_list, indicies)]
+         for patch in ut.take(warped_patch_list, indicies)]
         for warped_patch_list in data_lists
     ]
 
     thickness = 2
     if label_list is not None:
         # draw label border
-        label_list_subset = ut.list_take(label_list, indicies)
+        label_list_subset = ut.take(label_list, indicies)
         if data_per_label == 2:
             #truecol  = tuple(pt.color_funcs.to_base255(pt.TRUE_GREEN)[0:3])[::-1]
             truecol  = tuple(pt.color_funcs.to_base255(pt.TRUE_BLUE)[0:3])[::-1]

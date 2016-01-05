@@ -245,7 +245,7 @@ class BaseModel(object):
         # FIXME: This check should not be in this fuhnction
         return
         input_layer = model.get_all_layers()[0]
-        expected_item_shape = ut.list_take(input_layer.shape[1:], [1, 2, 0])
+        expected_item_shape = ut.take(input_layer.shape[1:], [1, 2, 0])
         expected_item_shape = tuple(expected_item_shape)
         given_item_shape = X_train.shape[1:]
         assert given_item_shape == expected_item_shape, (
