@@ -548,8 +548,8 @@ def visualize_score_separability(label_list, warped_patch1_list, warped_patch2_l
     import plottool as pt
     #draw_results.interact_siamsese_data_patches(fp_labels, fp_data, {'fs': fp_scores}, rand=False, figtitle='FP')
     from vtool import score_normalization as scorenorm
-    tp_support = np.array(ut.list_compress(flat_metadata['fs'], label_list)).astype(np.float64)
-    tn_support = np.array(ut.list_compress(flat_metadata['fs'], ut.not_list(label_list))).astype(np.float64)
+    tp_support = np.array(ut.compress(flat_metadata['fs'], label_list)).astype(np.float64)
+    tn_support = np.array(ut.compress(flat_metadata['fs'], ut.not_list(label_list))).astype(np.float64)
     scorenorm.test_score_normalization(tp_support, tn_support)
     #(score_domain, p_tp_given_score, p_tn_given_score, p_score_given_tp, p_score_given_tn,
     # p_score, clip_score) = scorenorm.learn_score_normalization(tp_support, tn_support, return_all=True)

@@ -140,13 +140,13 @@ def get_aidpairs_partmatch(ibs, acfg_name):
     print('Filtered %d duplicate pairs' % (nonunique_flags.sum()))
     print('Nonunique stats:')
     for key, val in flat_metadata.items():
-        print(ut.dict_hist(ut.list_compress(val, nonunique_flags)))
+        print(ut.dict_hist(ut.compress(val, nonunique_flags)))
     unique_flags = ~nonunique_flags
     # Do filtering
     aid_pairs = _aid_pairs.compress(unique_flags, axis=0)
     label_list = _labels.compress(unique_flags, axis=0)
     for key, val in flat_metadata.items():
-        flat_metadata[key] = ut.list_compress(val, unique_flags)
+        flat_metadata[key] = ut.compress(val, unique_flags)
     print('Final Stats')
     for key, val in flat_metadata.items():
         print(ut.dict_hist(val))
@@ -350,7 +350,7 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         def idcache_save(self, ismiss_list, miss_vals, id_list, val_list, cache_):
             # Generalize?
             miss_indices = ut.list_where(ismiss_list)
-            miss_ids  = ut.list_compress(id_list, ismiss_list)
+            miss_ids  = ut.compress(id_list, ismiss_list)
             # overwrite missed output
             for index, val in zip(miss_indices, miss_vals):
                 val_list[index] = val
@@ -852,7 +852,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             else:
                 qaid_list = ibs.get_valid_aids()
                 #from ibeis.algo.hots import chip_match
-                qaid_list = ut.list_compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
+                qaid_list = ut.compress(qaid_list, ibs.get_annot_has_groundtruth(qaid_list))
                 daid_list = qaid_list
                 if max_examples is not None:
                     daid_list = daid_list[0:min(max_examples, len(daid_list))]
@@ -993,11 +993,11 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         # --
         print(ut.filtered_infostr(flags, 'total invalid annots'))
         isvalid = np.logical_and(np.logical_and(has_gt, nonempty), flags)
-        aid1_list_uneq = ut.list_compress(aid1_list_all, isvalid)
-        aid2_list_uneq = ut.list_compress(aid2_list_all, isvalid)
-        labels_uneq    = ut.list_compress(labels_all, isvalid)
-        fm_list_uneq   = ut.list_compress(fm_list_all, isvalid)
-        metadata_uneq  = {key: ut.list_compress(vals, isvalid)
+        aid1_list_uneq = ut.compress(aid1_list_all, isvalid)
+        aid2_list_uneq = ut.compress(aid2_list_all, isvalid)
+        labels_uneq    = ut.compress(labels_all, isvalid)
+        fm_list_uneq   = ut.compress(fm_list_all, isvalid)
+        metadata_uneq  = {key: ut.compress(vals, isvalid)
                           for key, vals in metadata_all.items()}
         return aid1_list_uneq, aid2_list_uneq, labels_uneq, fm_list_uneq, metadata_uneq
 
@@ -1113,12 +1113,12 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
 
         # remove empty aids
         isnonempty_list = [len(fm) > 0 for fm in fm_list_]
-        fm_list_eq = ut.list_compress(fm_list_, isnonempty_list)
-        aid1_list_eq = ut.list_compress(aid1_list_uneq, isnonempty_list)
-        aid2_list_eq = ut.list_compress(aid2_list_uneq, isnonempty_list)
-        labels_eq    = ut.list_compress(labels_uneq, isnonempty_list)
+        fm_list_eq = ut.compress(fm_list_, isnonempty_list)
+        aid1_list_eq = ut.compress(aid1_list_uneq, isnonempty_list)
+        aid2_list_eq = ut.compress(aid2_list_uneq, isnonempty_list)
+        labels_eq    = ut.compress(labels_uneq, isnonempty_list)
         metadata_eq = dict([
-            (key, ut.list_compress(vals, isnonempty_list))
+            (key, ut.compress(vals, isnonempty_list))
             for key, vals in metadata_.items()
         ])
 
