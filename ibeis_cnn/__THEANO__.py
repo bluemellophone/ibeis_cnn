@@ -8,6 +8,9 @@ DEVICE = ut.get_argval('--device', type_=str, default=None)
 
 
 def parse_theano_flags():
+    """
+    export THEANO_FLAGS="device=cpu,print_active_device=True,enable_initial_driver_test=True"
+    """
     theano_flags_str = os.environ.get('THEANO_FLAGS', '')
     theano_flags_itemstrs = theano_flags_str.split(',')
     theano_flags = ut.odict([itemstr.split('=') for itemstr in theano_flags_itemstrs if len(itemstr) > 0])
