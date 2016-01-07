@@ -404,7 +404,7 @@ def test_data2(model, X_test, y_test):
         Xb, yb = f[0]
     """
 
-    if False and ut.VERBOSE:
+    if ut.VERBOSE:
         print('\n[train] --- MODEL INFO ---')
         model.print_architecture_str()
         model.print_layer_info()

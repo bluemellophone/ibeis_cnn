@@ -10,7 +10,7 @@ from six.moves import cPickle as pickle
 import warnings
 import sklearn.preprocessing
 import ibeis_cnn.__THEANO__ as theano
-from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 import ibeis_cnn.__LASAGNE__ as lasagne
 from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers
@@ -1268,17 +1268,34 @@ class _PretrainedLayerInitializer(lasagne.init.Initializer):
         self.pretrained_layer = pretrained_layer
 
     def sample(self, shape):
-        fanout, fanin, height, width = shape
-        fanout_, fanin_, height_, width_ = self.pretrained_layer.shape
-        assert fanout <= fanout_, (
-            'Cannot cast weights to a larger fan-out dimension')
-        assert fanin  <= fanin_,  (
-            'Cannot cast weights to a larger fan-in dimension')
-        assert height == height_, (
-            'The height must be identical between the layer and weights')
-        assert width  == width_,  (
-            'The width must be identical between the layer and weights')
-        pretrained_weights = self.pretrained_layer[:fanout, :fanin, :, :]
+        if len(shape) == 1:
+            assert shape[0] <= self.pretrained_layer.shape[0]
+            pretrained_weights = self.pretrained_layer[:shape[0]]
+        else:
+            is_conv = len(shape) == 4
+            assert len(shape) == len(self.pretrained_layer.shape), (
+                'Layer shape mismatch')
+
+            fanout, fanin = shape[:2]
+            fanout_, fanin_ = self.pretrained_layer.shape[:2]
+            assert fanout <= fanout_, (
+                'Cannot cast weights to a larger fan-out dimension')
+            assert fanin  <= fanin_,  (
+                'Cannot cast weights to a larger fan-in dimension')
+
+            if is_conv:
+                height, width = shape[2:]
+                height_, width_ = self.pretrained_layer.shape[2:]
+                assert height == height_, (
+                    'The height must be identical between the layer and weights')
+                assert width  == width_,  (
+                    'The width must be identical between the layer and weights')
+
+            if is_conv:
+                pretrained_weights = self.pretrained_layer[:fanout, :fanin, :, :]
+            else:
+                pretrained_weights = self.pretrained_layer[:fanout, :fanin]
+
         pretrained_sample = lasagne.utils.floatX(pretrained_weights)
         return pretrained_sample
 
@@ -1345,11 +1362,18 @@ class PretrainedNetwork(object):
         if name is None:
             name = '%s_layer%r' % (self.modelkey, layer_index)
         W = self.get_pretrained_layer(layer_index)
+        try:
+            b = self.get_pretrained_layer(layer_index + 1)
+            assert W.shape[0] == b.shape[0]
+        except:
+            b = None
+        print(W.shape)
+        print(b.shape)
         num_filters = self.get_layer_num_filters(layer_index)
         filter_size = self.get_layer_filter_size(layer_index)
         Layer = functools.partial(
             Conv2DLayer, num_filters=num_filters,
-            filter_size=filter_size, W=W, name=name, **kwargs)
+            filter_size=filter_size, W=W, b=b, name=name, **kwargs)
         return Layer
 
     def get_pretrained_layer(self, layer_index, rand=False):

@@ -3,6 +3,7 @@
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn.models import background
+from ibeis_cnn.models import detect_yolo
 from ibeis_cnn.models import dummy
 from ibeis_cnn.models import mnist
 from ibeis_cnn.models import quality
@@ -64,6 +65,7 @@ rrrr = reload_subs
 IMPORT_TUPLES = [
     ('abstract_models', None),
     ('background', None),
+    ('detect_yolo', None),
     ('dummy', None),
     ('mnist', None),
     ('quality', None),
@@ -96,6 +98,7 @@ if DOELSE:
 
     from ibeis_cnn.models import abstract_models
     from ibeis_cnn.models import background
+    from ibeis_cnn.models import detect_yolo
     from ibeis_cnn.models import dummy
     from ibeis_cnn.models import mnist
     from ibeis_cnn.models import quality
@@ -109,6 +112,7 @@ if DOELSE:
                                                   imwrite_wrapper,
                                                   testdata_model_with_history,)
     from ibeis_cnn.models.background import (BackgroundModel,)
+    from ibeis_cnn.models.detect_yolo import (DetectYoloModel,)
     from ibeis_cnn.models.dummy import (DummyModel,)
     from ibeis_cnn.models.mnist import (MNISTModel,)
     from ibeis_cnn.models.quality import (QualityModel,)
@@ -158,6 +162,7 @@ if DOELSE:
             pass
         getattr(abstract_models, 'rrr', fbrrr)(verbose=verbose)
         getattr(background, 'rrr', fbrrr)(verbose=verbose)
+        getattr(detect_yolo, 'rrr', fbrrr)(verbose=verbose)
         getattr(dummy, 'rrr', fbrrr)(verbose=verbose)
         getattr(mnist, 'rrr', fbrrr)(verbose=verbose)
         getattr(quality, 'rrr', fbrrr)(verbose=verbose)

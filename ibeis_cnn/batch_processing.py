@@ -296,6 +296,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
 
     # messy messy messy
+
     needs_convert = ut.is_int(X)
     if needs_convert:
         ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
@@ -343,9 +344,13 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         # DO WHITENING AFTER DATA AUGMENTATION
         # MOVE DATA INTO -1 to 1 space
         # Whiten (applies centering), not really whitening
+        USE_YOLO = True
         if do_whitening:
-            # .563 time fraction
-            Xb = (Xb - (ceneter_mean01)) / (center_std01,)
+            if USE_YOLO:
+                Xb = (Xb * center_std) - center_mean
+            else:
+                # .563 time fraction
+                Xb = (Xb - (ceneter_mean01)) / (center_std01,)
         # Encode
         if yb is not None:
             if encoder is not None:
