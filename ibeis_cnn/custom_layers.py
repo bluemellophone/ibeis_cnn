@@ -12,6 +12,7 @@ ut.noinject('custom_layers')
 
 
 FORCE_CPU = False  # ut.get_argflag('--force-cpu')
+USING_GPU = False
 try:
     if FORCE_CPU:
         raise ImportError('GPU is forced off')
@@ -58,10 +59,13 @@ try:
 except ImportError as ex:
     Conv2DLayer = lasagne.layers.Conv2DLayer
     MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
-    print('Conv2DLayer = %r' % (Conv2DLayer,))
-    print('MaxPool2DLayer = %r' % (MaxPool2DLayer,))
-    ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
-    USING_GPU = False
+
+    if ut.VERBOSE:
+        print('Conv2DLayer = %r' % (Conv2DLayer,))
+        print('MaxPool2DLayer = %r' % (MaxPool2DLayer,))
+
+    if theano.config.device != 'cpu':
+        ut.printex(ex, 'WARNING: GPU seems unavailable', iswarning=True)
 
 if utils.VERBOSE_CNN:
     print('lasagne.__version__ = %r' % getattr(lasagne, '__version__', None),)

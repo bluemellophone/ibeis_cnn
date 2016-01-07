@@ -372,7 +372,7 @@ def test_siamese_thresholds(network_output, y_test, **kwargs):
                                                     with_scores=False,
                                                     **kwargs)
 
-    #from ibeis.model.hots import score_normalization
+    #from ibeis.algo.hots import score_normalization
     #test_score_normalization
     #learnkw = dict()
     #learntup = score_normalization.learn_score_normalization(

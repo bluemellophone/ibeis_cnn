@@ -27,7 +27,7 @@ def make_layer_str(layer):
     layer_type = '{0}'.format(layer.__class__.__name__)
     request_attrs = sorted(list(set(layer_attrs_dict.get(layer_type, []) + common_attrs)))
     isvalid_list = [hasattr(layer, attr) for attr in request_attrs]
-    attr_key_list = ut.list_compress(request_attrs, isvalid_list)
+    attr_key_list = ut.compress(request_attrs, isvalid_list)
 
     DEBUG = False
     if DEBUG:

@@ -590,7 +590,7 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
             canvas_dict[label][y1:y2, x1:x2] = mask
         # Blur
         # FIXME: Should this postprocessing step applied here?
-        # There is postprocessing in ibeis/models/preproc/preproc_probchip.py
+        # There is postprocessing in ibeis/algos/preproc/preproc_probchip.py
         ksize = 3
         kernel = (ksize, ksize)
         canvas_dict[label] = cv2.blur(canvas_dict[label], kernel)

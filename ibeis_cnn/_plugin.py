@@ -794,7 +794,7 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
         python -m ibeis_cnn._plugin --test-generate_siam_l2_128_feats --db PZ_Master0
 
     SeeAlso:
-        ~/code/ibeis/ibeis/model/preproc/preproc_feat.py
+        ~/code/ibeis/ibeis/algo/preproc/preproc_feat.py
 
     Example:
         >>> # DISABLE_DOCTEST

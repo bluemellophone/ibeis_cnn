@@ -281,7 +281,7 @@ def convert_category_to_siam_data(category_data, category_labels):
         imposter_pairx_list.extend(_pairxs.tolist())
 
     # We might have added duplicate imposters, just remove them for now
-    imposter_pairx_list = ut.list_take(imposter_pairx_list, vt.unique_row_indexes(np.array(imposter_pairx_list)))
+    imposter_pairx_list = ut.take(imposter_pairx_list, vt.unique_row_indexes(np.array(imposter_pairx_list)))
 
     # structure data for output
     flat_data_pairxs = np.array(genuine_pairx_list + imposter_pairx_list)

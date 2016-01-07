@@ -39,6 +39,7 @@ INSTALL_REQUIRES = [
     'scikit-learn >= 0.16.1',
     'theano',
     'lasagne',
+    'h5py',
     #'pylearn2',
     #'git+git://github.com/lisa-lab/pylearn2.git'
 
