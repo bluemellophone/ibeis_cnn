@@ -14,6 +14,8 @@ def parse_theano_flags():
     return theano_flags
 
 def write_theano_flags(theano_flags):
+    print('theano_flags = %r' % (theano_flags, ))
+    raw_input()
     theano_flags_itemstrs = [key + '=' + val for key, val in theano_flags.items()]
     theano_flags_str = ','.join(theano_flags_itemstrs)
     os.environ['THEANO_FLAGS'] = theano_flags_str

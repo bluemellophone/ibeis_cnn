@@ -1522,6 +1522,119 @@ def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
     return global_bbox_list
 
 
+def get_orientation_training_images(ibs, dest_path=None, image_size=128):
+    from os.path import join, expanduser
+
+    def resize_target(image, target_height=None, target_width=None):
+        assert target_height is not None or target_width is not None
+        height, width = image.shape[:2]
+        if target_height is not None and target_width is not None:
+            h = target_height
+            w = target_width
+        elif target_height is not None:
+            h = target_height
+            w = (width / height) * h
+        elif target_width is not None:
+            w = target_width
+            h = (height / width) * w
+        w, h = int(w), int(h)
+        return cv2.resize(image, (w, h))
+
+    dbname_mapping = {
+        'ELPH_Master'    : 'elephant_savanna',
+        'GIR_Master'     : 'giraffe_reticulated',
+        'GZ_Master'      : 'zebra_grevys',
+        'NNP_MasterGIRM' : 'giraffe_masai',
+        'PZ_Master1'     : 'zebra_plains',
+    }
+
+    if dest_path is None:
+        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+    dbname = ibs.dbname
+    positive_category = dbname_mapping.get(dbname, 'positive')
+
+    dbname = ibs.dbname
+    name = 'orientation'
+    raw_path = join(dest_path, 'raw', name)
+    labels_path = join(dest_path, 'labels', name)
+
+    # ut.remove_dirs(dest_path)
+    ut.ensuredir(dest_path)
+    ut.ensuredir(raw_path)
+    ut.ensuredir(labels_path)
+
+    gid_list = ibs.get_valid_gids()
+    aids_list = ibs.get_image_aids(gid_list)
+    bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
+
+    label_list = []
+    zipped_list = zip(gid_list, aids_list, bboxes_list)
+    global_bbox_list = []
+    for gid, aid_list, bbox_list in zipped_list:
+
+        if gid > 20:
+            continue
+
+        image = ibs.get_images(gid)
+        height, width, channels = image.shape
+
+        args = (gid, )
+        print('Processing GID: %r' % args)
+        print('\tAIDS  : %r' % (aid_list, ))
+        print('\tBBOXES: %r' % (bbox_list, ))
+
+        image_ = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_LANCZOS4)
+
+        values = (dbname, gid, )
+        patch_filename = '%s_image_gid_%s.png' % values
+        patch_filepath = join(raw_path, patch_filename)
+        cv2.imwrite(patch_filepath, image_)
+
+        bbox_list_ = []
+        for aid, (xtl, ytl, w, h) in zip(aid_list, bbox_list):
+            xr = round(w / 2)
+            yr = round(h / 2)
+            xc = xtl + xr
+            yc = ytl + yr
+
+            # Normalize to unit box
+            xr /= width
+            xc /= width
+            yr /= height
+            yc /= height
+
+            xr = min(1.0, max(0.0, xr))
+            xc = min(1.0, max(0.0, xc))
+            yr = min(1.0, max(0.0, yr))
+            yc = min(1.0, max(0.0, yc))
+
+            args = (xc, yc, xr, yr, )
+            bbox_str = '%s:%s:%s:%s' % args
+            bbox_list_.append(bbox_str)
+            global_bbox_list.append(args)
+
+            # xtl_ = int((xc - xr) * image_size)
+            # ytl_ = int((yc - yr) * image_size)
+            # xbr_ = int((xc + xr) * image_size)
+            # ybr_ = int((yc + yr) * image_size)
+            # cv2.rectangle(image_, (xtl_, ytl_), (xbr_, ybr_), (0, 255, 0))
+
+        # cv2.imshow('', image_)
+        # cv2.waitKey(0)
+
+        aid_list_str = ';'.join(map(str, aid_list))
+        bbox_list_str = ';'.join(map(str, bbox_list_))
+        label = '%s,%s,%s,%s' % (patch_filename, positive_category, aid_list_str, bbox_list_str)
+        label_list.append(label)
+
+    with open(join(labels_path, 'labels.csv'), 'a') as labels:
+        label_str = '\n'.join(label_list) + '\n'
+        labels.write(label_str)
+
+    return global_bbox_list
+
+
 if __name__ == '__main__':
     """
     CommandLine:
