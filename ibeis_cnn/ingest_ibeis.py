@@ -1594,7 +1594,7 @@ def extract_orientation_chips(ibs, gid_list, image_size=128, training=True, verb
                 chip = resize_target(chip, target_size, target_size)
                 global_chip_list.append(chip)
 
-                global_theta_list.append((theta + np.pi) / (2.0 * np.pi))
+                global_theta_list.append(theta / (2.0 * np.pi))
 
                 tag = '%s_chip_gid_%s_aid_%s' % (dbname, gid, aid, )
                 global_tag_list.append(tag)
