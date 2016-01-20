@@ -440,8 +440,8 @@ def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.draw_net import *  # NOQA
-        >>> from ibeis_cnn.draw_net import *  # NOQA
         >>> from ibeis_cnn import models
+        >>> from lasagne import layers
         >>> model = models.SiameseCenterSurroundModel(autoinit=True)
         >>> output_layer = model.get_output_layer()
         >>> nn_layers = layers.get_all_layers(output_layer)
