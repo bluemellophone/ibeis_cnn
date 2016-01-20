@@ -496,12 +496,23 @@ def make_conv_weight_image(all_weights, limit=144):
         num = all_weights_.shape[0]
 
     # Convert weight values to image values
-    all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
-    all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
-    all_domain = all_max - all_min
-    broadcaster = (slice(None),) + (None,) * (len(all_weights_.shape) - 1)
-    all_features = ((all_weights_ - all_min[broadcaster]) *
-                    (255.0 / all_domain[broadcaster])).astype(np.uint8)
+    normalize_individually = True
+    if normalize_individually:
+        # Normalize each feature individually
+        all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+        all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+        all_domain = all_max - all_min
+        extra_dims = (None,) * (len(all_weights_.shape) - 1)
+        broadcaster = (slice(None),) + extra_dims
+        all_features = ((all_weights_ - all_min[broadcaster]) *
+                        (255.0 / all_domain[broadcaster])).astype(np.uint8)
+    else:
+        # Normalize jointly across all filters
+        _max = all_weights_.max()
+        _min = all_weights_.min()
+        _domain = _max - _min
+        all_features = ((all_weights_ - _min) * (255.0 / _domain)).astype(np.uint8)
+
     #import scipy.misc
     # resize feature, give them a border, and stack them together
     new_height, new_width = max(32, height), max(32, width)
