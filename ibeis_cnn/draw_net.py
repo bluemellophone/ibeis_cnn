@@ -499,8 +499,8 @@ def make_conv_weight_image(all_weights, limit=144):
     normalize_individually = False
     if normalize_individually:
         # Normalize each feature individually
-        all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
-        all_min = utils.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
+        all_max = vt.multiaxis_reduce(np.amax, all_weights_, startaxis=1)
+        all_min = vt.multiaxis_reduce(np.amin, all_weights_, startaxis=1)
         all_domain = all_max - all_min
         extra_dims = (None,) * (len(all_weights_.shape) - 1)
         broadcaster = (slice(None),) + extra_dims
