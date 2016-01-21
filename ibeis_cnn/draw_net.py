@@ -496,7 +496,7 @@ def make_conv_weight_image(all_weights, limit=144):
         num = all_weights_.shape[0]
 
     # Convert weight values to image values
-    normalize_individually = True
+    normalize_individually = False
     if normalize_individually:
         # Normalize each feature individually
         all_max = utils.multiaxis_reduce(np.amax, all_weights_, startaxis=1)

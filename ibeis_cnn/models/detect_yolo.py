@@ -27,7 +27,7 @@ class DetectionLayer(layers.Layer):
 
 @six.add_metaclass(ut.ReloadingMetaclass)
 class DetectYoloModel(abstract_models.AbstractCategoricalModel):
-    def __init__(model, autoinit=True, batch_size=128, data_shape=(451, 451, 3), arch_tag='detect_yolo', **kwargs):
+    def __init__(model, autoinit=True, batch_size=128, data_shape=(448, 448, 3), arch_tag='detect_yolo', **kwargs):
         super(DetectYoloModel, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
         if autoinit:
             model.initialize_architecture()
@@ -44,8 +44,6 @@ class DetectYoloModel(abstract_models.AbstractCategoricalModel):
         _Yolo = abstract_models.PretrainedNetwork('detect_yolo')
         leakiness = 0.1
 
-        # SATURATION, EXPOSURE = 1.5
-
         l_in = layers.InputLayer(
             shape=model.input_shape,
         )
@@ -55,7 +53,7 @@ class DetectYoloModel(abstract_models.AbstractCategoricalModel):
             num_filters=64,
             filter_size=(7, 7),
             stride=(2, 2),
-            pad=(1, 1),
+            pad=(3, 3),
             nonlinearity=nonlinearities.LeakyRectify(leakiness=leakiness),
             W=_Yolo.get_pretrained_layer(0),
             b=_Yolo.get_pretrained_layer(1),
