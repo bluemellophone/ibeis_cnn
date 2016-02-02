@@ -14,6 +14,7 @@ import utool as ut
 import cv2
 import numpy as np
 import random
+import ibeis.constants as const
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn._plugin]')
 
 
@@ -300,6 +301,61 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
 
 
 @register_ibs_method
+def fix_annot_species_viewpoint_quality_cnn(ibs, aid_list, min_conf=0.8):
+    r"""
+    Args:
+        ibs (IBEISController):  ibeis controller object
+        aid_list (int):  list of annotation ids
+    """
+    # Load chips and resize to the target
+    data_shape = (96, 96, 3)
+    # Define model and load weights
+    print('Loading model...')
+    batch_size = int(min(128, 2 ** np.floor(np.log2(len(aid_list)))))
+    model = models.ViewpointModel(batch_size=batch_size, data_shape=data_shape)
+    weights_path = grabmodels.ensure_model('viewpoint', redownload=False)
+    old_weights_fpath = weights_path
+    model.load_old_weights_kw(old_weights_fpath)
+    # Read the data
+    target = data_shape[0:2]
+    print('Loading chips...')
+    chip_list = ibs.get_annot_chips(aid_list, verbose=True)
+    print('Resizing chips...')
+    chip_list_resized = [
+        cv2.resize(chip, target, interpolation=cv2.INTER_LANCZOS4)
+        for chip in ut.ProgressIter(chip_list, lbl='resizing chips')
+    ]
+    # Build data for network
+    X_test = np.array(chip_list_resized, dtype=np.uint8)
+    y_test = None
+
+    from ibeis_cnn import harness
+    # Predict on the data and convert labels to IBEIS namespace
+    test_outputs = harness.test_data2(model, X_test, y_test)
+    label_list = test_outputs['labeled_predictions']
+    conf_list = test_outputs['confidences']
+    species_viewpoint_list = [ convert_label(label) for label in label_list ]
+    zipped = zip(aid_list, species_viewpoint_list, conf_list)
+    skipped_list = []
+    for aid, (species, viewpoint), conf in zipped:
+        if conf >= min_conf:
+            species_ = species
+            viewpoint_ = viewpoint
+            quality_ = const.QUAL_GOOD
+        else:
+            skipped_list.append(aid)
+            species_ = const.UNKNOWN
+            viewpoint_ = None
+            quality_ = const.QUAL_UNKNOWN
+
+        ibs.set_annot_species([aid], [species_])
+        ibs.set_annot_yaw_texts([aid], [viewpoint_])
+        ibs.set_annot_quality_texts([aid], [quality_])
+
+    return skipped_list
+
+
+@register_ibs_method
 def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     r"""
     Args:
@@ -570,15 +626,15 @@ def _suggest_bing_candidate_regions(ibs, image_path_list):
 
 def non_max_suppression_fast(box_list, conf_list, overlapThresh=0.5):
     """
-        Python version of Malisiewicz's Matlab code:
-        https://github.com/quantombone/exemplarsvm
+    Python version of Malisiewicz's Matlab code:
+    https://github.com/quantombone/exemplarsvm
 
-        NOTE: This is adapted from Pedro Felzenszwalb's version (nms.m),
-        but an inner loop has been eliminated to significantly speed it
-        up in the case of a large number of boxes
+    NOTE: This is adapted from Pedro Felzenszwalb's version (nms.m),
+    but an inner loop has been eliminated to significantly speed it
+    up in the case of a large number of boxes
 
-        Reference: https://github.com/rbgirshick/rcnn/blob/master/nms/nms.m
-        Reference: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+    Reference: https://github.com/rbgirshick/rcnn/blob/master/nms/nms.m
+    Reference: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
     """
     # if there are no boxes, return an empty list
     if len(box_list) == 0:
@@ -890,7 +946,9 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
 
 
 def extract_siam128_vecs(chip_list, kpts_list):
-    """ duplicate testing func for vtool """
+    """
+    Duplicate testing func for vtool
+    """
     import vtool as vt
     import ibeis_cnn
     model = get_siam_l2_model()
