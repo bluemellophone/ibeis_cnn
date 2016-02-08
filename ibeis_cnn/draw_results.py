@@ -172,7 +172,6 @@ def make_InteractSiamPatches(*args, **kwargs):
             self.multi_chunked_indicies = list(ut.iter_multichunks(index_list, chunck_sizes))
             # print('ut.depth_profile(self.multi_chunked_indicies) = %r' % (ut.depth_profile(self.multi_chunked_indicies),))
             nPages = len(self.multi_chunked_indicies)
-            super(InteractSiamPatches, self).__init__(nPages, **kwargs)
             self.data_lists = data_lists
             self.figtitle = figtitle
             self.label_list = label_list
@@ -180,8 +179,10 @@ def make_InteractSiamPatches(*args, **kwargs):
             self.draw_meta = draw_meta
             self.qreq_ = qreq_
             self.ibs = ibs
+            super(InteractSiamPatches, self).__init__(nPages, **kwargs)
 
         def show_page(self, pagenum=None, **kwargs):
+            self._ensure_running()
             if pagenum is None:
                 pagenum = self.current_pagenum
             else:
@@ -439,11 +440,14 @@ def get_patch_chunk(data_lists, label_list,
         flat_metadata_subset = dict([(key, ut.take(vals, indicies))
                                      for key, vals in six.iteritems(flat_metadata)])
 
-    patch_list_subsets_ = [
-        [vt.ensure_3channel(patch)
-         for patch in ut.take(warped_patch_list, indicies)]
-        for warped_patch_list in data_lists
-    ]
+    import utool
+    with utool.embed_on_exception_context:
+
+        patch_list_subsets_ = [
+            [vt.ensure_3channel(patch)
+             for patch in ut.take(warped_patch_list, indicies)]
+            for warped_patch_list in data_lists
+        ]
 
     thickness = 2
     if label_list is not None:

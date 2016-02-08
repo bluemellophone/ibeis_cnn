@@ -177,7 +177,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
         >>>     ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>>     acfg_name = ut.get_argval(('--aidcfg', '--acfg', '-a'),
         >>>                                  type_=str,
-        >>>                                  default='ctrl:pername=None,excluderef=False')
+        >>>                                  default='ctrl:pername=None,excluderef=False,index=0:20:2')
         >>> #ibs = ibeis.opendb(defaultdb='PZ_FlankHack')
         >>> aid_pairs, label_list, flat_metadata = get_aidpairs_partmatch(ibs, acfg_name)
         >>> s = slice(2, len(aid_pairs), len(aid_pairs) // ut.get_argval('--x', type_=int, default=8))
@@ -210,36 +210,66 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     qconfig2_ = qreq_.extern_query_config2
     dconfig2_ = qreq_.extern_data_config2
 
-    warped = True
-
     def compute_alignment(pair_metadata, qreq_=qreq_):
-        aid1, aid2 = pair_metadata['aid1'], pair_metadata['aid2']
+        annot1 = pair_metadata['annot1']
+        annot2 = pair_metadata['annot2']
+        aid1, aid2 = annot1['aid'], annot2['aid']
         print('Computing alignment aidpair=(%r, %r)' % (aid1, aid2))
         matches, match_metadata = ibeis.algo.hots.vsone_pipeline.vsone_single(
             aid1, aid2, qreq_, verbose=False)
-        match_metadata.clear_stored(['dlen_sqrd2', 'vecs2', 'kpts2', 'kpts1', 'vecs1'])
+        fm = matches['RAT+SV'].fm
+        match_metadata['fm'] = fm
+        match_metadata['annot1'].clear_stored(['vecs', 'kpts'])
+        match_metadata['annot2'].clear_stored(['dlen_sqrd', 'vecs', 'kpts'])
         return match_metadata
 
     def make_warped_chips(pair_metadata, size=size):
         match_metadata = pair_metadata['match_metadata']
-        print('Warping Chips aidpair=(%r, %r)' % (
-            pair_metadata['aid1'], pair_metadata['aid2']))
-        rchip1 = match_metadata['rchip1']
-        rchip2 = match_metadata['rchip2']
+        annot1 = pair_metadata['annot1']
+        annot2 = pair_metadata['annot2']
+        print('Warping Chips aidpair=(%r, %r)' % (annot1['aid'], annot2['aid']))
+        rchip1 = annot1['rchip']
+        rchip2 = annot2['rchip']
+        warped = True
         if warped:
             H1 = match_metadata['H_RAT']
+            fm = match_metadata['fm']
             #print('WARPING')
             # Initial Warping
+            kpts1_m = annot1['kpts'].take(fm.T[0], axis=0)
+            kpts2_m = annot2['kpts'].take(fm.T[1], axis=0)
+            #kpts1_mt = vt.transform_kpts_xys(H1, kpts1_m)
+
             wh2 = vt.get_size(rchip2)
-            rchip1_ = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
+            try:
+                raise IndexError('force off')
+                (minx1, maxx1, miny1, maxy1) = vt.get_kpts_image_extent2(kpts2_m)
+                (minx2, maxx2, miny2, maxy2) = vt.get_kpts_image_extent2(kpts1_m)
+                (tl_xy1, br_xy1) = np.array((minx1, miny1)), np.array((maxx1, maxy1))
+                (tl_xy2, br_xy2) = np.array((minx2, miny2)), np.array((maxx2, maxy2))
+                tl_xy1_t = vt.transform_points_with_homography(H1, tl_xy1[:, None]).T
+                br_xy1_t = vt.transform_points_with_homography(H1, br_xy1[:, None]).T
+                tl_xy = np.round(np.minimum(tl_xy2, tl_xy1_t)).astype(np.int)[0]
+                br_xy = np.round(np.maximum(br_xy2, br_xy1_t)).astype(np.int)[0]
+            except IndexError:
+                tl_xy = (0, 0)
+                br_xy = wh2
+            rchip1_t = vt.warpHomog(rchip1, H1, wh2) if H1 is not None else rchip1
+
             # Cropping to remove parts of the image that (probably) cannot match
             if True:
-                isfill = vt.get_pixel_dist(rchip1_, np.array([0, 0, 0])) == 0
+                isfill = vt.get_pixel_dist(rchip1_t, np.array([0, 0, 0])) == 0
                 rowslice, colslice = vt.get_crop_slices(isfill)
-                rchip1_crop = rchip1_[rowslice, colslice]
-                rchip2_crop = rchip2[rowslice, colslice]
+                # crop just based on blackness
+                #rchip1_crop = rchip1_t[rowslice, colslice]
+                #rchip2_crop = rchip2[rowslice, colslice]
+                # crop based on keypoint match locations
+                rowslice_ = slice(max(rowslice.start, tl_xy[1]), min(rowslice.stop, br_xy[1]))
+                colslice_ = slice(max(colslice.start, tl_xy[0]), min(colslice.stop, br_xy[0]))
+                rchip1_crop = rchip1_t[rowslice_, colslice_]
+                rchip2_crop = rchip2[rowslice_, colslice_]
             else:
-                rchip1_crop = rchip1_
+                rchip1_crop = rchip1_t
                 rchip2_crop = rchip2
             rchip1 = rchip1_crop
             rchip2 = rchip2_crop
