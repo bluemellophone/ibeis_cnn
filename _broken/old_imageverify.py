@@ -168,7 +168,7 @@ def compute_target_size_from_aspect(chip_list, target_height=256):
         >>> ibs = ibeis.opendb('testdb1')
         >>> (aid1_list, aid2_list) = get_identify_training_aid_pairs(ibs)
         >>> # execute function
-        >>> chip_list = ibs.get_annot_chips(ut.unique_keep_order2(aid1_list + aid2_list))
+        >>> chip_list = ibs.get_annot_chips(ut.unique_ordered2(aid1_list + aid2_list))
         >>> target_height = 256
         >>> target_size = compute_target_size_from_aspect(chip_list, target_height)
         >>> # verify results

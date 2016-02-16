@@ -297,7 +297,7 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
 
         #netx.draw(netx_graph, pos=pos_dict, ax=ax, with_labels=True)
         #netx.draw_networkx(netx_graph, pos=pos_dict, ax=ax, node_shape='box')
-        #pos_dict = netx.graphviz_layout(netx_graph)
+        #pos_dict = netx.nx_agraph.graphviz_layout(netx_graph)
         # http://stackoverflow.com/questions/20885986/how-to-add-dots-graph-attribute-into-final-dot-output
         #for key, node in netx_nodes:
         #    #node['labels'] = {'lbl': node['label']}
