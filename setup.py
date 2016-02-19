@@ -39,7 +39,7 @@ INSTALL_REQUIRES = [
     'scikit-learn >= 0.16.1',
     'theano',
     'lasagne',
-    'h5py',
+    # 'h5py',  # Install this instead 'sudo apt-get install libhdf5-dev' due to Numpy versioning issues
     #'pylearn2',
     #'git+git://github.com/lisa-lab/pylearn2.git'
 
