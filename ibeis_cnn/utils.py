@@ -130,7 +130,7 @@ def convert_cv2_images_to_theano_images(img_list):
         # ensure 4 dimensions
         img_list = img_list.reshape(img_list.shape + (1,))
     shape_list = [img.shape for img in img_list]
-    assert ut.list_allsame(shape_list)
+    assert ut.allsame(shape_list)
     theano_style_imgs = [np.transpose(img, (2, 0, 1))[None, :] for img in img_list]
     data = np.vstack(theano_style_imgs)
     #data = np.vstack([img[None, :] for img in img_list])
