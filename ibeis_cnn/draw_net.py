@@ -201,8 +201,8 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
             edge_list.append([repr(layer.input_layer), key])
 
     #ut.embed()
-    if ut.get_argflag('--netx-cnn-hack'):
-        import networkx as netx
+    if ut.get_argflag('--nx-cnn-hack'):
+        import networkx as nx
         import plottool as pt
         from matplotlib import offsetbox
         #import TextArea, AnnotationBbox
@@ -216,8 +216,8 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
         #pt.plt.figure(figsize=(20, 2))
 
         mpl.offsetbox = offsetbox
-        nx = netx
-        G = netx_graph = netx.DiGraph()
+        nx = nx
+        G = netx_graph = nx.DiGraph()
         netx_nodes = [(key_, ut.delete_keys(node.copy(), ['name']))
                       for key_, node in node_dict.items()]
 
@@ -230,7 +230,7 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
         #netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
         netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
 
-        pos_dict = netx.pydot_layout(netx_graph, prog='dot')
+        pos_dict = nx.nx_pydot.pydot_layout(netx_graph, prog='dot')
         # hack to expand sizes
         #pos_dict = {key: (val[0] * 40, val[1] * 40) for key, val in pos_dict.items()}
         node_key_list = ut.get_list_column(netx_nodes, 0)
@@ -241,7 +241,7 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
 
         ax = pt.gca()
         ax.cla()
-        netx.draw(netx_graph, pos=pos_dict, ax=ax)
+        nx.draw(netx_graph, pos=pos_dict, ax=ax)
         for pos_, node in zip(pos_list, netx_nodes):
             x, y = pos_
             node_attr = node[1]
@@ -295,9 +295,9 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
         # MEGA HACK
         ut.show_if_requested()
 
-        #netx.draw(netx_graph, pos=pos_dict, ax=ax, with_labels=True)
-        #netx.draw_networkx(netx_graph, pos=pos_dict, ax=ax, node_shape='box')
-        #pos_dict = netx.nx_agraph.graphviz_layout(netx_graph)
+        #nx.draw(netx_graph, pos=pos_dict, ax=ax, with_labels=True)
+        #nx.draw_networkx(netx_graph, pos=pos_dict, ax=ax, node_shape='box')
+        #pos_dict = nx.nx_agraph.graphviz_layout(netx_graph)
         # http://stackoverflow.com/questions/20885986/how-to-add-dots-graph-attribute-into-final-dot-output
         #for key, node in netx_nodes:
         #    #node['labels'] = {'lbl': node['label']}
@@ -305,18 +305,18 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
 
         #from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         if False:
-            netx.get_node_attributes(netx_graph, key_)
+            nx.get_node_attributes(netx_graph, key_)
 
             A = nx.to_pydot(G)
             #A.draw('color.png')
             print(A.to_string())
             #rankdir
 
-            Z = netx.from_pydot(A)
+            Z = nx.from_pydot(A)
 
-            #netx.draw(Z)
-            Zpos = netx.pydot_layout(Z, prog='dot')
-            netx.draw_networkx(Z, pos=Zpos)
+            #nx.draw(Z)
+            Zpos = nx.nx_pydot.pydot_layout(Z, prog='dot')
+            nx.draw_networkx(Z, pos=Zpos)
 
     else:
 
