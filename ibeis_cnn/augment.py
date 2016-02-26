@@ -36,6 +36,11 @@ default_augmentation_params = {
 TAU = 2 * np.pi
 
 
+RAND_AFF_ARGS_DEFAULTS = dict(
+    zoom_range=(1 / 1.1, 1.1), max_tx=1.0, max_ty=1.0, max_shear=TAU / 16,
+    max_theta=TAU / 32, enable_flip=False, enable_stretch=False, rng=np.random)
+
+
 def random_affine_args(zoom_range=(1 / 1.1, 1.1),
                        max_tx=1.0,
                        max_ty=1.0,
@@ -51,9 +56,10 @@ def random_affine_args(zoom_range=(1 / 1.1, 1.1),
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.augment import *  # NOQA
+        >>> import vtool as vt
         >>> zoom_range = (0.9090909090909091, 1.1)
-        >>> max_tx = (-4, 4)
-        >>> max_ty = (-4, 4)
+        >>> max_tx = 4
+        >>> max_ty = 4
         >>> max_shear = np.pi
         >>> enable_rotate = True
         >>> enable_flip = True
@@ -68,6 +74,7 @@ def random_affine_args(zoom_range=(1 / 1.1, 1.1),
                   [ 0.308,  0.848, -0.611],
                   [ 0.   ,  0.   ,  1.   ]])
     """
+    # TODO: use vt.random_affine_args
 
     if zoom_range is None:
         sx = sy = 1.0
