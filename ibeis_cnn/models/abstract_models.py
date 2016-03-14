@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from __future__ import absolute_import, division, print_function
 import functools
 import six
@@ -6,7 +7,7 @@ import numpy as np
 import utool as ut
 from collections import namedtuple
 from os.path import join, exists, dirname, basename
-from six.moves import cPickle as pickle
+from six.moves import cPickle as pickle  # NOQA
 import warnings
 import sklearn.preprocessing
 import ibeis_cnn.__THEANO__ as theano
