@@ -855,7 +855,7 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
         >>> from ibeis_cnn._plugin import *  # NOQA
         >>> import ibeis
         >>> ibs = ibeis.opendb(defaultdb='testdb1')
-        >>> cid_list = ibs.depc.get_rowids('chips', ibs.get_valid_aids())
+        >>> cid_list = ibs.depc_annot.get_rowids('chips', ibs.get_valid_aids())
         >>> config2_ = None
         >>> # megahack
         >>> config2_ = dict(feat_type='hesaff+siam128',
