@@ -823,7 +823,7 @@ def get_siam_l2_model():
     """
     model.show_weights_image()
     """
-    model_url = 'https://www.dropbox.com/s/k92s6i5i1hwwy07/siaml2_128_model_state.pkl'
+    model_url = 'https://lev.cs.rpi.edu/public/models/siaml2_128_model_state.pkl'
     model_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'models')
     model_fpath = ut.grab_file_url(model_url, download_dir=model_dpath)
     model_state = ut.load_cPkl(model_fpath)

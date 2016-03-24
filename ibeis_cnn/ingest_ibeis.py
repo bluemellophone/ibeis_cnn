@@ -874,7 +874,7 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             qaid_list, daid_list = expanded_aids
         else:
             print('OLD WAY OF FILTERING')
-            from ibeis import ibsfuncs
+            from ibeis.other import ibsfuncs
             if controlled:
                 # TODO: use acfg config
                 qaid_list = ibsfuncs.get_two_annots_per_name_and_singletons(ibs, onlygt=True)
