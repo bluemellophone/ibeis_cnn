@@ -1552,6 +1552,52 @@ def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
     return global_bbox_list
 
 
+def get_cnn_image_classifier_training_images(ibs, dest_path=None, image_size=192,
+                                             category_list=['zebra_grevys', 'zebra_plains']):
+    from os.path import join, expanduser
+    if dest_path is None:
+        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+    category_set = set(category_list)
+    name = 'image_classifier'
+    dbname = ibs.dbname
+    raw_path = join(dest_path, 'raw', name)
+    labels_path = join(dest_path, 'labels', name)
+
+    ut.ensuredir(dest_path)
+    ut.ensuredir(raw_path)
+    ut.ensuredir(labels_path)
+
+    gid_list = ibs.get_valid_gids()
+    aids_list = ibs.get_image_aids(gid_list)
+    species_set_list = [
+        set(ibs.get_annot_species_texts(aid_list))
+        for aid_list in aids_list
+    ]
+
+    label_list = []
+    for gid, species_set in zip(gid_list, species_set_list):
+        args = (gid, )
+        print('Processing GID: %r' % args)
+
+        image = ibs.get_images(gid)
+        image_ = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_LANCZOS4)
+
+        values = (dbname, gid, )
+        patch_filename = '%s_image_gid_%s.png' % values
+        patch_filepath = join(raw_path, patch_filename)
+        cv2.imwrite(patch_filepath, image_)
+
+        overlap_set = species_set & category_set
+        category = 'positive' if len(overlap_set) else 'negative'
+        label = '%s,%s' % (patch_filename, category, )
+        label_list.append(label)
+
+    with open(join(labels_path, 'labels.csv'), 'a') as labels:
+        label_str = '\n'.join(label_list) + '\n'
+        labels.write(label_str)
+
+
 def extract_orientation_chips(ibs, gid_list, image_size=128, training=True, verbose=True):
     def resize_target(image, target_height=None, target_width=None):
         assert target_height is not None or target_width is not None
