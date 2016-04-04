@@ -1141,7 +1141,7 @@ class BaseModel(object):
                 monitor_outputs.append(param_update_mag)
 
             theano_backprop = theano.function(
-                inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+                inputs=[theano.In(X_batch), theano.In(y_batch)],
                 outputs=([loss_regularized, loss] + labeled_outputs +
                          monitor_outputs),
                 updates=updates,
@@ -1157,7 +1157,7 @@ class BaseModel(object):
         if request_forward:
             print('[model.build_theano_funcs] request_forward')
             theano_forward = theano.function(
-                inputs=[theano.Param(X_batch), theano.Param(y_batch)],
+                inputs=[theano.In(X_batch), theano.In(y_batch)],
                 outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
                 updates=None,
                 givens={
@@ -1172,7 +1172,7 @@ class BaseModel(object):
         if request_predict:
             print('[model.build_theano_funcs] request_predict')
             theano_predict = theano.function(
-                inputs=[theano.Param(X_batch)],
+                inputs=[theano.In(X_batch)],
                 outputs=[network_output_determ] + unlabeled_outputs,
                 updates=None,
                 givens={
