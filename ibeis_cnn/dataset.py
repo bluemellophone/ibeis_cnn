@@ -41,7 +41,7 @@ class DataSet(object):
             #ut.copy_text_to_clipboard('\n' + autogen_block)
 
         Gen Explicit Commandline:
-            python -Bc "import utool, ibeis_cnn.dataset; utool.inject_python_code2(utool.get_modpath_from_modname(ibeis_cnn.dataset.__name__), utool.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in utool.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]]), ' ' * 12), 'AUTOGEN_INIT')"
+            python -Bc "import utool, ibeis_cnn.dataset; utool.inject_python_code2(utool.get_modpath(ibeis_cnn.dataset.__name__), utool.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in utool.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]]), ' ' * 12), 'AUTOGEN_INIT')"
         """
         EXPLICIT = True
         if EXPLICIT:
