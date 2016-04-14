@@ -1598,6 +1598,67 @@ def get_cnn_image_classifier_training_images(ibs, dest_path=None, image_size=192
         labels.write(label_str)
 
 
+def get_cnn_annot_classifier_training_images(ibs, dest_path=None, image_size=128,
+                                             category_list=['zebra_grevys', 'zebra_plains']):
+    from os.path import join, expanduser
+    if dest_path is None:
+        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+    name = 'annot_classifier'
+    dbname = ibs.dbname
+    raw_path = join(dest_path, 'raw', name)
+    labels_path = join(dest_path, 'labels', name)
+
+    ut.ensuredir(dest_path)
+    ut.ensuredir(raw_path)
+    ut.ensuredir(labels_path)
+
+    gid_list = ibs.get_valid_gids()
+    aids_list = ibs.get_image_aids(gid_list)
+    # bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
+    # aid_list = ibs.get_valid_aids()
+    aid_list = ut.flatten(aids_list)
+    # import random
+    # random.shuffle(aid_list)
+    # aid_list = sorted(aid_list[:100])
+    species_list = ibs.get_annot_species_texts(aid_list)
+    yaw_list = ibs.get_annot_yaw_texts(aid_list)
+
+    skipped = 0
+    label_list = []
+    for aid, species, yaw in zip(aid_list, species_list, yaw_list):
+        args = (aid, )
+        print('Processing AID: %r' % args)
+
+        if species in category_list and yaw is None:
+            print('\tSkipped')
+            skipped += 1
+            continue
+
+        image = ibs.get_annot_chips(aid)
+        image_ = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_LANCZOS4)
+
+        values = (dbname, aid, )
+        patch_filename = '%s_annot_aid_%s.png' % values
+        patch_filepath = join(raw_path, patch_filename)
+        cv2.imwrite(patch_filepath, image_)
+
+        if species in category_list:
+            category = '%s:%s' % (species, yaw, )
+        else:
+            category = 'ignore'
+
+        # MAYBE ADD NEGATIVE CLASS?
+
+        label = '%s,%s' % (patch_filename, category, )
+        label_list.append(label)
+    print('Skipped: %d' % (skipped, ))
+
+    with open(join(labels_path, 'labels.csv'), 'a') as labels:
+        label_str = '\n'.join(label_list) + '\n'
+        labels.write(label_str)
+
+
 def extract_orientation_chips(ibs, gid_list, image_size=128, training=True, verbose=True):
     def resize_target(image, target_height=None, target_width=None):
         assert target_height is not None or target_width is not None
