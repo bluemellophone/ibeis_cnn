@@ -252,9 +252,9 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
             artist = mpl.offsetbox.AnnotationBbox(
                 offset_box, (x, y), xybox=(-0., 0.),
                 xycoords='data', boxcoords="offset points",
-                pad=0.25, frameon=True, bboxprops=dict(fc=node_attr['fillcolor']),
+                pad=0.25, framewidth=True, bboxprops=dict(fc=node_attr['fillcolor']),
                 #pad=0.1,
-                #frameon=False,
+                #framewidth=False,
             )
             offset_box_list.append(offset_box)
             artist_list.append(artist)
