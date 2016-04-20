@@ -80,8 +80,7 @@ def get_aidpairs_partmatch(ibs, acfg_name):
         'fg_on': not ut.WIN32,
     }
     cm_list, qreq_ = ibs.query_chips(
-        qaid_list, daid_list, return_request=True, cfgdict=cfgdict,
-        return_cm=True)
+        qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
     hardneg_aids1 = [[cm.qaid] for cm in (cm_list)]
     hardneg_aids2 = [cm.get_top_gf_aids(ibs, ntop=num_hard_neg_per_aid)
                      for cm in cm_list]
