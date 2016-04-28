@@ -1551,19 +1551,24 @@ def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
     return global_bbox_list
 
 
-def get_cnn_image_classifier_training_images(ibs, dest_path=None, image_size=192,
-                                             category_list=['zebra_grevys', 'zebra_plains']):
+def get_cnn_classifier_training_images(ibs, dest_path=None, image_size=192,
+                                       category_list=['zebra_grevys', 'zebra_plains'],
+                                       purge=True):
     from os.path import join, expanduser
     if dest_path is None:
         dest_path = expanduser(join('~', 'Desktop', 'extracted'))
 
     category_set = set(category_list)
-    name = 'image_classifier'
+    name = 'classifier'
     dbname = ibs.dbname
-    raw_path = join(dest_path, 'raw', name)
-    labels_path = join(dest_path, 'labels', name)
+    name_path = join(dest_path, name)
+    raw_path = join(name_path, 'raw')
+    labels_path = join(name_path, 'labels')
 
-    ut.ensuredir(dest_path)
+    if purge:
+        ut.delete(name_path)
+
+    ut.ensuredir(name_path)
     ut.ensuredir(raw_path)
     ut.ensuredir(labels_path)
 
@@ -1597,18 +1602,23 @@ def get_cnn_image_classifier_training_images(ibs, dest_path=None, image_size=192
         labels.write(label_str)
 
 
-def get_cnn_annot_classifier_training_images(ibs, dest_path=None, image_size=128,
-                                             category_list=['zebra_grevys', 'zebra_plains']):
+def get_cnn_labeler_training_images(ibs, dest_path=None, image_size=128,
+                                    category_list=['zebra_grevys', 'zebra_plains'],
+                                    purge=True):
     from os.path import join, expanduser
     if dest_path is None:
         dest_path = expanduser(join('~', 'Desktop', 'extracted'))
 
-    name = 'annot_classifier'
+    name = 'labeler'
     dbname = ibs.dbname
-    raw_path = join(dest_path, 'raw', name)
-    labels_path = join(dest_path, 'labels', name)
+    name_path = join(dest_path, name)
+    raw_path = join(name_path, 'raw')
+    labels_path = join(name_path, 'labels')
 
-    ut.ensuredir(dest_path)
+    if purge:
+        ut.delete(name_path)
+
+    ut.ensuredir(name_path)
     ut.ensuredir(raw_path)
     ut.ensuredir(labels_path)
 
