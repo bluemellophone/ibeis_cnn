@@ -282,7 +282,6 @@ def parse_args():
     # Incorporate new config stuff?
     #NEW = False
     #if NEW:
-    #    from ibeis.expt import cfghelpers
     #    default_dstag_cfg = {
     #        'ds': 'PZ_MTEST',
     #        'mode': 'patches',
@@ -291,7 +290,7 @@ def parse_args():
     #    named_defaults_dict = {
     #        '': default_dstag_cfg
     #    }
-    #    cfghelpers.parse_argv_cfg('dstag', named_defaults_dict=named_defaults_dict)
+    #    ut.parse_argv_cfg('dstag', named_defaults_dict=named_defaults_dict)
 
     hyperparams = ut.argparse_dict(
         {
