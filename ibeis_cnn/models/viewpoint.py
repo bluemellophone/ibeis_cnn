@@ -4,7 +4,7 @@ import six
 import random
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
-from ibeis_cnn.__LASAGNE__ import init
+# from ibeis_cnn.__LASAGNE__ import init
 from ibeis_cnn import custom_layers
 from ibeis_cnn.models import abstract_models
 import utool as ut
@@ -150,7 +150,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool2 = MaxPool2DLayer(
@@ -167,7 +167,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool3 = MaxPool2DLayer(
@@ -184,7 +184,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool4 = MaxPool2DLayer(
@@ -198,7 +198,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             num_units=512,
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
@@ -213,7 +213,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             num_units=512,
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
@@ -227,7 +227,7 @@ class ViewpointModel(abstract_models.AbstractCategoricalModel):
             l_hidden2_dropout,
             num_units=output_dims,
             nonlinearity=nonlinearities.softmax,
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         model.output_layer = l_out

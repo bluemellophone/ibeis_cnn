@@ -4,7 +4,7 @@ import six
 import utool as ut
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
-from ibeis_cnn.__LASAGNE__ import init
+# from ibeis_cnn.__LASAGNE__ import init
 from ibeis_cnn import custom_layers
 from ibeis_cnn.models import abstract_models
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.quality]')
@@ -81,7 +81,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool2 = MaxPool2DLayer(
@@ -98,7 +98,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool3 = MaxPool2DLayer(
@@ -115,7 +115,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             filter_size=(3, 3),
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_pool4 = MaxPool2DLayer(
@@ -129,7 +129,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             num_units=512,
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_hidden1_maxout = layers.FeaturePoolLayer(
@@ -144,7 +144,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             num_units=512,
             # nonlinearity=nonlinearities.rectify,
             nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)),
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
 
         l_hidden2_maxout = layers.FeaturePoolLayer(
@@ -158,7 +158,7 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
             l_hidden2_dropout,
             num_units=output_dims,
             nonlinearity=nonlinearities.softmax,
-            W=init.Orthogonal(),
+            # W=init.Orthogonal(),
         )
         self.output_layer = l_out
         return l_out
