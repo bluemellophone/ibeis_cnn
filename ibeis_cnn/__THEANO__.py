@@ -33,6 +33,8 @@ if DEVICE is not None:
     write_theano_flags(theano_flags)
     #python -c 'import theano; print theano.config'
 
-assert 'theano' not in sys.modules, 'Theano should not be imported yet'
+# assert 'theano' not in sys.modules, 'Theano should not be imported yet'
+print('IBEIS_CNN cannot apply settings to theano because it was already imported')
+
 from theano import *  # NOQA
 #from theano import tensor
