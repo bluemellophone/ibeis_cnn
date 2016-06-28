@@ -1668,6 +1668,60 @@ def get_cnn_labeler_training_images(ibs, dest_path=None, image_size=128,
         labels.write(label_str)
 
 
+def get_cnn_qualifier_training_images(ibs, dest_path=None, image_size=128,
+                                      purge=True):
+    from os.path import join, expanduser
+    if dest_path is None:
+        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+
+    name = 'qualifier'
+    dbname = ibs.dbname
+    name_path = join(dest_path, name)
+    raw_path = join(name_path, 'raw')
+    labels_path = join(name_path, 'labels')
+
+    if purge:
+        ut.delete(name_path)
+
+    ut.ensuredir(name_path)
+    ut.ensuredir(raw_path)
+    ut.ensuredir(labels_path)
+
+    gid_list = ibs.get_valid_gids()
+    aids_list = ibs.get_image_aids(gid_list)
+    # bboxes_list = [ ibs.get_annot_bboxes(aid_list) for aid_list in aids_list ]
+    # aid_list = ibs.get_valid_aids()
+    aid_list = ut.flatten(aids_list)
+    flag_list = ibs.get_annot_reviewed(aid_list)
+    aid_list = [aid for aid, flag in zip(aid_list, flag_list) if flag]
+    print('Outputing a total of %d annotations' % (len(aid_list, ))™
+    # import random
+    # random.shuffle(aid_list)
+    # aid_list = sorted(aid_list[:100])
+    quality_list = ibs.get_annot_quality_texts(aid_list)
+
+    label_list = []
+    for aid, quality in zip(aid_list, quality_list):
+        args = (aid, )
+        print('Processing AID: %r' % args)
+
+        image = ibs.get_annot_chips(aid)
+        image_ = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_LANCZOS4)
+
+        values = (dbname, aid, )
+        patch_filename = '%s_annot_aid_%s.png' % values
+        patch_filepath = join(raw_path, patch_filename)
+        cv2.imwrite(patch_filepath, image_)
+
+        category = quality.lower()
+        label = '%s,%s' % (patch_filename, category, )
+        label_list.append(label)
+
+    with open(join(labels_path, 'labels.csv'), 'a') as labels:
+        label_str = '\n'.join(label_list) + '\n'
+        labels.write(label_str)
+
+
 def extract_orientation_chips(ibs, gid_list, image_size=128, training=True, verbose=True):
     def resize_target(image, target_height=None, target_width=None):
         assert target_height is not None or target_width is not None
