@@ -1694,7 +1694,7 @@ def get_cnn_qualifier_training_images(ibs, dest_path=None, image_size=128,
     aid_list = ut.flatten(aids_list)
     flag_list = ibs.get_annot_reviewed(aid_list)
     aid_list = [aid for aid, flag in zip(aid_list, flag_list) if flag]
-    print('Outputing a total of %d annotations' % (len(aid_list, ))™
+    print('Outputing a total of %d annotations' % (len(aid_list, ))
     # import random
     # random.shuffle(aid_list)
     # aid_list = sorted(aid_list[:100])
