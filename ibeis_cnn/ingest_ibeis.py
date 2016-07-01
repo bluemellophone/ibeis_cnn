@@ -989,8 +989,8 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
     def get_badtag_flags(ibs, aid1_list, aid2_list):
         from ibeis import tag_funcs
         tag_filter_kw = dict(has_none=['photobomb', 'scenerymatch', 'joincase', 'splitcase'])
-        am_rowids1 = ibs.get_annotmatch_rowid_from_superkey(aid1_list, aid2_list)
-        am_rowids2 = ibs.get_annotmatch_rowid_from_superkey(aid2_list, aid1_list)
+        am_rowids1 = ibs.get_annotmatch_rowid_from_undirected_superkey(aid1_list, aid2_list)
+        am_rowids2 = ibs.get_annotmatch_rowid_from_undirected_superkey(aid2_list, aid1_list)
         case_tags1 = ibs.get_annotmatch_case_tags(am_rowids1)
         case_tags2 = ibs.get_annotmatch_case_tags(am_rowids2)
         flags1 = tag_funcs.filterflags_general_tags(case_tags1, **tag_filter_kw)
