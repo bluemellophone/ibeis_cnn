@@ -449,7 +449,7 @@ class BaseModel(object):
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model state to: %s' % (model_state_fpath,))
         with open(model_state_fpath, 'wb') as file_:
-            pickle.dump(model_state, file_, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(model_state, file_, protocol=2)  # Use protocol 2 to support python2 and 3
         print('finished saving')
 
     def save_model_info(model, **kwargs):
@@ -463,7 +463,8 @@ class BaseModel(object):
         model_info_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model info to: %s' % (model_info_fpath,))
         with open(model_info_fpath, 'wb') as file_:
-            pickle.dump(model_info, file_, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(model_info, file_, protocol=2)  # Use protocol 2 to support python2 and 3
+
         print('finished saving')
 
     def load_model_state(model, **kwargs):
