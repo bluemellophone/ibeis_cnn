@@ -392,8 +392,9 @@ def get_patch_multichunks(data_lists, label_list, flat_metadata, multiindicies):
 
 
 def get_patch_chunk(data_lists, label_list,
-                    flat_metadata, indicies, border_color=(0, 0, 0),
-                    draw_meta=True):
+                    flat_metadata, indicies=None, border_color=(0, 0, 0),
+                    draw_meta=True,
+                    vert=True, fontScale=2.5):
     """
     indicies = chunked_indicies[0]
 
@@ -426,6 +427,8 @@ def get_patch_chunk(data_lists, label_list,
         >>> ut.show_if_requested()
         (1920, 384, 3)
     """
+    if indicies is None:
+        indicies = list(range(len(label_list)))
     #warped_patch1_list, warped_patch2_list = data_lists
     data_per_label = len(data_lists)
     import utool as ut
@@ -440,14 +443,13 @@ def get_patch_chunk(data_lists, label_list,
         flat_metadata_subset = dict([(key, ut.take(vals, indicies))
                                      for key, vals in six.iteritems(flat_metadata)])
 
-    import utool
-    with utool.embed_on_exception_context:
-
-        patch_list_subsets_ = [
-            [vt.ensure_3channel(patch)
-             for patch in ut.take(warped_patch_list, indicies)]
-            for warped_patch_list in data_lists
-        ]
+    #import utool
+    #with utool.embed_on_exception_context:
+    patch_list_subsets_ = [
+        [vt.ensure_3channel(patch)
+         for patch in ut.take(warped_patch_list, indicies)]
+        for warped_patch_list in data_lists
+    ]
 
     thickness = 2
     if label_list is not None:
@@ -489,7 +491,7 @@ def get_patch_chunk(data_lists, label_list,
     # stack into single image
     stack_kw = dict(modifysize=False, return_offset=True, return_sf=True)
     stacktup_list = [
-        vt.stack_image_list(patch_list, vert=True, **stack_kw)
+        vt.stack_image_list(patch_list, vert=vert, **stack_kw)
         for patch_list in patch_lists
     ]
 
@@ -497,23 +499,30 @@ def get_patch_chunk(data_lists, label_list,
     offsets_list = ut.get_list_column(stacktup_list, 1)
     sfs_list = ut.get_list_column(stacktup_list, 2)
 
-    stacked_patches, offset_list, sf_list = vt.stack_multi_images2(multiimg_list, offsets_list, sfs_list, vert=False, modifysize=False)
+    stacked_patches, offset_list, sf_list = vt.stack_multi_images2(multiimg_list, offsets_list, sfs_list, vert=not vert, modifysize=False)
 
     if False:
         stacked_patches_, offset_list_, sf_list_ = vt.stack_multi_images(
             multiimg_list[0], multiimg_list[1], offsets_list[0], sfs_list[0], offsets_list[0], sfs_list[1],
-            vert=False, modifysize=False)
+            vert=not vert, modifysize=False)
         #stacked_orig_sizes = patchsize1_list + patchsize2_list
 
     # Draw scores
     patch_texts = None
-    if draw_meta:
+    if draw_meta is True:
         if 'fs' in flat_metadata_subset:
             scores = flat_metadata_subset['fs']
             patch_texts = ['%.3f' % s for s in scores]
             #right_offsets = offset_list[len(offset_list) // 2:]
         if 'text' in flat_metadata_subset:
             patch_texts = flat_metadata_subset['text']
+    elif isinstance(draw_meta, list):
+        requested_text = []
+        for key in draw_meta:
+            if key in flat_metadata_subset:
+                col_text = [ut.repr2(v, precision=3) for v in flat_metadata_subset[key]]
+                requested_text.append(col_text)
+        patch_texts = [' '.join(t) for t in zip(*requested_text)]
 
     if patch_texts is not None:
         scale_up = 3
@@ -538,7 +547,7 @@ def get_patch_chunk(data_lists, label_list,
             org = tuple(text_bottom_left.astype(np.int32).tolist())
             #fontFace = cv2.FONT_HERSHEY_COMPLEX_SMALL
             fontFace = cv2.FONT_HERSHEY_PLAIN
-            fontkw = dict(bottomLeftOrigin=False, fontScale=2.5, fontFace=fontFace)
+            fontkw = dict(bottomLeftOrigin=False, fontScale=fontScale, fontFace=fontFace)
             # Bordered text
             vt.draw_text(img, text, org, thickness=6, textcolor_rgb=textcolor_rgb1, **fontkw)
             vt.draw_text(img, text, org, thickness=2, textcolor_rgb=textcolor_rgb2, **fontkw)

@@ -12,9 +12,6 @@ from six.moves import cPickle as pickle
 import utool as ut
 import six
 from ibeis_cnn import net_strs
-import ibeis_cnn.__THEANO__ as theano
-from ibeis_cnn.__THEANO__ import tensor as T
-from ibeis_cnn.__LASAGNE__ import layers
 import sklearn.cross_validation
 import cv2
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
@@ -50,6 +47,7 @@ def get_gpu_memory():
         >>> result = get_gpu_memory()
         >>> print(result)
     """
+    import ibeis_cnn.__THEANO__ as theano
     return theano.sandbox.cuda.cuda_ndarray.cuda_ndarray.mem_info()
 
 
@@ -167,8 +165,12 @@ def convert_theano_images_to_cv2_images(data, *args):
     return img_list
 
 
-def evaluate_symbolic_layer(get_output_for, inputdata_, input_type=T.tensor4, **kwargs):
+def evaluate_symbolic_layer(get_output_for, inputdata_, input_type=None, **kwargs):
     """ helper for testing lasagne layers """
+    import ibeis_cnn.__THEANO__ as theano
+    from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+    if input_type is None:
+        input_type = T.tensor4
     input_expr = input_type(name='test_input_expr')  # T.tensor4()
     output_expr = get_output_for(input_expr, **kwargs)
     func = theano.function(inputs=[input_expr], outputs=[output_expr])
@@ -488,6 +490,7 @@ def expand_data_indicies(label_indices, data_per_label=1):
     when data_per_label > 1, gives the corresponding data indicies for the data
     indicies
     """
+    from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
     expanded_indicies = [label_indices * data_per_label + count
                          for count in range(data_per_label)]
     data_indices = np.vstack(expanded_indicies).T.flatten()
@@ -606,6 +609,7 @@ def slice_data_labels(X, y, batch_size, batch_index, data_per_label, wraparound=
 
 
 def multinomial_nll(x, t):
+    from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
     #coding_dist=x, true_dist=t
     return T.nnet.categorical_crossentropy(x, t)
 
@@ -701,6 +705,7 @@ def save_model(kwargs, weights_file):
 
 def shock_network(output_layer, voltage=0.10):
     print('[model] shocking the network with voltage: %0.2f%%' % (voltage, ))
+    from ibeis_cnn.__LASAGNE__ import layers
     current_weights = layers.get_all_param_values(output_layer)
     for index in range(len(current_weights)):
         temp = current_weights[index] * voltage
