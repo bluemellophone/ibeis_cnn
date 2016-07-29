@@ -1263,7 +1263,7 @@ def get_background_training_patches2(ibs, dest_path=None, patch_size=48,
     global_positives = 0
     global_negatives = 0
     for gid, aid_list, bbox_list in zipped:
-        image = ibs.get_images(gid)
+        image = ibs.get_image_imgdata(gid)
         h, w, c = image.shape
 
         args = (gid, global_positives, global_negatives, len(label_list), )
@@ -1492,7 +1492,7 @@ def get_cnn_detector_training_images(ibs, dest_path=None, image_size=128):
         # if gid > 20:
         #     continue
 
-        image = ibs.get_images(gid)
+        image = ibs.get_image_imgdata(gid)
         height, width, channels = image.shape
 
         args = (gid, )
@@ -1584,7 +1584,7 @@ def get_cnn_classifier_training_images(ibs, dest_path=None, image_size=192,
         args = (gid, )
         print('Processing GID: %r' % args)
 
-        image = ibs.get_images(gid)
+        image = ibs.get_image_imgdata(gid)
         image_ = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_LANCZOS4)
 
         values = (dbname, gid, )
@@ -1761,7 +1761,7 @@ def extract_orientation_chips(ibs, gid_list, image_size=128, training=True, verb
             print('\tTHETAS: %r' % (theta_list, ))
 
         if len(aid_list) > 0:
-            image = ibs.get_images(gid)
+            image = ibs.get_image_imgdata(gid)
             height, width, channels = image.shape
 
             padding = 1.5 * max(height, width)

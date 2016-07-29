@@ -519,7 +519,7 @@ def detect_yolo(ibs, gid_list):
     # Read the data
     target = (448, 448)
     print('Loading images...')
-    # image_list = ibs.get_images(gid_list)
+    # image_list = ibs.get_image_imgdata(gid_list)
     image_list = [
         cv2.imread('/Users/bluemellophone/code/darknet-clean/test.jpg'),
         cv2.imread('/Users/bluemellophone/code/darknet-clean/test.jpg'),
@@ -727,7 +727,7 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     # gid = gid_list[random.randint(0, len(gid_list))]
     # gid = gid_list[0]
     print('Detecting with gid=%r...' % (gid, ))
-    image = ibs.get_images(gid)
+    image = ibs.get_image_imgdata(gid)
     rects = np.copy(image)
     h, w, c = image.shape
 
