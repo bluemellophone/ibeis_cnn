@@ -455,7 +455,7 @@ def get_patch_chunk(data_lists, label_list,
     if label_list is not None:
         # draw label border
         label_list_subset = ut.take(label_list, indicies)
-        if data_per_label == 2:
+        if data_per_label in [1, 2]:
             #truecol  = tuple(pt.color_funcs.to_base255(pt.TRUE_GREEN)[0:3])[::-1]
             truecol  = tuple(pt.color_funcs.to_base255(pt.TRUE_BLUE)[0:3])[::-1]
             falsecol = tuple(pt.color_funcs.to_base255(pt.FALSE_RED)[0:3])[::-1]
