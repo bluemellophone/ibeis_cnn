@@ -18,7 +18,7 @@ CLUTTER_PATTERNS = [
     '*.prof.txt',
     '*.lprof',
     '*.ln.pkg',
-    'test_times.txt',
+    'timeings.txt',
 ]
 
 CLUTTER_DIRS = [
