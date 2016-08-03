@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import six
 import utool as ut
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
@@ -14,7 +13,7 @@ Conv2DLayer = custom_layers.Conv2DLayer
 MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
+@ut.reloadable_class
 class QualityModel(abstract_models.AbstractCategoricalModel):
     def __init__(self):
         super(QualityModel, self).__init__()

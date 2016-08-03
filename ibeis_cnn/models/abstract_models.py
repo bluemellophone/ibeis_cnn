@@ -53,7 +53,9 @@ def imwrite_wrapper(show_func):
 
 
 def evaluate_layer_list(network_layers_def, verbose=None):
-    r""" compiles a sequence of partial functions into a network """
+    r"""
+    compiles a sequence of partial functions into a network
+    """
     if verbose is None:
         verbose = utils.VERBOSE_CNN
     total = len(network_layers_def)
@@ -88,19 +90,12 @@ def evaluate_layer_list(network_layers_def, verbose=None):
                     print('  * layer.output_shape = %r' % (
                         layer.output_shape,))
     except Exception as ex:
-        ut.printex(
-            ex,
-            ('Error buildling layers.\n'
-             'layer.name=%r') % (layer),
-            keys=[
-                'layer_fn',
-                'layer_fn.func',
-                'layer_fn.args',
-                'layer_fn.keywords',
-                'layer',
-                'count'
-            ],
-        )
+        keys = ['layer_fn', 'layer_fn.func', 'layer_fn.args',
+                'layer_fn.keywords', 'layer', 'count']
+        ut.printex(ex,
+                   ('Error buildling layers.\n'
+                    'layer.name=%r') % (layer),
+                   keys=keys)
         raise
     return network_layers
 
@@ -1276,7 +1271,8 @@ class _PretrainedLayerInitializer(lasagne.init.Initializer):
         else:
             is_conv = len(shape) == 4
             assert len(shape) == len(self.pretrained_layer.shape), (
-                'Layer shape mismatch')
+                'Layer shape mismatch. Expected %r got %r' % (self.pretrained_layer.shape,
+                                                              shape))
 
             fanout, fanin = shape[:2]
             fanout_, fanin_ = self.pretrained_layer.shape[:2]

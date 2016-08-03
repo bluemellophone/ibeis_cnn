@@ -27,8 +27,7 @@ from lasagne import nonlinearities
 from lasagne import init
 import functools
 import six
-#import theano.tensor as T
-from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 import numpy as np
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn import custom_layers

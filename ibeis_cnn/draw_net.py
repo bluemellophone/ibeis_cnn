@@ -336,6 +336,209 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
     return pydot_graph
 
 
+def make_architecture_graph(layers, fullinfo=False):
+    import networkx as nx
+    import plottool as pt
+    #from matplotlib import offsetbox
+    #import matplotlib as mpl
+
+    fullinfo = True
+
+    REMOVE_BATCH_SIZE = True
+
+    alias_map = {
+        'Conv2DCCLayer': 'Conv',
+        'Conv2DLayer': 'Conv',
+        'DenseLayer': 'Dense',
+        'FeaturePoolLayer': 'Pool',
+        'GaussianNoiseLayer': 'Noise',
+        'MaxPool2DCCLayer': 'MaxPool',
+        'LeakyRectify': 'LRU',
+        'InputLayer': 'Input',
+        'DropoutLayer': 'Dropout',
+        'FlattenLayer': 'Flatten',
+    }
+
+    def get_hex_color(layer_type):
+        if 'Input' in layer_type:
+            return '#A2CECE'
+        if 'Conv' in layer_type:
+            return '#7C9ABB'
+        if 'Dense' in layer_type:
+            return '#6CCF8D'
+        if 'Pool' in layer_type:
+            return '#9D9DD2'
+        else:
+            return '#{0:x}'.format(hash(layer_type + 'salt') % 2 ** 24)
+
+    main_size = np.array((100, 100))
+    sub_size = np.array((75, 50))
+
+    node_dict = {}
+    edge_list = []
+    edge_attrs = ut.ddict(dict)
+    for i, layer in enumerate(layers):
+        layer_type = '{0}'.format(layer.__class__.__name__)
+        layer_type = alias_map.get(layer_type, layer_type)
+
+        #key = repr(layer)
+        key = layer.name
+
+        color = get_hex_color(layer_type)
+        # Make label
+        lines = []
+        lines.append(layer.name)
+        lines.append(layer_type)
+        if fullinfo:
+            for attr in ['num_filters', 'num_units', 'ds', 'axis'
+                         'filter_shape', 'stride', 'strides', 'p']:
+                val = getattr(layer, attr, None)
+                if val is not None:
+                    lines.append('{0}: {1}'.format(attr, val))
+
+            attr = 'shape'
+            if hasattr(layer, attr):
+                val = getattr(layer, attr)
+                shape = val[1:] if REMOVE_BATCH_SIZE else val
+                lines.append('{0}: {1}'.format(attr, shape))
+
+            if hasattr(layer, 'nonlinearity'):
+                try:
+                    val = layer.nonlinearity.__name__
+                except AttributeError:
+                    val = layer.nonlinearity.__class__.__name__
+                val = alias_map.get(val, val)
+                lines.append('nonlinearity:\n{0}'.format(val))
+
+        label = '\n'.join(lines)
+
+        # append node
+        is_main_layer = len(layer.params) > 0
+
+        if layer_type == 'Input':
+            is_main_layer = True
+
+        node_attr = dict(name=key, label=label, color=color,
+                         fillcolor=color, style='filled',
+                         is_main_layer=is_main_layer)
+
+        if is_main_layer:
+            node_attr['shape'] = 'rect'
+            node_attr['width'] = main_size[0]
+            node_attr['height'] = main_size[1]
+        else:
+            node_attr['shape'] = 'ellipse'
+            node_attr['width'] = sub_size[0]
+            node_attr['height'] = sub_size[1]
+
+        node_dict[key] = node_attr
+
+        _input_layers = []
+        if hasattr(layer, 'input_layers'):
+            _input_layers += layer.input_layers
+        if hasattr(layer, 'input_layer'):
+            _input_layers += [layer.input_layer]
+
+        for input_layer in _input_layers:
+            parent_key = input_layer.name
+            edge = (parent_key, key)
+            edge_list.append(edge)
+
+    G = nx.DiGraph()
+    #G.add_nodes_from(list(node_dict.keys()))
+    G.add_nodes_from(node_dict.items())
+    G.add_edges_from(edge_list)
+    for key, val in edge_attrs.items():
+        nx.set_edge_attributes(G, key, val)
+
+    for n1, n2 in list(G.edges()):
+        #if node_dict[n1]['is_main_layer']:
+        #    G.edge[n1][n2]['constraint'] = 'true'
+        if node_dict[n2]['is_main_layer']:
+            G.edge[n1][n2]['constraint'] = 'true'
+            #G.edge[n1][n2]['constraint'] = 'false'
+        else:
+            G.edge[n1][n2]['constraint'] = 'false'
+
+    # Add invisible structure
+    main_nodes = [key for key, val in
+                  nx.get_node_attributes(G, 'is_main_layer').items() if val]
+
+    main_children = {}
+
+    between_edges = []
+    for n1 in main_nodes:
+        main_children[n1] = []
+        #descendants = nx.descendants(G, n1)
+        # Main nodes only place constraints on
+        # nodes in the next main group. Not their own
+        between = []
+        next_main = None
+        G.node[n1]['group'] = n1
+        for (_, n2) in nx.bfs_edges(G, n1):
+            if next_main is None:
+                if n2 in main_nodes:
+                    between = []
+                    next_main = n2
+                else:
+                    G.node[n2]['group'] = n1
+                    main_children[n1].append(n2)
+            elif next_main is not None and n2 in main_nodes:
+                #between.append(n2)
+                break
+            between.append(n2)
+        between_edges.append((n1, between))
+
+    # Custom position
+    x = 10
+    y = 1000
+    x_step = main_size[0] * 1.5
+    y_step = sub_size[1] * 1.5
+    print('main_nodes = %r' % (main_children,))
+
+    main_nodes = ut.isect(list(nx.topological_sort(G)), main_nodes)
+
+    for xx, n1 in enumerate(main_nodes):
+        yx = 0
+        xpos = x + xx * x_step
+        pos = np.array([xpos, y])
+        #G.node[n2]['pos'] = '%r,%r!' % pos
+        G.node[n1]['pos'] = pos
+        G.node[n1]['pin'] = 'true'
+        children = main_children[n1]
+        y_base = y - main_size[1] - sub_size[1] * .5
+        for yx, n2 in enumerate(children, start=0):
+            pos = np.array([xpos, y_base - yx * y_step])
+            G.node[n2]['pos'] = pos
+            G.node[n2]['pin'] = 'true'
+            #G.node[n2]['pos'] = '%r,%r!' % (x + xx * 10, y + yx * 10)
+    nx.set_node_attributes(G, 'pin', 'true')
+    layoutkw = dict(prog='neato', splines='line')
+    layoutkw = dict(prog='neato', splines='spline')
+    G_ = G.copy()
+    layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)
+    _ = pt.show_nx(G_, fontsize=8, arrow_width=.1, layout='custom')
+    _, layout_info
+    pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
+
+    #for n1, n2s in between_edges:
+    #    for n2 in n2s:
+    #        style = 'invis'
+    #        #style = 'visible'
+    #        if not G.has_edge(n1, n2):
+    #            #G.add_edge(n1, n2, {'style': 'invis', 'constraint': 'true'})
+    #            G.add_edge(n1, n2, {'style': style, 'constraint': 'true',
+    #                                'color': '#00FF00'})
+    #        else:
+    #            G.edge[n1][n2]['constraint'] = 'true'
+
+    #layoutkw = dict(prog='dot', splines='spline', rankdir='LR', nodesep=1,
+    #                rank='same',
+    #                ranksep=1.5)
+    #pt.show_nx(G, fontsize=6, arrow_width=.5, layoutkw=layoutkw)
+    #pt.show_nx(G, layoutkw=dict(prog='neato'), fontsize=6)
+
+
 def pydot_to_image(pydot_graph):
     """
     References:
