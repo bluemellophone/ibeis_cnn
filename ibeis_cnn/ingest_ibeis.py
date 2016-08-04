@@ -8,7 +8,7 @@ import cv2
 import itertools
 from six.moves import zip, map, range
 from functools import partial
-#from ibeis_cnn import utils
+import dtool
 from ibeis_cnn import draw_results  # NOQA
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_ibeis]')
 
@@ -160,7 +160,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     """
 
     CommandLine:
-        python -m ibeis_cnn.ingest_ibeis --exec-extract_annotpair_training_chips --show
+        python -m ibeis_cnn.ingest_ibeis extract_annotpair_training_chips --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -294,7 +294,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
     # Compute alignments
 
     pairmetadata_list = []
-    for aid1, aid2 in ut.ProgressIter(aid_pairs, lbl='Align Info', adjust=True):
+    for aid1, aid2 in ut.ProgIter(aid_pairs, lbl='Align Info', adjust=True):
         pair_metadata = ibs.get_annot_pair_lazy_dict(aid1, aid2, qconfig2_, dconfig2_)
         pair_metadata['match_metadata'] = partial(compute_alignment, pair_metadata)
         pairmetadata_list.append(pair_metadata)
@@ -303,7 +303,7 @@ def extract_annotpair_training_chips(ibs, aid_pairs, **kwargs):
 
     rchip1_list = ut.LazyList(verbose=False)
     rchip2_list = ut.LazyList(verbose=False)
-    for pair_metadata in ut.ProgressIter(pairmetadata_list, lbl='Building Warped Chips', adjust=True):
+    for pair_metadata in ut.ProgIter(pairmetadata_list, lbl='Building Warped Chips', adjust=True):
         #rchip1_sz, rchip2_sz = make_warped_chips(pair_metadata)
         rchip1_sz, rchip2_sz = make_lazy_resize_funcs(pair_metadata)
         rchip1_list.append(rchip1_sz)
@@ -336,8 +336,8 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
         >>> tup = get_aidpairs_and_matches(ibs, 6)
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = tup
         >>> pmcfg = PatchMetricDataConfig()
-        >>> patch_size = pmcfg.patch_size
-        >>> colorspace = pmcfg.colorspace
+        >>> patch_size = pmcfg['patch_size']
+        >>> colorspace = pmcfg['colorspace']
         >>> # execute function
         >>> tup = get_aidpair_patchmatch_training_data(ibs, aid1_list,
         ...     aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists,
@@ -402,31 +402,27 @@ def get_aidpair_patchmatch_training_data(ibs, aid1_list, aid2_list,
 
     fx1_list = [fm.T[0] for fm in fm_list]
     fx2_list = [fm.T[1] for fm in fm_list]
-    warp_iter1 = ut.ProgressIter(zip(aid1_list, fx1_list, chip1_list,
+    warp_iter1 = ut.ProgIter(zip(aid1_list, fx1_list, chip1_list,
                                      kpts1_m_list),
                                  nTotal=len(kpts1_m_list), lbl='warp1',
                                  adjust=True)
-    warp_iter2 = ut.ProgressIter(zip(aid2_list, fx2_list, chip2_list,
+    warp_iter2 = ut.ProgIter(zip(aid2_list, fx2_list, chip2_list,
                                      kpts2_m_list),
                                  nTotal=len(kpts2_m_list), lbl='warp2',
                                  adjust=True)
     pec = PatchExtractCache(patch_size=patch_size)
     warped_patches1_list = list(itertools.starmap(pec.cacheget_wraped_patches, warp_iter1))
     warped_patches2_list = list(itertools.starmap(pec.cacheget_wraped_patches, warp_iter2))
-    #warp_iter1 = ut.ProgressIter(zip(chip1_list, kpts1_m_list),
+    #warp_iter1 = ut.ProgIter(zip(chip1_list, kpts1_m_list),
     #                             nTotal=len(kpts1_m_list), lbl='warp1',
     #                             adjust=True)
-    #warp_iter2 = ut.ProgressIter(zip(chip2_list, kpts2_m_list),
+    #warp_iter2 = ut.ProgIter(zip(chip2_list, kpts2_m_list),
     #                             nTotal=len(kpts2_m_list), lbl='warp2',
     #                             adjust=True)
     #warped_patches1_list = [vt.get_warped_patches(chip1, kpts1, patch_size=patch_size)[0]
     #                        for chip1, kpts1 in warp_iter1]
     #warped_patches2_list = [vt.get_warped_patches(chip2, kpts2, patch_size=patch_size)[0]
     #                        for chip2, kpts2 in warp_iter2]
-
-    #del chip_list
-    #del chip1_list
-    #del chip2_list
     ut.print_object_size(warped_patches1_list, 'warped_patches1_list')
     ut.print_object_size(warped_patches2_list, 'warped_patches2_list')
     len1_list = list(map(len, fm_list))
@@ -493,8 +489,8 @@ def get_patchmetric_training_data_and_labels(ibs, aid1_list, aid2_list,
         >>> ibs = ibeis.opendb(defaultdb='PZ_MTEST')
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = get_aidpairs_and_matches(ibs, 10, 3)
         >>> pmcfg = PatchMetricDataConfig()
-        >>> patch_size = pmcfg.patch_size
-        >>> colorspace = pmcfg.colorspace
+        >>> patch_size = pmcfg['patch_size']
+        >>> colorspace = pmcfg['colorspace']
         >>> data, labels, flat_metadata = get_patchmetric_training_data_and_labels(ibs,
         ...     aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
         ...     metadata_lists, patch_size, colorspace)
@@ -568,46 +564,77 @@ def estimate_data_bytes(num_data, item_shape):
     print('Estimated data size: ' + ut.byte_str2(estimated_bytes))
 
 
-class NewConfigBase(object):
-    def __init__(self, **kwargs):
-        self.update(**kwargs)
+#class NewConfigBase(object):
+#    def __init__(self, **kwargs):
+#        self.update(**kwargs)
 
-    def update(self, **kwargs):
-        self.__dict__.update(**kwargs)
-        ut.update_existing(self.__dict__, kwargs)
-        unhandled_keys = set(kwargs.keys()) - set(self.__dict__.keys())
-        if len(unhandled_keys) > 0:
-            raise AssertionError(
-                '[ConfigBaseError] unhandled_keys=%r' % (unhandled_keys,))
+#    def update(self, **kwargs):
+#        self.__dict__.update(**kwargs)
+#        ut.update_existing(self.__dict__, kwargs)
+#        unhandled_keys = set(kwargs.keys()) - set(self.__dict__.keys())
+#        if len(unhandled_keys) > 0:
+#            raise AssertionError(
+#                '[ConfigBaseError] unhandled_keys=%r' % (unhandled_keys,))
 
-    def kw(self):
-        return ut.KwargsWrapper(self)
+#    def kw(self):
+#        return ut.KwargsWrapper(self)
 
 
-class PartMatchDataConfig(NewConfigBase):
-    def __init__(pmcfg, **kwargs):
-        pmcfg.part_chip_width = 256
-        pmcfg.part_chip_height = 128
-        pmcfg.colorspace = 'gray'
-        super(PartMatchDataConfig, pmcfg).__init__(**kwargs)
+class PartMatchDataConfig(dtool.Config):
+    _param_info_list = [
+        ut.ParamInfo('part_chip_width', 256),
+        ut.ParamInfo('part_chip_height', 128),
+        ut.ParamInfo('colorspace', 'gray', valid_values=['gray', 'bgr', 'lab']),
+    ]
+    #def __init__(pmcfg, **kwargs):
+    #    #pmcfg.part_chip_width = 256
+    #    #pmcfg.part_chip_height = 128
+    #    #pmcfg.colorspace = 'gray'
+    #    super(PartMatchDataConfig, pmcfg).__init__(**kwargs)
 
-    def get_cfgstr(pmcfg):
-        cfgstr_list = [
-            'sz=(%d,%d)' % (pmcfg.part_chip_width, pmcfg.part_chip_height),
-        ]
-        cfgstr_list.append(pmcfg.colorspace)
-        return ','.join(cfgstr_list)
+    #def get_cfgstr(pmcfg):
+    #    cfgstr_list = [
+    #        'sz=(%d,%d)' % (pmcfg.part_chip_width, pmcfg.part_chip_height),
+    #    ]
+    #    cfgstr_list.append(pmcfg.colorspace)
+    #    return ','.join(cfgstr_list)
 
     def get_data_shape(pmcfg):
         channels = 1 if pmcfg.colorspace == 'gray' else 3
-        return (pmcfg.part_chip_height, pmcfg.part_chip_width, channels)
+        return (pmcfg['part_chip_height'], pmcfg['part_chip_width'], channels)
+
+
+class PatchMetricDataConfig(dtool.Config):
+    _param_info_list = [
+        ut.ParamInfo('patch_size', 64),
+        ut.ParamInfo('colorspace', 'gray', valid_values=['gray', 'bgr', 'lab']),
+    ]
+    #def __init__(pmcfg, **kwargs):
+    #    #pmcfg.patch_size = 64
+    #    #pmcfg.colorspace = 'bgr'
+    #    #pmcfg.colorspace = 'gray'
+    #    super(PatchMetricDataConfig, pmcfg).__init__(**kwargs)
+    #def get_cfgstr(pmcfg):
+    #    cfgstr_list = [
+    #        'patch_size=%d' % (pmcfg.patch_size,),
+    #    ]
+    #    #if pmcfg.colorspace != 'bgr':
+    #    cfgstr_list.append(pmcfg.colorspace)
+    #    return ','.join(cfgstr_list)
+
+    def get_data_shape(pmcfg):
+        channels = 1 if pmcfg['colorspace'] == 'gray' else 3
+        return (pmcfg['patch_size'], pmcfg['patch_size'], channels)
 
 
 def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
                                             flat_metadata, **kwargs):
     """
     CommandLine:
-        python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl:pername=None,excluderef=False --ensuredata --show --datatype=siam-part --nocache-train --nocache-cnn
+        python -m ibeis_cnn --tf netrun --db PZ_MTEST \
+                --acfg ctrl:pername=None,excluderef=False --ensuredata \
+                --show --datatype=siam-part \
+                --nocache-train --nocache-cnn
 
     """
     NOCACHE_TRAIN = ut.get_argflag('--nocache-train')
@@ -643,12 +670,12 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
         estimate_data_bytes(len(aid_pairs), pmcfg.get_data_shape())
         # Extract the data and labels
         rchip1_list, rchip2_list = extract_annotpair_training_chips(
-            ibs, aid_pairs, **pmcfg.kw())
+            ibs, aid_pairs, **pmcfg)
 
         datagen_ = zip(rchip1_list, rchip2_list)
-        datagen = ut.ProgressIter(datagen_,
-                                  nTotal=len(rchip1_list),
-                                  lbl='Evaluating', adjust=False)
+        datagen = ut.ProgIter(datagen_,
+                              nTotal=len(rchip1_list),
+                              lbl='Evaluating', adjust=False)
         data = np.array(list(ut.flatten(datagen)))
 
         flat_metadata = ut.map_dict_vals(np.array, flat_metadata)
@@ -662,8 +689,8 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
         assert labels.shape[0] == data.shape[0] // 2
         #data, labels, flat_metadata
         # Save the data to cache
-        ut.assert_eq(data.shape[1], pmcfg.part_chip_height)
-        ut.assert_eq(data.shape[2], pmcfg.part_chip_width)
+        ut.assert_eq(data.shape[1], pmcfg['part_chip_height'])
+        ut.assert_eq(data.shape[2], pmcfg['part_chip_width'])
         # TODO; save metadata
         print('[write_part_data] np.shape(data) = %r' % (np.shape(data),))
         print('[write_part_labels] np.shape(labels) = %r' % (np.shape(labels),))
@@ -677,26 +704,6 @@ def cached_part_match_training_data_fpaths(ibs, aid_pairs, label_list,
     else:
         print('data and labels cache hit')
     return data_fpath, labels_fpath, metadata_fpath, training_dpath, data_shape
-
-
-class PatchMetricDataConfig(NewConfigBase):
-    def __init__(pmcfg, **kwargs):
-        pmcfg.patch_size = 64
-        #pmcfg.colorspace = 'bgr'
-        pmcfg.colorspace = 'gray'
-        super(PatchMetricDataConfig, pmcfg).__init__(**kwargs)
-
-    def get_cfgstr(pmcfg):
-        cfgstr_list = [
-            'patch_size=%d' % (pmcfg.patch_size,),
-        ]
-        #if pmcfg.colorspace != 'bgr':
-        cfgstr_list.append(pmcfg.colorspace)
-        return ','.join(cfgstr_list)
-
-    def get_data_shape(pmcfg):
-        channels = 1 if pmcfg.colorspace == 'gray' else 3
-        return (pmcfg.patch_size, pmcfg.patch_size, channels)
 
 
 def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
@@ -730,27 +737,9 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
 
     fm_hashstr = ut.hashstr_arr27(np.vstack(fm_list), pathsafe=True, lbl='fm')
     cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
-    #data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
-    #labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
-    #metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.pkl')
     data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.hdf5')
     labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.hdf5')
     metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.hdf5')
-
-    # Change to use path friendlier hashes
-    #if FIX_HASH:
-    #    # Old hashes
-    #    data_fpath_ = data_fpath
-    #    labels_fpath_ = labels_fpath
-    #    # New hashes
-    #    fm_hashstr = ut.hashstr_arr27(fm_list, lbl='fm')
-    #    cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
-    #    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.pkl')
-    #    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.pkl')
-    #    if ut.checkpath(data_fpath_, verbose=True):
-    #        ut.move(data_fpath_, data_fpath)
-    #    if ut.checkpath(labels_fpath_, verbose=True):
-    #        ut.move(labels_fpath_, labels_fpath)
 
     if NOCACHE_TRAIN or not (
             ut.checkpath(data_fpath, verbose=True) and
@@ -762,10 +751,10 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
         # Extract the data and labels
         data, labels, flat_metadata = get_patchmetric_training_data_and_labels(
             ibs, aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list,
-            metadata_lists, **pmcfg.kw())
+            metadata_lists, **pmcfg)
         # Save the data to cache
-        ut.assert_eq(data.shape[1], pmcfg.patch_size)
-        ut.assert_eq(data.shape[2], pmcfg.patch_size)
+        ut.assert_eq(data.shape[1], pmcfg['patch_size'])
+        ut.assert_eq(data.shape[2], pmcfg['patch_size'])
         # TODO; save metadata
         print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
         print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
@@ -804,14 +793,17 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             of the feature matches
 
     CommandLine:
+        python -m ibeis_cnn.ingest_ibeis get_aidpairs_and_matches --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master0
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg default --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg ctrl:qindex=0:10 --show
         python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db NNP_Master3
 
-        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_MTEST \
+                --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
 
-        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
+        python -m ibeis_cnn.ingest_ibeis --test-get_aidpairs_and_matches --db PZ_Master1 \
+                --acfg default:is_known=True,qmin_pername=2,view=primary,species=primary,minqual=ok --show
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -826,12 +818,10 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>> num_top = None
         >>> controlled = True
         >>> min_featweight = .99
-        >>> patchmatch_tup = get_aidpairs_and_matches(ibs,
-        >>>                                           max_examples=max_examples,
-        >>>                                           num_top=num_top,
-        >>>                                           controlled=controlled,
-        >>>                                           min_featweight=min_featweight,
-        >>>                                           acfg_name=acfg_name)
+        >>> patchmatch_tup = get_aidpairs_and_matches(
+        >>>     ibs, max_examples=max_examples, num_top=num_top,
+        >>>     controlled=controlled, min_featweight=min_featweight,
+        >>>     acfg_name=acfg_name)
         >>> (aid1_list, aid2_list, kpts1_m_list, kpts2_m_list, fm_list, metadata_lists) = patchmatch_tup
         >>> ut.quit_if_noshow()
         >>> print('Visualizing')
@@ -857,10 +847,6 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
         >>>     ibeis.viz.viz_matches.show_matches2(ibs, aid1, aid2, fm=None, kpts1=kpts1, kpts2=kpts2)
         >>>     pt.update()
         >>> ut.show_if_requested()
-
-    Ignore:
-
-
     """
 
     def get_query_results():
@@ -893,18 +879,9 @@ def get_aidpairs_and_matches(ibs, max_examples=None, num_top=3,
             'affine_invariance': False,
             'fg_on': not ut.WIN32,
         }
-
-        #import ibeis.other.dbinfo
         ibs.print_annotconfig_stats(qaid_list, daid_list, bigstr=True)
-        #ibeis.other.dbinfo.print_qd_info(ibs, qaid_list, daid_list, verbose=False)
         cm_list, qreq_ = ibs.query_chips(
             qaid_list, daid_list, return_request=True, cfgdict=cfgdict)
-        # TODO: Use ChipMatch instead of QueryResult
-        #cm_list = [chip_match.ChipMatch.from_qres(cm) for cm in cm_list]
-        #for cm in cm_list:
-        #    cm.evaluate_nsum_score(qreq_=qreq_)
-        #aids1_list = [[cm.qaid] * num_top for cm in cm_list]
-        #aids2_list = [[cm.qaid] * num_top for cm in cm_list]
         return cm_list, qreq_
     cm_list, qreq_ = get_query_results()
 
@@ -1670,9 +1647,9 @@ def get_cnn_labeler_training_images(ibs, dest_path=None, image_size=128,
 
 def get_cnn_qualifier_training_images(ibs, dest_path=None, image_size=128,
                                       purge=True):
-    from os.path import join, expanduser
+    from os.path import join
     if dest_path is None:
-        dest_path = expanduser(join('~', 'Desktop', 'extracted'))
+        dest_path = ut.truepath('~/Desktop/extracted')
 
     name = 'qualifier'
     dbname = ibs.dbname
