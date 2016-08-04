@@ -13,7 +13,7 @@ NOCACHE_DATASET = ut.get_argflag(('--nocache-cnn', '--nocache-dataset'))
 
 
 def testdata_dataset():
-    dataset = get_ibeis_patch_siam_dataset(max_examples=5, controlled=False)
+    dataset = get_ibeis_patch_siam_dataset(max_examples=5)
     return dataset
 
 

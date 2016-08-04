@@ -61,8 +61,6 @@ class DataSet(object):
             locals_ = locals()
             for key in key_list:
                 setattr(dataset, key, locals_[key])
-        # Define auxillary data
-        dataset.build_auxillary_data()
         # Hacky dictionary for custom things
         # Probably should be refactored
         dataset._lazy_cache = ut.LazyDict()
@@ -85,13 +83,16 @@ class DataSet(object):
 
     def build_auxillary_data(dataset):
         # Make test train validatation sets
+        data_fpath = dataset.data_fpath
+        labels_fpath = dataset.labels_fpath
+        metadata_fpath = dataset.metadata_fpath
+        data_per_label = dataset.data_per_label
+        split_names = ['train', 'test', 'valid']
+        fractions = [.7, .2, .1]
         named_split_fpath_dict = ondisk_data_split(
-            dataset.data_fpath,
-            dataset.labels_fpath,
-            dataset.metadata_fpath,
-            dataset.data_per_label,
-            split_names=['train', 'valid', 'test'],
-            fraction_list=[.2, .1])
+            data_fpath, labels_fpath, metadata_fpath,
+            data_per_label, split_names, fractions,
+        )
         dataset.named_split_fpath_dict = named_split_fpath_dict
         dataset.data_fpath_dict = named_split_fpath_dict['data']
         dataset.label_fpath_dict = named_split_fpath_dict['labels']
@@ -122,6 +123,7 @@ class DataSet(object):
             ut.assert_exists(data_dict['labels_fpath'])
             ut.assert_exists(data_dict['metadata_fpath'])
             dataset = cls(**data_dict)
+            dataset.build_auxillary_data()
             print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
             return dataset
         raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
@@ -129,10 +131,18 @@ class DataSet(object):
     @classmethod
     def new_training_set(cls, **kwargs):
         dataset = cls(**kwargs)
+        # Define auxillary data
+        try:
+            dataset.build_auxillary_data()
+            dataset.register_self()
+            dataset.save_alias(dataset.alias_key)
+        except Exception as ex:
+            ut.printex(ex, 'WARNING was not able to generate splis or save alias')
+        return dataset
+
+    def register_self(dataset):
         # creates a symlink in the junction dir
         register_training_dpath(dataset.training_dpath, dataset.alias_key)
-        dataset.save_alias(dataset.alias_key)
-        return dataset
 
     def save_alias(dataset, alias_key):
         # shortcut to the cached information so we dont need to
@@ -185,7 +195,7 @@ class DataSet(object):
         print('[dataset] %s_data.dtype   = %r' % (key, data.dtype,))
         print('[dataset] %s_labels.shape = %r' % (key, labels.shape,))
         print('[dataset] %s_labels.dtype = %r' % (key, labels.dtype,))
-        labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
+        labelhist = {key: len(val) for key, val in ut.group_items(labels, labels).items()}
         print('[dataset] %s_label histogram = \n%s' % (key, ut.dict_str(labelhist)))
         print('[dataset] %s_label total = %d' % (key, sum(labelhist.values())))
 
@@ -262,20 +272,15 @@ def register_training_dpath(training_dpath, alias_key=None):
     ut.symlink(training_dpath, training_dlink)
 
 
-def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
-                      split_names=['train', 'valid', 'test'],
-                      fraction_list=[.2, .1], nocache=None):
+def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath,
+                      data_per_label,
+                      split_names=['train', 'test', 'valid'],
+                      fractions=[.7, .2, .1], use_cache=None):
     """
-    splits into train / validation datasets on disk
-
-    # TODO: metadata fpath
+    splits into train / test / validation datasets on disk
 
     # TODO: ENSURE THAT VALIDATION / TEST SET CONTAINS DISJOINT IMAGES FROM
     # TRAINING
-
-    split_names=['train', 'valid', 'test'], fraction_list=[.2, .1]
-
-    TODO: maybe use folds instead of fractions
 
     CommandLine:
         python -m ibeis_cnn.dataset --test-ondisk_data_split
@@ -290,13 +295,11 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
         >>> metadata_fpath = dataset.metadata_fpath
         >>> data_per_label = dataset.data_per_label
         >>> split_names = ['train', 'valid', 'test']
-        >>> fraction_list = [0.2, 0.1]
-        >>> nocache = True
-        >>> named_split_fpath_dict = ondisk_data_split(data_fpath, labels_fpath,
-        >>>                                            metadata_fpath,
-        >>>                                            data_per_label,
-        >>>                                            split_names,
-        >>>                                            fraction_list, nocache)
+        >>> fractions = [.7, 0.1, 0.2]
+        >>> use_cache = False
+        >>> named_split_fpath_dict = ondisk_data_split(
+        >>>     data_fpath, labels_fpath, metadata_fpath, data_per_label,
+        >>>     split_names, fractions, use_cache)
         >>> from os.path import basename
         >>> data_bytes = ut.map_dict_vals(ut.get_file_nBytes_str, named_split_fpath_dict['data'])
         >>> label_bytes = ut.map_dict_vals(ut.get_file_nBytes_str, named_split_fpath_dict['labels'])
@@ -306,81 +309,41 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
         >>> result = ('(data_fpath_dict, label_fpath_dict) = %s' % (ut.list_str((data_fpath_dict, label_fpath_dict), nl=True),))
         >>> print(result)
     """
-    assert len(split_names) == len(fraction_list) + 1, (
-        'must have one less fraction then split names')
-
-    _fpath_dict = {
-        'data': data_fpath,
-        'labels': labels_fpath,
-        'metadata': metadata_fpath,
-    }
-    #_rows_per_label_dict = {
-    #    'data': data_per_label,
-    #    'metadata': 1,
-    #    'labels': 1,
-    #}
-
+    print('ondisk_data_split')
+    assert len(split_names) == len(fractions), ('names and fractions not aligned')
+    assert np.isclose(sum(fractions), 1), 'fractions must sum to 1'
+    _fpath_dict = {'data': data_fpath, 'labels': labels_fpath,
+                   'metadata': metadata_fpath}
     # Remove non-existing fpaths
-    fpath_dict = {
-        key: val
-        for key, val in _fpath_dict.items()
-        if val is not None
-    }
-    #rows_per_label_dict = {_rows_per_label_dict[key] for key in fpath_dict.keys()}
-
+    fpath_dict = {key: val for key, val in _fpath_dict.items() if val is not None}
     assert 'data' in fpath_dict
     assert 'labels' in fpath_dict
-
     if 'metadata' not in fpath_dict:
         print('Warning no metadata')
 
     training_dir = dirname(fpath_dict['data'])
     splitdir = join(training_dir, 'data_splits')
-
-    USE_FILE_UUIDS = False
-    if USE_FILE_UUIDS:
-        # Get uuid based on the data, so different data makes different validation paths
-        fpath_uuids = [ut.get_file_uuid(fpath)
-                       for fpath in fpath_dict.values()]
-        split_uuid = ut.augment_uuid(*fpath_uuids)
-        hashstr_ = ut.hashstr(str(split_uuid), alphabet=ut.ALPHABET_16)
-    else:
-        # Faster to base on the data fpath if that already has a uuid in it
-        hashstr_ = ut.hashstr(basename(fpath_dict['data']), alphabet=ut.ALPHABET_16)
-
-    # Get the total fraction of data for each subset
-    totalfrac_list = [1.0]
-    for fraction in fraction_list:
-        total = totalfrac_list[-1]
-        right = total * fraction
-        left = total * (1 - fraction)
-        totalfrac_list[-1] = left
-        totalfrac_list.append(right)
+    # base on the data fpath if that already has a uuid in it
+    hashstr_ = ut.hashstr(basename(fpath_dict['data']), alphabet=ut.ALPHABET_16)
 
     def make_split_fpaths(type_, fpath, splitdir):
         ext = splitext(fpath)[1]
         return [
             join(splitdir, '%s_%s_%.3f_%s%s' % (
                 name, type_, frac, hashstr_, ext))
-            for name, frac in zip(split_names, totalfrac_list)
+            for name, frac in zip(split_names, fractions)
         ]
 
-    split_fpaths_dict = {
-        type_: make_split_fpaths(type_, fpath, splitdir)
-        for type_, fpath in fpath_dict.items()
-    }
+    split_fpaths_dict = {type_: make_split_fpaths(type_, fpath, splitdir)
+                         for type_, fpath in fpath_dict.items()}
+    is_cache_hit = all([all(map(exists, fpaths))
+                        for fpaths in split_fpaths_dict.values()])
 
-    is_cache_hit = all([
-        all(map(exists, fpaths))
-        for fpaths in split_fpaths_dict.values()
-    ])
-
-    if nocache is None:
-        nocache = NOCACHE_DATA_SPLIT
+    if use_cache is None:
+        use_cache = not NOCACHE_DATA_SPLIT
 
     ut.ensuredir(splitdir)
-
-    if not is_cache_hit or nocache:
+    if not is_cache_hit or not use_cache:
         print('Writing data splits')
 
         def take_items(items, idx_list):
@@ -390,48 +353,32 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
             else:
                 return items.take(idx_list, axis=0)
 
+        labels = ut.load_data(fpath_dict['labels'], verbose=True)
+        # Generate the split indicies
+        rng = np.random.RandomState(0)
+        sample_idxs = stratified_shuffle_split(labels, fractions, rng=rng)
+
+        # Load and break the data
         loaded_dict = {
             key: ut.load_data(fpath, verbose=True)
-            for key, fpath in fpath_dict.items()
+            for key, fpath in fpath_dict.items() if key != 'labels'
         }
-        avail_dict = loaded_dict.copy()
-        fraction_list_ = fraction_list + [None]
-        for index in range(len(fraction_list_)):
+        loaded_dict['labels'] = labels
+
+        for index in range(len(fractions)):
             print('--------index = %r' % (index,))
             part_dict = {}
-            remain_dict = {}
-            fraction = fraction_list_[index]
-
-            part_fpath_dict = {
-                key: val[index]
-                for key, val in split_fpaths_dict.items()
-            }
-
-            if fraction is None:
-                label_indices1 = np.arange(len(avail_dict['labels']))
-                label_indices2 = None
-            else:
-                label_indices1, label_indices2 = partition_label_indices(
-                    avail_dict['labels'], fraction=fraction, shuffle=True)
-
+            part_fpath_dict = {key: val[index] for key, val in
+                               split_fpaths_dict.items()}
+            label_indices1 = sample_idxs[index]
             data_indicies1 = expand_data_indicies(label_indices1, data_per_label)
 
-            part_dict['labels'] = take_items(avail_dict['labels'], label_indices1)
-            part_dict['data']   = take_items(avail_dict['data'], data_indicies1)
-            if 'metadata' in avail_dict:
-                part_dict['metadata'] = take_items(avail_dict['metadata'], label_indices1)
-
-            if label_indices2 is not None:
-                data_indicies2 = expand_data_indicies(label_indices2, data_per_label)
-                remain_dict['labels'] = take_items(avail_dict['labels'], label_indices2)
-                remain_dict['data'] = take_items(avail_dict['data'], data_indicies2)
-                if 'metadata' in avail_dict:
-                    remain_dict['metadata'] = take_items(avail_dict['metadata'], label_indices2)
-
+            part_dict['labels'] = take_items(loaded_dict['labels'], label_indices1)
+            part_dict['data']   = take_items(loaded_dict['data'], data_indicies1)
+            if 'metadata' in loaded_dict:
+                part_dict['metadata'] = take_items(loaded_dict['metadata'], label_indices1)
             for key in part_dict.keys():
                 ut.save_data(part_fpath_dict[key], part_dict[key], verbose=2)
-
-            avail_dict = remain_dict.copy()
 
     named_split_fpath_dict = {
         type_: dict(zip(split_names, split_fpaths))
@@ -444,86 +391,84 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath, data_per_label,
     return named_split_fpath_dict
 
 
-#def
-#split_labels_fpaths = split_fpaths_dict['labels']
-
-#    if not is_cache_hit or nocache:
-#        print('Writing data splits')
-#        X_left, y_left = utils.load(data_fpath, labels_fpath)
-#        _iter = zip(fraction_list, split_data_fpaths, split_labels_fpaths)
-#        for fraction, x_fpath, y_fpath in _iter:
-#            _tup = utils.train_test_split(X_left, y_left, eval_size=fraction,
-#                                          data_per_label=data_per_label,
-#                                          shuffle=True)
-#            X_left, y_left, X_right, y_right = _tup
-#            #print('-----------')
-#            #print(x_fpath)
-#            #print(y_fpath)
-#            #print(X_right.shape[0] / X_left.shape[0])
-#            #print(y_right.shape[0] / y_left.shape[0])
-#            #print('-----------')
-#            utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
-#            X_left = X_right
-#            y_left = y_right
-#        x_fpath  = split_data_fpaths[-1]
-#        y_fpath = split_labels_fpaths[-1]
-#        utils.write_data_and_labels(X_left, y_left, x_fpath, y_fpath)
-
-#    data_fpath_dict = dict(zip(split_names, split_data_fpaths))
-#    label_fpath_dict = dict(zip(split_names, split_labels_fpaths))
-
-#    data_fpath_dict['all']  = data_fpath
-#    label_fpath_dict['all'] = labels_fpath
-#    return data_fpath_dict, label_fpath_dict
+#def load(data_fpath, labels_fpath=None):
+#    # Load X matrix (data)
+#    data = ut.load_data(data_fpath)
+#    labels = ut.load_data(labels_fpath) if labels_fpath is not None else None
+#    ## TODO: This should be part of data preprocessing
+#    ## Ensure that data is 4-dimensional
+#    if len(data.shape) == 3:
+#        # add channel dimension for implicit grayscale
+#        data.shape = data.shape + (1,)
+#    # Return data
+#    return data, labels
 
 
-def load(data_fpath, labels_fpath=None):
-    # Load X matrix (data)
-    data = ut.load_data(data_fpath)
-    labels = ut.load_data(labels_fpath) if labels_fpath is not None else None
-    ## TODO: This should be part of data preprocessing
-    ## Ensure that data is 4-dimensional
-    if len(data.shape) == 3:
-        # add channel dimension for implicit grayscale
-        data.shape = data.shape + (1,)
-    # Return data
-    return data, labels
-
-
-def partition_label_indices(labels, fraction,  shuffle=True):
-    r"""
-    used to split datasets into two parts.
-    Preserves class distributions using Stratified K-Fold sampling
-
-    Args:
-        labels (ndarray):
-
-    Returns:
-        tuple: (X_train, y_train, X_valid, y_valid)
-
-    CommandLine:
-        python -m ibeis_cnn.utils --test-train_test_split
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.dataset import *  # NOQA
-        >>> # build test data
-        >>> labels = [0, 0, 0, 0, 1, 1, 1, 1]
-        >>> fraction = .5
-        >>> indices1, indices2 = partition_label_indices(labels, fraction)
-        >>> result = str((indices1, indices2))
-        >>> print(result)
-        (array([1, 2, 5, 7]), array([0, 3, 4, 6]))
+def stratified_shuffle_split(y, fractions, rng=None):
     """
-    # take the data and label arrays, split them preserving the class distributions
-    import sklearn.cross_validation
-    nfolds = int(round(1. / fraction))
-    rng = np.random.RandomState(0)
-    skf = sklearn.cross_validation.StratifiedKFold(labels, nfolds,
-                                                   shuffle=shuffle,
-                                                   random_state=rng)
-    indices1, indices2 = six.next(iter(skf))
-    return indices1, indices2
+    modified from sklearn to make n splits instaed of 2
+    """
+    n_samples = len(y)
+    classes, y_indices = np.unique(y, return_inverse=True)
+    n_classes = classes.shape[0]
+    class_counts = np.bincount(y_indices)
+
+    # Number of sets to split into
+    num_sets = len(fractions)
+    fractions = np.asarray(fractions)
+    set_sizes = n_samples * fractions
+
+    if np.min(class_counts) < 2:
+        raise ValueError("The least populated class in y has only 1"
+                         " member, which is too few. The minimum"
+                         " number of labels for any class cannot"
+                         " be less than 2.")
+    for size in set_sizes:
+        if size < n_classes:
+            raise ValueError('The size = %d of all splits should be greater or '
+                             'equal to the number of classes = %d' %
+                             (size, n_classes))
+    if rng is None:
+        rng = np.random
+
+    # Probability sampling of class[i]
+    p_i = class_counts / float(n_samples)
+
+    # Get split points within each class sample
+    set_perclass_nums = []
+    count_remain = class_counts.copy()
+    for x in range(num_sets):
+        size = set_sizes[x]
+        set_i = np.round(size * p_i).astype(int)
+        set_i = np.minimum(count_remain, set_i)
+        count_remain -= set_i
+        set_perclass_nums.append(set_i)
+    set_perclass_nums = np.array(set_perclass_nums)
+
+    index_sets = [[] for _ in range(num_sets)]
+
+    for i, class_i in enumerate(classes):
+        # Randomly shuffle all members of class i
+        permutation = rng.permutation(class_counts[i])
+        perm_indices_class_i = np.where((y == class_i))[0][permutation]
+        # Pick out members according to split points
+
+        split_sample = np.split(perm_indices_class_i, set_perclass_nums.T[i].cumsum())
+        assert len(split_sample) == num_sets + 1
+        for x in range(num_sets):
+            index_sets[x].extend(split_sample[x])
+        missing_indicies = split_sample[-1]
+
+        # Randomly missing assign indicies to a set
+        set_idxs = rng.randint(0, num_sets, len(missing_indicies))
+        for x in range(num_sets):
+            idxs = np.where(set_idxs == x)[0]
+            index_sets[x].extend(missing_indicies[idxs])
+
+    for set_idx in range(num_sets):
+        # shuffle the indicies again
+        index_sets[set_idx] = rng.permutation(index_sets[set_idx])
+    return index_sets
 
 
 def expand_data_indicies(label_indices, data_per_label=1):

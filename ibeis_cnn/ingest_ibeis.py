@@ -737,9 +737,9 @@ def cached_patchmetric_training_data_fpaths(ibs, aid1_list, aid2_list,
 
     fm_hashstr = ut.hashstr_arr27(np.vstack(fm_list), pathsafe=True, lbl='fm')
     cfgstr = fm_hashstr + '_' + pmcfg.get_cfgstr()
-    data_fpath = ut.unixjoin(training_dpath, 'data_' + cfgstr + '.hdf5')
-    labels_fpath = ut.unixjoin(training_dpath, 'labels_'  + cfgstr + '.hdf5')
-    metadata_fpath = ut.unixjoin(training_dpath, 'metadata_'  + cfgstr + '.hdf5')
+    data_fpath = ut.unixjoin(training_dpath, 'data_%s.hdf5' % (cfgstr,))
+    labels_fpath = ut.unixjoin(training_dpath, 'labels_%s.hdf5' % (cfgstr,))
+    metadata_fpath = ut.unixjoin(training_dpath, 'metadata_%s.hdf5' % (cfgstr,))
 
     if NOCACHE_TRAIN or not (
             ut.checkpath(data_fpath, verbose=True) and

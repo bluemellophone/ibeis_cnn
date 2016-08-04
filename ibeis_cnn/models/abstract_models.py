@@ -1006,7 +1006,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             return shared_learning_rate.get_value()
 
     @learning_rate.setter
-    def set_learning_rate(model, rate):
+    def learning_rate(model, rate):
         print('[model] setting learning rate to %.9f' % (rate))
         shared_learning_rate = model.shared_state.get('learning_rate', None)
         if shared_learning_rate is None:
@@ -1260,8 +1260,9 @@ class AbstractCategoricalModel(BaseModel):
         labeled_outputs = [accuracy]
         return labeled_outputs
 
-    def fit_interactive(X_train, y_train, X_valid, y_valid):
-        raise NotImplementedError()
+    def fit_interactive(model, X_train, y_train, X_valid, y_valid, dataset, config):
+        from ibeis_cnn import harness
+        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
 
 class _PretrainedLayerInitializer(lasagne.init.Initializer):
