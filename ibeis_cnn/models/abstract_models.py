@@ -2,7 +2,6 @@
 
 from __future__ import absolute_import, division, print_function
 import functools
-import six
 import numpy as np
 import utool as ut
 from collections import namedtuple
@@ -134,390 +133,12 @@ def testdata_model_with_history():
     return model
 
 
-@six.add_metaclass(ut.ReloadingMetaclass)
-class BaseModel(object):
+@ut.reloadable_class
+class _LegacyModel(object):
     """
-    Abstract model providing functionality for all other models to derive from
+    contains old functions for backwards compatibility
+    that may be eventually be depricated
     """
-    def __init__(model, output_dims=None, input_shape=None, batch_size=None,
-                 strict_batch_size=True, data_shape=None, training_dpath='.',
-                 momentum=.9, weight_decay=.0005, learning_rate=.001,
-                 arch_tag=None):
-        """
-
-        Guess on Shapes:
-            input_shape (tuple): in Theano format (b, c, h, w)
-            data_shape (tuple):  in  Numpy format (b, h, w, c)
-        """
-
-        if input_shape is None and data_shape is not None:
-            if strict_batch_size is True:
-                strict_batch_size = batch_size
-            elif strict_batch_size is False:
-                strict_batch_size = None
-            else:
-                raise AssertionError('strict_batch_size must be a bool')
-            input_shape = (strict_batch_size,
-                           data_shape[2],
-                           data_shape[0],
-                           data_shape[1])
-        if data_shape is None and input_shape is not None:
-            data_shape = (input_shape[2], input_shape[3], input_shape[1])
-        model.data_shape = data_shape
-        #model.network_layers = None  # We don't need to save all of these
-        model.arch_tag = arch_tag
-        model.output_layer = None
-        model.output_dims = output_dims
-        model.input_shape = input_shape
-        model.batch_size = batch_size
-        # bad name, says that this network will take
-        # 2*N images in a batch and N labels that map to
-        # two images a piece
-        model.data_per_label_input  = 1  # state of network input
-        model.data_per_label_output = 1  # state of network output
-        model.training_dpath = training_dpath  # TODO
-        # era=(group of epochs)
-        model.current_era = None
-        model.era_history = []
-        # Training state
-        model.requested_headers = ['train_loss', 'valid_loss', 'trainval_rat']
-        model.preproc_kw   = None
-        model.best_results = {
-            'epoch': None,
-            'train_loss':     np.inf,
-            'valid_loss':     np.inf,
-        }
-        model.best_weights = None
-        model.learning_state = {
-            'momentum': momentum,
-            'weight_decay': weight_decay,
-        }
-        # Theano shared state
-        model.shared_state = {
-            'learning_rate': None,
-        }
-        # TODO: do not set learning rate until theano is initialized
-        model.learning_rate = learning_rate
-
-    # --- OTHER
-    @property
-    def input_batchsize(model):
-        return model.input_shape[0]
-
-    @property
-    def input_channels(model):
-        return model.input_shape[1]
-
-    @property
-    def input_height(model):
-        return model.input_shape[2]
-
-    @property
-    def input_width(model):
-        return model.input_shape[3]
-
-    # --- INITIALIZATION
-
-    def get_epoch_diagnostic_dpath(model, epoch=None):
-        import utool as ut
-        #if epoch is None:
-        #    # use best epoch if not specified
-        #    # (WARNING: Make sure the weights in the model are
-        #    model.best_weights)
-        #    # they may be out of sync
-        #    epoch = model.best_results['epoch']
-        history_hashid = model.get_model_history_hashid()
-        diagnostic_dpath = ut.unixjoin(model.training_dpath, 'diagnostics')
-        ut.ensuredir(diagnostic_dpath )
-        epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
-        ut.ensuredir(epoch_dpath)
-        return epoch_dpath
-
-    def initialize_architecture(model):
-        raise NotImplementedError('reimplement')
-
-    def assert_valid_data(model, X_train):
-        # Check to make sure data agrees with input
-        # FIXME: This check should not be in this fuhnction
-        return
-        input_layer = model.get_all_layers()[0]
-        expected_item_shape = ut.take(input_layer.shape[1:], [1, 2, 0])
-        expected_item_shape = tuple(expected_item_shape)
-        given_item_shape = X_train.shape[1:]
-        assert given_item_shape == expected_item_shape, (
-            'inconsistent item shape: ' +
-            ('expected_item_shape = %r, ' % (expected_item_shape,)) +
-            ('given_item_shape = %r' % (given_item_shape,))
-        )
-
-    def is_train_state_initialized(model):
-        # TODO: move to dataset. This is independant of the model.
-        return model.preproc_kw is not None
-
-    def ensure_training_state(model, X_train, y_train):
-        # TODO: move to dataset. This is independant of the model.
-        if model.preproc_kw is None:
-            # TODO: move this to data preprocessing, not model preprocessing
-            model.preproc_kw = {}
-            print('computing center mean.')
-            model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
-            print('computing center std.')
-            if ut.is_int(X_train):
-                ut.assert_inbounds(X_train, 0, 255, eq=True,
-                                   verbose=ut.VERBOSE)
-                model.preproc_kw['center_std'] = 255.0
-            else:
-                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
-                                   verbose=ut.VERBOSE)
-                model.preproc_kw['center_std'] = 1.0
-        if getattr(model, 'encoder', None) is None:
-            if hasattr(model, 'initialize_encoder'):
-                model.initialize_encoder(y_train)
-
-    def reinit_weights(model, W=lasagne.init.Orthogonal()):
-        """
-        initailizes weights after the architecture has been defined.
-        """
-        print('Reinitializing all weights to %r' % (W,))
-        weights_list = model.get_all_params(regularizable=True, trainable=True)
-        #print(weights_list)
-        for weights in weights_list:
-            #print(weights)
-            shape = weights.get_value().shape
-            new_values = W.sample(shape)
-            weights.set_value(new_values)
-
-    # --- HASH ID
-
-    def get_architecture_hashid(model):
-        """
-        Returns a hash identifying the architecture of the determenistic net
-        """
-        architecture_str = model.get_architecture_str(with_noise_layers=False)
-        hashid = ut.hashstr27(architecture_str)
-        return hashid
-
-    def get_model_history_hashid(model):
-        r"""
-        Returns:
-            str: history_hashid
-
-        CommandLine:
-            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
-
-        Example:
-            >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.abstract_models import *  # NOQA
-            >>> # test the hashid
-            >>> model = testdata_model_with_history()
-            >>> history_hashid = model.get_model_history_hashid()
-            >>> result = str(history_hashid)
-            >>> print(result)
-            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
-
-        """
-        era_history_hash = [ut.hashstr27(repr(era))
-                            for era in  model.era_history]
-        hashid = ut.hashstr27(str(era_history_hash))
-        total_epochs = model.get_total_epochs()
-        total_eras = len(model.era_history)
-        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (
-            total_eras, total_epochs, hashid)
-        return history_hashid
-
-    def get_total_epochs(model):
-        total_epochs = sum([len(era['epoch_list'])
-                            for era in model.era_history])
-        return total_epochs
-
-    # --- Input/Output
-
-    def list_saved_checkpoints(model):
-        dpath = model._get_model_dpath(None, True)
-        checkpoint_dirs = sorted(ut.glob(dpath, '*', fullpath=False))
-        return checkpoint_dirs
-
-    def _get_model_dpath(model, dpath, checkpoint_tag):
-        dpath = model.training_dpath if dpath is None else dpath
-        if checkpoint_tag is not None:
-            # checkpoint dir requested
-            dpath = join(dpath, 'checkpoints')
-            if checkpoint_tag is not True:
-                # specific checkpoint requested
-                dpath = join(dpath, checkpoint_tag)
-        return dpath
-
-    def _get_model_file_fpath(model, default_fname, fpath, dpath, fname,
-                              checkpoint_tag):
-        if fpath is None:
-            fname = default_fname if fname is None else fname
-            dpath = model._get_model_dpath(dpath, checkpoint_tag)
-            fpath = join(dpath, fname)
-        else:
-            assert checkpoint_tag is None, 'fpath overrides all other settings'
-            assert dpath is None, 'fpath overrides all other settings'
-            assert fname is None, 'fpath overrides all other settings'
-        return fpath
-
-    def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern,
-                                         extern_dpath=None):
-        r"""
-        tries to find a matching checkpoint so you dont have to type a full
-        hash
-        """
-        dpath = model._get_model_dpath(extern_dpath, checkpoint_pattern)
-        if exists(dpath):
-            checkpoint_tag = checkpoint_pattern
-        else:
-            checkpoint_dpath = dirname(dpath)
-            checkpoint_globpat = '*' + checkpoint_pattern + '*'
-            matching_dpaths = ut.glob(checkpoint_dpath, checkpoint_globpat)
-            if len(matching_dpaths) == 0:
-                raise RuntimeError(
-                    'Could not resolve checkpoint_pattern=%r. No Matches' %
-                    (checkpoint_pattern,))
-            elif len(matching_dpaths) > 1:
-                raise RuntimeError(
-                    ('Could not resolve checkpoint_pattern=%r. '
-                        'matching_dpaths=%r. Too many matches') %
-                    (checkpoint_pattern, matching_dpaths))
-            else:
-                checkpoint_tag = basename(matching_dpaths[0])
-                print('Resolved checkpoint pattern to checkpoint_tag=%r' %
-                        (checkpoint_tag,))
-        return checkpoint_tag
-
-    def has_saved_state(model, checkpoint_tag=None):
-        """
-        Check if there are any saved model states matching the checkpoing tag.
-        """
-        fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
-        if checkpoint_tag is not None:
-            ut.assertpath(fpath)
-        return ut.checkpath(fpath)
-
-    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None,
-                              checkpoint_tag=None):
-        default_fname = 'model_state_arch_%s.pkl' % (
-            model.get_architecture_hashid())
-        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
-                                                        dpath, fname,
-                                                        checkpoint_tag)
-        return model_state_fpath
-
-    def get_model_info_fpath(model, fpath=None, dpath=None, fname=None,
-                             checkpoint_tag=None):
-        default_fname = 'model_info_arch_%s.pkl' % (
-            model.get_architecture_hashid())
-        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
-                                                        dpath, fname,
-                                                        checkpoint_tag)
-        return model_state_fpath
-
-    def checkpoint_save_model_state(model):
-        history_hashid = model.get_model_history_hashid()
-        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
-        ut.ensuredir(dirname(fpath))
-        model.save_model_state(fpath=fpath)
-
-    def checkpoint_save_model_info(model):
-        history_hashid = model.get_model_history_hashid()
-        fpath = model.get_model_info_fpath(checkpoint_tag=history_hashid)
-        ut.ensuredir(dirname(fpath))
-        model.save_model_info(fpath=fpath)
-
-    def save_model_state(model, **kwargs):
-        """ saves current model state """
-        current_weights = model.get_all_param_values()
-        model_state = {
-            'best_results': model.best_results,
-            'preproc_kw':   model.preproc_kw,
-            'best_weights': model.best_weights,
-            'current_weights': current_weights,
-            'input_shape':  model.input_shape,
-            'output_dims':  model.output_dims,
-            'era_history':  model.era_history,
-            'arch_tag': model.arch_tag,
-            'data_shape': model.data_shape,
-            'batch_size': model.data_shape,
-        }
-        model_state_fpath = model.get_model_state_fpath(**kwargs)
-        print('saving model state to: %s' % (model_state_fpath,))
-        with open(model_state_fpath, 'wb') as file_:
-            pickle.dump(model_state, file_, protocol=2)  # Use protocol 2 to support python2 and 3
-        print('finished saving')
-
-    def save_model_info(model, **kwargs):
-        """ save model information (history and results but no weights) """
-        model_info = {
-            'best_results': model.best_results,
-            'input_shape':  model.input_shape,
-            'output_dims':  model.output_dims,
-            'era_history':  model.era_history,
-        }
-        model_info_fpath = model.get_model_state_fpath(**kwargs)
-        print('saving model info to: %s' % (model_info_fpath,))
-        with open(model_info_fpath, 'wb') as file_:
-            pickle.dump(model_info, file_, protocol=2)  # Use protocol 2 to support python2 and 3
-
-        print('finished saving')
-
-    def load_model_state(model, **kwargs):
-        """
-        from six.moves import cPickle as pickle
-        kwargs = {}
-        TODO: resolve load_model_state and load_extern_weights into a single
-            function that is less magic in what it does and more
-            straightforward
-        """
-        model_state_fpath = model.get_model_state_fpath(**kwargs)
-        print('[model] loading model state from: %s' % (model_state_fpath,))
-        with open(model_state_fpath, 'rb') as file_:
-            model_state = pickle.load(file_)
-        if model.__class__.__name__ != 'BaseModel':
-            assert model_state['input_shape'][1:] == model.input_shape[1:], (
-                'architecture disagreement')
-            assert model_state['output_dims'] == model.output_dims, (
-                'architecture disagreement')
-            model.preproc_kw   = model_state['preproc_kw']
-            model.best_weights = model_state['best_weights']
-        else:
-            # HACK TO LOAD ABSTRACT MODEL FOR DIAGNOSITIC REASONS
-            print("WARNING LOADING ABSTRACT MODEL")
-        model.best_results = model_state['best_results']
-        model.input_shape  = model_state['input_shape']
-        model.output_dims  = model_state['output_dims']
-        model.era_history  = model_state.get('era_history', [None])
-        if model.__class__.__name__ != 'BaseModel':
-            # hack for abstract model
-            # model.output_layer is not None
-            model.set_all_param_values(model.best_weights)
-
-    def load_state_from_dict(model, dict_):
-        # TODO: make this the general unserialize function that loads the model
-        # state
-        model.era_history  = dict_.get('era_history', model.era_history)
-
-    def load_extern_weights(model, **kwargs):
-        """ load weights from another model """
-        model_state_fpath = model.get_model_state_fpath(**kwargs)
-        print('[model] loading extern weights from: %s' % (model_state_fpath,))
-        with open(model_state_fpath, 'rb') as file_:
-            model_state = pickle.load(file_)
-        if False or utils.VERBOSE_CNN:
-            print('External Model State:')
-            print(ut.dict_str(model_state, truncate=True))
-        # check compatibility with this architecture
-        assert model_state['input_shape'][1:] == model.input_shape[1:], (
-            'architecture disagreement')
-        assert model_state['output_dims'] == model.output_dims, (
-            'architecture disagreement')
-        # Just set the weights, no other training state variables
-        model.set_all_param_values(model_state['best_weights'])
-        # also need to make sure the same preprocessing is used
-        # TODO make this a layer?
-        model.preproc_kw = model_state['preproc_kw']
-        model.era_history = model_state['era_history']
 
     def load_old_weights_kw(model, old_weights_fpath):
         print('[model] loading old model state from: %s' % (
@@ -561,12 +182,6 @@ class BaseModel(object):
         # Set architecture weights
         weights_list = model.best_weights
         model.set_all_param_values(weights_list)
-        #learning_state = {
-        #    'weight_decay'   : oldkw['regularization'],
-        #    'learning_rate'  : oldkw['learning_rate'],
-        #    'momentum'       : oldkw['momentum'],
-        #}
-        #batch_size = oldkw['batch_size']
 
     def load_old_weights_kw2(model, old_weights_fpath):
         print('[model] loading old model state from: %s' % (old_weights_fpath,))
@@ -605,15 +220,6 @@ class BaseModel(object):
         weights_list = model.best_weights
         model.set_all_param_values(weights_list)
 
-        #learning_state = {
-        #    'weight_decay'   : oldkw['regularization'],
-        #    'learning_rate'  : oldkw['learning_rate'],
-        #    'momentum'       : oldkw['momentum'],
-        #}
-        #batch_size = oldkw['batch_size']
-
-    # --- HISTORY
-
     def historyfoohack(model, X_train, y_train, dataset):
         #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
         y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
@@ -630,118 +236,9 @@ class BaseModel(object):
         model.era_history = []
         model.era_history.append(era_info)
 
-    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
-        """
-        Used to denote a change in hyperparameters during training.
-        """
-        # TODO: fix the training data hashid stuff
-        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-        train_hashid =  alias_key + '_' + y_hashid
-        era_info = {
-            'train_hashid': train_hashid,
-            'arch_hashid': model.get_architecture_hashid(),
-            'arch_tag': model.arch_tag,
-            'num_train': len(y_train),
-            'num_valid': len(y_valid),
-            'valid_loss_list': [],
-            'train_loss_list': [],
-            'epoch_list': [],
-            'learning_rate': [model.learning_rate],
-            'learning_state': [model.learning_state],
-        }
-        num_eras = len(model.era_history)
-        print('starting new era %d' % (num_eras,))
-        #if model.current_era is not None:
-        model.current_era = era_info
-        model.era_history.append(model.current_era)
 
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
-
-    # --- STRINGS
-
-    def get_state_str(model, other_override_reprs={}):
-        era_history_str = ut.list_str(
-            [ut.dict_str(era, truncate=True, sorted_=True)
-             for era in model.era_history], strvals=True)
-
-        override_reprs = {
-            'best_results': ut.dict_str(model.best_results),
-            'best_weights': ut.truncate_str(str(model.best_weights)),
-            'preproc_kw': ('None' if model.preproc_kw is None else
-                           ut.dict_str(model.preproc_kw, truncate=True)),
-            'learning_state': ut.dict_str(model.learning_state),
-            'learning_rate': model.learning_rate,
-            'era_history': era_history_str,
-        }
-        override_reprs.update(other_override_reprs)
-        keys = list(set(model.__dict__.keys()) - set(override_reprs.keys()))
-        for key in keys:
-            if ut.is_func_or_method(model.__dict__[key]):
-                # rrr support
-                continue
-            override_reprs[key] = repr(model.__dict__[key])
-
-        state_str = ut.dict_str(override_reprs, sorted_=True, strvals=True)
-        return state_str
-
-    def get_architecture_str(model, sep='_', with_noise_layers=True):
-        """
-        with_noise_layers is a boolean that specifies if layers that doesnt
-        affect the flow of information in the determenistic setting are to be
-        included. IE get rid of dropout.
-        """
-        if model.output_layer is None:
-            return ''
-        network_layers = model.get_all_layers()
-        if with_noise_layers:
-            #weighted_layers = [layer_ for layer_ in network_layers
-            #                   if hasattr(layer_, 'W')]
-            valid_layers = [layer_ for layer_ in network_layers]
-        else:
-            valid_layers = [
-                layer_ for layer_ in network_layers if
-                layer_.__class__.__name__ not in lasagne.layers.noise.__all__
-            ]
-        layer_str_list = [net_strs.make_layer_str(layer)
-                          for layer in valid_layers]
-        architecture_str = sep.join(layer_str_list)
-        return architecture_str
-
-    # --- PRINTING
-
-    def print_state_str(model, **kwargs):
-        print(model.get_state_str(**kwargs))
-
-    def print_layer_info(model):
-        net_strs.print_layer_info(model.get_all_layers())
-
-    def print_architecture_str(model, sep='\n  '):
-        architecture_str = model.get_architecture_str(sep=sep)
-        if architecture_str is None or architecture_str == '':
-            architecture_str = 'UNDEFINED'
-        print('\nArchitecture:' + sep + architecture_str)
-
-    def print_dense_architecture_str(model):
-        print('\n---- Arch Str')
-        model.print_architecture_str(sep='\n')
-        print('\n---- Layer Info')
-        model.print_layer_info()
-        print('\n---- HashID')
-        print('hashid=%r' % (model.get_architecture_hashid()),)
-        print('----')
-        # verify results
-
-    # --- IMAGE SHOW
+@ut.reloadable_class
+class _ModelVisualization(object):
 
     def show_architecture_image(model, **kwargs):
         import plottool as pt
@@ -961,6 +458,510 @@ class BaseModel(object):
         draw_net.imwrite_architecture(layers, fpath)
         ut.startfile(fpath)
 
+
+@ut.reloadable_class
+class _ModelPrinting(object):
+    # --- STRINGS
+
+    def get_state_str(model, other_override_reprs={}):
+        era_history_str = ut.list_str(
+            [ut.dict_str(era, truncate=True, sorted_=True)
+             for era in model.era_history], strvals=True)
+
+        override_reprs = {
+            'best_results': ut.dict_str(model.best_results),
+            'best_weights': ut.truncate_str(str(model.best_weights)),
+            'preproc_kw': ('None' if model.preproc_kw is None else
+                           ut.dict_str(model.preproc_kw, truncate=True)),
+            'learning_state': ut.dict_str(model.learning_state),
+            'learning_rate': model.learning_rate,
+            'era_history': era_history_str,
+        }
+        override_reprs.update(other_override_reprs)
+        keys = list(set(model.__dict__.keys()) - set(override_reprs.keys()))
+        for key in keys:
+            if ut.is_func_or_method(model.__dict__[key]):
+                # rrr support
+                continue
+            override_reprs[key] = repr(model.__dict__[key])
+
+        state_str = ut.dict_str(override_reprs, sorted_=True, strvals=True)
+        return state_str
+
+    def get_architecture_str(model, sep='_', with_noise_layers=True):
+        """
+        with_noise_layers is a boolean that specifies if layers that doesnt
+        affect the flow of information in the determenistic setting are to be
+        included. IE get rid of dropout.
+        """
+        if model.output_layer is None:
+            return ''
+        network_layers = model.get_all_layers()
+        if with_noise_layers:
+            #weighted_layers = [layer_ for layer_ in network_layers
+            #                   if hasattr(layer_, 'W')]
+            valid_layers = [layer_ for layer_ in network_layers]
+        else:
+            valid_layers = [
+                layer_ for layer_ in network_layers if
+                layer_.__class__.__name__ not in lasagne.layers.noise.__all__
+            ]
+        layer_str_list = [net_strs.make_layer_str(layer)
+                          for layer in valid_layers]
+        architecture_str = sep.join(layer_str_list)
+        return architecture_str
+
+    # --- PRINTING
+
+    def print_state_str(model, **kwargs):
+        print(model.get_state_str(**kwargs))
+
+    def print_layer_info(model):
+        net_strs.print_layer_info(model.get_all_layers())
+
+    def print_architecture_str(model, sep='\n  '):
+        architecture_str = model.get_architecture_str(sep=sep)
+        if architecture_str is None or architecture_str == '':
+            architecture_str = 'UNDEFINED'
+        print('\nArchitecture:' + sep + architecture_str)
+
+    def print_dense_architecture_str(model):
+        print('\n---- Arch Str')
+        model.print_architecture_str(sep='\n')
+        print('\n---- Layer Info')
+        model.print_layer_info()
+        print('\n---- HashID')
+        print('hashid=%r' % (model.get_architecture_hashid()),)
+        print('----')
+        # verify results
+
+
+@ut.reloadable_class
+class _ModelIO(object):
+
+    def get_epoch_diagnostic_dpath(model, epoch=None):
+        import utool as ut
+        #if epoch is None:
+        #    # use best epoch if not specified
+        #    # (WARNING: Make sure the weights in the model are
+        #    model.best_weights)
+        #    # they may be out of sync
+        #    epoch = model.best_results['epoch']
+        history_hashid = model.get_model_history_hashid()
+        diagnostic_dpath = ut.unixjoin(model.training_dpath, 'diagnostics')
+        ut.ensuredir(diagnostic_dpath )
+        epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
+        ut.ensuredir(epoch_dpath)
+        return epoch_dpath
+
+    def list_saved_checkpoints(model):
+        dpath = model._get_model_dpath(None, True)
+        checkpoint_dirs = sorted(ut.glob(dpath, '*', fullpath=False))
+        return checkpoint_dirs
+
+    def _get_model_dpath(model, dpath, checkpoint_tag):
+        dpath = model.training_dpath if dpath is None else dpath
+        if checkpoint_tag is not None:
+            # checkpoint dir requested
+            dpath = join(dpath, 'checkpoints')
+            if checkpoint_tag is not True:
+                # specific checkpoint requested
+                dpath = join(dpath, checkpoint_tag)
+        return dpath
+
+    def _get_model_file_fpath(model, default_fname, fpath, dpath, fname,
+                              checkpoint_tag):
+        if fpath is None:
+            fname = default_fname if fname is None else fname
+            dpath = model._get_model_dpath(dpath, checkpoint_tag)
+            fpath = join(dpath, fname)
+        else:
+            assert checkpoint_tag is None, 'fpath overrides all other settings'
+            assert dpath is None, 'fpath overrides all other settings'
+            assert fname is None, 'fpath overrides all other settings'
+        return fpath
+
+    def resolve_fuzzy_checkpoint_pattern(model, checkpoint_pattern,
+                                         extern_dpath=None):
+        r"""
+        tries to find a matching checkpoint so you dont have to type a full
+        hash
+        """
+        dpath = model._get_model_dpath(extern_dpath, checkpoint_pattern)
+        if exists(dpath):
+            checkpoint_tag = checkpoint_pattern
+        else:
+            checkpoint_dpath = dirname(dpath)
+            checkpoint_globpat = '*' + checkpoint_pattern + '*'
+            matching_dpaths = ut.glob(checkpoint_dpath, checkpoint_globpat)
+            if len(matching_dpaths) == 0:
+                raise RuntimeError(
+                    'Could not resolve checkpoint_pattern=%r. No Matches' %
+                    (checkpoint_pattern,))
+            elif len(matching_dpaths) > 1:
+                raise RuntimeError(
+                    ('Could not resolve checkpoint_pattern=%r. '
+                        'matching_dpaths=%r. Too many matches') %
+                    (checkpoint_pattern, matching_dpaths))
+            else:
+                checkpoint_tag = basename(matching_dpaths[0])
+                print('Resolved checkpoint pattern to checkpoint_tag=%r' %
+                        (checkpoint_tag,))
+        return checkpoint_tag
+
+    def has_saved_state(model, checkpoint_tag=None):
+        """
+        Check if there are any saved model states matching the checkpoing tag.
+        """
+        fpath = model.get_model_state_fpath(checkpoint_tag=checkpoint_tag)
+        if checkpoint_tag is not None:
+            ut.assertpath(fpath)
+        return ut.checkpath(fpath)
+
+    def get_model_state_fpath(model, fpath=None, dpath=None, fname=None,
+                              checkpoint_tag=None):
+        default_fname = 'model_state_arch_%s.pkl' % (
+            model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
+                                                        dpath, fname,
+                                                        checkpoint_tag)
+        return model_state_fpath
+
+    def get_model_info_fpath(model, fpath=None, dpath=None, fname=None,
+                             checkpoint_tag=None):
+        default_fname = 'model_info_arch_%s.pkl' % (
+            model.get_architecture_hashid())
+        model_state_fpath = model._get_model_file_fpath(default_fname, fpath,
+                                                        dpath, fname,
+                                                        checkpoint_tag)
+        return model_state_fpath
+
+    def checkpoint_save_model_state(model):
+        history_hashid = model.get_model_history_hashid()
+        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
+        ut.ensuredir(dirname(fpath))
+        model.save_model_state(fpath=fpath)
+
+    def checkpoint_save_model_info(model):
+        history_hashid = model.get_model_history_hashid()
+        fpath = model.get_model_info_fpath(checkpoint_tag=history_hashid)
+        ut.ensuredir(dirname(fpath))
+        model.save_model_info(fpath=fpath)
+
+    def save_model_state(model, **kwargs):
+        """ saves current model state """
+        current_weights = model.get_all_param_values()
+        model_state = {
+            'best_results': model.best_results,
+            'preproc_kw':   model.preproc_kw,
+            'best_weights': model.best_weights,
+            'current_weights': current_weights,
+            'input_shape':  model.input_shape,
+            'output_dims':  model.output_dims,
+            'era_history':  model.era_history,
+            'arch_tag': model.arch_tag,
+            'data_shape': model.data_shape,
+            'batch_size': model.data_shape,
+        }
+        model_state_fpath = model.get_model_state_fpath(**kwargs)
+        print('saving model state to: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'wb') as file_:
+            pickle.dump(model_state, file_, protocol=2)  # Use protocol 2 to support python2 and 3
+        print('finished saving')
+
+    def save_model_info(model, **kwargs):
+        """ save model information (history and results but no weights) """
+        model_info = {
+            'best_results': model.best_results,
+            'input_shape':  model.input_shape,
+            'output_dims':  model.output_dims,
+            'era_history':  model.era_history,
+        }
+        model_info_fpath = model.get_model_state_fpath(**kwargs)
+        print('saving model info to: %s' % (model_info_fpath,))
+        with open(model_info_fpath, 'wb') as file_:
+            pickle.dump(model_info, file_, protocol=2)  # Use protocol 2 to support python2 and 3
+
+        print('finished saving')
+
+    def load_model_state(model, **kwargs):
+        """
+        from six.moves import cPickle as pickle
+        kwargs = {}
+        TODO: resolve load_model_state and load_extern_weights into a single
+            function that is less magic in what it does and more
+            straightforward
+        """
+        model_state_fpath = model.get_model_state_fpath(**kwargs)
+        print('[model] loading model state from: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'rb') as file_:
+            model_state = pickle.load(file_)
+        if model.__class__.__name__ != 'BaseModel':
+            assert model_state['input_shape'][1:] == model.input_shape[1:], (
+                'architecture disagreement')
+            assert model_state['output_dims'] == model.output_dims, (
+                'architecture disagreement')
+            model.preproc_kw   = model_state['preproc_kw']
+            model.best_weights = model_state['best_weights']
+        else:
+            # HACK TO LOAD ABSTRACT MODEL FOR DIAGNOSITIC REASONS
+            print("WARNING LOADING ABSTRACT MODEL")
+        model.best_results = model_state['best_results']
+        model.input_shape  = model_state['input_shape']
+        model.output_dims  = model_state['output_dims']
+        model.era_history  = model_state.get('era_history', [None])
+        if model.__class__.__name__ != 'BaseModel':
+            # hack for abstract model
+            # model.output_layer is not None
+            model.set_all_param_values(model.best_weights)
+
+    def load_state_from_dict(model, dict_):
+        # TODO: make this the general unserialize function that loads the model
+        # state
+        model.era_history  = dict_.get('era_history', model.era_history)
+
+    def load_extern_weights(model, **kwargs):
+        """ load weights from another model """
+        model_state_fpath = model.get_model_state_fpath(**kwargs)
+        print('[model] loading extern weights from: %s' % (model_state_fpath,))
+        with open(model_state_fpath, 'rb') as file_:
+            model_state = pickle.load(file_)
+        if False or utils.VERBOSE_CNN:
+            print('External Model State:')
+            print(ut.dict_str(model_state, truncate=True))
+        # check compatibility with this architecture
+        assert model_state['input_shape'][1:] == model.input_shape[1:], (
+            'architecture disagreement')
+        assert model_state['output_dims'] == model.output_dims, (
+            'architecture disagreement')
+        # Just set the weights, no other training state variables
+        model.set_all_param_values(model_state['best_weights'])
+        # also need to make sure the same preprocessing is used
+        # TODO make this a layer?
+        model.preproc_kw = model_state['preproc_kw']
+        model.era_history = model_state['era_history']
+
+
+@ut.reloadable_class
+class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
+    """
+    Abstract model providing functionality for all other models to derive from
+    """
+    def __init__(model, output_dims=None, input_shape=None, batch_size=None,
+                 strict_batch_size=True, data_shape=None, training_dpath='.',
+                 momentum=.9, weight_decay=.0005, learning_rate=.001,
+                 arch_tag=None):
+        """
+
+        Guess on Shapes:
+            input_shape (tuple): in Theano format (b, c, h, w)
+            data_shape (tuple):  in  Numpy format (b, h, w, c)
+        """
+
+        if input_shape is None and data_shape is not None:
+            if strict_batch_size is True:
+                strict_batch_size = batch_size
+            elif strict_batch_size is False:
+                strict_batch_size = None
+            else:
+                raise AssertionError('strict_batch_size must be a bool')
+            input_shape = (strict_batch_size,
+                           data_shape[2],
+                           data_shape[0],
+                           data_shape[1])
+        if data_shape is None and input_shape is not None:
+            data_shape = (input_shape[2], input_shape[3], input_shape[1])
+        model.data_shape = data_shape
+        #model.network_layers = None  # We don't need to save all of these
+        model.arch_tag = arch_tag
+        model.output_layer = None
+        model.output_dims = output_dims
+        model.input_shape = input_shape
+        model.batch_size = batch_size
+        # bad name, says that this network will take
+        # 2*N images in a batch and N labels that map to
+        # two images a piece
+        model.data_per_label_input  = 1  # state of network input
+        model.data_per_label_output = 1  # state of network output
+        model.training_dpath = training_dpath  # TODO
+        # era=(group of epochs)
+        model.current_era = None
+        model.era_history = []
+        # Training state
+        model.requested_headers = ['train_loss', 'valid_loss', 'trainval_rat']
+        model.preproc_kw   = None
+        model.best_results = {
+            'epoch': None,
+            'train_loss':     np.inf,
+            'valid_loss':     np.inf,
+        }
+        model.best_weights = None
+        model.learning_state = {
+            'momentum': momentum,
+            'weight_decay': weight_decay,
+        }
+        # Theano shared state
+        model.shared_state = {
+            'learning_rate': None,
+        }
+        # TODO: do not set learning rate until theano is initialized
+        model.learning_rate = learning_rate
+
+    # --- OTHER
+    @property
+    def input_batchsize(model):
+        return model.input_shape[0]
+
+    @property
+    def input_channels(model):
+        return model.input_shape[1]
+
+    @property
+    def input_height(model):
+        return model.input_shape[2]
+
+    @property
+    def input_width(model):
+        return model.input_shape[3]
+
+    # --- INITIALIZATION
+
+    def initialize_architecture(model):
+        raise NotImplementedError('reimplement')
+
+    def assert_valid_data(model, X_train):
+        # Check to make sure data agrees with input
+        # FIXME: This check should not be in this fuhnction
+        return
+        input_layer = model.get_all_layers()[0]
+        expected_item_shape = ut.take(input_layer.shape[1:], [1, 2, 0])
+        expected_item_shape = tuple(expected_item_shape)
+        given_item_shape = X_train.shape[1:]
+        assert given_item_shape == expected_item_shape, (
+            'inconsistent item shape: ' +
+            ('expected_item_shape = %r, ' % (expected_item_shape,)) +
+            ('given_item_shape = %r' % (given_item_shape,))
+        )
+
+    def is_train_state_initialized(model):
+        # TODO: move to dataset. This is independant of the model.
+        return model.preproc_kw is not None
+
+    def ensure_training_state(model, X_train, y_train):
+        # TODO: move to dataset. This is independant of the model.
+        if model.preproc_kw is None:
+            # TODO: move this to data preprocessing, not model preprocessing
+            model.preproc_kw = {}
+            print('computing center mean.')
+            model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
+            print('computing center std.')
+            if ut.is_int(X_train):
+                ut.assert_inbounds(X_train, 0, 255, eq=True,
+                                   verbose=ut.VERBOSE)
+                model.preproc_kw['center_std'] = 255.0
+            else:
+                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
+                                   verbose=ut.VERBOSE)
+                model.preproc_kw['center_std'] = 1.0
+        if getattr(model, 'encoder', None) is None:
+            if hasattr(model, 'initialize_encoder'):
+                model.initialize_encoder(y_train)
+
+    def reinit_weights(model, W=lasagne.init.Orthogonal()):
+        """
+        initailizes weights after the architecture has been defined.
+        """
+        print('Reinitializing all weights to %r' % (W,))
+        weights_list = model.get_all_params(regularizable=True, trainable=True)
+        #print(weights_list)
+        for weights in weights_list:
+            #print(weights)
+            shape = weights.get_value().shape
+            new_values = W.sample(shape)
+            weights.set_value(new_values)
+
+    # --- HASH ID
+
+    def get_architecture_hashid(model):
+        """
+        Returns a hash identifying the architecture of the determenistic net
+        """
+        architecture_str = model.get_architecture_str(with_noise_layers=False)
+        hashid = ut.hashstr27(architecture_str)
+        return hashid
+
+    def get_model_history_hashid(model):
+        r"""
+        Returns:
+            str: history_hashid
+
+        CommandLine:
+            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.abstract_models import *  # NOQA
+            >>> # test the hashid
+            >>> model = testdata_model_with_history()
+            >>> history_hashid = model.get_model_history_hashid()
+            >>> result = str(history_hashid)
+            >>> print(result)
+            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
+
+        """
+        era_history_hash = [ut.hashstr27(repr(era))
+                            for era in  model.era_history]
+        hashid = ut.hashstr27(str(era_history_hash))
+        total_epochs = model.get_total_epochs()
+        total_eras = len(model.era_history)
+        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (
+            total_eras, total_epochs, hashid)
+        return history_hashid
+
+    def get_total_epochs(model):
+        total_epochs = sum([len(era['epoch_list'])
+                            for era in model.era_history])
+        return total_epochs
+
+    # --- HISTORY
+
+    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
+        # TODO: fix the training data hashid stuff
+        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
+        train_hashid =  alias_key + '_' + y_hashid
+        era_info = {
+            'train_hashid': train_hashid,
+            'arch_hashid': model.get_architecture_hashid(),
+            'arch_tag': model.arch_tag,
+            'num_train': len(y_train),
+            'num_valid': len(y_valid),
+            'valid_loss_list': [],
+            'train_loss_list': [],
+            'epoch_list': [],
+            'learning_rate': [model.learning_rate],
+            'learning_state': [model.learning_state],
+        }
+        num_eras = len(model.era_history)
+        print('starting new era %d' % (num_eras,))
+        #if model.current_era is not None:
+        model.current_era = era_info
+        model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
+
     # ---- UTILITY
 
     def set_all_param_values(model, weights_list):
@@ -1005,7 +1006,7 @@ class BaseModel(object):
             return shared_learning_rate.get_value()
 
     @learning_rate.setter
-    def learning_rate(model, rate):
+    def set_learning_rate(model, rate):
         print('[model] setting learning rate to %.9f' % (rate))
         shared_learning_rate = model.shared_state.get('learning_rate', None)
         if shared_learning_rate is None:
@@ -1258,6 +1259,9 @@ class AbstractCategoricalModel(BaseModel):
         accuracy.name = 'accuracy'
         labeled_outputs = [accuracy]
         return labeled_outputs
+
+    def fit_interactive(X_train, y_train, X_valid, y_valid):
+        raise NotImplementedError()
 
 
 class _PretrainedLayerInitializer(lasagne.init.Initializer):

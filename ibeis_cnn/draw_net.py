@@ -371,8 +371,8 @@ def make_architecture_graph(layers, fullinfo=False):
         else:
             return '#{0:x}'.format(hash(layer_type + 'salt') % 2 ** 24)
 
-    main_size = np.array((100, 100))
-    sub_size = np.array((75, 50))
+    main_size = np.array((100, 100)) * 2
+    sub_size = np.array((75, 50)) * 2
 
     node_dict = {}
     edge_list = []
@@ -517,7 +517,7 @@ def make_architecture_graph(layers, fullinfo=False):
     layoutkw = dict(prog='neato', splines='spline')
     G_ = G.copy()
     layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)
-    _ = pt.show_nx(G_, fontsize=8, arrow_width=.1, layout='custom')
+    _ = pt.show_nx(G_, fontsize=8, arrow_width=1, layout='custom')
     _, layout_info
     pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
 
