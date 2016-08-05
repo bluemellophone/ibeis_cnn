@@ -1089,6 +1089,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             model._theano_funcs = model._build_theano_funcs()
         else:
             print('[model] ... cache hit')
+        print('[model] --- FINISHED BUILD ---')
         return model._theano_funcs
 
     def _build_theano_funcs(model, input_type=None, output_type=None,
@@ -1144,6 +1145,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             mode = theano.compile.FAST_RUN
         else:
             raise ValueError('Unknown mode=%r' % (mode,))
+        #mode = theano.compile.FAST_COMPILE
 
         if request_backprop:
             print('[model._build_theano_funcs] request_backprop')

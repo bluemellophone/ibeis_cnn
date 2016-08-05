@@ -130,9 +130,6 @@ Ensure CuDNN is installed
     sudo cp -rv ~/Downloads/cudnn$TARGET_CUDNN_VERSION/cuda/lib64/libcudnn.so.$TARGET_CUDNN_VERSION* $CUDADIR/lib64/
     sudo cp -rv ~/Downloads/cudnn$TARGET_CUDNN_VERSION/cuda/lib64/libcudnn_static.a $CUDADIR/lib64/
 
-    # Test if Theano Works with CUDNN
-    python -c "from theano.sandbox.cuda.dnn import dnn_available as d; print(d() or d.msg)"
-
     # Manually make symlinks (ones nvidia ships are broken)
     sudo ln -s $CUDADIR/lib64/libcudnn.so.$TARGET_CUDNN_VERSION* $CUDADIR/lib64/libcudnn.so.$MAIN_CUDNN_VERSION
     sudo ln -s $CUDADIR/lib64/libcudnn.so.$MAIN_CUDNN_VERSION $CUDADIR/lib64/libcudnn.so
@@ -143,6 +140,9 @@ Ensure CuDNN is installed
     # Check CUDNN Install
     ls -al $CUDADIR/include/cudnn.h
     ls -al $CUDADIR/lib64/libcudnn*
+
+    # Test if Theano Works with CUDNN
+    python -c "from theano.sandbox.cuda.dnn import dnn_available as d; print(d() or d.msg)"
 """
 
 

@@ -23,7 +23,7 @@ try:
     if ut.get_computer_name().lower() == 'hyrule':
         # cuda_convnet seems broken on hyrule
         conv_impl = 'cuDNN'
-    #conv_impl = 'cuda_convnet'
+    conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
 
