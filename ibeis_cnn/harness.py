@@ -33,33 +33,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     learning_rate_schedule = config.get('learning_rate_schedule', 15)
     max_epochs = config.get('max_epochs', None)
-    test_freq  = config.get('test_freq', None)
+    #test_freq  = config.get('test_freq', None)
     learning_rate_adjust  = config.get('learning_rate_adjust', .8)
-
-    batchiter_kw = dict(
-        #showprog=ut.get_argflag('--monitor'),
-        showprog=True,
-        time_thresh=4,
-        time_thresh_growth=ut.PHI * 2,
-    )
-
-    batchtrain_kw = ut.merge_dicts(
-        batchiter_kw,
-        {
-            'augment_on': True,
-            #'augment_on': False,
-            'randomize_batch_order': True,
-            'buffered': True,
-        }
-    )
-
-    batchtest_kw = ut.merge_dicts(
-        batchiter_kw,
-        {
-            'augment_on': False,
-            'randomize_batch_order': False,
-        }
-    )
 
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
@@ -75,13 +50,16 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         # FIXME; put into better place
         progress_dir = ut.unixjoin(model.training_dpath, 'progress')
         ut.ensuredir(progress_dir)
-        def progress_metric_path(x):
+        def prog_metric_path(x):
             return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
-        def progress_metric_dir(x):
-            return ut.ensuredir(progress_metric_path(x))
-        history_progress_dir = progress_metric_dir('%s_%02d_history' % (model.arch_tag,))
-        weights_progress_dir = progress_metric_dir('%s_%02d_weights' % (model.arch_tag,))
-        history_text_fpath = progress_metric_path('%s_%02d_era_history' % (model.arch_tag,))
+        def prog_metric_dir(x):
+            return ut.ensuredir(prog_metric_path(x))
+        history_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_history')
+        weights_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_weights')
+        history_text_fpath = prog_metric_path(
+            str(model.arch_tag) + '_%02d_era_history.txt')
         ut.vd(progress_dir)
 
         def overwrite_latest_image(fpath, new_name):
@@ -145,24 +123,25 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # ---------------------------------------
             # Run training set
             train_outputs = batch.process_batch(
-                model, X_train, y_train, theano_backprop, **batchtrain_kw)
+                model, X_train, y_train, theano_backprop, randomize_batch_order=True,
+                augment_on=True, buffered=True)
             # compute the loss over all testing batches
             epoch_info['train_loss'] = train_outputs['loss'].mean()
-            epoch_info['train_loss_regularized'] = (
-                train_outputs['loss_regularized'].mean())
-            #if 'valid_acc' in model.requested_headers:
-            #    epoch_info['test_acc']  = train_outputs['accuracy']
 
-            # If the training loss is nan, the training has diverged
-            regularization_amount  = (
-                train_outputs['loss_regularized'] - train_outputs['loss'])
-            regularization_ratio   = (
-                regularization_amount / train_outputs['loss'])
-            regularization_percent = (
-                regularization_amount / train_outputs['loss_regularized'])
+            if 'loss_regularized' in train_outputs:
+                epoch_info['train_loss_regularized'] = (
+                    train_outputs['loss_regularized'].mean())
+                #if 'valid_acc' in model.requested_headers:
+                #    epoch_info['test_acc']  = train_outputs['accuracy']
+                regularization_amount  = (
+                    train_outputs['loss_regularized'] - train_outputs['loss'])
+                regularization_ratio   = (
+                    regularization_amount / train_outputs['loss'])
+                regularization_percent = (
+                    regularization_amount / train_outputs['loss_regularized'])
 
-            epoch_info['regularization_percent'] = regularization_percent
-            epoch_info['regularization_ratio'] = regularization_ratio
+                epoch_info['regularization_percent'] = regularization_percent
+                epoch_info['regularization_ratio'] = regularization_ratio
 
             param_update_mags = {}
             for key, val in train_outputs.items():
@@ -170,17 +149,18 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                     key_ = key.replace('param_update_magnitude_', '')
                     param_update_mags[key_] = (val.mean(), val.std())
             epoch_info['param_update_mags'] = param_update_mags
-            #if key.startswith('param_update_mag_')
 
+            # If the training loss is nan, the training has diverged
             if np.isnan(epoch_info['train_loss']):
                 print('\n[train] training diverged\n')
                 break
 
             # Run validation set
             valid_outputs = batch.process_batch(
-                model, X_valid, y_valid, theano_forward, **batchtest_kw)
-            epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
-            epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
+                model, X_valid, y_valid, theano_forward, augment_on=False,
+                randomize_batch_order=False)
+            epoch_info['valid_loss'] = valid_outputs['loss'].mean()
+            epoch_info['valid_loss_std'] = valid_outputs['loss'].std()
             if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] ==
@@ -188,23 +168,23 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                 epoch_info['valid_acc'] = valid_outputs['accuracy'].mean()
 
             # TODO
-            request_determ_loss = False
-            if request_determ_loss:
-                train_determ_outputs = batch.process_batch(
-                    model, X_train, y_train, theano_forward, **batchiter_kw)
-                epoch_info['train_loss_determ'] = (
-                    train_determ_outputs['loss_determ'].mean())
+            #request_determ_loss = False
+            #if request_determ_loss:
+            #    train_determ_outputs = batch.process_batch(
+            #        model, X_train, y_train, theano_forward)
+            #    epoch_info['train_loss_determ'] = (
+            #        train_determ_outputs['loss_determ'].mean())
 
             # Calculate request_test before adding to the epoch counter
-            request_test = utils.checkfreq(test_freq, epoch)
-            if request_test:
-                raise NotImplementedError('not done yet')
-                test_outputs = batch.process_batch(
-                    model, X_train, y_train, theano_forward, **batchiter_kw)
-                test_loss = test_outputs['loss_determ'].mean()  # NOQA
-                #if kwargs.get('show_confusion', False):
-                #    draw_net.output_confusion_matrix(X_test, results_dpath,
-                #    test_results, model=model, **kwargs)
+            #request_test = utils.checkfreq(test_freq, epoch)
+            #if request_test:
+            #    raise NotImplementedError('not done yet')
+            #    test_outputs = batch.process_batch(
+            #        model, X_train, y_train, theano_forward)
+            #    test_loss = test_outputs['loss_determ'].mean()  # NOQA
+            #    #if kwargs.get('show_confusion', False):
+            #    #    draw_net.output_confusion_matrix(X_test, results_dpath,
+            #    #    test_results, model=model, **kwargs)
 
             # ---------------------------------------
             # Summarize the epoch
@@ -239,11 +219,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
                     output_diagnostics = True
                 else:
                     save_after_best_countdown -= 1
-
-            if duration < 60:
-                # dont show prog on short iterations
-                #batchiter_kw['showprog'] = False
-                batchiter_kw['showprog'] = True
 
             # ---------------------------------------
             # Output Diagnostics
@@ -327,10 +302,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             elif resolution == 6:
                 print(model.get_state_str())
             elif resolution == 7:
-                y_train = _clean(model, theano_forward, X_train, y_train,
-                                 **batchiter_kw)
-                y_valid = _clean(model, theano_forward, X_valid, y_valid,
-                                 **batchiter_kw)
+                y_train = _clean(model, theano_forward, X_train, y_train)
+                y_valid = _clean(model, theano_forward, X_valid, y_valid)
             else:
                 # Terminate the network training
                 raise
@@ -339,13 +312,12 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     model.save_model_state()
 
 
-def _clean(model, theano_forward, X_list, y_list, min_conf=0.95,
-           **batchiter_kw):
+def _clean(model, theano_forward, X_list, y_list, min_conf=0.95):
     import random
     # Perform testing
     clean_outputs = batch.process_batch(
         model, X_list, y_list, theano_forward, augment_on=False,
-        randomize_batch_order=False, **batchiter_kw)
+        randomize_batch_order=False)
     prediction_list = clean_outputs['labeled_predictions']
     confidence_list = clean_outputs['confidences']
     enumerated = enumerate(zip(y_list, prediction_list, confidence_list))
@@ -418,15 +390,10 @@ def test_data2(model, X_test, y_test):
     print('\n[test] starting testing with batch size %0.1f' % (
         model.batch_size))
 
-    batchiter_kw = dict(
-        showprog=True,
-        time_thresh=10,
-    )
-
     #X_test = X_test[0:259]
     # Start timer
     test_outputs = batch.process_batch(model, X_test, None, theano_predict,
-                                       fix_output=True, **batchiter_kw)
+                                       fix_output=True)
     return test_outputs
 
 
@@ -545,9 +512,7 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
 
         batchiter_kw = dict(
             fix_output=False,
-            #showprog=False,
             showprog=True,
-            time_thresh=10,
             spatial=True,
         )
 

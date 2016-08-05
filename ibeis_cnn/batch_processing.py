@@ -66,7 +66,6 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         X, y = model.make_random_testdata(num=2000, seed=None)
         kwargs = {'X_is_cv2_native': False, 'showprog': True,
                   'randomize_batch_order': True, 'time_thresh': .5,
-                  'adjust': False,
                   }
 
         print('Testing Unbuffered')
@@ -165,8 +164,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
 def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
                    veryverbose=VERYVERBOSE_BATCH, showprog=None,
-                   lbl='verbose batch iteration',
-                   time_thresh=10, time_thresh_growth=1.0, adjust=True):
+                   lbl='verbose batch iteration'):
     r"""
     Breaks up data into to batches
 
@@ -293,10 +291,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         # progress iterator should be outside of this function
         batch_index_iter = ut.ProgressIter(batch_index_iter,
                                            nTotal=num_batches, lbl=lbl,
-                                           bs=True,
-                                           time_thresh=time_thresh,
-                                           time_thresh_growth=time_thresh_growth,
-                                           adjust=adjust)
+                                           bs=True)
 
     DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
 

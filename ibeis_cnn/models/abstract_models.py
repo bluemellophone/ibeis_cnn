@@ -1065,11 +1065,14 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
                 L2 = lasagne.regularization.regularize_network_params(
                     model.output_layer, lasagne.regularization.l2)
                 weight_decay = model.learning_state['weight_decay']
-                regularization_term = weight_decay * L2
-                regularization_term.name = 'regularization_term'
-                #L2 = lasagne.regularization.l2(model.output_layer)
-                loss_regularized = loss + regularization_term
-                loss_regularized.name = 'loss_regularized'
+                if weight_decay is not None:
+                    regularization_term = weight_decay * L2
+                    regularization_term.name = 'regularization_term'
+                    #L2 = lasagne.regularization.l2(model.output_layer)
+                    loss_regularized = loss + regularization_term
+                    loss_regularized.name = 'loss_regularized'
+                else:
+                    loss_regularized = None
             except TypeError:
                 loss, loss_determ, loss_regularized = None, None, None
 
@@ -1153,14 +1156,23 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             momentum = model.learning_state['momentum']
             # Define updates network parameters based on the training loss
             parameters = model.get_all_params(trainable=True)
-            gradients_regularized = theano.grad(
-                loss_regularized, parameters, add_names=True)
+
+            backprop_losses = []
+            if loss_regularized is not None:
+                backprop_losses.append(loss_regularized)
+            backprop_losses.append(loss)
+
+            if loss_regularized is not None:
+                backprop_loss_ = loss_regularized
+            else:
+                backprop_loss_ = loss
+            loss_or_grads = theano.grad(backprop_loss_, parameters,
+                                        add_names=True)
             # from lasagne.updates import *
-            # loss_or_grads = gradients_regularized
             # params = parameters
             # learning_rate = learning_rate_theano
             updates = lasagne.updates.nesterov_momentum(
-                gradients_regularized, parameters, learning_rate_theano,
+                loss_or_grads, parameters, learning_rate_theano,
                 momentum)  # add_names=True)  # TODO; commit to lasange
 
             def fix_update_bcasts(updates):
@@ -1194,7 +1206,6 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
                 compile_logger = logging.getLogger('theano.compile')
                 compile_logger.setLevel(-10)
 
-                backprop_losses = [loss_regularized, loss]
                 backprop_outputs = (backprop_losses + labeled_outputs +
                                     monitor_outputs)
                 theano_backprop = theano.function(
