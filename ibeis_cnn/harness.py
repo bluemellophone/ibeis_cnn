@@ -37,7 +37,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     learning_rate_adjust  = config.get('learning_rate_adjust', .8)
 
     batchiter_kw = dict(
-        showprog=ut.get_argflag('--monitor'),
+        #showprog=ut.get_argflag('--monitor'),
+        showprog=True,
         time_thresh=4,
         time_thresh_growth=ut.PHI * 2,
     )
@@ -78,12 +79,9 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
         def progress_metric_dir(x):
             return ut.ensuredir(progress_metric_path(x))
-        history_progress_dir = progress_metric_dir(
-            model.arch_tag + '_%02d_history')
-        weights_progress_dir = progress_metric_dir(
-            model.arch_tag + '_%02d_weights')
-        history_text_fpath = progress_metric_path(
-            model.arch_tag + '_%02d_era_history.txt')
+        history_progress_dir = progress_metric_dir('%s_%02d_history' % (model.arch_tag,))
+        weights_progress_dir = progress_metric_dir('%s_%02d_weights' % (model.arch_tag,))
+        history_text_fpath = progress_metric_path('%s_%02d_era_history' % (model.arch_tag,))
         ut.vd(progress_dir)
 
         def overwrite_latest_image(fpath, new_name):
@@ -244,7 +242,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             if duration < 60:
                 # dont show prog on short iterations
-                batchiter_kw['showprog'] = False
+                #batchiter_kw['showprog'] = False
+                batchiter_kw['showprog'] = True
 
             # ---------------------------------------
             # Output Diagnostics
@@ -546,7 +545,8 @@ def test_convolutional(model, theano_predict, image, patch_size='auto',
 
         batchiter_kw = dict(
             fix_output=False,
-            showprog=False,
+            #showprog=False,
+            showprog=True,
             time_thresh=10,
             spatial=True,
         )

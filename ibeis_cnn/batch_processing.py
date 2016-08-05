@@ -164,7 +164,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
 @profile
 def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                    X_is_cv2_native=True, verbose=VERBOSE_BATCH,
-                   veryverbose=VERYVERBOSE_BATCH, showprog=ut.VERBOSE,
+                   veryverbose=VERYVERBOSE_BATCH, showprog=None,
                    lbl='verbose batch iteration',
                    time_thresh=10, time_thresh_growth=1.0, adjust=True):
     r"""
@@ -246,6 +246,10 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> # verify results
         >>> #result = ut.depth_profile(result_list, compress_consecutive=True)
     """
+    if showprog is None:
+        showprog = ut.VERBOSE
+        showprog = True
+
     data_per_label_input = model.data_per_label_input
     # need to be careful with batchsizes if directly specified to theano
     equal_batch_sizes = model.input_shape[0] is not None
@@ -289,6 +293,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         # progress iterator should be outside of this function
         batch_index_iter = ut.ProgressIter(batch_index_iter,
                                            nTotal=num_batches, lbl=lbl,
+                                           bs=True,
                                            time_thresh=time_thresh,
                                            time_thresh_growth=time_thresh_growth,
                                            adjust=adjust)

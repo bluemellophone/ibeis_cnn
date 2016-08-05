@@ -74,6 +74,54 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
         print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
 
 
+def get_layer_size_info(layer):
+    # Information that contributes to RAM usage
+    import numpy as np
+    param_infos = []
+    for param in layer.params.keys():
+        value = param.get_value()
+        info = ut.odict([
+            ('name', param.name),
+            ('shape', value.shape),
+            ('size', value.size),
+            ('itemsize', value.dtype.itemsize),
+            ('dtype', str(value.dtype)),
+        ])
+        param_infos.append(info)
+    #layer_type = 'float32'
+    layer_dtype = np.dtype('float32')
+    layer_info = ut.odict([
+        ('name', layer.name),
+        ('shape', layer.output_shape),
+        ('size', np.prod(layer.output_shape)),
+        ('itemsize', layer_dtype.itemsize),
+        ('dtype', str(layer_dtype)),
+        ('param_infos', param_infos),
+    ])
+
+    param_infos = layer_info['param_infos']
+    param_bytes = 0
+    for info in param_infos:
+        info['bytes'] = info['size'] * info['itemsize']
+        param_bytes += info['bytes']
+    layer_bytes = layer_info['size'] * layer_info['itemsize']
+    layer_info['bytes'] = layer_bytes
+    layer_info['param_bytes'] = param_bytes
+    layer_info['total_bytes'] = layer_bytes + param_bytes
+    layer_info['total_memory'] = ut.byte_str2(layer_info['total_bytes'])
+    return layer_info
+
+
+def count_bytes(output_layer):
+    import lasagne
+    layers = lasagne.layers.get_all_layers(output_layer)
+    info_list = [get_layer_size_info(layer) for layer in layers]
+    total_bytes = sum([info['total_bytes'] for info in info_list])
+    #print('total_bytes = %s' % (ut.byte_str2(total_bytes),))
+    #print(ut.repr2(info_list, nl=2, hack_liststr=True))
+    return total_bytes
+
+
 def print_layer_info(output_layer):
     r"""
     Args:
@@ -129,6 +177,8 @@ def print_layer_info(output_layer):
 
             num_outputs = functools.reduce(operator.mul, output_shape[1:])
 
+            size_info = get_layer_size_info(layer)
+
             columns_['index'].append(index)
             columns_['name'].append(layer.name)
             #columns_['type'].append(getattr(layer, 'type', None))
@@ -137,6 +187,8 @@ def print_layer_info(output_layer):
             columns_['shape'].append(str(output_shape))
             columns_['params'].append(param_str)
             columns_['param_type'].append(param_type_str)
+            columns_['mem'].append(size_info['total_memory'])
+            columns_['bytes'].append('{:,}'.format(int(size_info['total_bytes'])))
             #ut.embed()
 
         header_nice = {
@@ -148,11 +200,15 @@ def print_layer_info(output_layer):
             'shape'       : 'OutShape',
             'params'      : 'Params',
             'param_type'  : 'ParamType',
+            'mem'     : 'Mem',
+            'bytes'     : 'Bytes',
         }
 
         header_align = {
             'index'       : '<',
             'params'      : '<',
+            'bytes'       : '>',
+            'num_outputs' : '>',
         }
 
         def get_col_maxval(key):
@@ -160,7 +216,10 @@ def print_layer_info(output_layer):
             val_len = max(list(map(len, map(str, columns_[key]))))
             return max(val_len, header_len)
 
-        header_order = ['index', 'name', 'class', 'num_outputs', 'shape', 'params' ]
+        header_order = ['index', 'name', 'class', 'num_outputs']
+        #header_order += ['mem']
+        header_order += ['bytes']
+        header_order += ['shape', 'params' ]
         #'param_type']
 
         import six
@@ -173,15 +232,6 @@ def print_layer_info(output_layer):
                                        ut.dict_take(max_len, header_order))
             ]
         )
-        #           )
-        #        '{:>' + max_len['index'] + '}',
-        #        '{:<' + max_len['class'] + '}'
-        #        '{:<' + max_len['num_outputs'] + '}'
-        #        '{:<' + max_len['shape'] + '}',
-        #        '{:>' + max_len['params'] + '}',
-        #    ]
-        #)
-
         print(fmtstr.format(*ut.dict_take(header_nice, header_order)))
 
         row_list = zip(*ut.dict_take(columns_, header_order))
@@ -189,9 +239,18 @@ def print_layer_info(output_layer):
             str_ = fmtstr.format(*row)
             print(str_)
 
-        print('[info] ...this model has {:,} learnable parameters\n'.format(
-            lasagne.layers.count_params(output_layer)
-        ))
+        #import lasagne
+        #layers = lasagne.layers.get_all_layers(output_layer)
+        #info_list = [get_layer_size_info(layer) for layer in layers]
+        #print('Size Info: ' + ut.repr2(info_list, nl=3, hack_liststr=True))
+
+        total_bytes = count_bytes(output_layer)
+        num_params = lasagne.layers.count_params(output_layer)
+
+        print('[info] ...this model has {:,} learnable parameters'.format(num_params))
+        print('[info] ...this model will use {:,} bytes = {}'.format(
+            total_bytes, ut.byte_str2(total_bytes)))
+        print('')
 
 
 if __name__ == '__main__':
