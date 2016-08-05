@@ -152,15 +152,17 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
             # If the training loss is nan, the training has diverged
             if np.isnan(epoch_info['train_loss']):
-                print('\n[train] training diverged\n')
+                print('\n[train] train loss is Nan. training diverged\n')
+                import utool
+                utool.embed()
                 break
 
             # Run validation set
             valid_outputs = batch.process_batch(
                 model, X_valid, y_valid, theano_forward, augment_on=False,
                 randomize_batch_order=False)
-            epoch_info['valid_loss'] = valid_outputs['loss'].mean()
-            epoch_info['valid_loss_std'] = valid_outputs['loss'].std()
+            epoch_info['valid_loss'] = valid_outputs['loss_determ'].mean()
+            epoch_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
             if 'valid_acc' in model.requested_headers:
                 # bit of a hack to bring accuracy back in
                 #np.mean(valid_outputs['predictions'] ==
