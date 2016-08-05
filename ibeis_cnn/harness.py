@@ -411,8 +411,8 @@ def test_data2(model, X_test, y_test):
     # create theano symbolic expressions that define the network
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     theano_funcs = model._build_theano_funcs(request_predict=True,
-                                            request_forward=False,
-                                            request_backprop=False)
+                                             request_forward=False,
+                                             request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     # Begin testing with the neural network
