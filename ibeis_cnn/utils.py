@@ -12,7 +12,6 @@ from six.moves import cPickle as pickle
 import utool as ut
 import six
 from ibeis_cnn import net_strs
-import sklearn.cross_validation
 import cv2
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
@@ -233,6 +232,11 @@ def train_test_split(X, y, eval_size, data_per_label=1, shuffle=True):
     # take the data and label arrays, split them preserving the class distributions
     assert len(X) == len(y) * data_per_label, 'len(X)=%r, len(y)=%r, data_per_label=%r' % (len(X), len(y), data_per_label)
     nfolds = round(1. / eval_size)
+    # TODO: use sklearn.model_selection instead
+    #import sklearn.model_selection
+    # kf_ = sklearn.model_selection.StratifiedKFold(nfolds, shuffle=shuffle)
+    # kf  = kf_.split(np.empty(len(y)), y)
+    import sklearn.cross_validation
     kf = sklearn.cross_validation.StratifiedKFold(y, nfolds, shuffle=shuffle)
     train_indices, valid_indices = six.next(iter(kf))
     data_train_indicies = expand_data_indicies(train_indices, data_per_label)

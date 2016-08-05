@@ -119,25 +119,35 @@ def print_layer_info(output_layer):
                 return p.name + surround(shapestr(p.get_value().shape) + tag_str , '()')
                 return p.name + surround(shapestr(p.get_value().shape), '()')
 
-            param_str = surround(', '.join([paramstr(p, tags) for p, tags in layer.params.items()]), '[]')
+            param_str = surround(', '.join([paramstr(p, tags)
+                                            for p, tags in layer.params.items()]), '[]')
+
+            param_type_str = surround(', '.join([repr(p.type)
+                                                 for p, tags in layer.params.items()]), '[]')
 
             output_shape = lasagne.layers.get_output_shape(layer)  # .get_output_shape()
 
             num_outputs = functools.reduce(operator.mul, output_shape[1:])
 
             columns_['index'].append(index)
-            columns_['name'].append(layer.__class__.__name__)
+            columns_['name'].append(layer.name)
+            #columns_['type'].append(getattr(layer, 'type', None))
+            columns_['class'].append(layer.__class__.__name__)
             columns_['num_outputs'].append('{:,}'.format(int(num_outputs)))
             columns_['shape'].append(str(output_shape))
             columns_['params'].append(param_str)
+            columns_['param_type'].append(param_type_str)
             #ut.embed()
 
         header_nice = {
             'index'       : 'index',
-            'name'        : 'Layer',
-            'num_outputs' : '#Outputs',
-            'shape'       : 'Output Shape',
+            'name'        : 'Name',
+            'class'       : 'Layer',
+            'type'        : 'Type',
+            'num_outputs' : 'Outputs',
+            'shape'       : 'OutShape',
             'params'      : 'Params',
+            'param_type'  : 'ParamType',
         }
 
         header_align = {
@@ -150,7 +160,8 @@ def print_layer_info(output_layer):
             val_len = max(list(map(len, map(str, columns_[key]))))
             return max(val_len, header_len)
 
-        header_order = ['index', 'name', 'num_outputs', 'shape', 'params']
+        header_order = ['index', 'name', 'class', 'num_outputs', 'shape', 'params' ]
+        #'param_type']
 
         import six
         max_len = {key: str(get_col_maxval(key) + 1) for key, col in six.iteritems(columns_)}
@@ -164,7 +175,7 @@ def print_layer_info(output_layer):
         )
         #           )
         #        '{:>' + max_len['index'] + '}',
-        #        '{:<' + max_len['name'] + '}'
+        #        '{:<' + max_len['class'] + '}'
         #        '{:<' + max_len['num_outputs'] + '}'
         #        '{:<' + max_len['shape'] + '}',
         #        '{:>' + max_len['params'] + '}',

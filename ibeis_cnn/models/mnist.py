@@ -1,81 +1,92 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import functools
-from ibeis_cnn.__LASAGNE__ import layers
-from ibeis_cnn.__LASAGNE__ import nonlinearities
-from ibeis_cnn.__LASAGNE__ import init
 from ibeis_cnn.models import abstract_models
 from ibeis_cnn import custom_layers
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.dummy]')
 
 
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
-
-
 class MNISTModel(abstract_models.AbstractCategoricalModel):
     """
     Toy model for testing and playing with mnist
+
+    CommandLine:
+        python -m ibeis_cnn.models.mnist MNISTModel:0
+        python -m ibeis_cnn.models.mnist MNISTModel:1
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.models.mnist import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+        >>>                    output_dims=dataset.output_dims,
+        >>>                    training_dpath=dataset.training_dpath)
+        >>> output_layer = model.initialize_architecture()
+        >>> model.print_dense_architecture_str()
+        >>> model._build_theano_funcs(mode='FAST_COMPILE')
+
+    Example:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.models.mnist import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+        >>>                    output_dims=dataset.output_dims,
+        >>>                    training_dpath=dataset.training_dpath)
+        >>> output_layer = model.initialize_architecture()
+        >>> model.print_dense_architecture_str()
+        >>> model.build()
+        >>> # parse training arguments
+        >>> config = ut.argparse_dict(dict(
+        >>>     learning_rate_schedule=15,
+        >>>     max_epochs=5,
+        >>>     learning_rate_adjust=.8,
+        >>> ))
+        >>> X_train, y_train = dataset.load_subset('train')
+        >>> X_valid, y_valid = dataset.load_subset('valid')
+        >>> model.fit_interactive(X_train, y_train, X_valid, y_valid, dataset, config)
+
     """
     def __init__(self, **kwargs):
         super(MNISTModel, self).__init__(**kwargs)
 
-    def get_mnist_model_def_failure(model, input_shape, output_dims):
-        # causes failure in building model
-        _P = functools.partial
-        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        orthog = dict(W=init.Orthogonal())
-        hidden_initkw = ut.merge_dicts(orthog, leaky)
-        initkw = hidden_initkw
-        #initkw = {}
-
-        # def to test failures
-        network_layers_def = (
-            [
-                _P(layers.InputLayer, shape=input_shape),
-                #layers.GaussianNoiseLayer,
-
-                _P(Conv2DLayer, num_filters=16, filter_size=(7, 7), stride=(1, 1), name='C0', **initkw),
-                _P(MaxPool2DLayer, pool_size=(3, 3), stride=(3, 3), name='P0'),
-                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C1', **initkw),
-                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C2', **initkw),
-                _P(Conv2DLayer, num_filters=16, filter_size=(3, 3), stride=(1, 1), name='C3', **initkw),
-                _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), stride=(1, 1), name='C4', **initkw),
-                _P(Conv2DLayer, num_filters=16, filter_size=(1, 1), stride=(1, 1), name='C5', **initkw),
-                _P(Conv2DLayer, num_filters=16, filter_size=(2, 2), stride=(1, 1), name='C6', **initkw),
-
-                _P(layers.DenseLayer, num_units=32, name='F1',  **initkw),
-                _P(layers.DenseLayer, num_units=output_dims, nonlinearity=nonlinearities.softmax)
-            ]
-        )
-        return network_layers_def
-
     def get_mnist_model_def1(model):
+        #from ibeis_cnn.__LASAGNE__ import init
+        from ibeis_cnn.__LASAGNE__ import layers
+        from ibeis_cnn.__LASAGNE__ import nonlinearities
+
         _P = functools.partial
         leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         #orthog = dict(W=init.Orthogonal())
+        #weight_initkw = dict(W=init.GlorotUniform())
         weight_initkw = dict()
         output_initkw = weight_initkw
         hidden_initkw = ut.merge_dicts(weight_initkw, leaky)
 
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         network_layers_def = [
-            _P(layers.InputLayer, shape=model.input_shape),
-            layers.GaussianNoiseLayer,
+            _P(layers.InputLayer, shape=model.input_shape, name='I0'),
+            _P(layers.GaussianNoiseLayer, name='N0'),
 
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C0', **hidden_initkw),
-            _P(layers.DropoutLayer, p=0.1),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
-
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1), name='C1', **hidden_initkw),
+            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
+               name='C1', **hidden_initkw),
+            _P(layers.DropoutLayer, p=0.1, name='D1'),
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
 
-            _P(layers.DenseLayer, num_units=256, name='F1',  **hidden_initkw),
-            _P(layers.FeaturePoolLayer, pool_size=2),  # maxout
-            _P(layers.DropoutLayer, p=0.5),
+            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
+               name='C2', **hidden_initkw),
+            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
+
+            _P(layers.DenseLayer, num_units=256, name='F3',  **hidden_initkw),
+            _P(layers.FeaturePoolLayer, pool_size=2, name='P3'),  # maxout
+            _P(layers.DropoutLayer, p=0.5, name='D3'),
 
             _P(layers.DenseLayer, num_units=model.output_dims,
-               nonlinearity=nonlinearities.softmax, **output_initkw),
+               nonlinearity=nonlinearities.softmax, name='O4', **output_initkw),
         ]
         return network_layers_def
 
@@ -88,15 +99,11 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.mnist import *  # NOQA
-            >>> # build test data
             >>> verbose = True
-            >>> model = MNISTModel(batch_size=128, data_shape=(64, 64, 3))
-            >>> # execute function
-            >>> output_layer = model.initialize_architecture()
+            >>> model = MNISTModel(batch_size=128, data_shape=(28, 28, 1), output_dims=9)
+            >>> model.initialize_architecture()
             >>> model.print_dense_architecture_str()
-            >>> # verify results
-            >>> result = str(output_layer)
-            >>> print(result)
+            >>> print(model)
             >>> ut.quit_if_noshow()
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()

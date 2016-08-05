@@ -4,7 +4,7 @@ import warnings
 import six
 import theano
 import functools
-from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 from ibeis_cnn import __LASAGNE__ as lasagne
 from ibeis_cnn import utils
 import utool as ut
@@ -23,11 +23,12 @@ try:
     if ut.get_computer_name().lower() == 'hyrule':
         # cuda_convnet seems broken on hyrule
         conv_impl = 'cuDNN'
+    #conv_impl = 'cuda_convnet'
 
     # http://lasagne.readthedocs.org/en/latest/modules/layers/conv.html#lasagne.layers.Conv2DLayer
 
     if conv_impl == 'cuda_convnet':
-        # cannot handle non-square images
+        # cannot handle non-square images (pylearn2 module)
         import lasagne.layers.cuda_convnet
         Conv2DLayer = lasagne.layers.cuda_convnet.Conv2DCCLayer
         MaxPool2DLayer = lasagne.layers.cuda_convnet.MaxPool2DCCLayer
@@ -45,7 +46,6 @@ try:
         Inputs strides: [(676, 86528, 26, 1), (8,)]
         Inputs values: ['not shown', array([128, 676])]
         Outputs clients: [[GpuDot22(GpuReshape{2}.0, GpuReshape{2}.0)]]
-
         """
     elif conv_impl == 'gemm':
         # Dont use gemm
@@ -60,7 +60,7 @@ except ImportError as ex:
     Conv2DLayer = lasagne.layers.Conv2DLayer
     MaxPool2DLayer = lasagne.layers.MaxPool2DLayer
 
-    if ut.VERBOSE:
+    if utils.VERBOSE_CNN:
         print('Conv2DLayer = %r' % (Conv2DLayer,))
         print('MaxPool2DLayer = %r' % (MaxPool2DLayer,))
 

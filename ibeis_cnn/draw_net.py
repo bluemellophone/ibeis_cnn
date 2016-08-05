@@ -336,13 +336,11 @@ def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
     return pydot_graph
 
 
-def make_architecture_graph(layers, fullinfo=False):
+def show_architecture_nx_graph(layers, fullinfo=True):
     import networkx as nx
     import plottool as pt
     #from matplotlib import offsetbox
     #import matplotlib as mpl
-
-    fullinfo = True
 
     REMOVE_BATCH_SIZE = True
 
@@ -351,7 +349,7 @@ def make_architecture_graph(layers, fullinfo=False):
         'Conv2DLayer': 'Conv',
         'DenseLayer': 'Dense',
         'FeaturePoolLayer': 'Pool',
-        'GaussianNoiseLayer': 'Noise',
+        'GaussianNoiseLayer': 'GaussianNoise',
         'MaxPool2DCCLayer': 'MaxPool',
         'LeakyRectify': 'LRU',
         'InputLayer': 'Input',
@@ -379,19 +377,23 @@ def make_architecture_graph(layers, fullinfo=False):
     edge_attrs = ut.ddict(dict)
     for i, layer in enumerate(layers):
         layer_type = '{0}'.format(layer.__class__.__name__)
-        layer_type = alias_map.get(layer_type, layer_type)
+        if layer_type == 'FeaturePoolLayer' and ut.get_funcname(layer.pool_function) == 'max':
+            layer_type = 'MaxOut'
+        else:
+            layer_type = alias_map.get(layer_type, layer_type)
 
         #key = repr(layer)
-        key = layer.name
+        key = repr(layer) if layer.name is None else layer.name
 
         color = get_hex_color(layer_type)
         # Make label
         lines = []
-        lines.append(layer.name)
+        if layer.name is not None:
+            lines.append(layer.name)
         lines.append(layer_type)
         if fullinfo:
             for attr in ['num_filters', 'num_units', 'ds', 'axis'
-                         'filter_shape', 'stride', 'strides', 'p']:
+                         'filter_shape', 'stride', 'strides', 'p', 'pool_size']:
                 val = getattr(layer, attr, None)
                 if val is not None:
                     lines.append('{0}: {1}'.format(attr, val))
@@ -440,7 +442,7 @@ def make_architecture_graph(layers, fullinfo=False):
             _input_layers += [layer.input_layer]
 
         for input_layer in _input_layers:
-            parent_key = input_layer.name
+            parent_key = repr(input_layer) if input_layer.name is None else input_layer.name
             edge = (parent_key, key)
             edge_list.append(edge)
 
@@ -517,7 +519,7 @@ def make_architecture_graph(layers, fullinfo=False):
     layoutkw = dict(prog='neato', splines='spline')
     G_ = G.copy()
     layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)
-    _ = pt.show_nx(G_, fontsize=8, arrow_width=1, layout='custom')
+    _ = pt.show_nx(G_, fontsize=10, arrow_width=1, layout='custom')
     _, layout_info
     pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
 

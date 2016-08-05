@@ -105,9 +105,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
-    print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
-    print('[model] creating Theano primitives...')
-    theano_funcs = model.build_theano_funcs()
+    theano_funcs = model.build()
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     #show_times    = kwargs.get('print_timing', False)
@@ -412,7 +410,7 @@ def test_data2(model, X_test, y_test):
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
     print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
-    theano_funcs = model.build_theano_funcs(request_predict=True,
+    theano_funcs = model._build_theano_funcs(request_predict=True,
                                             request_forward=False,
                                             request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs

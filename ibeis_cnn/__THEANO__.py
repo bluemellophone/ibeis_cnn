@@ -35,7 +35,8 @@ if DEVICE is not None:
     #python -c 'import theano; print theano.config'
 
 # assert 'theano' not in sys.modules, 'Theano should not be imported yet'
-print('IBEIS_CNN cannot apply settings to theano because it was already imported')
+if 'theano' in sys.modules:
+    print('IBEIS_CNN cannot apply settings to theano because it was already imported')
 
 from theano import *  # NOQA
 #from theano import tensor

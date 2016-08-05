@@ -33,7 +33,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         >>> model = models.DummyModel(batch_size=128)
         >>> X, y = model.make_random_testdata(num=2000, seed=None)
         >>> model.initialize_architecture()
-        >>> theano_funcs = model.build_theano_funcs(request_predict=True)
+        >>> theano_funcs = model._build_theano_funcs(request_predict=True)
         >>> theano_fn = theano_funcs.theano_forward
         >>> kwargs = {'X_is_cv2_native': False, 'showprog': True,
         ...           'randomize_batch_order': True}
@@ -49,7 +49,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         ...                          strict_batch_size=True)
         >>> X, y = model.make_random_testdata(num=2000, seed=None)
         >>> model.initialize_architecture()
-        >>> theano_funcs = model.build_theano_funcs(request_predict=True)
+        >>> theano_funcs = model._build_theano_funcs(request_predict=True)
         >>> theano_fn = theano_funcs[1]
         >>> kwargs = {'X_is_cv2_native': False, 'showprog': True,
         ...           'randomize_batch_order': True}

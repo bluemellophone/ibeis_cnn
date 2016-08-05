@@ -9,9 +9,6 @@ from os.path import join, exists, dirname, basename
 from six.moves import cPickle as pickle  # NOQA
 import warnings
 import sklearn.preprocessing
-import ibeis_cnn.__THEANO__ as theano
-from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-import ibeis_cnn.__LASAGNE__ as lasagne
 from ibeis_cnn import net_strs
 from ibeis_cnn import custom_layers
 from ibeis_cnn import draw_net
@@ -241,10 +238,8 @@ class _LegacyModel(object):
 class _ModelVisualization(object):
 
     def show_architecture_image(model, **kwargs):
-        import plottool as pt
         layers = model.get_all_layers()
-        img = draw_net.make_architecture_image(layers, **kwargs)
-        pt.imshow(img)
+        draw_net.show_architecture_nx_graph(layers, **kwargs)
 
     def show_era_history(model, fnum=None):
         r"""
@@ -494,6 +489,7 @@ class _ModelPrinting(object):
         affect the flow of information in the determenistic setting are to be
         included. IE get rid of dropout.
         """
+        import ibeis_cnn.__LASAGNE__ as lasagne
         if model.output_layer is None:
             return ''
         network_layers = model.get_all_layers()
@@ -867,10 +863,13 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             if hasattr(model, 'initialize_encoder'):
                 model.initialize_encoder(y_train)
 
-    def reinit_weights(model, W=lasagne.init.Orthogonal()):
+    def reinit_weights(model, W=None):
         """
         initailizes weights after the architecture has been defined.
         """
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        if W is None:
+            W = lasagne.init.Orthogonal()
         print('Reinitializing all weights to %r' % (W,))
         weights_list = model.get_all_params(regularizable=True, trainable=True)
         #print(weights_list)
@@ -965,16 +964,19 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
     # ---- UTILITY
 
     def set_all_param_values(model, weights_list):
+        import ibeis_cnn.__LASAGNE__ as lasagne
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             lasagne.layers.set_all_param_values(
                 model.output_layer, weights_list)
 
     def get_all_param_values(model):
+        import ibeis_cnn.__LASAGNE__ as lasagne
         weights_list = lasagne.layers.get_all_param_values(model.output_layer)
         return weights_list
 
     def get_all_params(model, **tags):
+        import ibeis_cnn.__LASAGNE__ as lasagne
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             parameters = lasagne.layers.get_all_params(
@@ -982,6 +984,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             return parameters
 
     def get_all_layers(model):
+        import ibeis_cnn.__LASAGNE__ as lasagne
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
@@ -1007,6 +1010,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
 
     @learning_rate.setter
     def learning_rate(model, rate):
+        import ibeis_cnn.__THEANO__ as theano
         print('[model] setting learning rate to %.9f' % (rate))
         shared_learning_rate = model.shared_state.get('learning_rate', None)
         if shared_learning_rate is None:
@@ -1029,6 +1033,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             X_batch (T.tensor4): symbolic expression for input
             y_batch (T.ivector): symbolic expression for labels
         """
+        import ibeis_cnn.__LASAGNE__ as lasagne
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
@@ -1078,11 +1083,17 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
 
             return loss_expr_dict
 
-    def build_theano_funcs(model,
-                           input_type=T.tensor4, output_type=T.ivector,
-                           request_backprop=True,
-                           request_forward=True,
-                           request_predict=False):
+    def build(model, use_cache=True):
+        print('[model] --- BUILDING SYMBOLIC THEANO FUNCTIONS ---')
+        if model._theano_funcs is None or not use_cache:
+            model._theano_funcs = model._build_theano_funcs()
+        else:
+            print('[model] ... cache hit')
+        return model._theano_funcs
+
+    def _build_theano_funcs(model, input_type=None, output_type=None,
+                            request_backprop=True, request_forward=True,
+                            request_predict=False, mode=None):
         """
         Builds the Theano functions (symbolic expressions) that will be used in
         the optimization.  Requires that a custom loss function is defined in
@@ -1093,6 +1104,14 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             http://deeplearning.net/software/theano/library/tensor/basic.html
         """
         print('[model] building Theano primitives...')
+        import ibeis_cnn.__THEANO__ as theano
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        if input_type is None:
+            input_type = T.tensor4
+        if output_type is None:
+            output_type = T.ivector
+
         X = input_type('x')
         y = output_type('y')
         X_batch = input_type('x_batch')
@@ -1111,17 +1130,46 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
             network_output_determ, y_batch)
         updates = None
 
+        # http://deeplearning.net/software/theano/library/compile/function.html#theano.compile.function.function
+        # http://deeplearning.net/software/theano/tutorial/modes.html
+        # theano.compile.MonitorMode
+        # theano.compile.FAST_COMPILE
+        # theano.compile.FAST_RUN
+        # theano.compile.Mode(linker=None, optimizer='default')
+        if mode is None:
+            pass
+        elif mode == 'FAST_COMPILE':
+            mode = theano.compile.FAST_COMPILE
+        elif mode == 'FAST_RUN':
+            mode = theano.compile.FAST_RUN
+        else:
+            raise ValueError('Unknown mode=%r' % (mode,))
+
         if request_backprop:
-            print('[model.build_theano_funcs] request_backprop')
+            print('[model._build_theano_funcs] request_backprop')
             learning_rate_theano = model.shared_learning_rate
             momentum = model.learning_state['momentum']
             # Define updates network parameters based on the training loss
             parameters = model.get_all_params(trainable=True)
             gradients_regularized = theano.grad(
                 loss_regularized, parameters, add_names=True)
+            # from lasagne.updates import *
+            # loss_or_grads = gradients_regularized
+            # params = parameters
+            # learning_rate = learning_rate_theano
             updates = lasagne.updates.nesterov_momentum(
                 gradients_regularized, parameters, learning_rate_theano,
-                momentum)
+                momentum)  # add_names=True)  # TODO; commit to lasange
+
+            def fix_update_bcasts(updates):
+                """
+                workaround for pylearn2 bug documented in
+                https://github.com/Lasagne/Lasagne/issues/728
+                """
+                for param, update in updates.items():
+                    if param.broadcastable != update.broadcastable:
+                        updates[param] = T.patternbroadcast(update, param.broadcastable)
+            fix_update_bcasts(updates)
 
             # Build outputs to babysit training
             monitor_outputs = []
@@ -1137,50 +1185,66 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
                 param_update_mag.name = 'param_update_magnitude_' + param.name
                 monitor_outputs.append(param_update_mag)
 
-            theano_backprop = theano.function(
-                inputs=[theano.In(X_batch), theano.In(y_batch)],
-                outputs=([loss_regularized, loss] + labeled_outputs +
-                         monitor_outputs),
-                updates=updates,
-                givens={
-                    X: X_batch,
-                    y: y_batch,
-                },
-            )
-            theano_backprop.name = ':theano_backprob:explicit'
+            try:
+                import logging
+                #theano_logger = logging.getLogger('theano')
+                #theano_logger.setLevel(-10)
+                compile_logger = logging.getLogger('theano.compile')
+                compile_logger.setLevel(-10)
+
+                backprop_losses = [loss_regularized, loss]
+                backprop_outputs = (backprop_losses + labeled_outputs +
+                                    monitor_outputs)
+                theano_backprop = theano.function(
+                    inputs=[theano.In(X_batch), theano.In(y_batch)],
+                    outputs=backprop_outputs,
+                    givens={X: X_batch, y: y_batch},
+                    updates=updates,
+                    mode=mode,
+                    name=':theano_backprob:explicit',
+                )
+            except TypeError as ex:
+                ut.printex(ex, 'Error defining backprop func')
+                print('Backprop Inputs:')
+                print('    X_batch.type = %r' % (X_batch.type,))
+                print('    y_batch.type = %r' % (y_batch.type,))
+                print('Backprop Outputs:')
+                for out in backprop_outputs:
+                    print('    %s.type = %r' % (out.name, out.type,))
+                print('Backprop Updates:')
+                for key, val in updates.items():
+                    print('    %r:  %s.type = %r' % (key, val.name, val.type,))
+                raise
         else:
             theano_backprop = None
 
         if request_forward:
-            print('[model.build_theano_funcs] request_forward')
+            print('[model._build_theano_funcs] request_forward')
             theano_forward = theano.function(
                 inputs=[theano.In(X_batch), theano.In(y_batch)],
                 outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
+                givens={X: X_batch, y: y_batch},
                 updates=None,
-                givens={
-                    X: X_batch,
-                    y: y_batch,
-                },
+                mode=mode,
+                name=':theano_forward:explicit'
             )
-            theano_forward.name = ':theano_forward:explicit'
         else:
             theano_forward = None
 
         if request_predict:
-            print('[model.build_theano_funcs] request_predict')
+            print('[model._build_theano_funcs] request_predict')
             theano_predict = theano.function(
                 inputs=[theano.In(X_batch)],
                 outputs=[network_output_determ] + unlabeled_outputs,
+                givens={X: X_batch},
                 updates=None,
-                givens={
-                    X: X_batch,
-                },
+                mode=mode,
+                name=':theano_predict:explicit'
             )
-            theano_predict.name = ':theano_predict:explicit'
         else:
             theano_predict = None
 
-        print('[model.build_theano_funcs] exit')
+        print('[model._build_theano_funcs] exit')
         theano_funcs  = TheanoFuncs(
             theano_backprop, theano_forward, theano_predict, updates)
         return theano_funcs
@@ -1226,6 +1290,7 @@ class AbstractCategoricalModel(BaseModel):
 
     def __init__(model, **kwargs):
         super(AbstractCategoricalModel, model).__init__(**kwargs)
+        model._theano_funcs = None
         model.encoder = None
         # categorical models have a concept of accuracy
         #model.requested_headers += ['valid_acc', 'test_acc']
@@ -1239,9 +1304,11 @@ class AbstractCategoricalModel(BaseModel):
         print('[model] model.output_dims = %r' % (model.output_dims,))
 
     def loss_function(model, network_output, truth):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         return T.nnet.categorical_crossentropy(network_output, truth)
 
     def build_unlabeled_output_expressions(model, network_output):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Network outputs define category probabilities
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
@@ -1252,6 +1319,7 @@ class AbstractCategoricalModel(BaseModel):
         return unlabeled_outputs
 
     def build_labeled_output_expressions(model, network_output, y_batch):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         probabilities = network_output
         predictions = T.argmax(probabilities, axis=1)
         predictions.name = 'tmp_predictions'
@@ -1263,44 +1331,6 @@ class AbstractCategoricalModel(BaseModel):
     def fit_interactive(model, X_train, y_train, X_valid, y_valid, dataset, config):
         from ibeis_cnn import harness
         harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-
-
-class _PretrainedLayerInitializer(lasagne.init.Initializer):
-    def __init__(self, pretrained_layer):
-        self.pretrained_layer = pretrained_layer
-
-    def sample(self, shape):
-        if len(shape) == 1:
-            assert shape[0] <= self.pretrained_layer.shape[0]
-            pretrained_weights = self.pretrained_layer[:shape[0]]
-        else:
-            is_conv = len(shape) == 4
-            assert len(shape) == len(self.pretrained_layer.shape), (
-                'Layer shape mismatch. Expected %r got %r' % (self.pretrained_layer.shape,
-                                                              shape))
-
-            fanout, fanin = shape[:2]
-            fanout_, fanin_ = self.pretrained_layer.shape[:2]
-            assert fanout <= fanout_, (
-                'Cannot cast weights to a larger fan-out dimension')
-            assert fanin  <= fanin_,  (
-                'Cannot cast weights to a larger fan-in dimension')
-
-            if is_conv:
-                height, width = shape[2:]
-                height_, width_ = self.pretrained_layer.shape[2:]
-                assert height == height_, (
-                    'The height must be identical between the layer and weights')
-                assert width  == width_,  (
-                    'The width must be identical between the layer and weights')
-
-            if is_conv:
-                pretrained_weights = self.pretrained_layer[:fanout, :fanin, :, :]
-            else:
-                pretrained_weights = self.pretrained_layer[:fanout, :fanin]
-
-        pretrained_sample = lasagne.utils.floatX(pretrained_weights)
-        return pretrained_sample
 
 
 class PretrainedNetwork(object):
@@ -1380,9 +1410,40 @@ class PretrainedNetwork(object):
         return Layer
 
     def get_pretrained_layer(self, layer_index, rand=False):
+        import ibeis_cnn.__LASAGNE__ as lasagne
         assert layer_index <= len(self.pretrained_weights), (
             'Trying to specify a layer that does not exist')
         pretrained_layer = self.pretrained_weights[layer_index]
+
+        class _PretrainedLayerInitializer(lasagne.init.Initializer):
+            def __init__(self, pretrained_layer):
+                self.pretrained_layer = pretrained_layer
+
+            def sample(self, shape):
+                if len(shape) == 1:
+                    assert shape[0] <= self.pretrained_layer.shape[0]
+                    pretrained_weights = self.pretrained_layer[:shape[0]]
+                else:
+                    is_conv = len(shape) == 4
+                    assert len(shape) == len(self.pretrained_layer.shape), (
+                        'Layer shape mismatch. Expected %r got %r' % (
+                            self.pretrained_layer.shape, shape))
+                    fanout, fanin = shape[:2]
+                    fanout_, fanin_ = self.pretrained_layer.shape[:2]
+                    assert fanout <= fanout_, ('Cannot increase weight fan-out dimension')
+                    assert fanin <= fanin_,  ('Cannot increase weight fan-in dimension')
+                    if is_conv:
+                        height, width = shape[2:]
+                        height_, width_ = self.pretrained_layer.shape[2:]
+                        assert height == height_, ('Layer height must equal Weight height')
+                        assert width == width_,  ('Layer width must equal Weight width')
+                    if is_conv:
+                        pretrained_weights = self.pretrained_layer[:fanout, :fanin, :, :]
+                    else:
+                        pretrained_weights = self.pretrained_layer[:fanout, :fanin]
+                pretrained_sample = lasagne.utils.floatX(pretrained_weights)
+                return pretrained_sample
+
         weights_initializer = _PretrainedLayerInitializer(pretrained_layer)
         if rand:
             np.random.shuffle(weights_initializer)

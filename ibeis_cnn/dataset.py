@@ -258,6 +258,7 @@ def get_juction_dpath():
         >>> ut.vd(junction_dpath)
     """
     junction_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training_junction')
+    ut.remove_broken_links(junction_dpath)
     return junction_dpath
 
 

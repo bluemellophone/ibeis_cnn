@@ -202,6 +202,15 @@ def grab_siam_dataset(ds_tag=None):
 
 
 def grab_mnist_category_dataset():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn.ingest_data grab_mnist_category_dataset --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+        >>> dataset = grab_mnist_category_dataset()
+    """
     import numpy as np
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
     ut.ensuredir(training_dpath)

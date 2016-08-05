@@ -21,7 +21,7 @@
 #        >>> from ibeis_cnn import models
 #        >>> model = models.DummyModel(autoinit=True)
 #        >>> X_unshared, y_unshared = model.make_random_testdata()
-#        >>> train_iter = model.build_theano_funcs(model)
+#        >>> train_iter = model._build_theano_funcs(model)
 #        >>> print(train_iter)
 #        >>> loss_train, newtork_output, prediction, accuracy = train_iter(0)
 #        >>> print('loss = %r' % (loss,))
