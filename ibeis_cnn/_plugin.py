@@ -278,8 +278,8 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
     theano_funcs = model._build_theano_funcs(request_predict=True,
-                                            request_forward=False,
-                                            request_backprop=False)
+                                             request_forward=False,
+                                             request_backprop=False)
     theano_backprop, theano_forward, theano_predict, updates = theano_funcs
 
     print('[harness] Performing inference...')
