@@ -316,13 +316,13 @@ def get_printcolinfo(requested_headers_):
         >>> printcol_info = get_printcolinfo(requested_headers)
     """
     if requested_headers_ is None:
-        requested_headers_ = ['train_loss', 'valid_loss', 'trainval_rat', 'valid_acc', 'test_acc']
+        requested_headers_ = ['learn_loss', 'valid_loss', 'learnval_rat', 'valid_acc', 'test_acc']
     requested_headers = ['epoch'] + requested_headers_ + ['duration']
     header_dict = {
         'epoch'        : '   Epoch ',
-        'train_loss'   : '  Train Loss (determ)  ',
+        'learn_loss'   : '  Learn Loss (determ)  ',
         'valid_loss'   : '  Valid Loss  ',
-        'trainval_rat' : '  Train / Val (determ)  ',
+        'learnval_rat' : '  Learn / Val (determ)  ',
         'valid_acc'    : '  Valid Acc ',
         'test_acc'     : '  Test Acc  ',
         'duration'     : '  Dur ',
@@ -341,9 +341,9 @@ def get_printcolinfo(requested_headers_):
 
     format_dict = {
         'epoch'        : datafmt(header_dict['epoch'], '>'),
-        'train_loss'   : datafmt(header_dict['train_loss'], '<', colored=True),
+        'learn_loss'   : datafmt(header_dict['learn_loss'], '<', colored=True),
         'valid_loss'   : datafmt(header_dict['valid_loss'], '>', 6, 'f', colored=True),
-        'trainval_rat' : datafmt(header_dict['trainval_rat'], '<', colored=True),
+        'learnval_rat' : datafmt(header_dict['learnval_rat'], '<', colored=True),
         'valid_acc'    : datafmt(header_dict['valid_acc'], '>', colored=True),
         'test_acc'     : datafmt(header_dict['test_acc'], '>', colored=True),
         'duration'     : datafmt(header_dict['duration'], '>', 1, 'f', lbl='s'),
@@ -364,13 +364,6 @@ def print_header_columns(printcol_info):
     header_line1 = '[info] ' + '|'.join(header_nice_list)
     header_line2 = '[info] ' + '|'.join(header_line_list)
     header_str = ('\n' + header_line1 + '\n' + header_line2)
-    #print(header_str)
-    #header_str = ut.codeblock(
-    #    '''
-    #    [info]   Epoch |  Train Loss (determ)  |  Valid Loss  |  Train / Val (determ)  |  Valid Acc  |  Test Acc   |  Dur
-    #    [info] --------|-----------------------|--------------|------------------------|-------------|-------------|------\
-    #    '''
-    #)
     print(header_str)
 
 
@@ -379,45 +372,20 @@ def print_epoch_info(model, printcol_info, epoch_info):
     keys = ut.setdiff_ordered(requested_headers, ['epoch', 'duration'])
     data_fmt_list = printcol_info['data_fmt_list']
     data_fmtstr = '[info] ' +  '|'.join(data_fmt_list)
-    #data_fmtstr = ('[info]  {:>5}  |  {}{:<19}{}  |  {}{:>10.6f}{}  '
-    #               '|  {}{:<20}{}  |  {}{:>9}{}  |  {}{:>9}{}  |  {:>3.1f}s')
     import colorama
     ANSI = colorama.Fore
-
-    # NOTE: can use pygments or colorama (which supports windows) instead
-    #class ANSI(object):
-    #    RED     = '\033[91m'
-    #    GREEN   = '\033[92m'
-    #    BLUE    = '\033[94m'
-    #    CYAN    = '\033[96m'
-    #    WHITE   = '\033[97m'
-    #    YELLOW  = '\033[93m'
-    #    MAGENTA = '\033[95m'
-    #    GREY    = '\033[90m'
-    #    BLACK   = '\033[90m'
-    #    # DEFAULT = '\033[99m'
-    #    RESET   = '\033[0m'
 
     def epoch_str():
         return (epoch_info['epoch'],)
 
-    def train_loss_str():
-        key = 'train_loss'
+    def learn_loss_str():
+        key = 'learn_loss'
         isbest = epoch_info[key] == model.best_results[key]
         return (
             ANSI.BLUE if isbest else '',
             '%0.6f' % (epoch_info[key],),
             ANSI.RESET if isbest else '',
         )
-        #train_loss = epoch_info['train_loss']
-        #best_train_loss = epoch_info['best_train_loss']
-        #train_determ_loss = epoch_info['train_determ_loss']
-        #best_train      = train_loss == best_train_loss
-        #return (
-        #    ANSI.BLUE if best_train else '',
-        #    '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
-        #    ANSI.RESET if best_train else '',
-        #)
 
     def valid_loss_str():
         key = 'valid_loss'
@@ -428,18 +396,14 @@ def print_epoch_info(model, printcol_info, epoch_info):
             ANSI.RESET if isbest else '',
         )
 
-    def trainval_rat_str():
-        ratio = epoch_info['trainval_rat']
+    def learnval_rat_str():
+        ratio = epoch_info['learnval_rat']
         unhealthy_ratio = ratio <= 0.5 or 2.0 <= ratio
         return (
             ANSI.RED if unhealthy_ratio else '',
             '%0.6f' % (ratio, ),
             ANSI.RESET if unhealthy_ratio else '',
         )
-        #return (
-        #    ANSI.RED if unhealthy_ratio else '',
-        #    '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
-        #    ANSI.RESET if unhealthy_ratio else '',)
 
     def valid_acc_str():
         key = 'valid_acc'
@@ -447,11 +411,6 @@ def print_epoch_info(model, printcol_info, epoch_info):
         return (ANSI.MAGENTA if isbest else '',
                 '{:.2f}%'.format(model.best_results[key] * 100),
                 ANSI.RESET if isbest else '',)
-
-    #def test_acc_str():
-    #    return (ANSI.CYAN if best_train_accuracy else '',
-    #            '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
-    #            ANSI.RESET if best_train_accuracy else '',)
 
     def duration_str():
         return (epoch_info['duration'],)
@@ -462,25 +421,6 @@ def print_epoch_info(model, printcol_info, epoch_info):
     fmttup = tuple()
     for func in func_list:
         fmttup += func()
-    #fmttup = (
-    #    epoch,
-    #    ANSI.BLUE if best_train else '',
-    #    '%0.6f' % (train_loss, ) if train_determ_loss is None else '%0.6f (%0.6f)' % (train_loss, train_determ_loss),
-    #    ANSI.RESET if best_train else '',
-    #    ANSI.GREEN if best_valid else '',
-    #    valid_loss,
-    #    ANSI.RESET if best_valid else '',
-    #    ANSI.RED if unhealthy_ratio else '',
-    #    '%0.6f' % (ratio, ) if ratio_determ is None else '%0.6f (%0.6f)' % (ratio, ratio_determ),
-    #    ANSI.RESET if unhealthy_ratio else '',
-    #    ANSI.MAGENTA if best_valid_accuracy else '',
-    #    '{:.2f}%'.format(valid_accuracy * 100),
-    #    ANSI.RESET if best_valid_accuracy else '',
-    #    ANSI.CYAN if best_train_accuracy else '',
-    #    '{:.2f}%'.format(test_accuracy * 100) if test_accuracy is not None else '',
-    #    ANSI.RESET if best_train_accuracy else '',
-    #    duration,
-    #)
     epoch_info_str = data_fmtstr.format(*fmttup)
     print(epoch_info_str)
 

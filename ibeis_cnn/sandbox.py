@@ -34,8 +34,6 @@ def check_external_training_paths():
 
     for model in tmp_model_list:
         model.rrr(verbose=False)
-    print(model.get_architecture_str())
-    print(model.get_architecture_hashid())
 
     vallist_ = [tmp_model.get_total_epochs() for tmp_model in tmp_model_list]
     tmp_model_list = ut.sortedby(tmp_model_list, vallist_)

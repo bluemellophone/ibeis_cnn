@@ -38,14 +38,14 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>> output_layer = model.initialize_architecture()
         >>> model.print_dense_architecture_str()
         >>> # parse training arguments
-        >>> config = ut.argparse_dict(dict(
-        >>>     learning_rate_schedule=15,
+        >>> model.train_config.update(**ut.argparse_dict(dict(
+        >>>     era_schedule=100,
         >>>     max_epochs=5,
         >>>     learning_rate_adjust=.8,
-        >>> ))
-        >>> X_train, y_train = dataset.load_subset('train')
-        >>> X_valid, y_valid = dataset.load_subset('valid')
-        >>> model.fit_interactive(X_train, y_train, X_valid, y_valid, dataset, config)
+        >>> )))
+        >>> model.learning_rate = .001
+        >>> X_train, y_train = dataset.load_subset('all')
+        >>> model.fit(X_train, y_train)
 
     """
     def __init__(self, **kwargs):

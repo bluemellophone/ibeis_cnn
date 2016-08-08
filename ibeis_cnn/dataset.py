@@ -405,14 +405,18 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath,
 #    return data, labels
 
 
-def stratified_shuffle_split(y, fractions, rng=None):
+def stratified_shuffle_split(y, fractions, rng=None, class_weights=None):
     """
     modified from sklearn to make n splits instaed of 2
     """
+
     n_samples = len(y)
     classes, y_indices = np.unique(y, return_inverse=True)
     n_classes = classes.shape[0]
     class_counts = np.bincount(y_indices)
+
+    # TODO: weighted version
+    #class_counts_ = np.array([sum([w.get(cx, 0) for w in class_weights]) for cx in classes])
 
     # Number of sets to split into
     num_sets = len(fractions)
@@ -431,6 +435,8 @@ def stratified_shuffle_split(y, fractions, rng=None):
                              (size, n_classes))
     if rng is None:
         rng = np.random
+    elif isinstance(rng, int):
+        rng = np.random.RandomState(rng)
 
     # Probability sampling of class[i]
     p_i = class_counts / float(n_samples)
@@ -469,6 +475,47 @@ def stratified_shuffle_split(y, fractions, rng=None):
     for set_idx in range(num_sets):
         # shuffle the indicies again
         index_sets[set_idx] = rng.permutation(index_sets[set_idx])
+    return index_sets
+
+
+def stratified_label_shuffle_split(y, labels, fractions, rng=None):
+    """
+    modified from sklearn to make n splits instaed of 2.
+    Also enforces that labels are not broken into separate groups.
+
+    Args:
+        y (ndarray):  labels
+        labels (?):
+        fractions (?):
+        rng (RandomState):  random number generator(default = None)
+
+    Returns:
+        ?: index_sets
+
+    CommandLine:
+        python -m ibeis_cnn.dataset stratified_label_shuffle_split --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.dataset import *  # NOQA
+        >>> y      = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        >>> labels = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 5, 5, 6, 0, 7, 7, 7, 7]
+        >>> fractions = [.7, .3]
+        >>> rng = np.random.RandomState(0)
+        >>> index_sets = stratified_label_shuffle_split(y, labels, fractions, rng)
+    """
+    if rng is None:
+        rng = np.random
+    #orig_y = y
+    unique_labels, groupxs = ut.group_indices(labels)
+    grouped_ys = ut.apply_grouping(y, groupxs)
+    # Assign each group a probabilistic class
+    unique_ys = [ys[rng.randint(0, len(ys))] for ys in grouped_ys]
+    # TODO: should weight the following selection based on size of group
+    #class_weights = [ut.dict_hist(ys) for ys in grouped_ys]
+
+    unique_idxs = stratified_shuffle_split(unique_ys, fractions, rng)
+    index_sets = [ut.flatten(ut.take(groupxs, idxs)) for idxs in unique_idxs]
     return index_sets
 
 

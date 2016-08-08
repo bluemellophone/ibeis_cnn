@@ -36,6 +36,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         >>> print(result)
     """
 
+    model.alias_key = dataset.alias_key
+
     learning_rate_schedule = config.get('learning_rate_schedule', 15)
     max_epochs = config.get('max_epochs', None)
     #test_freq  = config.get('test_freq', None)
@@ -43,7 +45,7 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     print('\n[train] --- TRAINING LOOP ---')
     # Center the data by subtracting the mean
-    model.assert_valid_data(X_train)
+    model.check_data_shape(X_train)
     model.ensure_training_state(X_train, y_train)
 
     print('\n[train] --- MODEL INFO ---')

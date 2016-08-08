@@ -372,7 +372,7 @@ class SiameseModel(abstract_models.BaseModel):
             >>> output_layer = model.build_model(batch_size, input_width, input_height, input_channels, output_dims, verbose)
             >>> print('----')
             >>> model.print_architecture_str(sep='\n')
-            >>> print('hashid=%r' % (model.get_architecture_hashid()),)
+            >>> print('hashid=%r' % (model.architecture_hashid),)
             >>> print('----')
             >>> result = str(output_layer)
             >>> print(result)

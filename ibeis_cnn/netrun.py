@@ -215,7 +215,7 @@ def netrun():
         ut.colorprint('[netrun] Training Requested', 'yellow')
         # parse training arguments
         config = ut.argparse_dict(dict(
-            learning_rate_schedule=15,
+            era_schedule=15,
             max_epochs=1200,
             learning_rate_adjust=.8,
         ))
@@ -409,7 +409,7 @@ def train_background():
         model.reinit_weights()
 
     config = dict(
-        learning_rate_schedule=15,
+        era_schedule=15,
         max_epochs=120,
         show_confusion=False,
         run_test=None,

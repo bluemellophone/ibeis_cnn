@@ -8,7 +8,7 @@ import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.batch_processing]')
 
 
-VERBOSE_BATCH = ut.get_module_verbosity_flags('batch') or utils.VERBOSE_CNN
+VERBOSE_BATCH = ut.get_module_verbosity_flags('batch')[0] or utils.VERBOSE_CNN
 if ut.VERYVERBOSE:
     VERBOSE_BATCH = 2
 

@@ -15,10 +15,13 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
 
 
 def imwrite_wrapper(show_func):
-    r""" helper to convert show funcs into imwrite funcs """
-    def imwrite_func(model, dpath=None, dpi=180, asdiagnostic=True,
+    r"""
+    helper to convert show funcs into imwrite funcs
+    Automatically creates filenames if not specified
+    """
+    def imwrite_func(model, dpath=None, fname=None, dpi=180, asdiagnostic=True,
                      ascheckpoint=None, verbose=1, **kwargs):
-        import plottool as pt
+        #import plottool as pt
         # Resolve path to save the image
         if dpath is None:
             if ascheckpoint is True:
@@ -31,9 +34,10 @@ def imwrite_wrapper(show_func):
         # Make the image
         fig = show_func(model, **kwargs)
         # Save the image
-        output_fpath = pt.save_figure(fig=fig, dpath=dpath, dpi=dpi,
-                                      verbose=verbose)
-        return output_fpath
+        fpath = join(dpath, fname)
+        fig.savefig(fpath, dpi=dpi)
+        #output_fpath = pt.save_figure(fig=fig, dpath=dpath, dpi=dpi, verbose=verbose)
+        return fpath
     return imwrite_func
 
 
@@ -85,6 +89,19 @@ def evaluate_layer_list(network_layers_def, verbose=None):
     return network_layers
 
 
+def overwrite_latest_image(fpath, new_name):
+    """
+    copies the new image to a path to be overwritten so new updates are
+    shown
+    """
+    from os.path import split, join, splitext, dirname
+    import shutil
+    dpath, fname = split(fpath)
+    ext = splitext(fpath)[1]
+    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
+    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
+
+
 def testdata_model_with_history():
     model = BaseModel()
     # make a dummy history
@@ -94,8 +111,8 @@ def testdata_model_with_history():
         epoch_info = {
             'epoch': num,
             'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'train_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'train_loss_regularized': (1 / np.exp(num / 10) +
+            'learn_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'learn_loss_regularized': (1 / np.exp(num / 10) +
                                        np.exp(rng.rand() * num) +
                                        rng.rand() / 100),
             'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
@@ -107,15 +124,14 @@ def testdata_model_with_history():
         return epoch_info
     count = 0
     for era_length in [4, 4, 4]:
-        alias_key = 'dummy_alias_key'
-        model.start_new_era(X_train, y_train, X_train, y_train, alias_key)
+        model.start_new_era(X_train, y_train, X_train, y_train)
         for count in range(count, count + era_length):
             model.record_epoch(dummy_epoch_dict(count))
-    #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'train_loss': .9})
-    #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'train_loss': .7})
-    #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'train_loss': .6})
-    #model.record_epoch({'epoch': 4, 'valid_loss': .2, 'train_loss': .3})
-    #model.record_epoch({'epoch': 5, 'valid_loss': .1, 'train_loss': .2})
+    #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'learn_loss': .9})
+    #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'learn_loss': .7})
+    #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'learn_loss': .6})
+    #model.record_epoch({'epoch': 4, 'valid_loss': .2, 'learn_loss': .3})
+    #model.record_epoch({'epoch': 5, 'valid_loss': .1, 'learn_loss': .2})
     return model
 
 
@@ -145,19 +161,18 @@ class _ModelLegacy(object):
         assert output_dims == model.output_dims, (
             'architecture disagreement')
 
-        # Set class attributes
-        model.best_weights = oldkw['best_weights']
-
         model.preproc_kw = {
             'center_mean' : oldkw['center_mean'],
             'center_std'  : oldkw['center_std'],
         }
+        # Set class attributes
         model.best_results = {
             'epoch'          : oldkw['best_epoch'],
             'test_accuracy'  : oldkw['best_test_accuracy'],
-            'train_loss'     : oldkw['best_train_loss'],
+            'learn_loss'     : oldkw['best_learn_loss'],
             'valid_accuracy' : oldkw['best_valid_accuracy'],
             'valid_loss'     : oldkw['best_valid_loss'],
+            'weights'   : oldkw['best_weights'],
         }
 
         # Need to build architecture first
@@ -166,7 +181,7 @@ class _ModelLegacy(object):
         model.encoder = oldkw.get('encoder', None)
 
         # Set architecture weights
-        weights_list = model.best_weights
+        weights_list = model.best_results['weights']
         model.set_all_param_values(weights_list)
 
     def load_old_weights_kw2(model, old_weights_fpath):
@@ -174,17 +189,13 @@ class _ModelLegacy(object):
         with open(old_weights_fpath, 'rb') as file_:
             oldkw = pickle.load(file_)
 
-        # Set class attributes
-        model.best_weights = oldkw['best_fit_weights']
-
         # Model architecture and weight params
-        # data_shape  = model.best_weights[0].shape[1:]
-        # input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
-        output_dims  = model.best_weights[-1][0]
+        output_dims = model.best_results['weights'][-1][0]
 
         if model.output_dims is None:
             model.output_dims = output_dims
 
+        # Set class attributes
         model.preproc_kw = {
             'center_mean' : oldkw['data_whiten_mean'],
             'center_std'  : oldkw['data_whiten_std'],
@@ -192,9 +203,10 @@ class _ModelLegacy(object):
         model.best_results = {
             'epoch'          : oldkw['best_epoch'],
             'test_accuracy'  : oldkw['best_valid_accuracy'],
-            'train_loss'     : oldkw['best_train_loss'],
+            'learn_loss'     : oldkw['best_learn_loss'],
             'valid_accuracy' : oldkw['best_valid_accuracy'],
             'valid_loss'     : oldkw['best_valid_loss'],
+            'weights':  oldkw['best_fit_weights']
         }
 
         # Need to build architecture first
@@ -203,24 +215,23 @@ class _ModelLegacy(object):
         model.batch_size = oldkw['train_batch_size']
 
         # Set architecture weights
-        weights_list = model.best_weights
-        model.set_all_param_values(weights_list)
+        model.set_all_param_values(model.best_results['weights'])
 
-    def historyfoohack(model, X_train, y_train, dataset):
-        #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
-        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-        #
-        train_hashid =  dataset.alias_key + '_' + y_hashid
-        era_info = {
-            'train_hashid': train_hashid,
-            'valid_loss_list': [model.best_results['valid_loss']],
-            'train_loss_list': [model.best_results['train_loss']],
-            'epoch_list': [model.best_results['epoch']],
-            'learning_rate': [model.learning_rate],
-            'learning_state': [model.learning_state],
-        }
-        model.era_history = []
-        model.era_history.append(era_info)
+    #def historyfoohack(model, X_train, y_train, dataset):
+    #    #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
+    #    y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
+    #    #
+    #    train_hashid =  dataset.arch_tag + '_' + y_hashid
+    #    era_info = {
+    #        'train_hashid': train_hashid,
+    #        'valid_loss_list': [model.best_results['valid_loss']],
+    #        'train_loss_list': [model.best_results['train_loss']],
+    #        'epoch_list': [model.best_results['epoch']],
+    #        'learning_rate': [model.learning_rate],
+    #        'learning_state': [model.learning_state],
+    #    }
+    #    model.era_history = []
+    #    model.era_history.append(era_info)
 
 
 @ut.reloadable_class
@@ -272,20 +283,20 @@ class _ModelVisualization(object):
         num_eras = len(model.era_history)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
-            train_loss = np.array(era['train_loss_list'])
+            learn_loss = np.array(era['learn_loss_list'])
             valid_loss = np.array(era['valid_loss_list'])
             #print('era = %s' % (ut.dict_str(era),))
             #valid_loss_std = np.array(era['valid_loss_std_list'])  # NOQA
-            trainvalid_ratio = train_loss / valid_loss
+            learnval_ratio = learn_loss / valid_loss
 
             era_color = colors[index]
             #yscale = 'linear'
             #yscale = 'log'
             if index == len(model.era_history) - 1:
-                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color,
+                pt.plot(epochs, learnval_ratio, '-o', color=era_color,
                         label='train/valid')
             else:
-                pt.plot(epochs, trainvalid_ratio, '-o', color=era_color)
+                pt.plot(epochs, learnval_ratio, '-o', color=era_color)
 
         #append_phantom_legend_label
         pt.set_xlabel('epoch')
@@ -385,23 +396,23 @@ class _ModelVisualization(object):
         colors = pt.distinct_colors(num_eras)
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
-            train_loss = era['train_loss_list']
+            learn_loss = era['learn_loss_list']
             valid_loss = era['valid_loss_list']
             if 'num_valid' in era:
                 valid_label = 'valid_loss ' + str(era['num_valid'])
-            if 'num_train' in era:
-                train_label = 'train_loss ' + str(era['num_train'])
+            if 'num_learn' in era:
+                learn_label = 'learn_loss ' + str(era['num_learn'])
 
             era_color = colors[index]
             if index == len(model.era_history) - 1:
                 pt.plot(epochs, valid_loss, '-x', color=era_color,
                         label=valid_label, yscale=yscale)
-                pt.plot(epochs, train_loss, '-o', color=era_color,
-                        label=train_label, yscale=yscale)
+                pt.plot(epochs, learn_loss, '-o', color=era_color,
+                        label=learn_label, yscale=yscale)
             else:
                 pt.plot(epochs, valid_loss, '-x', color=era_color,
                         yscale=yscale)
-                pt.plot(epochs, train_loss, '-o', color=era_color,
+                pt.plot(epochs, learn_loss, '-o', color=era_color,
                         yscale=yscale)
 
         # append_phantom_legend_label
@@ -444,7 +455,7 @@ class _ModelVisualization(object):
 
 
 @ut.reloadable_class
-class _ModelPrinting(object):
+class _ModelStrings(object):
     # --- STRINGS
 
     def get_state_str(model, other_override_reprs={}):
@@ -454,7 +465,7 @@ class _ModelPrinting(object):
 
         override_reprs = {
             'best_results': ut.dict_str(model.best_results),
-            'best_weights': ut.truncate_str(str(model.best_weights)),
+            #'best_weights': ut.truncate_str(str(model.best_weights)),
             'preproc_kw': ('None' if model.preproc_kw is None else
                            ut.dict_str(model.preproc_kw, truncate=True)),
             'learning_state': ut.dict_str(model.learning_state),
@@ -496,6 +507,48 @@ class _ModelPrinting(object):
         architecture_str = sep.join(layer_str_list)
         return architecture_str
 
+    def get_architecture_hashid(model):
+        """
+        Returns a hash identifying the architecture of the determenistic net
+        """
+        architecture_str = model.get_architecture_str(with_noise_layers=False)
+        hashid = ut.hashstr27(architecture_str)
+        return hashid
+
+    def get_model_history_hashid(model):
+        r"""
+        Returns:
+            str: history_hashid
+
+        CommandLine:
+            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.abstract_models import *  # NOQA
+            >>> # test the hashid
+            >>> model = testdata_model_with_history()
+            >>> history_hashid = model.get_model_history_hashid()
+            >>> result = str(history_hashid)
+            >>> print(result)
+            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
+
+        """
+        era_history_hash = [ut.hashstr27(repr(era))
+                            for era in  model.era_history]
+        hashid = ut.hashstr27(str(era_history_hash))
+        history_hashid = 'eras%03d_epochs%04d_%s' % (
+            model.total_eras, model.total_epochs, hashid)
+        return history_hashid
+
+    @property
+    def total_epochs(model):
+        return sum([len(era['epoch_list']) for era in model.era_history])
+
+    @property
+    def total_eras(model):
+        return len(model.era_history)
+
     # --- PRINTING
 
     def print_state_str(model, **kwargs):
@@ -526,12 +579,6 @@ class _ModelIO(object):
 
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
-        #if epoch is None:
-        #    # use best epoch if not specified
-        #    # (WARNING: Make sure the weights in the model are
-        #    model.best_weights)
-        #    # they may be out of sync
-        #    epoch = model.best_results['epoch']
         history_hashid = model.get_model_history_hashid()
         diagnostic_dpath = ut.unixjoin(model.training_dpath, 'diagnostics')
         ut.ensuredir(diagnostic_dpath )
@@ -639,7 +686,6 @@ class _ModelIO(object):
         model_state = {
             'best_results': model.best_results,
             'preproc_kw':   model.preproc_kw,
-            'best_weights': model.best_weights,
             'current_weights': current_weights,
             'input_shape':  model.input_shape,
             'output_dims':  model.output_dims,
@@ -686,7 +732,6 @@ class _ModelIO(object):
             assert model_state['output_dims'] == model.output_dims, (
                 'architecture disagreement')
             model.preproc_kw   = model_state['preproc_kw']
-            model.best_weights = model_state['best_weights']
         else:
             # HACK TO LOAD ABSTRACT MODEL FOR DIAGNOSITIC REASONS
             print("WARNING LOADING ABSTRACT MODEL")
@@ -697,12 +742,7 @@ class _ModelIO(object):
         if model.__class__.__name__ != 'BaseModel':
             # hack for abstract model
             # model.output_layer is not None
-            model.set_all_param_values(model.best_weights)
-
-    def load_state_from_dict(model, dict_):
-        # TODO: make this the general unserialize function that loads the model
-        # state
-        model.era_history  = dict_.get('era_history', model.era_history)
+            model.set_all_param_values(model.best_results['weights'])
 
     def load_extern_weights(model, **kwargs):
         """ load weights from another model """
@@ -724,45 +764,6 @@ class _ModelIO(object):
         # TODO make this a layer?
         model.preproc_kw = model_state['preproc_kw']
         model.era_history = model_state['era_history']
-
-
-class _ModelHistory(object):
-    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
-        """
-        Used to denote a change in hyperparameters during training.
-        """
-        # TODO: fix the training data hashid stuff
-        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-        train_hashid =  alias_key + '_' + y_hashid
-        era_info = {
-            'train_hashid': train_hashid,
-            'arch_hashid': model.get_architecture_hashid(),
-            'arch_tag': model.arch_tag,
-            'num_train': len(y_train),
-            'num_valid': len(y_valid),
-            'valid_loss_list': [],
-            'train_loss_list': [],
-            'epoch_list': [],
-            'learning_rate': [model.learning_rate],
-            'learning_state': [model.learning_state],
-        }
-        num_eras = len(model.era_history)
-        print('starting new era %d' % (num_eras,))
-        #if model.current_era is not None:
-        model.current_era = era_info
-        model.era_history.append(model.current_era)
-
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
 
 
 class _ModelUtility(object):
@@ -801,34 +802,41 @@ class _ModelUtility(object):
             return model.output_layer
         else:
             return None
-            #assert model.network_layers is not None, (
-            #    'need to initialize architecture first')
 
-    @property
-    def learning_rate(model):
-        shared_learning_rate = model.shared_learning_rate
-        if shared_learning_rate is None:
-            return None
-        else:
-            return shared_learning_rate.get_value()
+    def check_data_shape(model, X_train):
+        """ Check to make sure data agrees with model input """
+        input_layer = model.get_all_layers()[0]
+        expected_item_shape = ut.take(input_layer.shape[1:], [1, 2, 0])
+        expected_item_shape = tuple(expected_item_shape)
+        given_item_shape = X_train.shape[1:]
+        if given_item_shape != expected_item_shape:
+            raise ValueError(
+                'inconsistent item shape: ' +
+                ('expected_item_shape = %r, ' % (expected_item_shape,)) +
+                ('given_item_shape = %r' % (given_item_shape,))
+            )
 
-    @learning_rate.setter
-    def learning_rate(model, rate):
-        import ibeis_cnn.__THEANO__ as theano
-        print('[model] setting learning rate to %.9f' % (rate))
-        shared_learning_rate = model.shared_state.get('learning_rate', None)
-        if shared_learning_rate is None:
-            shared_learning_rate = theano.shared(np.cast['float32'](rate))
-            model.shared_state['learning_rate'] = shared_learning_rate
-        else:
-            shared_learning_rate.set_value(np.cast['float32'](rate))
+    def make_random_testdata(model, num=1000, seed=0, cv2_format=False):
+        print('made random testdata')
+        rng = np.random.RandomState(seed)
+        num_labels = num
+        num_data   = num * model.data_per_label_input
+        X_unshared = rng.rand(num_data, *model.data_shape)
+        y_unshared = rng.rand(num_labels) * (model.output_dims + 1)
+        X_unshared = X_unshared.astype(np.float32)
+        y_unshared = y_unshared.astype(np.int32)
+        if ut.VERBOSE:
+            print('made random testdata')
+            print('size(X_unshared) = %r' % (
+                ut.get_object_size_str(X_unshared),))
+            print('size(y_unshared) = %r' % (
+                ut.get_object_size_str(y_unshared),))
+        if cv2_format:
+            pass
+        return X_unshared, y_unshared
 
-    @property
-    def shared_learning_rate(model):
-        return model.shared_state.get('learning_rate', None)
 
-
-class _ModelCompile(object):
+class _ModelBackend(object):
     """
     Functions that build and compile theano exepressions
     """
@@ -839,33 +847,9 @@ class _ModelCompile(object):
         model._theano_forward = None
         model._theano_predict = None
         model._mode = None
-
         import logging
         compile_logger = logging.getLogger('theano.compile')
         compile_logger.setLevel(-10)
-
-    def build(model):
-        print('[model] --- BUILDING SYMBOLIC THEANO FUNCTIONS ---')
-        model.build_backprop_func()
-        model.build_forward_func()
-        model.build_predict_func()
-        print('[model] --- FINISHED BUILD ---')
-        return model._theano_funcs
-
-    def build_predict_func(model):
-        if model._theano_predict is None:
-            model._theano_predict = model._build_theano_predict()
-        return model._theano_predict
-
-    def build_backprop_func(model):
-        if model._theano_backprop is None:
-            model._theano_backprop = model._build_theano_backprop()
-        return model._theano_backprop
-
-    def build_forward_func(model):
-        if model._theano_forward is None:
-            model._theano_forward = model._build_theano_forward()
-        return model._theano_forward
 
     @property
     def theano_mode(model):
@@ -893,34 +877,188 @@ class _ModelCompile(object):
             raise ValueError('Unknown mode=%r' % (mode,))
         return mode
 
-    def _get_input_exprs(model):
+    def build(model):
+        print('[model] --- BUILDING SYMBOLIC THEANO FUNCTIONS ---')
+        model.build_backprop_func()
+        model.build_forward_func()
+        model.build_predict_func()
+        print('[model] --- FINISHED BUILD ---')
+        return model._theano_funcs
+
+    def build_predict_func(model):
+        if model._theano_predict is None:
+            import ibeis_cnn.__THEANO__ as theano
+            from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+            print('[model.build] request_predict')
+
+            netout_exprs = model._get_network_output()
+            network_output_determ = netout_exprs['network_output_determ']
+            unlabeled_outputs = model._get_unlabeled_outputs()
+
+            X, X_batch = model._get_batch_input_exprs()
+            y, y_batch = model._get_batch_output_exprs()
+            theano_predict = theano.function(
+                inputs=[theano.In(X_batch)],
+                outputs=[network_output_determ] + unlabeled_outputs,
+                givens={X: X_batch},
+                updates=None,
+                mode=model.theano_mode,
+                name=':theano_predict:explicit'
+            )
+            model._theano_predict = theano_predict
+        return model._theano_predict
+
+    def build_backprop_func(model):
+        if model._theano_backprop is None:
+            print('[model.build] request_backprop')
+            import ibeis_cnn.__THEANO__ as theano
+            from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+            X, X_batch = model._get_batch_input_exprs()
+            y, y_batch = model._get_batch_output_exprs()
+            labeled_outputs = model._get_labeled_outputs()
+
+            # Build backprop losses
+            loss_exprs = model._get_loss_exprs()
+            loss             = loss_exprs['loss']
+            loss_regularized = loss_exprs['loss_regularized']
+
+            backprop_losses = []
+            if loss_regularized is not None:
+                backprop_losses.append(loss_regularized)
+            backprop_losses.append(loss)
+
+            # Updates network parameters based on the training loss
+            parameters = model.get_all_params(trainable=True)
+            updates = model._make_updates(parameters)
+            monitor_outputs = model._make_monitor_outputs(parameters, updates)
+
+            theano_backprop = theano.function(
+                inputs=[theano.In(X_batch), theano.In(y_batch)],
+                outputs=(backprop_losses + labeled_outputs + monitor_outputs),
+                givens={X: X_batch, y: y_batch},
+                updates=updates,
+                mode=model.theano_mode,
+                name=':theano_backprop:explicit',
+            )
+            model._theano_backprop = theano_backprop
+        return model._theano_backprop
+
+    def build_forward_func(model):
+        if model._theano_forward is None:
+            import ibeis_cnn.__THEANO__ as theano
+            from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+            X, X_batch = model._get_batch_input_exprs()
+            y, y_batch = model._get_batch_output_exprs()
+            labeled_outputs = model._get_labeled_outputs()
+            unlabeled_outputs = model._get_unlabeled_outputs()
+
+            loss_exprs = model._get_loss_exprs()
+            loss_determ = loss_exprs['loss_determ']
+
+            print('[model.build] request_forward')
+            theano_forward = theano.function(
+                inputs=[theano.In(X_batch), theano.In(y_batch)],
+                outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
+                givens={X: X_batch, y: y_batch},
+                updates=None,
+                mode=model.theano_mode,
+                name=':theano_forward:explicit'
+            )
+            model._theano_forward = theano_forward
+        return model._theano_forward
+
+    def _get_batch_input_exprs(model):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-        if model._theano_exprs['input'] is None:
+        if model._theano_exprs['batch_input'] is None:
             #if input_type is None:
             input_type = T.tensor4
             X = input_type('x')
             X_batch = input_type('x_batch')
-            model._theano_exprs['input'] = X, X_batch
-        return model._theano_exprs['input']
+            model._theano_exprs['batch_input'] = X, X_batch
+        return model._theano_exprs['batch_input']
 
-    def _get_output_exprs(model):
+    def _get_batch_output_exprs(model):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-        if model._theano_exprs['output'] is None:
+        if model._theano_exprs['batch_output'] is None:
             #if output_type is None:
             output_type = T.ivector
             y = output_type('y')
             y_batch = output_type('y_batch')
-            model._theano_exprs['output'] = y, y_batch
-        return model._theano_exprs['output']
+            model._theano_exprs['batch_output'] = y, y_batch
+        return model._theano_exprs['batch_output']
 
     def _get_loss_exprs(model):
+        r"""
+        Requires that a custom loss function is defined in the inherited class
+        """
         if model._theano_exprs['loss'] is None:
-            model._theano_exprs['loss'] = model._build_loss_expressions()
+            import ibeis_cnn.__LASAGNE__ as lasagne
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', '.*topo.*')
+                warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+                warnings.filterwarnings('ignore', '.*layer.get_output.*')
+
+                X, X_batch = model._get_batch_input_exprs()
+                y, y_batch = model._get_batch_output_exprs()
+
+                netout_exprs = model._get_network_output()
+                network_output = netout_exprs['network_output']
+                network_output_determ = netout_exprs['network_output_determ']
+
+                print('Building symbolic loss function')
+                losses = model.loss_function(network_output, y_batch)
+                loss = lasagne.objectives.aggregate(losses, mode='mean')
+                loss.name = 'loss'
+
+                print('Building symbolic loss function (determenistic)')
+                losses_determ = model.loss_function(network_output_determ, y_batch)
+                loss_determ = lasagne.objectives.aggregate(losses_determ,
+                                                           mode='mean')
+                loss_determ.name = 'loss_determ'
+
+                # Regularize
+                # TODO: L2 should be one of many available options for
+                # regularization
+                L2 = lasagne.regularization.regularize_network_params(
+                    model.output_layer, lasagne.regularization.l2)
+                weight_decay = model.learning_state['weight_decay']
+                if weight_decay is not None:
+                    regularization_term = weight_decay * L2
+                    regularization_term.name = 'regularization_term'
+                    #L2 = lasagne.regularization.l2(model.output_layer)
+                    loss_regularized = loss + regularization_term
+                    loss_regularized.name = 'loss_regularized'
+                else:
+                    loss_regularized = None
+
+                loss_exprs = {
+                    'loss': loss,
+                    'loss_determ': loss_determ,
+                    'loss_regularized': loss_regularized,
+                }
+            model._theano_exprs['loss'] = loss_exprs
         return model._theano_exprs['loss']
 
     def _get_network_output(model):
         if model._theano_exprs['netout'] is None:
-            model._theano_exprs['netout'] = model._build_network_output()
+            import ibeis_cnn.__LASAGNE__ as lasagne
+            X, X_batch = model._get_batch_input_exprs()
+            y, y_batch = model._get_batch_output_exprs()
+
+            network_output = lasagne.layers.get_output(model.output_layer,
+                                                       X_batch)
+            network_output.name = 'network_output'
+            network_output_determ = lasagne.layers.get_output(
+                model.output_layer, X_batch, deterministic=True)
+            network_output_determ.name = 'network_output_determ'
+
+            netout_exprs = {
+                'network_output': network_output,
+                'network_output_determ': network_output_determ,
+            }
+            model._theano_exprs['netout'] = netout_exprs
         return model._theano_exprs['netout']
 
     def _get_unlabeled_outputs(model):
@@ -935,81 +1073,15 @@ class _ModelCompile(object):
         if model._theano_exprs['labeled_out'] is None:
             netout_exprs = model._get_network_output()
             network_output_determ = netout_exprs['network_output_determ']
-            y, y_batch = model._get_output_exprs()
+            y, y_batch = model._get_batch_output_exprs()
             model._theano_exprs['labeled_out'] = model.build_labeled_output_expressions(
                 network_output_determ, y_batch)
         return model._theano_exprs['labeled_out']
 
-    def _build_network_output(model):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        X, X_batch = model._get_input_exprs()
-        y, y_batch = model._get_output_exprs()
-
-        network_output = lasagne.layers.get_output(model.output_layer,
-                                                   X_batch)
-        network_output.name = 'network_output'
-        network_output_determ = lasagne.layers.get_output(
-            model.output_layer, X_batch, deterministic=True)
-        network_output_determ.name = 'network_output_determ'
-
-        netout_exprs = {
-            'network_output': network_output,
-            'network_output_determ': network_output_determ,
-        }
-        return netout_exprs
-
-    def _build_loss_expressions(model):
-        r"""
-        Requires that a custom loss function is defined in the inherited class
+    def _make_monitor_outputs(model, parameters, updates):
         """
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
-            warnings.filterwarnings('ignore', '.*layer.get_output.*')
-
-            X, X_batch = model._get_input_exprs()
-            y, y_batch = model._get_output_exprs()
-
-            netout_exprs = model._get_network_output()
-            network_output = netout_exprs['network_output']
-            network_output_determ = netout_exprs['network_output_determ']
-
-            print('Building symbolic loss function')
-            losses = model.loss_function(network_output, y_batch)
-            loss = lasagne.objectives.aggregate(losses, mode='mean')
-            loss.name = 'loss'
-
-            print('Building symbolic loss function (determenistic)')
-            losses_determ = model.loss_function(network_output_determ, y_batch)
-            loss_determ = lasagne.objectives.aggregate(losses_determ,
-                                                       mode='mean')
-            loss_determ.name = 'loss_determ'
-
-            # Regularize
-            # TODO: L2 should be one of many available options for
-            # regularization
-            L2 = lasagne.regularization.regularize_network_params(
-                model.output_layer, lasagne.regularization.l2)
-            weight_decay = model.learning_state['weight_decay']
-            if weight_decay is not None:
-                regularization_term = weight_decay * L2
-                regularization_term.name = 'regularization_term'
-                #L2 = lasagne.regularization.l2(model.output_layer)
-                loss_regularized = loss + regularization_term
-                loss_regularized.name = 'loss_regularized'
-            else:
-                loss_regularized = None
-
-            loss_exprs = {
-                'loss': loss,
-                'loss_determ': loss_determ,
-                'loss_regularized': loss_regularized,
-            }
-
-            return loss_exprs
-
-    def _build_monitor_outputs(model, parameters, updates):
+        Builds parameters to monitor the magnitude of updates durning learning
+        """
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Build outputs to babysit training
         monitor_outputs = []
@@ -1027,7 +1099,7 @@ class _ModelCompile(object):
             monitor_outputs.append(param_update_mag)
         return monitor_outputs
 
-    def _build_updates(model, parameters):
+    def _make_updates(model, parameters):
         import ibeis_cnn.__LASAGNE__ as lasagne
         import ibeis_cnn.__THEANO__ as theano
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
@@ -1057,86 +1129,6 @@ class _ModelCompile(object):
                 updates[param] = T.patternbroadcast(update, param.broadcastable)
         return updates
 
-    def _get_backprop_losses(model):
-        loss_exprs = model._get_loss_exprs()
-        loss             = loss_exprs['loss']
-        loss_regularized = loss_exprs['loss_regularized']
-
-        backprop_losses = []
-        if loss_regularized is not None:
-            backprop_losses.append(loss_regularized)
-        backprop_losses.append(loss)
-        return backprop_losses
-
-    def _build_theano_backprop(model):
-        print('[model.build] request_backprop')
-        import ibeis_cnn.__THEANO__ as theano
-        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-
-        X, X_batch = model._get_input_exprs()
-        y, y_batch = model._get_output_exprs()
-        labeled_outputs = model._get_labeled_outputs()
-        backprop_losses = model._get_backprop_losses()
-
-        # Updates network parameters based on the training loss
-        parameters = model.get_all_params(trainable=True)
-        updates = model._build_updates(parameters)
-        monitor_outputs = model._build_monitor_outputs(parameters, updates)
-
-        theano_backprop = theano.function(
-            inputs=[theano.In(X_batch), theano.In(y_batch)],
-            outputs=(backprop_losses + labeled_outputs + monitor_outputs),
-            givens={X: X_batch, y: y_batch},
-            updates=updates,
-            mode=model.theano_mode,
-            name=':theano_backprop:explicit',
-        )
-        return theano_backprop
-
-    def _build_theano_forward(model):
-        import ibeis_cnn.__THEANO__ as theano
-        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-
-        X, X_batch = model._get_input_exprs()
-        y, y_batch = model._get_output_exprs()
-        labeled_outputs = model._get_labeled_outputs()
-        unlabeled_outputs = model._get_unlabeled_outputs()
-
-        loss_exprs = model._get_loss_exprs()
-        loss_determ = loss_exprs['loss_determ']
-
-        print('[model.build] request_forward')
-        theano_forward = theano.function(
-            inputs=[theano.In(X_batch), theano.In(y_batch)],
-            outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
-            givens={X: X_batch, y: y_batch},
-            updates=None,
-            mode=model.theano_mode,
-            name=':theano_forward:explicit'
-        )
-        return theano_forward
-
-    def _build_theano_predict(model):
-        import ibeis_cnn.__THEANO__ as theano
-        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-        print('[model.build] request_predict')
-
-        netout_exprs = model._get_network_output()
-        network_output_determ = netout_exprs['network_output_determ']
-        unlabeled_outputs = model._get_unlabeled_outputs()
-
-        X, X_batch = model._get_input_exprs()
-        y, y_batch = model._get_output_exprs()
-        theano_predict = theano.function(
-            inputs=[theano.In(X_batch)],
-            outputs=[network_output_determ] + unlabeled_outputs,
-            givens={X: X_batch},
-            updates=None,
-            mode=model.theano_mode,
-            name=':theano_predict:explicit'
-        )
-        return theano_predict
-
     def build_unlabeled_output_expressions(model, network_output):
         """
         override in inherited subclass to enable custom symbolic expressions
@@ -1154,9 +1146,427 @@ class _ModelCompile(object):
         return []
 
 
+class _ModelFitting(object):
+    def _init_fit_vars(model, momentum=.9, weight_decay=.0005, learning_rate=.005):
+        # era=(group of epochs)
+        model.current_era = None
+        model.era_history = []
+        # Training state
+        model.requested_headers = ['learn_loss', 'valid_loss', 'learnval_rat']
+        model.preproc_kw   = None
+        model.best_results = {
+            'epoch': None,
+            'learn_loss':     np.inf,
+            'valid_loss':     np.inf,
+        }
+        model.learning_state = {
+            'momentum': momentum,
+            'weight_decay': weight_decay,
+        }
+        # Theano shared state
+        model.train_config = {
+            'era_schedule': 15,
+            'max_epochs': None,
+            'learning_rate_adjust': .8,
+            'checkpoint_freq': 10,
+            'monitor': ut.get_argflag('--monitor'),
+        }
+        model.shared_state = {
+            'learning_rate': None,
+        }
+        # NOTE: Do not set learning rate until theano is initialized
+        model.learning_rate = learning_rate
+
+    def fit(model, X_train, y_train, valid_idx=None):
+        r"""
+        REWORKING OF OLD TRAIN FUNC
+
+        CommandLine:
+            python -m ibeis_cnn _ModelFitting.fit:0
+
+        Example0:
+            >>> from ibeis_cnn import ingest_data
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> dataset = ingest_data.grab_mnist_category_dataset()
+            >>> model = MNISTModel(batch_size=16, data_shape=dataset.data_shape,
+            >>>                    output_dims=dataset.output_dims,
+            >>>                    training_dpath=dataset.training_dpath)
+            >>> model.learning_rate = .0001
+            >>> model.arch_tag = 'mnist_test'
+            >>> model.initialize_architecture()
+            >>> model.train_config['monitor'] = True
+            >>> X_train, y_train = dataset.load_subset('train')
+            >>> valid_idx = None
+            >>> model.fit(X_train, y_train)
+        """
+        from ibeis_cnn import utils
+        print('\n[train] --- TRAINING LOOP ---')
+
+        X_learn, y_learn, X_valid, y_valid = model._prefit(X_train, y_train, valid_idx)
+
+        if model.train_config['monitor']:
+            model._init_monitor()
+
+        # create theano symbolic expressions that define the network
+        theano_backprop = model.build_backprop_func()
+        theano_forward = model.build_forward_func()
+
+        epoch = model.best_results['epoch']
+
+        if epoch is None:
+            epoch = 0
+            print('Initializng training at epoch=%r' % (epoch,))
+        else:
+            print('Resuming training at epoch=%r' % (epoch,))
+
+        # number of non-best iterations after, that triggers a best save
+        save_after_best_wait_epochs = 5
+        save_after_best_countdown = None
+
+        # Begin training the neural network
+        print('\n[train] starting training at %s with learning rate %.9f' %
+              (utils.get_current_time(), model.learning_rate))
+        print('learning_state = %s' % ut.dict_str(model.learning_state))
+        printcol_info = utils.get_printcolinfo(model.requested_headers)
+
+        model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+        utils.print_header_columns(printcol_info)
+
+        tt = ut.Timer(verbose=False)
+        while True:
+            try:
+                # ---------------------------------------
+                # Execute backwards and forward passes
+                tt.tic()
+                learn_info = model._epoch_learn_step(theano_backprop, X_learn, y_learn)
+                if learn_info.get('diverged'):
+                    break
+                valid_info = model._epoch_validate_step(theano_forward, X_valid, y_valid)
+
+                # ---------------------------------------
+                # Summarize the epoch
+                epoch_info = {
+                    'epoch': epoch,
+                }
+                epoch_info.update(**learn_info)
+                epoch_info.update(**valid_info)
+                epoch_info['duration'] = tt.toc()
+                epoch_info['learnval_rat'] = (
+                    epoch_info['learn_loss'] / epoch_info['valid_loss'])
+
+                # ---------------------------------------
+                # Record this epoch in history
+                model.record_epoch(epoch_info)
+
+                # ---------------------------------------
+                # Check how we are learning
+                if epoch_info['valid_loss'] < model.best_results['valid_loss']:
+                    model.best_results['weights'] = model.get_all_param_values()
+                    model.best_results['epoch'] = epoch_info['epoch']
+                    for key in model.requested_headers:
+                        model.best_results[key] = epoch_info[key]
+                    save_after_best_countdown = save_after_best_wait_epochs
+                    #epoch_marker = epoch
+
+                # Check frequencies and countdowns
+                checkpoint_flag = utils.checkfreq(model.train_config['checkpoint_freq'], epoch)
+                if save_after_best_countdown is not None:
+                    if save_after_best_countdown == 0:
+                        ## Callbacks on best found
+                        save_after_best_countdown = None
+                        checkpoint_flag = True
+                    else:
+                        save_after_best_countdown -= 1
+
+                # ---------------------------------------
+                # Output Diagnostics
+
+                # Print the epoch
+                utils.print_epoch_info(model, printcol_info, epoch_info)
+
+                # Output any diagnostics
+                if checkpoint_flag:
+                    model.checkpoint_save_model_info()
+                    model.save_model_info()
+                    model.checkpoint_save_model_state()
+                    model.save_model_state()
+
+                if model.train_config['monitor']:
+                    model._dump_epoch_monitor()
+
+                # Update learning rate at the start of each new era
+                if utils.checkfreq(model.train_config['era_schedule'], epoch):
+                    #epoch_marker = epoch
+                    frac = model.train_config['learning_rate_adjust']
+                    model.learning_rate = (model.learning_rate * frac)
+                    model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+                    utils.print_header_columns(printcol_info)
+
+                # Break on max epochs
+                if model.train_config['max_epochs'] is not None:
+                    if epoch >= model.train_config['max_epochs']:
+                        print('\n[train] maximum number of epochs reached\n')
+                        break
+                # Increment the epoch
+                epoch += 1
+
+            except KeyboardInterrupt:
+                print('\n[train] Caught CRTL+C')
+                resolution = ''
+                while not (resolution.isdigit()):
+                    print('\n[train] What do you want to do?')
+                    print('[train]     0 - Continue')
+                    print('[train]     1 - Shock weights')
+                    print('[train]     2 - Save best weights')
+                    print('[train]     3 - View training directory')
+                    print('[train]     4 - Embed into IPython')
+                    print('[train]     5 - Draw current weights')
+                    print('[train]     6 - Show training state')
+                    print('[train]  ELSE - Stop network training')
+                    resolution = input('[train] Resolution: ')
+                resolution = int(resolution)
+                # We have a resolution
+                if resolution == 0:
+                    print('resuming training...')
+                elif resolution == 1:
+                    # Shock the weights of the network
+                    utils.shock_network(model.output_layer)
+                    model.learning_rate = model.learning_rate * 2
+                    #epoch_marker = epoch
+                    utils.print_header_columns(printcol_info)
+                elif resolution == 2:
+                    # Save the weights of the network
+                    model.checkpoint_save_model_info()
+                    model.save_model_info()
+                    model.checkpoint_save_model_state()
+                    model.save_model_state()
+                elif resolution == 3:
+                    ut.view_directory(model.training_dpath)
+                elif resolution == 4:
+                    ut.embed()
+                elif resolution == 5:
+                    output_fpath_list = model.imwrite_weights(index=0)
+                    for fpath in output_fpath_list:
+                        ut.startfile(fpath)
+                elif resolution == 6:
+                    model.print_state_str()
+                else:
+                    # Terminate the network training
+                    raise
+        # Save the best network
+        model.checkpoint_save_model_state()
+        model.save_model_state()
+        #from ibeis_cnn import harness
+        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+
+    #@property
+    #def best_weights(model):
+    #    return model.best_results['weights']
+    #@best_weights.setter
+    #def best_weights(model, weights):
+    #    model.best_results['weights'] = weights
+
+    @property
+    def learning_rate(model):
+        shared_learning_rate = model.shared_learning_rate
+        if shared_learning_rate is None:
+            return None
+        else:
+            return shared_learning_rate.get_value()
+
+    @learning_rate.setter
+    def learning_rate(model, rate):
+        import ibeis_cnn.__THEANO__ as theano
+        print('[model] setting learning rate to %.9f' % (rate))
+        shared_learning_rate = model.shared_state.get('learning_rate', None)
+        if shared_learning_rate is None:
+            shared_learning_rate = theano.shared(np.cast['float32'](rate))
+            model.shared_state['learning_rate'] = shared_learning_rate
+        else:
+            shared_learning_rate.set_value(np.cast['float32'](rate))
+
+    @property
+    def shared_learning_rate(model):
+        return model.shared_state.get('learning_rate', None)
+
+    def start_new_era(model, X_learn, y_learn, X_valid, y_valid):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
+        # TODO: fix the training data hashid stuff
+        y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
+        learn_hashid =  str(model.arch_tag) + '_' + y_hashid
+        if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
+            print('Not starting new era (old one hasnt begun yet')
+        else:
+            new_era = {
+                'learn_hashid': learn_hashid,
+                'arch_hashid': model.get_architecture_hashid(),
+                'arch_tag': model.arch_tag,
+                'num_learn': len(y_learn),
+                'num_valid': len(y_valid),
+                'valid_loss_list': [],
+                'learn_loss_list': [],
+                'epoch_list': [],
+                'learning_rate': [model.learning_rate],
+                'learning_state': [model.learning_state],
+            }
+            num_eras = len(model.era_history)
+            print('starting new era %d' % (num_eras,))
+            #if model.current_era is not None:
+            model.current_era = new_era
+            model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
+
+    def _init_monitor(model):
+        # FIXME; put into better place
+        progress_dir = ut.unixjoin(model.training_dpath, 'progress')
+        ut.ensuredir(progress_dir)
+        def prog_metric_path(x):
+            path_fmt = ut.unixjoin(progress_dir, x)
+            return ut.get_nonconflicting_path(path_fmt)
+        def prog_metric_dir(x):
+            return ut.ensuredir(prog_metric_path(x))
+        history_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_history')
+        weights_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_weights')
+        history_text_fpath = prog_metric_path(
+            str(model.arch_tag) + '_%02d_era_history.txt')
+        ut.vd(progress_dir)
+
+        # Write initial states of the weights
+        fpath = model.imwrite_weights(dpath=weights_progress_dir,
+                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fnum=2, verbose=0)
+        overwrite_latest_image(fpath, 'weights')
+        model._fit_progress_info = {
+            'history_progress_dir':  history_progress_dir,
+            'history_text_fpath': history_text_fpath,
+            'weights_progress_dir': weights_progress_dir,
+        }
+
+    def _dump_epoch_monitor(model):
+        history_dir = model._fit_progress_info['history_progress_dir']
+        weights_dir = model._fit_progress_info['weights_progress_dir']
+        text_fpath = model._fit_progress_info['history_text_fpath']
+
+        # Save loss graphs
+        fpath = model.imwrite_era_history(dpath=history_dir,
+                                          fname='history_' + model.get_model_history_hashid() + '.png',
+                                          fnum=1, verbose=0)
+        overwrite_latest_image(fpath, 'history')
+        # Save weights images
+        fpath = model.imwrite_weights(dpath=weights_dir,
+                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fnum=2, verbose=0)
+        overwrite_latest_image(fpath, 'weights')
+        # Save text info
+        history_text = ut.list_str(model.era_history, newlines=True)
+        ut.write_to(text_fpath, history_text, verbose=False)
+
+    def _prefit(model, X_train, y_train, valid_idx):
+        # Center the data by subtracting the mean
+        model.check_data_shape(X_train)
+
+        # Split training set into a learning / validation set
+        if valid_idx is None:
+            from ibeis_cnn.dataset import stratified_shuffle_split
+            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.8, .2], rng=432321)
+            #import sklearn.cross_validation
+            #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
+            #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
+            #train_idx, valid_idx = list(skf)[0]
+        else:
+            train_idx = ut.index_complement(valid_idx, len(X_train))
+        # Set to learn network weights
+        X_learn = X_train.take(train_idx, axis=0)
+        y_learn = y_train.take(train_idx, axis=0)
+        # Set to crossvalidate hyperparamters
+        X_valid = X_train.take(valid_idx, axis=0)
+        y_valid = y_train.take(valid_idx, axis=0)
+
+        model.ensure_training_state(X_learn, y_learn)
+
+        print('\n[train] --- MODEL INFO ---')
+        model.print_architecture_str()
+        model.print_layer_info()
+
+        return X_learn, y_learn, X_valid, y_valid
+
+    def _epoch_learn_step(model, theano_backprop, X_learn, y_learn):
+        """
+        Backwards propogate -- Run learning set through the backwards pass
+        """
+        from ibeis_cnn import batch_processing as batch
+
+        learn_outputs = batch.process_batch(
+            model, X_learn, y_learn, theano_backprop, randomize_batch_order=True,
+            augment_on=True, buffered=True)
+
+        # compute the loss over all learning batches
+        learn_info = {}
+        learn_info['learn_loss'] = learn_outputs['loss'].mean()
+
+        if 'loss_regularized' in learn_outputs:
+            # Regularization information
+            learn_info['learn_loss_regularized'] = (
+                learn_outputs['loss_regularized'].mean())
+            #if 'valid_acc' in model.requested_headers:
+            #    learn_info['test_acc']  = learn_outputs['accuracy']
+            regularization_amount = (
+                learn_outputs['loss_regularized'] - learn_outputs['loss'])
+            regularization_ratio = (
+                regularization_amount / learn_outputs['loss'])
+            regularization_percent = (
+                regularization_amount / learn_outputs['loss_regularized'])
+
+            learn_info['regularization_percent'] = regularization_percent
+            learn_info['regularization_ratio'] = regularization_ratio
+
+        param_update_mags = {}
+        for key, val in learn_outputs.items():
+            if key.startswith('param_update_magnitude_'):
+                key_ = key.replace('param_update_magnitude_', '')
+                param_update_mags[key_] = (val.mean(), val.std())
+        learn_info['param_update_mags'] = param_update_mags
+
+        # If the training loss is nan, the training has diverged
+        if np.isnan(learn_info['learn_loss']):
+            print('\n[train] train loss is Nan. training diverged\n')
+            learn_info['diverged'] = True
+        return learn_info
+
+    def _epoch_validate_step(model, theano_forward, X_valid, y_valid):
+        """
+        Forwards propogate -- Run validation set through the forwards pass
+        """
+        from ibeis_cnn import batch_processing as batch
+        valid_outputs = batch.process_batch(
+            model, X_valid, y_valid, theano_forward, augment_on=False,
+            randomize_batch_order=False)
+        valid_info = {}
+        valid_info['valid_loss'] = valid_outputs['loss_determ'].mean()
+        valid_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
+        if 'valid_acc' in model.requested_headers:
+            valid_info['valid_acc'] = valid_outputs['accuracy'].mean()
+        return valid_info
+
+
 @ut.reloadable_class
-class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelPrinting,
-                _ModelCompile, _ModelHistory, _ModelUtility):
+class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
+                _ModelBackend, _ModelFitting, _ModelUtility, ut.NiceRepr):
     """
     Abstract model providing functionality for all other models to derive from
     """
@@ -1195,29 +1605,11 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelPrinting,
         model.data_per_label_input  = 1  # state of network input
         model.data_per_label_output = 1  # state of network output
         model.training_dpath = training_dpath  # TODO
-        # era=(group of epochs)
-        model.current_era = None
-        model.era_history = []
-        # Training state
-        model.requested_headers = ['train_loss', 'valid_loss', 'trainval_rat']
-        model.preproc_kw   = None
-        model.best_results = {
-            'epoch': None,
-            'train_loss':     np.inf,
-            'valid_loss':     np.inf,
-        }
-        model.best_weights = None
-        model.learning_state = {
-            'momentum': momentum,
-            'weight_decay': weight_decay,
-        }
-        # Theano shared state
-        model.shared_state = {
-            'learning_rate': None,
-        }
         model._init_compile_vars()
-        # NOTE: Do not set learning rate until theano is initialized
-        model.learning_rate = learning_rate
+        model._init_fit_vars(momentum, weight_decay)
+
+    def __nice__(self):
+        return '(' + self.get_model_history_hashid() + ')'
 
     # --- OTHER
     @property
@@ -1241,43 +1633,25 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelPrinting,
     def initialize_architecture(model):
         raise NotImplementedError('reimplement')
 
-    def assert_valid_data(model, X_train):
-        # Check to make sure data agrees with input
-        # FIXME: This check should not be in this fuhnction
-        return
-        input_layer = model.get_all_layers()[0]
-        expected_item_shape = ut.take(input_layer.shape[1:], [1, 2, 0])
-        expected_item_shape = tuple(expected_item_shape)
-        given_item_shape = X_train.shape[1:]
-        assert given_item_shape == expected_item_shape, (
-            'inconsistent item shape: ' +
-            ('expected_item_shape = %r, ' % (expected_item_shape,)) +
-            ('given_item_shape = %r' % (given_item_shape,))
-        )
-
-    def is_train_state_initialized(model):
-        # TODO: move to dataset. This is independant of the model.
-        return model.preproc_kw is not None
-
-    def ensure_training_state(model, X_train, y_train):
+    def ensure_training_state(model, X_learn, y_learn):
         # TODO: move to dataset. This is independant of the model.
         if model.preproc_kw is None:
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
             print('computing center mean.')
-            model.preproc_kw['center_mean'] = np.mean(X_train, axis=0)
+            model.preproc_kw['center_mean'] = np.mean(X_learn, axis=0)
             print('computing center std.')
-            if ut.is_int(X_train):
-                ut.assert_inbounds(X_train, 0, 255, eq=True,
+            if ut.is_int(X_learn):
+                ut.assert_inbounds(X_learn, 0, 255, eq=True,
                                    verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 255.0
             else:
-                ut.assert_inbounds(X_train, 0.0, 1.0, eq=True,
+                ut.assert_inbounds(X_learn, 0.0, 1.0, eq=True,
                                    verbose=ut.VERBOSE)
                 model.preproc_kw['center_std'] = 1.0
         if getattr(model, 'encoder', None) is None:
             if hasattr(model, 'initialize_encoder'):
-                model.initialize_encoder(y_train)
+                model.initialize_encoder(y_learn)
 
     def reinit_weights(model, W=None):
         """
@@ -1295,85 +1669,14 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelPrinting,
             new_values = W.sample(shape)
             weights.set_value(new_values)
 
-    # --- HASH ID
-
-    def get_architecture_hashid(model):
-        """
-        Returns a hash identifying the architecture of the determenistic net
-        """
-        architecture_str = model.get_architecture_str(with_noise_layers=False)
-        hashid = ut.hashstr27(architecture_str)
-        return hashid
-
-    def get_model_history_hashid(model):
-        r"""
-        Returns:
-            str: history_hashid
-
-        CommandLine:
-            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
-
-        Example:
-            >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.abstract_models import *  # NOQA
-            >>> # test the hashid
-            >>> model = testdata_model_with_history()
-            >>> history_hashid = model.get_model_history_hashid()
-            >>> result = str(history_hashid)
-            >>> print(result)
-            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
-
-        """
-        era_history_hash = [ut.hashstr27(repr(era))
-                            for era in  model.era_history]
-        hashid = ut.hashstr27(str(era_history_hash))
-        total_epochs = model.get_total_epochs()
-        total_eras = len(model.era_history)
-        history_hashid = 'hist_eras%03d_epochs%04d_%s' % (
-            total_eras, total_epochs, hashid)
-        return history_hashid
-
-    def get_total_epochs(model):
-        total_epochs = sum([len(era['epoch_list'])
-                            for era in model.era_history])
-        return total_epochs
-
     # ---- UTILITY
 
-    # Testing
-
-    def make_random_testdata(model, num=1000, seed=0, cv2_format=False):
-        print('made random testdata')
-        rng = np.random.RandomState(seed)
-        num_labels = num
-        num_data   = num * model.data_per_label_input
-        X_unshared = rng.rand(num_data, *model.data_shape)
-        y_unshared = rng.rand(num_labels) * (model.output_dims + 1)
-        X_unshared = X_unshared.astype(np.float32)
-        y_unshared = y_unshared.astype(np.int32)
-        if ut.VERBOSE:
-            print('made random testdata')
-            print('size(X_unshared) = %r' % (
-                ut.get_object_size_str(X_unshared),))
-            print('size(y_unshared) = %r' % (
-                ut.get_object_size_str(y_unshared),))
-        if cv2_format:
-            pass
-        return X_unshared, y_unshared
-
-    def fit_interactive(model, X_train, y_train, X_valid, y_valid, dataset, config):
+    def fit_dataset(model, X_train, y_train, X_valid, y_valid, dataset, config):
         from ibeis_cnn import harness
         harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
-    def fit(model, X_train, y_train):
-        pass
-        #from ibeis_cnn import harness
-        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-
     def predict2(model, X_test):
         """ FIXME: turn into a real predict function """
-        #from ibeis_cnn import harness
-        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
         from ibeis_cnn import batch_processing as batch
         if ut.VERBOSE:
             print('\n[train] --- MODEL INFO ---')
@@ -1408,7 +1711,10 @@ class AbstractCategoricalModel(BaseModel):
         print('[model] model.output_dims = %r' % (model.output_dims,))
 
     def loss_function(model, network_output, truth):
+        # https://en.wikipedia.org/wiki/Loss_functions_for_classification
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        # categorical cross-entropy between predictions and targets
+        # L_i = -\sum_{j} t_{i,j} \log{p_{i, j}}
         return T.nnet.categorical_crossentropy(network_output, truth)
 
     def build_unlabeled_output_expressions(model, network_output):
