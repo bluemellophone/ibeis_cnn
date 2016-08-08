@@ -2,6 +2,7 @@
 # flake8: noqa
 from __future__ import absolute_import, division, print_function
 import utool as ut
+ut.noinject(__name__, '[ibeis_cnn.__init__]')
 from ibeis_cnn import __THEANO__
 from ibeis_cnn import __LASAGNE__
 from ibeis_cnn import models

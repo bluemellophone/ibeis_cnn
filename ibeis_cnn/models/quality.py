@@ -4,13 +4,8 @@ import utool as ut
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
 # from ibeis_cnn.__LASAGNE__ import init
-from ibeis_cnn import custom_layers
 from ibeis_cnn.models import abstract_models
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.quality]')
-
-
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 @ut.reloadable_class
@@ -35,6 +30,11 @@ class QualityModel(abstract_models.AbstractCategoricalModel):
         return x * 2.0
 
     def build_model(self, batch_size, input_width, input_height, input_channels, output_dims):
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         _CaffeNet = abstract_models.PretrainedNetwork('caffenet')
 
         l_in = layers.InputLayer(

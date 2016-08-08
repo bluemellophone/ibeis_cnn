@@ -30,14 +30,9 @@ import six
 from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 import numpy as np
 from ibeis_cnn.models import abstract_models
-from ibeis_cnn import custom_layers
 import utool as ut
 from ibeis_cnn import augment
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models]')
-
-
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
@@ -99,6 +94,10 @@ class SiameseL2(AbstractSiameseModel):
 
         #ReshapeLayer = layers.ReshapeLayer
 
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=model.input_shape),
@@ -138,6 +137,10 @@ class SiameseL2(AbstractSiameseModel):
 
         #ReshapeLayer = layers.ReshapeLayer
 
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=model.input_shape),
@@ -176,6 +179,10 @@ class SiameseL2(AbstractSiameseModel):
         #ReshapeLayer = layers.ReshapeLayer
 
         _tmp = [1]
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
@@ -248,6 +255,10 @@ class SiameseL2(AbstractSiameseModel):
 
         _tmp = [1]
 
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         def CDP_layer(num_filters=32,
                               conv_size=(5, 5), conv_stride=(3, 3),
                               pool_size=(2, 2), pool_stride=(2, 2),
@@ -314,6 +325,10 @@ class SiameseL2(AbstractSiameseModel):
 
         #ReshapeLayer = layers.ReshapeLayer
 
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=model.input_shape),
@@ -351,6 +366,10 @@ class SiameseL2(AbstractSiameseModel):
         #orthog_kw = dict(W=init.Orthogonal())
         #hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
         hidden_initkw = leaky_kw
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
         network_layers_def = (
             [
@@ -834,6 +853,10 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         orthog_kw = dict(W=init.Orthogonal())
         hidden_initkw = ut.merge_dicts(orthog_kw, leaky_kw)
 
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         network_layers_def = (
             [
                 _P(layers.InputLayer, shape=model.input_shape),
@@ -869,6 +892,10 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
                 F(512)-ReLU- F(1)
         """
         _P = functools.partial
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog_kw = dict(W=init.Orthogonal())
@@ -912,6 +939,10 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
         """
         raise NotImplementedError('Need to implement L2 distance layer')
         _P = functools.partial
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
         leaky_kw = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
         orthog_kw = dict(W=init.Orthogonal())

@@ -3,18 +3,12 @@ from __future__ import absolute_import, division, print_function
 import functools
 import six
 import utool as ut
-from ibeis_cnn import custom_layers
 import ibeis_cnn.__LASAGNE__ as lasagne
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
 from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 from ibeis_cnn.models import abstract_models
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.background]')
-
-
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
-DenseLayer = layers.DenseLayer
 
 
 class NonlinearityLayerSpatial(lasagne.layers.NonlinearityLayer):
@@ -81,6 +75,12 @@ class BackgroundModel(abstract_models.AbstractCategoricalModel):
         hidden_initkw = {
             'nonlinearity' : nonlinearities.LeakyRectify(leakiness=(1. / 10.))
         }
+
+        from ibeis_cnn import custom_layers
+
+        Conv2DLayer = custom_layers.Conv2DLayer
+        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+        #DenseLayer = layers.DenseLayer
 
         network_layers_def = (
             [

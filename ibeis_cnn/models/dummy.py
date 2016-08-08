@@ -4,16 +4,11 @@ import functools
 import six
 import utool as ut
 from ibeis_cnn.models import abstract_models
-from ibeis_cnn import custom_layers
-from ibeis_cnn.__THEANO__ import tensor as T
+from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
 from ibeis_cnn.__LASAGNE__ import layers
 from ibeis_cnn.__LASAGNE__ import nonlinearities
 from ibeis_cnn.__LASAGNE__ import init
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.dummy]')
-
-
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
@@ -47,6 +42,9 @@ class DummyModel(abstract_models.AbstractCategoricalModel):
     #    return T.nnet.categorical_crossentropy
 
     def initialize_architecture(model, verbose=True):
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+
         input_shape = model.input_shape
         _P = functools.partial
         network_layers_def = [

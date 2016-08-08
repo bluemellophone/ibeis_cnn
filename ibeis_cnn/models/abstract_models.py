@@ -9,7 +9,6 @@ from six.moves import cPickle as pickle  # NOQA
 import warnings
 import sklearn.preprocessing
 from ibeis_cnn import net_strs
-from ibeis_cnn import custom_layers
 from ibeis_cnn import draw_net
 from ibeis_cnn import utils
 #ut.noinject('ibeis_cnn.abstract_models')
@@ -18,10 +17,6 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
 
 TheanoFuncs = namedtuple('TheanoFuncs', (
     'theano_backprop', 'theano_forward', 'theano_predict', 'updates'))
-
-
-Conv2DLayer = custom_layers.Conv2DLayer
-MaxPool2DLayer = custom_layers.MaxPool2DLayer
 
 
 def imwrite_wrapper(show_func):
@@ -1416,6 +1411,11 @@ class PretrainedNetwork(object):
         print(b.shape)
         num_filters = self.get_layer_num_filters(layer_index)
         filter_size = self.get_layer_filter_size(layer_index)
+
+        from ibeis_cnn import custom_layers
+        Conv2DLayer = custom_layers.Conv2DLayer
+        #MaxPool2DLayer = custom_layers.MaxPool2DLayer
+
         Layer = functools.partial(
             Conv2DLayer, num_filters=num_filters,
             filter_size=filter_size, W=W, b=b, name=name, **kwargs)

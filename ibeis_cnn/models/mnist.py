@@ -2,7 +2,6 @@
 from __future__ import absolute_import, division, print_function
 import functools
 from ibeis_cnn.models import abstract_models
-from ibeis_cnn import custom_layers
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.dummy]')
 
@@ -64,6 +63,8 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         weight_initkw = dict()
         output_initkw = weight_initkw
         hidden_initkw = ut.merge_dicts(weight_initkw, leaky)
+
+        from ibeis_cnn import custom_layers
 
         Conv2DLayer = custom_layers.Conv2DLayer
         MaxPool2DLayer = custom_layers.MaxPool2DLayer
