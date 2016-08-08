@@ -129,7 +129,6 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     """
     import vtool as vt
     import plottool as pt
-    from ibeis_cnn import harness
 
     # TODO: save in model.trainind_dpath/diagnostics/figures
     ut.colorprint('\n[siam_perf] Testing Siamese Performance', 'white')
@@ -169,7 +168,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
 
     # Compute each type of score
     ut.colorprint('[siam_perf] Building Scores', 'white')
-    test_outputs = harness.test_data2(model, data, labels)
+    test_outputs = model.predict2(model, data)
     network_output = test_outputs['network_output_determ']
     # hack converting network output to distances for non-descriptor networks
     if len(network_output.shape) == 2 and network_output.shape[1] == 1:

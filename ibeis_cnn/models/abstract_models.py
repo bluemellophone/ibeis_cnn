@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import functools
 import numpy as np
 import utool as ut
-from collections import namedtuple
 from os.path import join, exists, dirname, basename
 from six.moves import cPickle as pickle  # NOQA
 import warnings
@@ -13,10 +12,6 @@ from ibeis_cnn import draw_net
 from ibeis_cnn import utils
 #ut.noinject('ibeis_cnn.abstract_models')
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.abstract_models]')
-
-
-TheanoFuncs = namedtuple('TheanoFuncs', (
-    'theano_backprop', 'theano_forward', 'theano_predict', 'updates'))
 
 
 def imwrite_wrapper(show_func):
@@ -125,7 +120,7 @@ def testdata_model_with_history():
 
 
 @ut.reloadable_class
-class _LegacyModel(object):
+class _ModelLegacy(object):
     """
     contains old functions for backwards compatibility
     that may be eventually be depricated
@@ -676,7 +671,6 @@ class _ModelIO(object):
 
     def load_model_state(model, **kwargs):
         """
-        from six.moves import cPickle as pickle
         kwargs = {}
         TODO: resolve load_model_state and load_extern_weights into a single
             function that is less magic in what it does and more
@@ -732,8 +726,437 @@ class _ModelIO(object):
         model.era_history = model_state['era_history']
 
 
+class _ModelHistory(object):
+    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
+        # TODO: fix the training data hashid stuff
+        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
+        train_hashid =  alias_key + '_' + y_hashid
+        era_info = {
+            'train_hashid': train_hashid,
+            'arch_hashid': model.get_architecture_hashid(),
+            'arch_tag': model.arch_tag,
+            'num_train': len(y_train),
+            'num_valid': len(y_valid),
+            'valid_loss_list': [],
+            'train_loss_list': [],
+            'epoch_list': [],
+            'learning_rate': [model.learning_rate],
+            'learning_state': [model.learning_state],
+        }
+        num_eras = len(model.era_history)
+        print('starting new era %d' % (num_eras,))
+        #if model.current_era is not None:
+        model.current_era = era_info
+        model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
+
+
+class _ModelUtility(object):
+
+    def set_all_param_values(model, weights_list):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            lasagne.layers.set_all_param_values(
+                model.output_layer, weights_list)
+
+    def get_all_param_values(model):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        weights_list = lasagne.layers.get_all_param_values(model.output_layer)
+        return weights_list
+
+    def get_all_params(model, **tags):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            parameters = lasagne.layers.get_all_params(
+                model.output_layer, **tags)
+            return parameters
+
+    def get_all_layers(model):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
+            assert model.output_layer is not None
+            network_layers = lasagne.layers.get_all_layers(model.output_layer)
+        return network_layers
+
+    def get_output_layer(model):
+        if model.output_layer is not None:
+            return model.output_layer
+        else:
+            return None
+            #assert model.network_layers is not None, (
+            #    'need to initialize architecture first')
+
+    @property
+    def learning_rate(model):
+        shared_learning_rate = model.shared_learning_rate
+        if shared_learning_rate is None:
+            return None
+        else:
+            return shared_learning_rate.get_value()
+
+    @learning_rate.setter
+    def learning_rate(model, rate):
+        import ibeis_cnn.__THEANO__ as theano
+        print('[model] setting learning rate to %.9f' % (rate))
+        shared_learning_rate = model.shared_state.get('learning_rate', None)
+        if shared_learning_rate is None:
+            shared_learning_rate = theano.shared(np.cast['float32'](rate))
+            model.shared_state['learning_rate'] = shared_learning_rate
+        else:
+            shared_learning_rate.set_value(np.cast['float32'](rate))
+
+    @property
+    def shared_learning_rate(model):
+        return model.shared_state.get('learning_rate', None)
+
+
+class _ModelCompile(object):
+    """
+    Functions that build and compile theano exepressions
+    """
+
+    def _init_compile_vars(model):
+        model._theano_exprs = ut.ddict(lambda: None)
+        model._theano_backprop = None
+        model._theano_forward = None
+        model._theano_predict = None
+        model._mode = None
+
+        import logging
+        compile_logger = logging.getLogger('theano.compile')
+        compile_logger.setLevel(-10)
+
+    def build(model):
+        print('[model] --- BUILDING SYMBOLIC THEANO FUNCTIONS ---')
+        model.build_backprop_func()
+        model.build_forward_func()
+        model.build_predict_func()
+        print('[model] --- FINISHED BUILD ---')
+        return model._theano_funcs
+
+    def build_predict_func(model):
+        if model._theano_predict is None:
+            model._theano_predict = model._build_theano_predict()
+        return model._theano_predict
+
+    def build_backprop_func(model):
+        if model._theano_backprop is None:
+            model._theano_backprop = model._build_theano_backprop()
+        return model._theano_backprop
+
+    def build_forward_func(model):
+        if model._theano_forward is None:
+            model._theano_forward = model._build_theano_forward()
+        return model._theano_forward
+
+    @property
+    def theano_mode(model):
+        # http://deeplearning.net/software/theano/library/compile/function.html#theano.compile.function.function
+        # http://deeplearning.net/software/theano/tutorial/modes.html
+        # theano.compile.MonitorMode
+        # theano.compile.FAST_COMPILE
+        # theano.compile.FAST_RUN
+        # theano.compile.Mode(linker=None, optimizer='default')
+        return model._mode
+        #mode = None
+        #mode = theano.compile.FAST_COMPILE
+        #return mode
+
+    @theano_mode.setter
+    def theano_mode(model, mode):
+        import ibeis_cnn.__THEANO__ as theano
+        if mode is None:
+            pass
+        elif mode == 'FAST_COMPILE':
+            mode = theano.compile.FAST_COMPILE
+        elif mode == 'FAST_RUN':
+            mode = theano.compile.FAST_RUN
+        else:
+            raise ValueError('Unknown mode=%r' % (mode,))
+        return mode
+
+    def _get_input_exprs(model):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        if model._theano_exprs['input'] is None:
+            #if input_type is None:
+            input_type = T.tensor4
+            X = input_type('x')
+            X_batch = input_type('x_batch')
+            model._theano_exprs['input'] = X, X_batch
+        return model._theano_exprs['input']
+
+    def _get_output_exprs(model):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        if model._theano_exprs['output'] is None:
+            #if output_type is None:
+            output_type = T.ivector
+            y = output_type('y')
+            y_batch = output_type('y_batch')
+            model._theano_exprs['output'] = y, y_batch
+        return model._theano_exprs['output']
+
+    def _get_loss_exprs(model):
+        if model._theano_exprs['loss'] is None:
+            model._theano_exprs['loss'] = model._build_loss_expressions()
+        return model._theano_exprs['loss']
+
+    def _get_network_output(model):
+        if model._theano_exprs['netout'] is None:
+            model._theano_exprs['netout'] = model._build_network_output()
+        return model._theano_exprs['netout']
+
+    def _get_unlabeled_outputs(model):
+        if model._theano_exprs['unlabeled_out'] is None:
+            netout_exprs = model._get_network_output()
+            network_output_determ = netout_exprs['network_output_determ']
+            model._theano_exprs['unlabeled_out'] = model.build_unlabeled_output_expressions(
+                network_output_determ)
+        return model._theano_exprs['unlabeled_out']
+
+    def _get_labeled_outputs(model):
+        if model._theano_exprs['labeled_out'] is None:
+            netout_exprs = model._get_network_output()
+            network_output_determ = netout_exprs['network_output_determ']
+            y, y_batch = model._get_output_exprs()
+            model._theano_exprs['labeled_out'] = model.build_labeled_output_expressions(
+                network_output_determ, y_batch)
+        return model._theano_exprs['labeled_out']
+
+    def _build_network_output(model):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        X, X_batch = model._get_input_exprs()
+        y, y_batch = model._get_output_exprs()
+
+        network_output = lasagne.layers.get_output(model.output_layer,
+                                                   X_batch)
+        network_output.name = 'network_output'
+        network_output_determ = lasagne.layers.get_output(
+            model.output_layer, X_batch, deterministic=True)
+        network_output_determ.name = 'network_output_determ'
+
+        netout_exprs = {
+            'network_output': network_output,
+            'network_output_determ': network_output_determ,
+        }
+        return netout_exprs
+
+    def _build_loss_expressions(model):
+        r"""
+        Requires that a custom loss function is defined in the inherited class
+        """
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', '.*topo.*')
+            warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+            warnings.filterwarnings('ignore', '.*layer.get_output.*')
+
+            X, X_batch = model._get_input_exprs()
+            y, y_batch = model._get_output_exprs()
+
+            netout_exprs = model._get_network_output()
+            network_output = netout_exprs['network_output']
+            network_output_determ = netout_exprs['network_output_determ']
+
+            print('Building symbolic loss function')
+            losses = model.loss_function(network_output, y_batch)
+            loss = lasagne.objectives.aggregate(losses, mode='mean')
+            loss.name = 'loss'
+
+            print('Building symbolic loss function (determenistic)')
+            losses_determ = model.loss_function(network_output_determ, y_batch)
+            loss_determ = lasagne.objectives.aggregate(losses_determ,
+                                                       mode='mean')
+            loss_determ.name = 'loss_determ'
+
+            # Regularize
+            # TODO: L2 should be one of many available options for
+            # regularization
+            L2 = lasagne.regularization.regularize_network_params(
+                model.output_layer, lasagne.regularization.l2)
+            weight_decay = model.learning_state['weight_decay']
+            if weight_decay is not None:
+                regularization_term = weight_decay * L2
+                regularization_term.name = 'regularization_term'
+                #L2 = lasagne.regularization.l2(model.output_layer)
+                loss_regularized = loss + regularization_term
+                loss_regularized.name = 'loss_regularized'
+            else:
+                loss_regularized = None
+
+            loss_exprs = {
+                'loss': loss,
+                'loss_determ': loss_determ,
+                'loss_regularized': loss_regularized,
+            }
+
+            return loss_exprs
+
+    def _build_monitor_outputs(model, parameters, updates):
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        # Build outputs to babysit training
+        monitor_outputs = []
+
+        for param in parameters:
+            # The vector each param was udpated with
+            # (one vector per channel)
+            param_update_vec = updates[param] - param
+            param_update_vec.name = 'param_update_vector_' + param.name
+            flat_shape = (param_update_vec.shape[0],
+                          T.prod(param_update_vec.shape[1:]))
+            flat_param_update_vec = param_update_vec.reshape(flat_shape)
+            param_update_mag = (flat_param_update_vec ** 2).sum(-1)
+            param_update_mag.name = 'param_update_magnitude_' + param.name
+            monitor_outputs.append(param_update_mag)
+        return monitor_outputs
+
+    def _build_updates(model, parameters):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        import ibeis_cnn.__THEANO__ as theano
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+        loss_exprs = model._get_loss_exprs()
+        loss             = loss_exprs['loss']
+        loss_regularized = loss_exprs['loss_regularized']
+
+        if loss_regularized is not None:
+            backprop_loss_ = loss_regularized
+        else:
+            backprop_loss_ = loss
+        loss_or_grads = theano.grad(backprop_loss_, parameters,
+                                    add_names=True)
+
+        learning_rate_theano = model.shared_learning_rate
+        momentum = model.learning_state['momentum']
+
+        updates = lasagne.updates.nesterov_momentum(
+            loss_or_grads, parameters, learning_rate_theano,
+            momentum)  # add_names=True)  # TODO; commit to lasange
+
+        # workaround for pylearn2 bug documented in
+        # https://github.com/Lasagne/Lasagne/issues/728
+        for param, update in updates.items():
+            if param.broadcastable != update.broadcastable:
+                updates[param] = T.patternbroadcast(update, param.broadcastable)
+        return updates
+
+    def _get_backprop_losses(model):
+        loss_exprs = model._get_loss_exprs()
+        loss             = loss_exprs['loss']
+        loss_regularized = loss_exprs['loss_regularized']
+
+        backprop_losses = []
+        if loss_regularized is not None:
+            backprop_losses.append(loss_regularized)
+        backprop_losses.append(loss)
+        return backprop_losses
+
+    def _build_theano_backprop(model):
+        print('[model.build] request_backprop')
+        import ibeis_cnn.__THEANO__ as theano
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+        X, X_batch = model._get_input_exprs()
+        y, y_batch = model._get_output_exprs()
+        labeled_outputs = model._get_labeled_outputs()
+        backprop_losses = model._get_backprop_losses()
+
+        # Updates network parameters based on the training loss
+        parameters = model.get_all_params(trainable=True)
+        updates = model._build_updates(parameters)
+        monitor_outputs = model._build_monitor_outputs(parameters, updates)
+
+        theano_backprop = theano.function(
+            inputs=[theano.In(X_batch), theano.In(y_batch)],
+            outputs=(backprop_losses + labeled_outputs + monitor_outputs),
+            givens={X: X_batch, y: y_batch},
+            updates=updates,
+            mode=model.theano_mode,
+            name=':theano_backprop:explicit',
+        )
+        return theano_backprop
+
+    def _build_theano_forward(model):
+        import ibeis_cnn.__THEANO__ as theano
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+        X, X_batch = model._get_input_exprs()
+        y, y_batch = model._get_output_exprs()
+        labeled_outputs = model._get_labeled_outputs()
+        unlabeled_outputs = model._get_unlabeled_outputs()
+
+        loss_exprs = model._get_loss_exprs()
+        loss_determ = loss_exprs['loss_determ']
+
+        print('[model.build] request_forward')
+        theano_forward = theano.function(
+            inputs=[theano.In(X_batch), theano.In(y_batch)],
+            outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
+            givens={X: X_batch, y: y_batch},
+            updates=None,
+            mode=model.theano_mode,
+            name=':theano_forward:explicit'
+        )
+        return theano_forward
+
+    def _build_theano_predict(model):
+        import ibeis_cnn.__THEANO__ as theano
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+        print('[model.build] request_predict')
+
+        netout_exprs = model._get_network_output()
+        network_output_determ = netout_exprs['network_output_determ']
+        unlabeled_outputs = model._get_unlabeled_outputs()
+
+        X, X_batch = model._get_input_exprs()
+        y, y_batch = model._get_output_exprs()
+        theano_predict = theano.function(
+            inputs=[theano.In(X_batch)],
+            outputs=[network_output_determ] + unlabeled_outputs,
+            givens={X: X_batch},
+            updates=None,
+            mode=model.theano_mode,
+            name=':theano_predict:explicit'
+        )
+        return theano_predict
+
+    def build_unlabeled_output_expressions(model, network_output):
+        """
+        override in inherited subclass to enable custom symbolic expressions
+        based on the network output alone
+        """
+        raise NotImplementedError('need override')
+        return []
+
+    def build_labeled_output_expressions(model, network_output, y_batch):
+        """
+        override in inherited subclass to enable custom symbolic expressions
+        based on the network output and the labels
+        """
+        raise NotImplementedError('need override')
+        return []
+
+
 @ut.reloadable_class
-class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
+class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelPrinting,
+                _ModelCompile, _ModelHistory, _ModelUtility):
     """
     Abstract model providing functionality for all other models to derive from
     """
@@ -742,12 +1165,10 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
                  momentum=.9, weight_decay=.0005, learning_rate=.001,
                  arch_tag=None):
         """
-
         Guess on Shapes:
             input_shape (tuple): in Theano format (b, c, h, w)
             data_shape (tuple):  in  Numpy format (b, h, w, c)
         """
-
         if input_shape is None and data_shape is not None:
             if strict_batch_size is True:
                 strict_batch_size = batch_size
@@ -794,7 +1215,8 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
         model.shared_state = {
             'learning_rate': None,
         }
-        # TODO: do not set learning rate until theano is initialized
+        model._init_compile_vars()
+        # NOTE: Do not set learning rate until theano is initialized
         model.learning_rate = learning_rate
 
     # --- OTHER
@@ -916,359 +1338,7 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
                             for era in model.era_history])
         return total_epochs
 
-    # --- HISTORY
-
-    def start_new_era(model, X_train, y_train, X_valid, y_valid, alias_key):
-        """
-        Used to denote a change in hyperparameters during training.
-        """
-        # TODO: fix the training data hashid stuff
-        y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-        train_hashid =  alias_key + '_' + y_hashid
-        era_info = {
-            'train_hashid': train_hashid,
-            'arch_hashid': model.get_architecture_hashid(),
-            'arch_tag': model.arch_tag,
-            'num_train': len(y_train),
-            'num_valid': len(y_valid),
-            'valid_loss_list': [],
-            'train_loss_list': [],
-            'epoch_list': [],
-            'learning_rate': [model.learning_rate],
-            'learning_state': [model.learning_state],
-        }
-        num_eras = len(model.era_history)
-        print('starting new era %d' % (num_eras,))
-        #if model.current_era is not None:
-        model.current_era = era_info
-        model.era_history.append(model.current_era)
-
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
-
     # ---- UTILITY
-
-    def set_all_param_values(model, weights_list):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            lasagne.layers.set_all_param_values(
-                model.output_layer, weights_list)
-
-    def get_all_param_values(model):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        weights_list = lasagne.layers.get_all_param_values(model.output_layer)
-        return weights_list
-
-    def get_all_params(model, **tags):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            parameters = lasagne.layers.get_all_params(
-                model.output_layer, **tags)
-            return parameters
-
-    def get_all_layers(model):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
-            assert model.output_layer is not None
-            network_layers = lasagne.layers.get_all_layers(model.output_layer)
-        return network_layers
-
-    def get_output_layer(model):
-        if model.output_layer is not None:
-            return model.output_layer
-        else:
-            return None
-            #assert model.network_layers is not None, (
-            #    'need to initialize architecture first')
-
-    @property
-    def learning_rate(model):
-        shared_learning_rate = model.shared_learning_rate
-        if shared_learning_rate is None:
-            return None
-        else:
-            return shared_learning_rate.get_value()
-
-    @learning_rate.setter
-    def learning_rate(model, rate):
-        import ibeis_cnn.__THEANO__ as theano
-        print('[model] setting learning rate to %.9f' % (rate))
-        shared_learning_rate = model.shared_state.get('learning_rate', None)
-        if shared_learning_rate is None:
-            shared_learning_rate = theano.shared(np.cast['float32'](rate))
-            model.shared_state['learning_rate'] = shared_learning_rate
-        else:
-            shared_learning_rate.set_value(np.cast['float32'](rate))
-
-    @property
-    def shared_learning_rate(model):
-        return model.shared_state.get('learning_rate', None)
-
-    # --- LASAGNE EXPRESSIONS
-
-    def _build_loss_expressions(model, X_batch, y_batch):
-        r"""
-        Requires that a custom loss function is defined in the inherited class
-
-        Args:
-            X_batch (T.tensor4): symbolic expression for input
-            y_batch (T.ivector): symbolic expression for labels
-        """
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', '.*topo.*')
-            warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
-            warnings.filterwarnings('ignore', '.*layer.get_output.*')
-
-            network_output = lasagne.layers.get_output(model.output_layer,
-                                                       X_batch)
-            network_output.name = 'network_output'
-            network_output_determ = lasagne.layers.get_output(
-                model.output_layer, X_batch, deterministic=True)
-            network_output_determ.name = 'network_output_determ'
-
-            try:
-                print('Building symbolic loss function')
-                losses = model.loss_function(network_output, y_batch)
-                loss = lasagne.objectives.aggregate(losses, mode='mean')
-                loss.name = 'loss'
-
-                print('Building symbolic loss function (determenistic)')
-                losses_determ = model.loss_function(
-                    network_output_determ, y_batch)
-                loss_determ = lasagne.objectives.aggregate(
-                    losses_determ, mode='mean')
-                loss_determ.name = 'loss_determ'
-
-                # Regularize
-                # TODO: L2 should be one of many available options for
-                # regularization
-                L2 = lasagne.regularization.regularize_network_params(
-                    model.output_layer, lasagne.regularization.l2)
-                weight_decay = model.learning_state['weight_decay']
-                if weight_decay is not None:
-                    regularization_term = weight_decay * L2
-                    regularization_term.name = 'regularization_term'
-                    #L2 = lasagne.regularization.l2(model.output_layer)
-                    loss_regularized = loss + regularization_term
-                    loss_regularized.name = 'loss_regularized'
-                else:
-                    loss_regularized = None
-            except TypeError:
-                loss, loss_determ, loss_regularized = None, None, None
-
-            loss_expr_dict = {
-                'loss': loss,
-                'loss_determ': loss_determ,
-                'loss_regularized': loss_regularized,
-                'network_output': network_output,
-                'network_output_determ': network_output_determ,
-            }
-
-            return loss_expr_dict
-
-    def build(model, use_cache=True):
-        print('[model] --- BUILDING SYMBOLIC THEANO FUNCTIONS ---')
-        if model._theano_funcs is None or not use_cache:
-            model._theano_funcs = model._build_theano_funcs()
-        else:
-            print('[model] ... cache hit')
-        print('[model] --- FINISHED BUILD ---')
-        return model._theano_funcs
-
-    def _build_theano_funcs(model, input_type=None, output_type=None,
-                            request_backprop=True, request_forward=True,
-                            request_predict=False, mode=None):
-        """
-        Builds the Theano functions (symbolic expressions) that will be used in
-        the optimization.  Requires that a custom loss function is defined in
-        the inherited class
-
-        References:
-            # refer to this link for info on tensor types:
-            http://deeplearning.net/software/theano/library/tensor/basic.html
-        """
-        print('[model] building Theano primitives...')
-        import ibeis_cnn.__THEANO__ as theano
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-        if input_type is None:
-            input_type = T.tensor4
-        if output_type is None:
-            output_type = T.ivector
-
-        X = input_type('x')
-        y = output_type('y')
-        X_batch = input_type('x_batch')
-        y_batch = output_type('y_batch')
-
-        loss_expr_dict = model._build_loss_expressions(X_batch, y_batch)
-        loss             = loss_expr_dict['loss']
-        loss_determ      = loss_expr_dict['loss_determ']
-        loss_regularized = loss_expr_dict['loss_regularized']
-        network_output_determ   = loss_expr_dict['network_output_determ']
-
-        # Run inference and get other_outputs
-        unlabeled_outputs = model.build_unlabeled_output_expressions(
-            network_output_determ)
-        labeled_outputs   = model.build_labeled_output_expressions(
-            network_output_determ, y_batch)
-        updates = None
-
-        # http://deeplearning.net/software/theano/library/compile/function.html#theano.compile.function.function
-        # http://deeplearning.net/software/theano/tutorial/modes.html
-        # theano.compile.MonitorMode
-        # theano.compile.FAST_COMPILE
-        # theano.compile.FAST_RUN
-        # theano.compile.Mode(linker=None, optimizer='default')
-        if mode is None:
-            pass
-        elif mode == 'FAST_COMPILE':
-            mode = theano.compile.FAST_COMPILE
-        elif mode == 'FAST_RUN':
-            mode = theano.compile.FAST_RUN
-        else:
-            raise ValueError('Unknown mode=%r' % (mode,))
-        #mode = theano.compile.FAST_COMPILE
-
-        if request_backprop:
-            print('[model._build_theano_funcs] request_backprop')
-            learning_rate_theano = model.shared_learning_rate
-            momentum = model.learning_state['momentum']
-            # Define updates network parameters based on the training loss
-            parameters = model.get_all_params(trainable=True)
-
-            backprop_losses = []
-            if loss_regularized is not None:
-                backprop_losses.append(loss_regularized)
-            backprop_losses.append(loss)
-
-            if loss_regularized is not None:
-                backprop_loss_ = loss_regularized
-            else:
-                backprop_loss_ = loss
-            loss_or_grads = theano.grad(backprop_loss_, parameters,
-                                        add_names=True)
-            # from lasagne.updates import *
-            # params = parameters
-            # learning_rate = learning_rate_theano
-            updates = lasagne.updates.nesterov_momentum(
-                loss_or_grads, parameters, learning_rate_theano,
-                momentum)  # add_names=True)  # TODO; commit to lasange
-
-            def fix_update_bcasts(updates):
-                """
-                workaround for pylearn2 bug documented in
-                https://github.com/Lasagne/Lasagne/issues/728
-                """
-                for param, update in updates.items():
-                    if param.broadcastable != update.broadcastable:
-                        updates[param] = T.patternbroadcast(update, param.broadcastable)
-            fix_update_bcasts(updates)
-
-            # Build outputs to babysit training
-            monitor_outputs = []
-            for param in parameters:
-                # The vector each param was udpated with
-                # (one vector per channel)
-                param_update_vec = updates[param] - param
-                param_update_vec.name = 'param_update_vector_' + param.name
-                flat_shape = (param_update_vec.shape[0],
-                              T.prod(param_update_vec.shape[1:]))
-                flat_param_update_vec = param_update_vec.reshape(flat_shape)
-                param_update_mag = (flat_param_update_vec ** 2).sum(-1)
-                param_update_mag.name = 'param_update_magnitude_' + param.name
-                monitor_outputs.append(param_update_mag)
-
-            try:
-                import logging
-                #theano_logger = logging.getLogger('theano')
-                #theano_logger.setLevel(-10)
-                compile_logger = logging.getLogger('theano.compile')
-                compile_logger.setLevel(-10)
-
-                backprop_outputs = (backprop_losses + labeled_outputs +
-                                    monitor_outputs)
-                theano_backprop = theano.function(
-                    inputs=[theano.In(X_batch), theano.In(y_batch)],
-                    outputs=backprop_outputs,
-                    givens={X: X_batch, y: y_batch},
-                    updates=updates,
-                    mode=mode,
-                    name=':theano_backprob:explicit',
-                )
-            except TypeError as ex:
-                ut.printex(ex, 'Error defining backprop func')
-                print('Backprop Inputs:')
-                print('    X_batch.type = %r' % (X_batch.type,))
-                print('    y_batch.type = %r' % (y_batch.type,))
-                print('Backprop Outputs:')
-                for out in backprop_outputs:
-                    print('    %s.type = %r' % (out.name, out.type,))
-                print('Backprop Updates:')
-                for key, val in updates.items():
-                    print('    %r:  %s.type = %r' % (key, val.name, val.type,))
-                raise
-        else:
-            theano_backprop = None
-
-        if request_forward:
-            print('[model._build_theano_funcs] request_forward')
-            theano_forward = theano.function(
-                inputs=[theano.In(X_batch), theano.In(y_batch)],
-                outputs=[loss_determ] + labeled_outputs + unlabeled_outputs,
-                givens={X: X_batch, y: y_batch},
-                updates=None,
-                mode=mode,
-                name=':theano_forward:explicit'
-            )
-        else:
-            theano_forward = None
-
-        if request_predict:
-            print('[model._build_theano_funcs] request_predict')
-            theano_predict = theano.function(
-                inputs=[theano.In(X_batch)],
-                outputs=[network_output_determ] + unlabeled_outputs,
-                givens={X: X_batch},
-                updates=None,
-                mode=mode,
-                name=':theano_predict:explicit'
-            )
-        else:
-            theano_predict = None
-
-        print('[model._build_theano_funcs] exit')
-        theano_funcs  = TheanoFuncs(
-            theano_backprop, theano_forward, theano_predict, updates)
-        return theano_funcs
-
-    def build_unlabeled_output_expressions(model, network_output):
-        """
-        override in inherited subclass to enable custom symbolic expressions
-        based on the network output alone
-        """
-        return []
-
-    def build_labeled_output_expressions(model, network_output, y_batch):
-        """
-        override in inherited subclass to enable custom symbolic expressions
-        based on the network output and the labels
-        """
-        return []
 
     # Testing
 
@@ -1290,6 +1360,33 @@ class BaseModel(_LegacyModel, _ModelVisualization, _ModelIO, _ModelPrinting):
         if cv2_format:
             pass
         return X_unshared, y_unshared
+
+    def fit_interactive(model, X_train, y_train, X_valid, y_valid, dataset, config):
+        from ibeis_cnn import harness
+        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+
+    def fit(model, X_train, y_train):
+        pass
+        #from ibeis_cnn import harness
+        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+
+    def predict2(model, X_test):
+        """ FIXME: turn into a real predict function """
+        #from ibeis_cnn import harness
+        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+        from ibeis_cnn import batch_processing as batch
+        if ut.VERBOSE:
+            print('\n[train] --- MODEL INFO ---')
+            model.print_architecture_str()
+            model.print_layer_info()
+        # create theano symbolic expressions that define the network
+        theano_predict = model.build_predict_func()
+        # Begin testing with the neural network
+        print('\n[test] predict with batch size %0.1f' % (
+            model.batch_size))
+        test_outputs = batch.process_batch(model, X_test, None, theano_predict,
+                                           fix_output=True)
+        return test_outputs
 
 
 class AbstractCategoricalModel(BaseModel):
@@ -1334,10 +1431,6 @@ class AbstractCategoricalModel(BaseModel):
         accuracy.name = 'accuracy'
         labeled_outputs = [accuracy]
         return labeled_outputs
-
-    def fit_interactive(model, X_train, y_train, X_valid, y_valid, dataset, config):
-        from ibeis_cnn import harness
-        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
 
 class PretrainedNetwork(object):

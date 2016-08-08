@@ -24,7 +24,8 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>                    training_dpath=dataset.training_dpath)
         >>> output_layer = model.initialize_architecture()
         >>> model.print_dense_architecture_str()
-        >>> model._build_theano_funcs(mode='FAST_COMPILE')
+        >>> model.mode = 'FAST_COMPILE'
+        >>> model.build_backprop_func()
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -36,7 +37,6 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>                    training_dpath=dataset.training_dpath)
         >>> output_layer = model.initialize_architecture()
         >>> model.print_dense_architecture_str()
-        >>> model.build()
         >>> # parse training arguments
         >>> config = ut.argparse_dict(dict(
         >>>     learning_rate_schedule=15,

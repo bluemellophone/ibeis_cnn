@@ -87,8 +87,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
 
     # Create the Theano primitives
     # create theano symbolic expressions that define the network
-    theano_funcs = model.build()
-    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
+    theano_backprop = model.build_backprop_func()
+    theano_forward = model.build_forward_func()
 
     #show_times    = kwargs.get('print_timing', False)
     #show_features = kwargs.get('show_features', False)
@@ -159,8 +159,6 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
             # If the training loss is nan, the training has diverged
             if np.isnan(epoch_info['train_loss']):
                 print('\n[train] train loss is Nan. training diverged\n')
-                import utool
-                utool.embed()
                 break
 
             # Run validation set
@@ -360,51 +358,6 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.95):
             print('[_clean] \t%r -> %r : %d' % (src, dst, switched[src][dst], ))
 
     return y_list
-
-
-def test_data2(model, X_test, y_test):
-    """
-    FIXME: Rename to predict
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.harness import *  # NOQA
-
-    Ignore:
-        # vars for process_batch
-        X = X_test = data
-        y = y_test = labels
-        y = None
-        theano_fn = theano_predict
-        fix_output=True
-        kwargs = batchiter_kw
-
-        f = list(batch_iter)
-        Xb, yb = f[0]
-    """
-
-    if ut.VERBOSE:
-        print('\n[train] --- MODEL INFO ---')
-        model.print_architecture_str()
-        model.print_layer_info()
-
-    # Create the Theano primitives
-    # create theano symbolic expressions that define the network
-    print('\n[train] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
-    theano_funcs = model._build_theano_funcs(request_predict=True,
-                                             request_forward=False,
-                                             request_backprop=False)
-    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
-
-    # Begin testing with the neural network
-    print('\n[test] starting testing with batch size %0.1f' % (
-        model.batch_size))
-
-    #X_test = X_test[0:259]
-    # Start timer
-    test_outputs = batch.process_batch(model, X_test, None, theano_predict,
-                                       fix_output=True)
-    return test_outputs
 
 
 def test_convolutional(model, theano_predict, image, patch_size='auto',

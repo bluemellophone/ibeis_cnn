@@ -277,10 +277,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
     # create theano symbolic expressions that define the network
     print('\n[harness] --- COMPILING SYMBOLIC THEANO FUNCTIONS ---')
     print('[model] creating Theano primitives...')
-    theano_funcs = model._build_theano_funcs(request_predict=True,
-                                             request_forward=False,
-                                             request_backprop=False)
-    theano_backprop, theano_forward, theano_predict, updates = theano_funcs
+    theano_predict = model.build_predict_func()
 
     print('[harness] Performing inference...')
 
@@ -327,11 +324,8 @@ def fix_annot_species_viewpoint_quality_cnn(ibs, aid_list, min_conf=0.8):
     ]
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
-    y_test = None
-
-    from ibeis_cnn import harness
     # Predict on the data and convert labels to IBEIS namespace
-    test_outputs = harness.test_data2(model, X_test, y_test)
+    test_outputs = model.predict2(X_test)
     label_list = test_outputs['labeled_predictions']
     conf_list = test_outputs['confidences']
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
@@ -398,11 +392,8 @@ def detect_annot_species_viewpoint_cnn(ibs, aid_list):
     ]
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
-    y_test = None
-
-    from ibeis_cnn import harness
     # Predict on the data and convert labels to IBEIS namespace
-    test_outputs = harness.test_data2(model, X_test, y_test)
+    test_outputs = model.predict2(X_test)
     label_list = test_outputs['labeled_predictions']
     species_viewpoint_list = [ convert_label(label) for label in label_list ]
     #pred_list, label_list, conf_list = test.test_data(X_test, y_test, model, weights_path)
@@ -532,11 +523,8 @@ def detect_yolo(ibs, gid_list):
 
     # Build data for network
     X_test = np.array(image_list_resized, dtype=np.uint8)
-    y_test = None
-
-    from ibeis_cnn import harness
     # Predict on the data and convert labels to IBEIS namespace
-    test_outputs = harness.test_data2(model, X_test, y_test)
+    test_outputs = model.predict2(X_test)
     raw_output_list = test_outputs['network_output_determ']
 
     side = 7
@@ -757,10 +745,8 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
 
     # Build data for network
     X_test = np.array(chip_list_resized, dtype=np.uint8)
-    y_test = None
     # Define model and load weights
     print('Loading model...')
-    from ibeis_cnn import harness
     data_shape = (96, 96, 3)
     # Define model and load weights
     print('Loading model...')
@@ -772,7 +758,7 @@ def detect_image_cnn(ibs, gid, confidence=0.90, extraction='bing'):
     model.load_old_weights_kw(old_weights_fpath)
 
     # Predict on the data and convert labels to IBEIS namespace
-    test_outputs = harness.test_data2(model, X_test, y_test)
+    test_outputs = model.predict2(X_test)
     conf_list = test_outputs['confidences']
     label_list = test_outputs['labeled_predictions']
     pred_list = test_outputs['predictions']
@@ -879,7 +865,6 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
 
     # hack because we need the old features
     import vtool as vt
-    import ibeis_cnn
     model = get_siam_l2_model()
     colorspace = 'gray' if model.input_shape[1] else None  # 'bgr'
     patch_size = model.input_shape[-1]
@@ -914,7 +899,7 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
             flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
             stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
 
-            test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+            test_outputs = model.predict2(X_test=stacked_patches)
             network_output_determ = test_outputs['network_output_determ']
             #network_output_determ.min()
             #network_output_determ.max()
@@ -935,7 +920,7 @@ def generate_siam_l2_128_feats(ibs, cid_list, config2_=None):
         flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
         stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
 
-        test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+        test_outputs = model.predict2(X_test=stacked_patches)
         network_output_determ = test_outputs['network_output_determ']
         #network_output_determ.min()
         #network_output_determ.max()
@@ -950,7 +935,6 @@ def extract_siam128_vecs(chip_list, kpts_list):
     Duplicate testing func for vtool
     """
     import vtool as vt
-    import ibeis_cnn
     model = get_siam_l2_model()
     colorspace = 'gray' if model.input_shape[1] else None  # 'bgr'
     patch_size = model.input_shape[-1]
@@ -960,8 +944,8 @@ def extract_siam128_vecs(chip_list, kpts_list):
                            for chip, kpts in zip(chip_list_, kpts_list)]
     flat_list, cumlen_list = ut.invertible_flatten2(warped_patches_list)
     stacked_patches = np.transpose(np.array(flat_list)[None, :], (1, 2, 3, 0))
-
-    test_outputs = ibeis_cnn.harness.test_data2(model, stacked_patches, None)
+    X_test = stacked_patches
+    test_outputs = model.predict2(X_test)
     network_output_determ = test_outputs['network_output_determ']
     #network_output_determ.min()
     #network_output_determ.max()
