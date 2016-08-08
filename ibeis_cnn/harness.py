@@ -5,6 +5,9 @@ constructs the Theano optimization and trains a learning model,
 optionally by initializing the network with pre-trained weights.
 
 http://cs231n.github.io/neural-networks-3/#distr
+
+Pretrained Models:
+    https://github.com/fchollet/deep-learning-models
 """
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import utils
@@ -21,6 +24,8 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.harness]')
 @profile
 def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
     r"""
+    TODO: turn into the model fit method
+
     CommandLine:
         python -m ibeis_cnn.harness --test-train
 
@@ -51,7 +56,8 @@ def train(model, X_train, y_train, X_valid, y_valid, dataset, config):
         progress_dir = ut.unixjoin(model.training_dpath, 'progress')
         ut.ensuredir(progress_dir)
         def prog_metric_path(x):
-            return ut.get_nonconflicting_path(ut.unixjoin(progress_dir, x))
+            path_fmt = ut.unixjoin(progress_dir, x)
+            return ut.get_nonconflicting_path(path_fmt)
         def prog_metric_dir(x):
             return ut.ensuredir(prog_metric_path(x))
         history_progress_dir = prog_metric_dir(
@@ -358,6 +364,8 @@ def _clean(model, theano_forward, X_list, y_list, min_conf=0.95):
 
 def test_data2(model, X_test, y_test):
     """
+    FIXME: Rename to predict
+
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.harness import *  # NOQA
