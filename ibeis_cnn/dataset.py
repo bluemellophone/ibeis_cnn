@@ -130,7 +130,7 @@ class DataSet(object):
         labels = dataset.load_subset_labels(key)
         return data, labels
 
-    def print_subset_info(dataset, key):
+    def print_subset_info(dataset, key='all'):
         data, labels = dataset.load_subset(key)
         dataset.print_dataset_info(data, labels, key)
 
@@ -193,14 +193,17 @@ class DataSet(object):
 
     @staticmethod
     def print_dataset_info(data, labels, key):
-        print('[dataset] %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
-        print('[dataset] %s_data.shape   = %r' % (key, data.shape,))
-        print('[dataset] %s_data.dtype   = %r' % (key, data.dtype,))
-        print('[dataset] %s_labels.shape = %r' % (key, labels.shape,))
-        print('[dataset] %s_labels.dtype = %r' % (key, labels.dtype,))
         labelhist = {key: len(val) for key, val in ut.group_items(labels, labels).items()}
-        print('[dataset] %s_label histogram = \n%s' % (key, ut.dict_str(labelhist)))
-        print('[dataset] %s_label total = %d' % (key, sum(labelhist.values())))
+        stats_dict = ut.get_stats(data.ravel())
+        ut.delete_keys(stats_dict, ['shape', 'nMax', 'nMin'])
+        print('[dataset] Dataset Info: ')
+        print('[dataset] * Data:')
+        print('[dataset]     %s_data(shape=%r, dtype=%r)' % (key, data.shape, data.dtype))
+        print('[dataset]     %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
+        print('[dataset]     %s_stats(data) = %s' % (key, ut.repr2(stats_dict, precision=2),))
+        print('[dataset] * Labels:')
+        print('[dataset]     %s_labels(shape=%r, dtype=%r)' % (key, labels.shape, labels.dtype))
+        print('[dataset]     %s_label histogram = %s' % (key, ut.repr2(labelhist)))
 
     def interact(dataset, key='all', **kwargs):
         """

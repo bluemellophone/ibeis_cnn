@@ -89,9 +89,10 @@ class _ModelFitting(object):
             >>> from ibeis_cnn import ingest_data
             >>> from ibeis_cnn.models import MNISTModel
             >>> dataset = ingest_data.grab_mnist_category_dataset()
+            >>> dataset = ingest_data.grab_mnist_category_dataset_old()
             >>> model = MNISTModel(batch_size=500, data_shape=dataset.data_shape,
             >>>                    output_dims=dataset.output_dims,
-            >>>                    arch_tag='mnist_test2',
+            >>>                    arch_tag=dataset.alias_key,
             >>>                    training_dpath=dataset.training_dpath)
             >>> model.learning_rate = .01
             >>> model.encoder = None
@@ -1587,7 +1588,7 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
             model.preproc_kw = {}
             print('computing center mean.')
             model.preproc_kw['center_mean'] = np.mean(X_learn, axis=0)
-            print('computing center std.')
+            print('computing center std. (hacks to 255 or 1.0)')
             if ut.is_int(X_learn):
                 ut.assert_inbounds(X_learn, 0, 255, eq=True,
                                    verbose=ut.VERBOSE)

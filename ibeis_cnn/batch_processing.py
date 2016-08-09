@@ -190,17 +190,14 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> # build test data
         >>> model = models.DummyModel(batch_size=16, strict_batch_size=False)
         >>> X, y = model.make_random_testdata(num=99, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
         >>> y = None
         >>> encoder = None
         >>> randomize_batch_order = True
-        >>> # execute function
         >>> result_list = [(Xb, Yb) for Xb, Yb in batch_iterator(model, X, y,
         ...                randomize_batch_order)]
-        >>> # verify results
         >>> result = ut.depth_profile(result_list, compress_consecutive=True)
         >>> print(result)
         [[(16, 1, 4, 4), 16]] * 6 + [[(3, 1, 4, 4), 3]]
@@ -210,13 +207,11 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
         >>> import time
-        >>> # build test data
         >>> model = models.SiameseL2(batch_size=128, data_shape=(8, 8, 1),
         ...                          strict_batch_size=True)
         >>> X, y = model.make_random_testdata(num=1000, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
         >>> encoder = None
-        >>> # execute function
         >>> result_list1 = []
         >>> result_list2 = []
         >>> augment_on=not ut.get_argflag('--noaugment')
@@ -250,8 +245,35 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> print('Efficiency Buffered    = %.2f' % (100 * inside_time2 / t2.ellapsed,))
         >>> assert result_list1 == result_list2
         >>> print(len(result_list2))
-        >>> # verify results
-        >>> #result = ut.depth_profile(result_list, compress_consecutive=True)
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.batch_processing import *  # NOQA
+        >>> from ibeis_cnn.models.mnist import MNISTModel
+        >>> from ibeis_cnn import ingest_data
+        >>> # should yield float32 regardlesss of original format
+        >>> # ---
+        >>> dataset1 = ingest_data.grab_mnist_category_dataset()
+        >>> model1 = MNISTModel(batch_size=8, data_shape=dataset1.data_shape,
+        >>>                    output_dims=dataset1.output_dims,
+        >>>                    arch_tag=dataset1.alias_key,
+        >>>                    training_dpath=dataset1.training_dpath)
+        >>> X1, y1 = dataset1.load_subset('train')
+        >>> model1.ensure_training_state(X1, y1)
+        >>> _iter1 = batch_iterator(model1, X1, y1, randomize_batch_order=False)
+        >>> Xb1, yb1 = six.next(_iter1)
+        >>> # ---
+        >>> dataset2 = ingest_data.grab_mnist_category_dataset_old()
+        >>> model2 = MNISTModel(batch_size=8, data_shape=dataset2.data_shape,
+        >>>                    output_dims=dataset2.output_dims,
+        >>>                    arch_tag=dataset2.alias_key,
+        >>>                    training_dpath=dataset2.training_dpath)
+        >>> X2, y2 = dataset2.load_subset('train')
+        >>> model2.ensure_training_state(X2, y2)
+        >>> _iter2 = batch_iterator(model2, X2, y2, randomize_batch_order=False)
+        >>> Xb2, yb2 = six.next(_iter2)
+        >>> # ---
+        >>> assert yb2 == yb2
     """
     if verbose:
         verbose = VERBOSE_BATCH

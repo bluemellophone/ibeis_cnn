@@ -81,6 +81,7 @@ def interact_patches(label_list, data_lists,
         >>> ut.show_if_requested()
         >>> print(result)
     """
+    import vtool as vt
     #from ibeis.viz import viz_helpers as vh
     print('Building patch interaction')
     num_datas = list(map(len, data_lists))
@@ -106,7 +107,6 @@ def interact_patches(label_list, data_lists,
         else:
             raise NotImplementedError('sortby = %r' % (sortby,))
     else:
-        import vtool as vt
         unique_labels, groupxs = vt.group_indices(label_list)
         idx_lists = groupxs[::-1]
 
@@ -188,7 +188,7 @@ def make_InteractSiamPatches(*args, **kwargs):
             else:
                 self.current_pagenum = pagenum
             self.prepare_page()
-            print('pagenum = %r' % (pagenum,))
+            # print('pagenum = %r' % (pagenum,))
             next_pnum = pt.make_pnum_nextgen(1, self.nCols)
             self.multiindicies = self.multi_chunked_indicies[self.current_pagenum]
             self.offset_lists = []

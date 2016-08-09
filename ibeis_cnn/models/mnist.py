@@ -34,7 +34,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>> dataset = ingest_data.grab_mnist_category_dataset()
         >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
         >>>                    output_dims=dataset.output_dims,
-        >>>                    arch_tag='mnist_test1',
+        >>>                    arch_tag=dataset.alias_key,
         >>>                    training_dpath=dataset.training_dpath)
         >>> model.encoder = None
         >>> model.train_config['monitor'] = True

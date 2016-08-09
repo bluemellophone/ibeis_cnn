@@ -205,18 +205,21 @@ def grab_siam_dataset(ds_tag=None):
 def grab_mnist_category_dataset():
     r"""
     CommandLine:
+        python -m ibeis_cnn grab_mnist_category_dataset
         python -m ibeis_cnn grab_mnist_category_dataset --show
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> dataset = grab_mnist_category_dataset()
+        >>> dataset.print_subset_info()
         >>> ut.quit_if_noshow()
         >>> inter = dataset.interact()
         >>> ut.show_if_requested()
     """
     import numpy as np
-    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
+    alias_key = 'mnist'
+    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
     dataset_dpath = join(training_dpath, 'dataset')
     ut.ensuredir(training_dpath)
     ut.ensuredir(dataset_dpath)
@@ -229,8 +232,6 @@ def grab_mnist_category_dataset():
         ut.save_data(data_fpath, data)
         ut.save_data(labels_fpath, labels)
         ut.save_data(metadata_fpath, metadata)
-
-    alias_key = 'mnist'
 
     # hack for caching num_labels
     labels = ut.load_data(labels_fpath)
@@ -256,6 +257,67 @@ def grab_mnist_category_dataset():
         splitset = np.array(dataset.metadata['splitset'])
         train_idxs = np.where(splitset == 'train')[0]
         test_idxs = np.where(splitset == 'test')[0]
+        dataset.add_splitset('train', train_idxs)
+        dataset.add_splitset('test', test_idxs)
+    else:
+        print('predefined splits cache hit')
+    return dataset
+
+
+def grab_mnist_category_dataset_old():
+    r"""
+    CommandLine:
+        python -m ibeis_cnn grab_mnist_category_dataset_old
+        python -m ibeis_cnn grab_mnist_category_dataset
+        python -m ibeis_cnn grab_mnist_category_dataset_old --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+        >>> dataset = grab_mnist_category_dataset_old()
+        >>> dataset.print_subset_info()
+        >>> ut.quit_if_noshow()
+        >>> inter = dataset.interact()
+        >>> ut.show_if_requested()
+    """
+    import numpy as np
+    alias_key = 'mnist_old'
+    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
+    dataset_dpath = join(training_dpath, 'dataset')
+    ut.ensuredir(training_dpath)
+    ut.ensuredir(dataset_dpath)
+
+    data_fpath     = join(dataset_dpath, 'mnist_data.pkl')
+    labels_fpath   = join(dataset_dpath, 'mnist_labels.pkl')
+    if not ut.checkpath(data_fpath):
+        data, labels, metadata = ingest_helpers.grab_mnist1()
+        ut.save_data(data_fpath, data)
+        ut.save_data(labels_fpath, labels)
+        # ut.save_data(metadata_fpath, metadata)
+
+    # hack for caching num_labels
+    labels = ut.load_data(labels_fpath)
+    num_labels = len(labels)
+
+    dataset = DataSet.new_training_set(
+        alias_key=alias_key,
+        data_fpath=data_fpath,
+        labels_fpath=labels_fpath,
+        metadata_fpath=None,
+        training_dpath=training_dpath,
+        dataset_dpath=dataset_dpath,
+        data_per_label=1,
+        data_shape=(28, 28, 1),
+        output_dims=10,
+        num_labels=num_labels,
+    )
+
+    dataset.load_splitsets()
+
+    # Use the predefined train/test sets
+    if not dataset.has_splitset('train') or not dataset.has_splitset('test'):
+        train_idxs = np.arange(6000)
+        test_idxs = np.arange(1000) + 6000
         dataset.add_splitset('train', train_idxs)
         dataset.add_splitset('test', test_idxs)
     else:
