@@ -83,6 +83,7 @@ class _ModelFitting(object):
 
         CommandLine:
             python -m ibeis_cnn _ModelFitting.fit:0
+            python -m ibeis_cnn _ModelFitting.fit:0 --vd
 
         Example0:
             >>> from ibeis_cnn import ingest_data
@@ -228,7 +229,7 @@ class _ModelFitting(object):
                     print('[train]     5 - Draw current weights')
                     print('[train]     6 - Show training state')
                     print('[train]  ELSE - Stop network training')
-                    resolution = input('[train] Resolution: ')
+                    resolution = str(input('[train] Resolution: '))
                 resolution = int(resolution)
                 # We have a resolution
                 if resolution == 0:
