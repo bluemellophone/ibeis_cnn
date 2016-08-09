@@ -36,6 +36,9 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>                    output_dims=dataset.output_dims,
         >>>                    training_dpath=dataset.training_dpath)
         >>> output_layer = model.initialize_architecture()
+        >>> model.encoder = None
+        >>> model.train_config['monitor'] = True
+        >>> model.learning_state['weight_decay'] = None
         >>> model.print_dense_architecture_str()
         >>> # parse training arguments
         >>> model.train_config.update(**ut.argparse_dict(dict(
@@ -44,7 +47,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>     learning_rate_adjust=.8,
         >>> )))
         >>> model.learning_rate = .01
-        >>> X_train, y_train = dataset.load_subset('all')
+        >>> X_train, y_train = dataset.load_subset('train')
         >>> model.fit(X_train, y_train)
 
     """

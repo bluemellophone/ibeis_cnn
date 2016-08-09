@@ -101,6 +101,11 @@ Ensure CuDNN is installed
 
     # Download approprate version
     cd ~/Downloads
+    # doesnt work if you dont sign in
+    # wget https://developer.nvidia.com/compute/machine-learning/cudnn/secure/v5.1/rc/7.5/cudnn-7.5-linux-x64-v5.1-rc-tgz
+
+    # Unpack appropriate version
+    cd ~/Downloads
     7z x cudnn-7.5-linux-x64-v5.1-rc.tgz && 7z x -ocudnn5.1 cudnn-7.5-linux-x64-v5.1-rc.tar
     7z x cudnn-7.5-linux-x64-v5.0-ga.tgz && 7z x -ocudnn5.0 cudnn-7.5-linux-x64-v5.0-ga.tar
     7z x cudnn-7.0-linux-x64-v4.0-prod.tgz && 7z x -ocudnn4.0  cudnn-7.0-linux-x64-v4.0-prod.tar
