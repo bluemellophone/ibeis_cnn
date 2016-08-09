@@ -7,8 +7,78 @@ from six.moves import range, zip
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.ingest_helpers]')
 
 
-def open_mnist_files(labels_fpath, data_fpath):
+def load_mnist_images(gz_fpath):
+    import gzip
+    # Read the inputs in Yann LeCun's binary format.
+    with gzip.open(gz_fpath, 'rb') as f:
+        data = np.frombuffer(f.read(), np.uint8, offset=16)
+    # The inputs are vectors now, we reshape them to monochrome 2D images,
+    # use the cv2 convention for now (examples, rows, columns, channels)
+    data = data.reshape(-1, 28, 28, 1)
+    # The inputs come as bytes, we convert them to float32 in range [0,1].
+    # (Actually to range [0, 255/256], for compatibility to the version
+    # provided at http://deeplearning.net/data/mnist/mnist.pkl.gz.)
+    return data / np.float32(256)
+
+
+def load_mnist_labels(gz_fpath):
+    import gzip
+    # Read the labels in Yann LeCun's binary format.
+    with gzip.open(gz_fpath, 'rb') as f:
+        data = np.frombuffer(f.read(), np.uint8, offset=8)
+    # The labels are vectors of integers now, that's exactly what we want.
+    return data
+
+
+def grab_mnist2():
+    """ Follows lasange example """
+    train_data_gz = ut.grab_file_url(
+        'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
+    train_labels_gz = ut.grab_file_url(
+        'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz')
+    test_data_gz = ut.grab_file_url(
+        'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz')
+    test_labels_gz = ut.grab_file_url(
+        'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz')
+
+    train_data = load_mnist_images(train_data_gz)
+    test_data = load_mnist_images(test_data_gz)
+
+    train_labels = load_mnist_labels(train_labels_gz)
+    test_labels = load_mnist_labels(test_labels_gz)
+
+    data = np.vstack((train_data, test_data))
+    labels = np.append(train_labels, test_labels)
+    metadata = {}
+    metadata['splitset'] = ['train'] * len(train_data) + ['test'] * len(test_labels)
+    return data, labels, metadata
+
+
+def grab_mnist1():
+    # This is the same mnist data used in the lasange script
+    train_imgs_fpath = ut.grab_zipped_url(
+        'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
+    train_lbls_fpath = ut.grab_zipped_url(
+        'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz')
+    test_imgs_fpath = ut.grab_zipped_url(
+        'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz')
+    test_lbls_fpath = ut.grab_zipped_url(
+        'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz')
+
+    train_images, train_labels = open_mnist_files(
+        train_imgs_fpath, train_lbls_fpath)
+    test_images, test_labels = open_mnist_files(
+        test_imgs_fpath, test_lbls_fpath)
+    data = np.vstack((train_images, test_images))
+    labels = np.append(train_labels, test_labels)
+    metadata = None
+    return data, labels, metadata
+
+
+def open_mnist_files(data_fpath, labels_fpath):
     """
+    For mnist1
+
     References:
         http://g.sweyla.com/blog/2012/mnist-numpy/
     """

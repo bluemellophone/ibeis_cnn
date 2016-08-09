@@ -132,7 +132,8 @@ def merge_datasets(dataset_list):
         data_left = data_right
         labels_left = labels_right
 
-    utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
+    ut.save_data(data_fpath, data)
+    ut.save_data(labels_fpath, labels)
 
     labels = ut.load_data(labels_fpath)
     num_labels = len(labels)
@@ -204,35 +205,29 @@ def grab_siam_dataset(ds_tag=None):
 def grab_mnist_category_dataset():
     r"""
     CommandLine:
-        python -m ibeis_cnn.ingest_data grab_mnist_category_dataset --show
+        python -m ibeis_cnn grab_mnist_category_dataset --show
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> dataset = grab_mnist_category_dataset()
+        >>> ut.quit_if_noshow()
+        >>> inter = dataset.interact()
+        >>> ut.show_if_requested()
     """
     import numpy as np
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
     ut.ensuredir(training_dpath)
-    data_fpath = join(training_dpath, 'mnist_data.hdf5')
-    labels_fpath = join(training_dpath, 'mnist_labels.hdf5')
-    if not ut.checkpath(data_fpath):
-        train_imgs_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
-        train_lbls_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz')
-        test_imgs_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz')
-        test_lbls_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz')
+    dataset_dpath = join(training_dpath, 'dataset')
 
-        train_images, train_labels = ingest_helpers.open_mnist_files(
-            train_lbls_fpath, train_imgs_fpath)
-        test_images, test_labels = ingest_helpers.open_mnist_files(
-            test_lbls_fpath, test_imgs_fpath)
-        data = np.vstack((train_images, test_images))
-        labels = np.append(train_labels, test_labels)
-        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
+    data_fpath     = join(dataset_dpath, 'mnist_data.pkl')
+    labels_fpath   = join(dataset_dpath, 'mnist_labels.pkl')
+    metadata_fpath = join(dataset_dpath, 'mnist_metadata.pkl')
+    if not ut.checkpath(data_fpath):
+        data, labels, metadata = ingest_helpers.grab_mnist2()
+        ut.save_data(data_fpath, data)
+        ut.save_data(labels_fpath, labels)
+        ut.save_data(metadata_fpath, metadata)
 
     alias_key = 'mnist'
 
@@ -244,13 +239,26 @@ def grab_mnist_category_dataset():
         alias_key=alias_key,
         data_fpath=data_fpath,
         labels_fpath=labels_fpath,
-        metadata_fpath=None,
+        metadata_fpath=metadata_fpath,
         training_dpath=training_dpath,
+        dataset_dpath=dataset_dpath,
         data_per_label=1,
         data_shape=(28, 28, 1),
         output_dims=10,
         num_labels=num_labels,
     )
+
+    dataset.load_splitsets()
+
+    # Use the predefined train/test sets
+    if not dataset.has_splitset('train') or not dataset.has_splitset('test'):
+        splitset = np.array(dataset.metadata['splitset'])
+        train_idxs = np.where(splitset == 'train')[0]
+        test_idxs = np.where(splitset == 'test')[0]
+        dataset.add_splitset('train', train_idxs)
+        dataset.add_splitset('test', test_idxs)
+    else:
+        print('predefined splits cache hit')
     return dataset
 
 
@@ -282,32 +290,13 @@ def grab_mnist_siam_dataset():
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
     ut.ensuredir(training_dpath)
 
-    data_fpath = join(training_dpath, alias_key + '_data.hdf5')
-    labels_fpath = join(training_dpath, alias_key + '_labels.hdf5')
+    data_fpath = join(training_dpath, alias_key + '_data.pkl')
+    labels_fpath = join(training_dpath, alias_key + '_labels.pkl')
     if not ut.checkpath(data_fpath):
-        train_imgs_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz')
-        train_lbls_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz')
-        test_imgs_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz')
-        test_lbls_fpath = ut.grab_zipped_url(
-            'http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz')
-
-        train_images, train_labels = ingest_helpers.open_mnist_files(
-            train_lbls_fpath, train_imgs_fpath)
-        test_images, test_labels = ingest_helpers.open_mnist_files(
-            test_lbls_fpath, test_imgs_fpath)
-
-        category_data = np.vstack((train_images, test_images))
-        category_labels = np.append(train_labels, test_labels)
-        data, labels = ingest_helpers.convert_category_to_siam_data(category_data, category_labels)
-        #metadata = {
-        #    'flat_index_list': flat_index_list,
-        #    'category_labels': category_labels.take(flat_index_list)
-        #}
-        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
-        #metadata = {}
+        data_, labels_, metadata_ = ingest_helpers.grab_mnist2()
+        data, labels = ingest_helpers.convert_category_to_siam_data(data_, labels_)
+        ut.save_data(data_fpath, data)
+        ut.save_data(labels_fpath, labels)
 
     # hack for caching num_labels
     labels = ut.load_data(labels_fpath)
@@ -400,12 +389,13 @@ def grab_liberty_siam_dataset(pairs=250000):
         ut.vd(training_dpath)
     ut.ensuredir(training_dpath)
 
-    data_fpath = join(training_dpath, 'liberty_data_' + cfgstr + '.hdf5')
-    labels_fpath = join(training_dpath, 'liberty_labels_' + cfgstr  + '.hdf5')
+    data_fpath = join(training_dpath, 'liberty_data_' + cfgstr + '.pkl')
+    labels_fpath = join(training_dpath, 'liberty_labels_' + cfgstr  + '.pkl')
 
     if not ut.checkpath(data_fpath, verbose=True):
         data, labels = ingest_helpers.extract_liberty_style_patches(ds_path, pairs)
-        utils.write_data_and_labels(data, labels, data_fpath, labels_fpath)
+        ut.save_data(data_fpath, data)
+        ut.save_data(labels_fpath, labels)
 
     # hack for caching num_labels
     labels = ut.load_data(labels_fpath)

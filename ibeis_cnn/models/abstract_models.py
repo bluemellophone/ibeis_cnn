@@ -42,98 +42,447 @@ def imwrite_wrapper(show_func):
     return imwrite_func
 
 
-def evaluate_layer_list(network_layers_def, verbose=None):
-    r"""
-    compiles a sequence of partial functions into a network
+class _ModelFitting(object):
     """
-    if verbose is None:
-        verbose = utils.VERBOSE_CNN
-    total = len(network_layers_def)
-    network_layers = []
-    if verbose:
-        print('Evaluting List of %d Layers' % (total,))
-    layer_fn_iter = iter(network_layers_def)
-    #if True:
-    #with warnings.catch_warnings():
-    #    warnings.filterwarnings(
-    #        'ignore', '.*The uniform initializer no longer uses Glorot.*')
-    try:
-        with ut.Indenter(' ' * 4, enabled=verbose):
-            next_args = tuple()
-            for count, layer_fn in enumerate(layer_fn_iter, start=1):
-                if verbose:
-                    print('Evaluating layer %d/%d (%s) ' %
-                          (count, total, ut.get_funcname(layer_fn), ))
-                with ut.Timer(verbose=False) as tt:
-                    layer = layer_fn(*next_args)
-                next_args = (layer,)
-                network_layers.append(layer)
-                if verbose:
-                    print('  * took %.4fs' % (tt.toc(),))
-                    print('  * layer = %r' % (layer,))
-                    if hasattr(layer, 'input_shape'):
-                        print('  * layer.input_shape = %r' % (
-                            layer.input_shape,))
-                    if hasattr(layer, 'shape'):
-                        print('  * layer.shape = %r' % (
-                            layer.shape,))
-                    print('  * layer.output_shape = %r' % (
-                        layer.output_shape,))
-    except Exception as ex:
-        keys = ['layer_fn', 'layer_fn.func', 'layer_fn.args',
-                'layer_fn.keywords', 'layer', 'count']
-        ut.printex(ex,
-                   ('Error buildling layers.\n'
-                    'layer.name=%r') % (layer),
-                   keys=keys)
-        raise
-    return network_layers
-
-
-def overwrite_latest_image(fpath, new_name):
+    CommandLine:
+        python -m ibeis_cnn _ModelFitting.fit:0
     """
-    copies the new image to a path to be overwritten so new updates are
-    shown
-    """
-    from os.path import split, join, splitext, dirname
-    import shutil
-    dpath, fname = split(fpath)
-    ext = splitext(fpath)[1]
-    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
-    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
-
-
-def testdata_model_with_history():
-    model = BaseModel()
-    # make a dummy history
-    X_train, y_train = [1, 2, 3], [0, 0, 1]
-    rng = np.random.RandomState(0)
-    def dummy_epoch_dict(num):
-        epoch_info = {
-            'epoch': num,
-            'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'learn_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'learn_loss_regularized': (1 / np.exp(num / 10) +
-                                       np.exp(rng.rand() * num) +
-                                       rng.rand() / 100),
-            'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
-            'param_update_mags': {
-                'C0': (rng.normal() ** 2, rng.rand()),
-                'F1': (rng.normal() ** 2, rng.rand()),
-            }
+    def _init_fit_vars(model, momentum=.9, weight_decay=None, learning_rate=.005):
+        # era=(group of epochs)
+        model.current_era = None
+        model.era_history = []
+        # Training state
+        model.requested_headers = ['learn_loss', 'valid_loss', 'learnval_rat']
+        model.preproc_kw   = None
+        model.best_results = {
+            'epoch': None,
+            'learn_loss':     np.inf,
+            'valid_loss':     np.inf,
         }
-        return epoch_info
-    count = 0
-    for era_length in [4, 4, 4]:
-        model.start_new_era(X_train, y_train, X_train, y_train)
-        for count in range(count, count + era_length):
-            model.record_epoch(dummy_epoch_dict(count))
-    #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'learn_loss': .9})
-    #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'learn_loss': .7})
-    #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'learn_loss': .6})
-    #model.record_epoch({'epoch': 4, 'valid_loss': .2, 'learn_loss': .3})
-    #model.record_epoch({'epoch': 5, 'valid_loss': .1, 'learn_loss': .2})
-    return model
+        model.learning_state = {
+            'momentum': momentum,
+            'weight_decay': weight_decay,
+        }
+        # Theano shared state
+        model.train_config = {
+            'era_schedule': 100,
+            'max_epochs': None,
+            'learning_rate_adjust': .8,
+            'checkpoint_freq': 200,
+            'monitor': ut.get_argflag('--monitor'),
+        }
+        model.shared_state = {
+            'learning_rate': None,
+        }
+        # NOTE: Do not set learning rate until theano is initialized
+        model.learning_rate = learning_rate
+
+    def fit(model, X_train, y_train, valid_idx=None):
+        r"""
+        REWORKING OF OLD TRAIN FUNC
+
+        CommandLine:
+            python -m ibeis_cnn _ModelFitting.fit:0
+
+        Example0:
+            >>> from ibeis_cnn import ingest_data
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> dataset = ingest_data.grab_mnist_category_dataset()
+            >>> model = MNISTModel(batch_size=500, data_shape=dataset.data_shape,
+            >>>                    output_dims=dataset.output_dims,
+            >>>                    training_dpath=dataset.training_dpath)
+            >>> model.arch_tag = 'mnist_test'
+            >>> model.learning_rate = .01
+            >>> model.encoder = None
+            >>> model.initialize_architecture()
+            >>> #model.reinit_weights()
+            >>> model.train_config['monitor'] = True
+            >>> model.learning_state['weight_decay'] = None
+            >>> X_train, y_train = dataset.load_subset('train')
+            >>> valid_idx = None
+            >>> model.fit(X_train, y_train)
+        """
+        from ibeis_cnn import utils
+        print('\n[train] --- TRAINING LOOP ---')
+
+        X_learn, y_learn, X_valid, y_valid = model._prefit(X_train, y_train, valid_idx)
+
+        if model.train_config['monitor']:
+            model._init_monitor()
+
+        # create theano symbolic expressions that define the network
+        theano_backprop = model.build_backprop_func()
+        theano_forward = model.build_forward_func()
+
+        epoch = model.best_results['epoch']
+
+        if epoch is None:
+            epoch = 0
+            print('Initializng training at epoch=%r' % (epoch,))
+        else:
+            print('Resuming training at epoch=%r' % (epoch,))
+
+        # number of non-best iterations after, that triggers a best save
+        # This prevents strings of best-saves one after another
+        save_after_best_wait_epochs = 2
+        save_after_best_countdown = None
+
+        # Begin training the neural network
+        print('\n[train] starting training at %s with learning rate %.9f' %
+              (utils.get_current_time(), model.learning_rate))
+        print('learning_state = %s' % ut.dict_str(model.learning_state))
+        printcol_info = utils.get_printcolinfo(model.requested_headers)
+
+        model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+        utils.print_header_columns(printcol_info)
+
+        tt = ut.Timer(verbose=False)
+        while True:
+            try:
+                # ---------------------------------------
+                # Execute backwards and forward passes
+                tt.tic()
+                learn_info = model._epoch_learn_step(theano_backprop, X_learn, y_learn)
+                if learn_info.get('diverged'):
+                    break
+                valid_info = model._epoch_validate_step(theano_forward, X_valid, y_valid)
+
+                # ---------------------------------------
+                # Summarize the epoch
+                epoch_info = {
+                    'epoch': epoch,
+                }
+                epoch_info.update(**learn_info)
+                epoch_info.update(**valid_info)
+                epoch_info['duration'] = tt.toc()
+                epoch_info['learnval_rat'] = (
+                    epoch_info['learn_loss'] / epoch_info['valid_loss'])
+
+                # ---------------------------------------
+                # Record this epoch in history
+                model.record_epoch(epoch_info)
+
+                # ---------------------------------------
+                # Check how we are learning
+                if epoch_info['valid_loss'] < model.best_results['valid_loss']:
+                    model.best_results['weights'] = model.get_all_param_values()
+                    model.best_results['epoch'] = epoch_info['epoch']
+                    for key in model.requested_headers:
+                        model.best_results[key] = epoch_info[key]
+                    save_after_best_countdown = save_after_best_wait_epochs
+                    #epoch_marker = epoch
+
+                # Check frequencies and countdowns
+                checkpoint_flag = utils.checkfreq(model.train_config['checkpoint_freq'], epoch)
+                if save_after_best_countdown is not None:
+                    if save_after_best_countdown == 0:
+                        ## Callbacks on best found
+                        save_after_best_countdown = None
+                        checkpoint_flag = True
+                    else:
+                        save_after_best_countdown -= 1
+
+                # ---------------------------------------
+                # Output Diagnostics
+
+                # Print the epoch
+                utils.print_epoch_info(model, printcol_info, epoch_info)
+
+                # Output any diagnostics
+                if checkpoint_flag:
+                    model.checkpoint_save_model_info()
+                    model.save_model_info()
+                    model.checkpoint_save_model_state()
+                    model.save_model_state()
+
+                if model.train_config['monitor']:
+                    model._dump_epoch_monitor()
+
+                # Update learning rate at the start of each new era
+                if utils.checkfreq(model.train_config['era_schedule'], epoch):
+                    #epoch_marker = epoch
+                    frac = model.train_config['learning_rate_adjust']
+                    model.learning_rate = (model.learning_rate * frac)
+                    model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+                    utils.print_header_columns(printcol_info)
+
+                # Break on max epochs
+                if model.train_config['max_epochs'] is not None:
+                    if epoch >= model.train_config['max_epochs']:
+                        print('\n[train] maximum number of epochs reached\n')
+                        break
+                # Increment the epoch
+                epoch += 1
+
+            except KeyboardInterrupt:
+                print('\n[train] Caught CRTL+C')
+                resolution = ''
+                while not (resolution.isdigit()):
+                    print('\n[train] What do you want to do?')
+                    print('[train]     0 - Continue')
+                    print('[train]     1 - Shock weights')
+                    print('[train]     2 - Save best weights')
+                    print('[train]     3 - View training directory')
+                    print('[train]     4 - Embed into IPython')
+                    print('[train]     5 - Draw current weights')
+                    print('[train]     6 - Show training state')
+                    print('[train]  ELSE - Stop network training')
+                    resolution = input('[train] Resolution: ')
+                resolution = int(resolution)
+                # We have a resolution
+                if resolution == 0:
+                    print('resuming training...')
+                elif resolution == 1:
+                    # Shock the weights of the network
+                    utils.shock_network(model.output_layer)
+                    model.learning_rate = model.learning_rate * 2
+                    #epoch_marker = epoch
+                    utils.print_header_columns(printcol_info)
+                elif resolution == 2:
+                    # Save the weights of the network
+                    model.checkpoint_save_model_info()
+                    model.save_model_info()
+                    model.checkpoint_save_model_state()
+                    model.save_model_state()
+                elif resolution == 3:
+                    ut.view_directory(model.training_dpath)
+                elif resolution == 4:
+                    ut.embed()
+                elif resolution == 5:
+                    output_fpath_list = model.imwrite_weights(index=0)
+                    for fpath in output_fpath_list:
+                        ut.startfile(fpath)
+                elif resolution == 6:
+                    model.print_state_str()
+                else:
+                    # Terminate the network training
+                    raise
+        # Save the best network
+        model.checkpoint_save_model_state()
+        model.save_model_state()
+        #from ibeis_cnn import harness
+        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+
+    #@property
+    #def best_weights(model):
+    #    return model.best_results['weights']
+    #@best_weights.setter
+    #def best_weights(model, weights):
+    #    model.best_results['weights'] = weights
+
+    @property
+    def learning_rate(model):
+        shared_learning_rate = model.shared_learning_rate
+        if shared_learning_rate is None:
+            return None
+        else:
+            return shared_learning_rate.get_value()
+
+    @learning_rate.setter
+    def learning_rate(model, rate):
+        import ibeis_cnn.__THEANO__ as theano
+        print('[model] setting learning rate to %.9f' % (rate))
+        shared_learning_rate = model.shared_state.get('learning_rate', None)
+        if shared_learning_rate is None:
+            shared_learning_rate = theano.shared(np.cast['float32'](rate))
+            model.shared_state['learning_rate'] = shared_learning_rate
+        else:
+            shared_learning_rate.set_value(np.cast['float32'](rate))
+
+    @property
+    def shared_learning_rate(model):
+        return model.shared_state.get('learning_rate', None)
+
+    def start_new_era(model, X_learn, y_learn, X_valid, y_valid):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
+        # TODO: fix the training data hashid stuff
+        y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
+        learn_hashid =  str(model.arch_tag) + '_' + y_hashid
+        if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
+            print('Not starting new era (old one hasnt begun yet')
+        else:
+            new_era = {
+                'learn_hashid': learn_hashid,
+                'arch_hashid': model.get_architecture_hashid(),
+                'arch_tag': model.arch_tag,
+                'num_learn': len(y_learn),
+                'num_valid': len(y_valid),
+                'valid_loss_list': [],
+                'learn_loss_list': [],
+                'epoch_list': [],
+                'learning_rate': [model.learning_rate],
+                'learning_state': [model.learning_state],
+            }
+            num_eras = len(model.era_history)
+            print('starting new era %d' % (num_eras,))
+            #if model.current_era is not None:
+            model.current_era = new_era
+            model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
+
+    def _init_monitor(model):
+        # FIXME; put into better place
+        progress_dir = ut.unixjoin(model.training_dpath, model.arch_tag, 'progress')
+        ut.ensuredir(progress_dir)
+        def prog_metric_path(x):
+            path_fmt = ut.unixjoin(progress_dir, x)
+            return ut.get_nonconflicting_path(path_fmt)
+        def prog_metric_dir(x):
+            return ut.ensuredir(prog_metric_path(x))
+        history_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_history')
+        weights_progress_dir = prog_metric_dir(
+            str(model.arch_tag) + '_%02d_weights')
+        history_text_fpath = prog_metric_path(
+            str(model.arch_tag) + '_%02d_era_history.txt')
+        if ut.get_argflag('--vd'):
+            ut.vd(progress_dir)
+
+        # Write initial states of the weights
+        fpath = model.imwrite_weights(dpath=weights_progress_dir,
+                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fnum=2, verbose=0)
+        overwrite_latest_image(fpath, 'weights')
+        model._fit_progress_info = {
+            'history_progress_dir':  history_progress_dir,
+            'history_text_fpath': history_text_fpath,
+            'weights_progress_dir': weights_progress_dir,
+        }
+
+    def _dump_epoch_monitor(model):
+        history_dir = model._fit_progress_info['history_progress_dir']
+        weights_dir = model._fit_progress_info['weights_progress_dir']
+        text_fpath = model._fit_progress_info['history_text_fpath']
+
+        # Save loss graphs
+        fpath = model.imwrite_era_history(dpath=history_dir,
+                                          fname='history_' + model.get_model_history_hashid() + '.png',
+                                          fnum=1, verbose=0)
+        overwrite_latest_image(fpath, 'history')
+        # Save weights images
+        fpath = model.imwrite_weights(dpath=weights_dir,
+                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fnum=2, verbose=0)
+        overwrite_latest_image(fpath, 'weights')
+        # Save text info
+        history_text = ut.list_str(model.era_history, newlines=True)
+        ut.write_to(text_fpath, history_text, verbose=False)
+
+    def _prefit(model, X_train, y_train, valid_idx):
+        # Center the data by subtracting the mean
+        model.check_data_shape(X_train)
+
+        # Split training set into a learning / validation set
+        if valid_idx is None:
+            from ibeis_cnn.dataset import stratified_shuffle_split
+            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.7, .3],
+                                                            rng=432321)
+            #import sklearn.cross_validation
+            #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
+            #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
+            #train_idx, valid_idx = list(skf)[0]
+        else:
+            train_idx = ut.index_complement(valid_idx, len(X_train))
+
+        # Set to learn network weights
+        X_learn = X_train.take(train_idx, axis=0)
+        y_learn = y_train.take(train_idx, axis=0)
+        # Set to crossvalidate hyperparamters
+        X_valid = X_train.take(valid_idx, axis=0)
+        y_valid = y_train.take(valid_idx, axis=0)
+
+        model.ensure_training_state(X_learn, y_learn)
+
+        print('Learn y histogram: ' + ut.repr2(ut.dict_hist(y_learn)))
+        print('Valid y histogram: ' + ut.repr2(ut.dict_hist(y_valid)))
+
+        print('\n[train] --- MODEL INFO ---')
+        model.print_architecture_str()
+        model.print_layer_info()
+
+        return X_learn, y_learn, X_valid, y_valid
+
+    def _epoch_learn_step(model, theano_backprop, X_learn, y_learn):
+        """
+        Backwards propogate -- Run learning set through the backwards pass
+        """
+        from ibeis_cnn import batch_processing as batch
+
+        learn_outputs = batch.process_batch(
+            model, X_learn, y_learn, theano_backprop, randomize_batch_order=True,
+            augment_on=True, buffered=True)
+
+        # compute the loss over all learning batches
+        learn_info = {}
+        learn_info['learn_loss'] = learn_outputs['loss'].mean()
+
+        if 'loss_regularized' in learn_outputs:
+            # Regularization information
+            learn_info['learn_loss_regularized'] = (
+                learn_outputs['loss_regularized'].mean())
+            #if 'valid_acc' in model.requested_headers:
+            #    learn_info['test_acc']  = learn_outputs['accuracy']
+            regularization_amount = (
+                learn_outputs['loss_regularized'] - learn_outputs['loss'])
+            regularization_ratio = (
+                regularization_amount / learn_outputs['loss'])
+            regularization_percent = (
+                regularization_amount / learn_outputs['loss_regularized'])
+
+            learn_info['regularization_percent'] = regularization_percent
+            learn_info['regularization_ratio'] = regularization_ratio
+
+        param_update_mags = {}
+        for key, val in learn_outputs.items():
+            if key.startswith('param_update_magnitude_'):
+                key_ = key.replace('param_update_magnitude_', '')
+                param_update_mags[key_] = (val.mean(), val.std())
+        if param_update_mags:
+            learn_info['param_update_mags'] = param_update_mags
+
+        # If the training loss is nan, the training has diverged
+        if np.isnan(learn_info['learn_loss']):
+            print('\n[train] train loss is Nan. training diverged\n')
+            #import utool
+            #utool.embed()
+            print('learn_outputs = %r' % (learn_outputs,))
+            """
+            from ibeis_cnn import draw_net
+            draw_net.imwrite_theano_symbolic_graph(theano_backprop)
+            """
+            import utool
+            utool.embed()
+            # imwrite_theano_symbolic_graph(thean_expr):
+            learn_info['diverged'] = True
+        return learn_info
+
+    def _epoch_validate_step(model, theano_forward, X_valid, y_valid):
+        """
+        Forwards propogate -- Run validation set through the forwards pass
+        """
+        from ibeis_cnn import batch_processing as batch
+        valid_outputs = batch.process_batch(
+            model, X_valid, y_valid, theano_forward, augment_on=False,
+            randomize_batch_order=False)
+        valid_info = {}
+        valid_info['valid_loss'] = valid_outputs['loss_determ'].mean()
+        valid_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
+        if 'valid_acc' in model.requested_headers:
+            valid_info['valid_acc'] = valid_outputs['accuracy'].mean()
+        return valid_info
 
 
 @ut.reloadable_class
@@ -536,7 +885,6 @@ class _ModelStrings(object):
             >>> result = str(history_hashid)
             >>> print(result)
             hist_eras002_epochs0005_bdpueuzgkxvtwmpe
-nesterov_momentum
         """
         era_history_hash = [ut.hashstr27(repr(era))
                             for era in  model.era_history]
@@ -1153,449 +1501,6 @@ class _ModelBackend(object):
         return []
 
 
-class _ModelFitting(object):
-    """
-    CommandLine:
-        python -m ibeis_cnn _ModelFitting.fit:0
-    """
-    def _init_fit_vars(model, momentum=.9, weight_decay=None, learning_rate=.005):
-        # era=(group of epochs)
-        model.current_era = None
-        model.era_history = []
-        # Training state
-        model.requested_headers = ['learn_loss', 'valid_loss', 'learnval_rat']
-        model.preproc_kw   = None
-        model.best_results = {
-            'epoch': None,
-            'learn_loss':     np.inf,
-            'valid_loss':     np.inf,
-        }
-        model.learning_state = {
-            'momentum': momentum,
-            'weight_decay': weight_decay,
-        }
-        # Theano shared state
-        model.train_config = {
-            'era_schedule': 100,
-            'max_epochs': None,
-            'learning_rate_adjust': .8,
-            'checkpoint_freq': 200,
-            'monitor': ut.get_argflag('--monitor'),
-        }
-        model.shared_state = {
-            'learning_rate': None,
-        }
-        # NOTE: Do not set learning rate until theano is initialized
-        model.learning_rate = learning_rate
-
-    def fit(model, X_train, y_train, valid_idx=None):
-        r"""
-        REWORKING OF OLD TRAIN FUNC
-
-        CommandLine:
-            python -m ibeis_cnn _ModelFitting.fit:0
-
-        Example0:
-            >>> from ibeis_cnn import ingest_data
-            >>> from ibeis_cnn.models import MNISTModel
-            >>> dataset = ingest_data.grab_mnist_category_dataset()
-            >>> model = MNISTModel(batch_size=512, data_shape=dataset.data_shape,
-            >>>                    output_dims=dataset.output_dims,
-            >>>                    training_dpath=dataset.training_dpath)
-            >>> model.arch_tag = 'mnist_test'
-            >>> model.learning_rate = .0001
-            >>> model.encoder = None
-            >>> model.initialize_architecture()
-            >>> #model.reinit_weights()
-            >>> model.train_config['monitor'] = True
-            >>> model.learning_state['weight_decay'] = None
-            >>> X_train, y_train = dataset.load_subset('all')
-            >>> valid_idx = None
-            >>> model.fit(X_train, y_train)
-        """
-        from ibeis_cnn import utils
-        print('\n[train] --- TRAINING LOOP ---')
-
-        X_learn, y_learn, X_valid, y_valid = model._prefit(X_train, y_train, valid_idx)
-
-        if model.train_config['monitor']:
-            model._init_monitor()
-
-        # create theano symbolic expressions that define the network
-        theano_backprop = model.build_backprop_func()
-        theano_forward = model.build_forward_func()
-
-        epoch = model.best_results['epoch']
-
-        if epoch is None:
-            epoch = 0
-            print('Initializng training at epoch=%r' % (epoch,))
-        else:
-            print('Resuming training at epoch=%r' % (epoch,))
-
-        # number of non-best iterations after, that triggers a best save
-        # This prevents strings of best-saves one after another
-        save_after_best_wait_epochs = 2
-        save_after_best_countdown = None
-
-        # Begin training the neural network
-        print('\n[train] starting training at %s with learning rate %.9f' %
-              (utils.get_current_time(), model.learning_rate))
-        print('learning_state = %s' % ut.dict_str(model.learning_state))
-        printcol_info = utils.get_printcolinfo(model.requested_headers)
-
-        model.start_new_era(X_learn, y_learn, X_valid, y_valid)
-        utils.print_header_columns(printcol_info)
-
-        tt = ut.Timer(verbose=False)
-        while True:
-            try:
-                # ---------------------------------------
-                # Execute backwards and forward passes
-                tt.tic()
-                learn_info = model._epoch_learn_step(theano_backprop, X_learn, y_learn)
-                if learn_info.get('diverged'):
-                    break
-                valid_info = model._epoch_validate_step(theano_forward, X_valid, y_valid)
-
-                # ---------------------------------------
-                # Summarize the epoch
-                epoch_info = {
-                    'epoch': epoch,
-                }
-                epoch_info.update(**learn_info)
-                epoch_info.update(**valid_info)
-                epoch_info['duration'] = tt.toc()
-                epoch_info['learnval_rat'] = (
-                    epoch_info['learn_loss'] / epoch_info['valid_loss'])
-
-                # ---------------------------------------
-                # Record this epoch in history
-                model.record_epoch(epoch_info)
-
-                # ---------------------------------------
-                # Check how we are learning
-                if epoch_info['valid_loss'] < model.best_results['valid_loss']:
-                    model.best_results['weights'] = model.get_all_param_values()
-                    model.best_results['epoch'] = epoch_info['epoch']
-                    for key in model.requested_headers:
-                        model.best_results[key] = epoch_info[key]
-                    save_after_best_countdown = save_after_best_wait_epochs
-                    #epoch_marker = epoch
-
-                # Check frequencies and countdowns
-                checkpoint_flag = utils.checkfreq(model.train_config['checkpoint_freq'], epoch)
-                if save_after_best_countdown is not None:
-                    if save_after_best_countdown == 0:
-                        ## Callbacks on best found
-                        save_after_best_countdown = None
-                        checkpoint_flag = True
-                    else:
-                        save_after_best_countdown -= 1
-
-                # ---------------------------------------
-                # Output Diagnostics
-
-                # Print the epoch
-                utils.print_epoch_info(model, printcol_info, epoch_info)
-
-                # Output any diagnostics
-                if checkpoint_flag:
-                    model.checkpoint_save_model_info()
-                    model.save_model_info()
-                    model.checkpoint_save_model_state()
-                    model.save_model_state()
-
-                if model.train_config['monitor']:
-                    model._dump_epoch_monitor()
-
-                # Update learning rate at the start of each new era
-                if utils.checkfreq(model.train_config['era_schedule'], epoch):
-                    #epoch_marker = epoch
-                    frac = model.train_config['learning_rate_adjust']
-                    model.learning_rate = (model.learning_rate * frac)
-                    model.start_new_era(X_learn, y_learn, X_valid, y_valid)
-                    utils.print_header_columns(printcol_info)
-
-                # Break on max epochs
-                if model.train_config['max_epochs'] is not None:
-                    if epoch >= model.train_config['max_epochs']:
-                        print('\n[train] maximum number of epochs reached\n')
-                        break
-                # Increment the epoch
-                epoch += 1
-
-            except KeyboardInterrupt:
-                print('\n[train] Caught CRTL+C')
-                resolution = ''
-                while not (resolution.isdigit()):
-                    print('\n[train] What do you want to do?')
-                    print('[train]     0 - Continue')
-                    print('[train]     1 - Shock weights')
-                    print('[train]     2 - Save best weights')
-                    print('[train]     3 - View training directory')
-                    print('[train]     4 - Embed into IPython')
-                    print('[train]     5 - Draw current weights')
-                    print('[train]     6 - Show training state')
-                    print('[train]  ELSE - Stop network training')
-                    resolution = input('[train] Resolution: ')
-                resolution = int(resolution)
-                # We have a resolution
-                if resolution == 0:
-                    print('resuming training...')
-                elif resolution == 1:
-                    # Shock the weights of the network
-                    utils.shock_network(model.output_layer)
-                    model.learning_rate = model.learning_rate * 2
-                    #epoch_marker = epoch
-                    utils.print_header_columns(printcol_info)
-                elif resolution == 2:
-                    # Save the weights of the network
-                    model.checkpoint_save_model_info()
-                    model.save_model_info()
-                    model.checkpoint_save_model_state()
-                    model.save_model_state()
-                elif resolution == 3:
-                    ut.view_directory(model.training_dpath)
-                elif resolution == 4:
-                    ut.embed()
-                elif resolution == 5:
-                    output_fpath_list = model.imwrite_weights(index=0)
-                    for fpath in output_fpath_list:
-                        ut.startfile(fpath)
-                elif resolution == 6:
-                    model.print_state_str()
-                else:
-                    # Terminate the network training
-                    raise
-        # Save the best network
-        model.checkpoint_save_model_state()
-        model.save_model_state()
-        #from ibeis_cnn import harness
-        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-
-    #@property
-    #def best_weights(model):
-    #    return model.best_results['weights']
-    #@best_weights.setter
-    #def best_weights(model, weights):
-    #    model.best_results['weights'] = weights
-
-    @property
-    def learning_rate(model):
-        shared_learning_rate = model.shared_learning_rate
-        if shared_learning_rate is None:
-            return None
-        else:
-            return shared_learning_rate.get_value()
-
-    @learning_rate.setter
-    def learning_rate(model, rate):
-        import ibeis_cnn.__THEANO__ as theano
-        print('[model] setting learning rate to %.9f' % (rate))
-        shared_learning_rate = model.shared_state.get('learning_rate', None)
-        if shared_learning_rate is None:
-            shared_learning_rate = theano.shared(np.cast['float32'](rate))
-            model.shared_state['learning_rate'] = shared_learning_rate
-        else:
-            shared_learning_rate.set_value(np.cast['float32'](rate))
-
-    @property
-    def shared_learning_rate(model):
-        return model.shared_state.get('learning_rate', None)
-
-    def start_new_era(model, X_learn, y_learn, X_valid, y_valid):
-        """
-        Used to denote a change in hyperparameters during training.
-        """
-        # TODO: fix the training data hashid stuff
-        y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
-        learn_hashid =  str(model.arch_tag) + '_' + y_hashid
-        if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
-            print('Not starting new era (old one hasnt begun yet')
-        else:
-            new_era = {
-                'learn_hashid': learn_hashid,
-                'arch_hashid': model.get_architecture_hashid(),
-                'arch_tag': model.arch_tag,
-                'num_learn': len(y_learn),
-                'num_valid': len(y_valid),
-                'valid_loss_list': [],
-                'learn_loss_list': [],
-                'epoch_list': [],
-                'learning_rate': [model.learning_rate],
-                'learning_state': [model.learning_state],
-            }
-            num_eras = len(model.era_history)
-            print('starting new era %d' % (num_eras,))
-            #if model.current_era is not None:
-            model.current_era = new_era
-            model.era_history.append(model.current_era)
-
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
-
-    def _init_monitor(model):
-        # FIXME; put into better place
-        progress_dir = ut.unixjoin(model.training_dpath, model.arch_tag, 'progress')
-        ut.ensuredir(progress_dir)
-        def prog_metric_path(x):
-            path_fmt = ut.unixjoin(progress_dir, x)
-            return ut.get_nonconflicting_path(path_fmt)
-        def prog_metric_dir(x):
-            return ut.ensuredir(prog_metric_path(x))
-        history_progress_dir = prog_metric_dir(
-            str(model.arch_tag) + '_%02d_history')
-        weights_progress_dir = prog_metric_dir(
-            str(model.arch_tag) + '_%02d_weights')
-        history_text_fpath = prog_metric_path(
-            str(model.arch_tag) + '_%02d_era_history.txt')
-        if ut.get_argflag('--vd'):
-            ut.vd(progress_dir)
-
-        # Write initial states of the weights
-        fpath = model.imwrite_weights(dpath=weights_progress_dir,
-                                      fname='weights_' + model.get_model_history_hashid() + '.png',
-                                      fnum=2, verbose=0)
-        overwrite_latest_image(fpath, 'weights')
-        model._fit_progress_info = {
-            'history_progress_dir':  history_progress_dir,
-            'history_text_fpath': history_text_fpath,
-            'weights_progress_dir': weights_progress_dir,
-        }
-
-    def _dump_epoch_monitor(model):
-        history_dir = model._fit_progress_info['history_progress_dir']
-        weights_dir = model._fit_progress_info['weights_progress_dir']
-        text_fpath = model._fit_progress_info['history_text_fpath']
-
-        # Save loss graphs
-        fpath = model.imwrite_era_history(dpath=history_dir,
-                                          fname='history_' + model.get_model_history_hashid() + '.png',
-                                          fnum=1, verbose=0)
-        overwrite_latest_image(fpath, 'history')
-        # Save weights images
-        fpath = model.imwrite_weights(dpath=weights_dir,
-                                      fname='weights_' + model.get_model_history_hashid() + '.png',
-                                      fnum=2, verbose=0)
-        overwrite_latest_image(fpath, 'weights')
-        # Save text info
-        history_text = ut.list_str(model.era_history, newlines=True)
-        ut.write_to(text_fpath, history_text, verbose=False)
-
-    def _prefit(model, X_train, y_train, valid_idx):
-        # Center the data by subtracting the mean
-        model.check_data_shape(X_train)
-
-        # Split training set into a learning / validation set
-        if valid_idx is None:
-            from ibeis_cnn.dataset import stratified_shuffle_split
-            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.7, .3],
-                                                            rng=432321)
-            #import sklearn.cross_validation
-            #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
-            #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
-            #train_idx, valid_idx = list(skf)[0]
-        else:
-            train_idx = ut.index_complement(valid_idx, len(X_train))
-
-        # Set to learn network weights
-        X_learn = X_train.take(train_idx, axis=0)
-        y_learn = y_train.take(train_idx, axis=0)
-        # Set to crossvalidate hyperparamters
-        X_valid = X_train.take(valid_idx, axis=0)
-        y_valid = y_train.take(valid_idx, axis=0)
-
-        model.ensure_training_state(X_learn, y_learn)
-
-        print('Learn y histogram: ' + ut.repr2(ut.dict_hist(y_learn)))
-        print('Valid y histogram: ' + ut.repr2(ut.dict_hist(y_valid)))
-
-        print('\n[train] --- MODEL INFO ---')
-        model.print_architecture_str()
-        model.print_layer_info()
-
-        return X_learn, y_learn, X_valid, y_valid
-
-    def _epoch_learn_step(model, theano_backprop, X_learn, y_learn):
-        """
-        Backwards propogate -- Run learning set through the backwards pass
-        """
-        from ibeis_cnn import batch_processing as batch
-
-        learn_outputs = batch.process_batch(
-            model, X_learn, y_learn, theano_backprop, randomize_batch_order=True,
-            augment_on=True, buffered=True)
-
-        # compute the loss over all learning batches
-        learn_info = {}
-        learn_info['learn_loss'] = learn_outputs['loss'].mean()
-
-        if 'loss_regularized' in learn_outputs:
-            # Regularization information
-            learn_info['learn_loss_regularized'] = (
-                learn_outputs['loss_regularized'].mean())
-            #if 'valid_acc' in model.requested_headers:
-            #    learn_info['test_acc']  = learn_outputs['accuracy']
-            regularization_amount = (
-                learn_outputs['loss_regularized'] - learn_outputs['loss'])
-            regularization_ratio = (
-                regularization_amount / learn_outputs['loss'])
-            regularization_percent = (
-                regularization_amount / learn_outputs['loss_regularized'])
-
-            learn_info['regularization_percent'] = regularization_percent
-            learn_info['regularization_ratio'] = regularization_ratio
-
-        param_update_mags = {}
-        for key, val in learn_outputs.items():
-            if key.startswith('param_update_magnitude_'):
-                key_ = key.replace('param_update_magnitude_', '')
-                param_update_mags[key_] = (val.mean(), val.std())
-        if param_update_mags:
-            learn_info['param_update_mags'] = param_update_mags
-
-        # If the training loss is nan, the training has diverged
-        if np.isnan(learn_info['learn_loss']):
-            print('\n[train] train loss is Nan. training diverged\n')
-            #import utool
-            #utool.embed()
-            print('learn_outputs = %r' % (learn_outputs,))
-            """
-            from ibeis_cnn import draw_net
-            draw_net.imwrite_theano_symbolic_graph(theano_backprop)
-            """
-            import utool
-            utool.embed()
-            # imwrite_theano_symbolic_graph(thean_expr):
-            learn_info['diverged'] = True
-        return learn_info
-
-    def _epoch_validate_step(model, theano_forward, X_valid, y_valid):
-        """
-        Forwards propogate -- Run validation set through the forwards pass
-        """
-        from ibeis_cnn import batch_processing as batch
-        valid_outputs = batch.process_batch(
-            model, X_valid, y_valid, theano_forward, augment_on=False,
-            randomize_batch_order=False)
-        valid_info = {}
-        valid_info['valid_loss'] = valid_outputs['loss_determ'].mean()
-        valid_info['valid_loss_std'] = valid_outputs['loss_determ'].std()
-        if 'valid_acc' in model.requested_headers:
-            valid_info['valid_acc'] = valid_outputs['accuracy'].mean()
-        return valid_info
-
-
 @ut.reloadable_class
 class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
                 _ModelBackend, _ModelFitting, _ModelUtility, ut.NiceRepr):
@@ -1894,6 +1799,100 @@ class PretrainedNetwork(object):
         if rand:
             np.random.shuffle(weights_initializer)
         return weights_initializer
+
+
+def evaluate_layer_list(network_layers_def, verbose=None):
+    r"""
+    compiles a sequence of partial functions into a network
+    """
+    if verbose is None:
+        verbose = utils.VERBOSE_CNN
+    total = len(network_layers_def)
+    network_layers = []
+    if verbose:
+        print('Evaluting List of %d Layers' % (total,))
+    layer_fn_iter = iter(network_layers_def)
+    #if True:
+    #with warnings.catch_warnings():
+    #    warnings.filterwarnings(
+    #        'ignore', '.*The uniform initializer no longer uses Glorot.*')
+    try:
+        with ut.Indenter(' ' * 4, enabled=verbose):
+            next_args = tuple()
+            for count, layer_fn in enumerate(layer_fn_iter, start=1):
+                if verbose:
+                    print('Evaluating layer %d/%d (%s) ' %
+                          (count, total, ut.get_funcname(layer_fn), ))
+                with ut.Timer(verbose=False) as tt:
+                    layer = layer_fn(*next_args)
+                next_args = (layer,)
+                network_layers.append(layer)
+                if verbose:
+                    print('  * took %.4fs' % (tt.toc(),))
+                    print('  * layer = %r' % (layer,))
+                    if hasattr(layer, 'input_shape'):
+                        print('  * layer.input_shape = %r' % (
+                            layer.input_shape,))
+                    if hasattr(layer, 'shape'):
+                        print('  * layer.shape = %r' % (
+                            layer.shape,))
+                    print('  * layer.output_shape = %r' % (
+                        layer.output_shape,))
+    except Exception as ex:
+        keys = ['layer_fn', 'layer_fn.func', 'layer_fn.args',
+                'layer_fn.keywords', 'layer', 'count']
+        ut.printex(ex,
+                   ('Error buildling layers.\n'
+                    'layer.name=%r') % (layer),
+                   keys=keys)
+        raise
+    return network_layers
+
+
+def overwrite_latest_image(fpath, new_name):
+    """
+    copies the new image to a path to be overwritten so new updates are
+    shown
+    """
+    from os.path import split, join, splitext, dirname
+    import shutil
+    dpath, fname = split(fpath)
+    ext = splitext(fpath)[1]
+    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
+    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
+
+
+def testdata_model_with_history():
+    model = BaseModel()
+    # make a dummy history
+    X_train, y_train = [1, 2, 3], [0, 0, 1]
+    rng = np.random.RandomState(0)
+    def dummy_epoch_dict(num):
+        epoch_info = {
+            'epoch': num,
+            'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'learn_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'learn_loss_regularized': (1 / np.exp(num / 10) +
+                                       np.exp(rng.rand() * num) +
+                                       rng.rand() / 100),
+            'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
+            'param_update_mags': {
+                'C0': (rng.normal() ** 2, rng.rand()),
+                'F1': (rng.normal() ** 2, rng.rand()),
+            }
+        }
+        return epoch_info
+    count = 0
+    for era_length in [4, 4, 4]:
+        model.start_new_era(X_train, y_train, X_train, y_train)
+        for count in range(count, count + era_length):
+            model.record_epoch(dummy_epoch_dict(count))
+    #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'learn_loss': .9})
+    #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'learn_loss': .7})
+    #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'learn_loss': .6})
+    #model.record_epoch({'epoch': 4, 'valid_loss': .2, 'learn_loss': .3})
+    #model.record_epoch({'epoch': 5, 'valid_loss': .1, 'learn_loss': .2})
+    return model
 
 
 if __name__ == '__main__':

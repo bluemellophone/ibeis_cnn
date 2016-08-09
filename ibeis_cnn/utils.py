@@ -256,32 +256,6 @@ def random_xy_sample(X, y, size_, data_per_label, seed=0):
     return X_subset, y_sbuset
 
 
-def write_data_and_labels(data, labels, data_fpath, labels_fpath):
-    print('[write_data_and_labels] np.shape(data) = %r' % (np.shape(data),))
-    print('[write_data_and_labels] np.shape(labels) = %r' % (np.shape(labels),))
-    # to resize the images back to their 2D-structure:
-    # X = images_array.reshape(-1, 3, 48, 48)
-    print('[write_data_and_labels] data_fpath=%s...' % (data_fpath))
-    print('[write_data_and_labels] labels_fpath=%s...' % (labels_fpath))
-    ut.save_data(data_fpath, data)
-    ut.save_data(labels_fpath, labels) if labels_fpath is not None else None
-    #if splitext(data_fpath)[1] == '.hdf5':
-    #    ut.save_hdf5(data_fpath, data)
-    #elif splitext(data_fpath)[1] == '.npz':
-    #    with open(data_fpath, 'wb') as ofile:
-    #        np.save(ofile, data)
-    #else:
-    #    ut.save_data(data_fpath, data)
-
-    #if splitext(labels_fpath)[1] == '.hdf5':
-    #    ut.save_hdf5(labels_fpath, labels)
-    #elif splitext(data_fpath)[1] == '.npz':
-    #    with open(labels_fpath, 'wb') as ofile:
-    #        np.save(ofile, labels)
-    #else:
-    #    ut.save_data(labels_fpath, labels)
-
-
 def load(data_fpath, labels_fpath=None):
     # Load X matrix (data)
     data = ut.load_data(data_fpath)
@@ -698,26 +672,6 @@ def save_pretrained_weights_slice(pretrained_weights, weights_path, slice_=slice
     net_strs.print_pretrained_weights(pretrained_weights, weights_path)
     net_strs.print_pretrained_weights(sliced_pretrained_weights, sliced_weights_path)
     return sliced_weights_path
-
-
-def print_data_label_info(data, labels, key=''):
-    """ DEPRICATE """
-    # print('[load] adding channels...')
-    # data = utils.add_channels(data)
-    print('[train] %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
-    print('[train] %s_data.shape   = %r' % (key, data.shape,))
-    print('[train] %s_data.dtype   = %r' % (key, data.dtype,))
-    print('[train] %s_labels.shape = %r' % (key, labels.shape,))
-    print('[train] %s_labels.dtype = %r' % (key, labels.dtype,))
-    labelhist = {key: len(val) for key, val in six.iteritems(ut.group_items(labels, labels))}
-    print('[train] %s_label histogram = \n%s' % (key, ut.dict_str(labelhist)))
-    print('[train] %s_label total = %d' % (key, sum(labelhist.values())))
-
-
-#def load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, key):
-#    data, labels = load(data_fpath_dict[key], label_fpath_dict[key])
-#    print_data_label_info(data, labels, key)
-#    return data, labels
 
 
 def extract_patches_stride(image, patch_size, stride):

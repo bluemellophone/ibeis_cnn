@@ -29,7 +29,8 @@ class DataSet(object):
 
     """
     def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
-                 metadata_fpath, data_per_label, data_shape, output_dims, num_labels):
+                 metadata_fpath, data_per_label, data_shape, output_dims,
+                 num_labels, dataset_dpath=None):
         # Constructor args is primary data
         key_list = ut.get_func_argspec(dataset.__init__).args[1:]
         r"""
@@ -56,56 +57,23 @@ class DataSet(object):
             dataset.data_shape = data_shape
             dataset.output_dims = output_dims
             dataset.num_labels = num_labels
+            dataset.dataset_dpath = dataset_dpath
             # </AUTOGEN_INIT>
         else:
             locals_ = locals()
             for key in key_list:
                 setattr(dataset, key, locals_[key])
+        # Dictionary for storing different data subsets
+        dataset.fpath_dict = {
+            'all' : {
+                'data': data_fpath,
+                'labels': labels_fpath,
+                'metadata': metadata_fpath,
+            }
+        }
         # Hacky dictionary for custom things
         # Probably should be refactored
         dataset._lazy_cache = ut.LazyDict()
-
-    def hasprop(dataset, key):
-        return key in dataset._lazy_cache.keys()
-
-    def getprop(dataset, key, *d):
-        if len(d) == 0:
-            return dataset._lazy_cache[key]
-        else:
-            assert len(d) == 1
-            if key in dataset._lazy_cache:
-                return dataset._lazy_cache[key]
-            else:
-                return d[0]
-
-    def setprop(dataset, key, val):
-        dataset._lazy_cache[key] = val
-
-    def build_auxillary_data(dataset):
-        # Make test train validatation sets
-        data_fpath = dataset.data_fpath
-        labels_fpath = dataset.labels_fpath
-        metadata_fpath = dataset.metadata_fpath
-        data_per_label = dataset.data_per_label
-        split_names = ['train', 'test', 'valid']
-        fractions = [.7, .2, .1]
-        named_split_fpath_dict = ondisk_data_split(
-            data_fpath, labels_fpath, metadata_fpath,
-            data_per_label, split_names, fractions,
-        )
-        dataset.named_split_fpath_dict = named_split_fpath_dict
-        dataset.data_fpath_dict = named_split_fpath_dict['data']
-        dataset.label_fpath_dict = named_split_fpath_dict['labels']
-        if 'metadata' in named_split_fpath_dict:
-            dataset.metadata_fpath_dict = named_split_fpath_dict['labels']
-        else:
-            dataset.metadata_fpath_dict = None
-
-    def asdict(dataset):
-        # save all args passed into constructor as a dict
-        key_list = ut.get_func_argspec(dataset.__init__).args[1:]
-        data_dict = ut.dict_subset(dataset.__dict__, key_list)
-        return data_dict
 
     @classmethod
     def from_alias_key(cls, alias_key):
@@ -123,7 +91,7 @@ class DataSet(object):
             ut.assert_exists(data_dict['labels_fpath'])
             ut.assert_exists(data_dict['metadata_fpath'])
             dataset = cls(**data_dict)
-            dataset.build_auxillary_data()
+            # dataset.build_auxillary_data()
             print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
             return dataset
         raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
@@ -133,12 +101,53 @@ class DataSet(object):
         dataset = cls(**kwargs)
         # Define auxillary data
         try:
-            dataset.build_auxillary_data()
+            # dataset.build_auxillary_data()
             dataset.register_self()
             dataset.save_alias(dataset.alias_key)
         except Exception as ex:
             ut.printex(ex, 'WARNING was not able to generate splis or save alias')
         return dataset
+
+    def hasprop(dataset, key):
+        return key in dataset._lazy_cache.keys()
+
+    def getprop(dataset, key, *d):
+        if len(d) == 0:
+            return dataset._lazy_cache[key]
+        else:
+            assert len(d) == 1
+            if key in dataset._lazy_cache:
+                return dataset._lazy_cache[key]
+            else:
+                return d[0]
+
+    def setprop(dataset, key, val):
+        dataset._lazy_cache[key] = val
+
+    def load_subset(dataset, key):
+        """ loads a test/train/valid/all data subset """
+        data = dataset.load_subset_data(key)
+        labels = dataset.load_subset_labels(key)
+        dataset.print_dataset_info(data, labels, key)
+        return data, labels
+
+    @property
+    def labels(dataset):
+        return dataset.load_subset_labels()
+
+    @property
+    def data(dataset):
+        return dataset.load_subset_data()
+
+    @property
+    def metadata(dataset):
+        return dataset.load_subset_metadata()
+
+    def asdict(dataset):
+        # save all args passed into constructor as a dict
+        key_list = ut.get_func_argspec(dataset.__init__).args[1:]
+        data_dict = ut.dict_subset(dataset.__dict__, key_list)
+        return data_dict
 
     def register_self(dataset):
         # creates a symlink in the junction dir
@@ -154,42 +163,33 @@ class DataSet(object):
         alias_dict[alias_key] = data_dict
         ut.text_dict_write(alias_fpath, alias_dict)
 
+    @ut.memoize
     def load_subset_data(dataset, key='all'):
-        data_fpath = dataset.named_split_fpath_dict['data'][key]
+        data_fpath = dataset.fpath_dict[key]['data']
         data = ut.load_data(data_fpath, verbose=True)
         if len(data.shape) == 3:
             # add channel dimension for implicit grayscale
             data.shape = data.shape + (1,)
         return data
 
+    @ut.memoize
     def load_subset_labels(dataset, key='all'):
-        labels_fpath = dataset.named_split_fpath_dict['labels'][key]
+        labels_fpath = dataset.fpath_dict[key]['labels']
         labels = (None if labels_fpath is None
                   else ut.load_data(labels_fpath, verbose=True))
         return labels
 
+    @ut.memoize
     def load_subset_metadata(dataset, key='all'):
-        if 'metadata' in dataset.named_split_fpath_dict:
-            metadata_fpath = dataset.named_split_fpath_dict['metadata'][key]
+        metadata_fpath = dataset.fpath_dict[key].get('metadata', None)
+        if metadata_fpath is not None:
             flat_metadata = ut.load_data(metadata_fpath, verbose=True)
         else:
             flat_metadata = None
         return flat_metadata
 
-    def load_subset(dataset, key):
-        """ loads a test/train/valid/all data subset """
-        data = dataset.load_subset_data(key)
-        labels = dataset.load_subset_labels(key)
-        utils.print_data_label_info(data, labels, key)
-        dataset.print_dataset_info(data, labels, key)
-        return data, labels
-
     @staticmethod
     def print_dataset_info(data, labels, key):
-        # print('[load] adding channels...')
-        # data = utils.add_channels(data)
-        #data   = dataset.load_subset_data(key)
-        #labels = dataset.load_subset_labels(key)
         print('[dataset] %s_memory(data) = %r' % (key, ut.get_object_size_str(data),))
         print('[dataset] %s_data.shape   = %r' % (key, data.shape,))
         print('[dataset] %s_data.dtype   = %r' % (key, data.dtype,))
@@ -198,18 +198,6 @@ class DataSet(object):
         labelhist = {key: len(val) for key, val in ut.group_items(labels, labels).items()}
         print('[dataset] %s_label histogram = \n%s' % (key, ut.dict_str(labelhist)))
         print('[dataset] %s_label total = %d' % (key, sum(labelhist.values())))
-
-    @property
-    def labels(dataset):
-        return dataset.load_subset_labels()
-
-    @property
-    def data(dataset):
-        return dataset.load_subset_data()
-
-    @property
-    def metadata(dataset):
-        return dataset.load_subset_metadata()
 
     def interact(dataset, key='all', **kwargs):
         """
@@ -233,6 +221,75 @@ class DataSet(object):
         return interact_func(
             labels, data, metadata, dataset.data_per_label,
             **interact_kw)
+
+    def view_directory(dataset):
+        ut.view_directory(dirname(dataset.data_fpath))
+
+    def has_splitset(dataset, key):
+        return key in dataset.fpath_dict
+
+    @property
+    def split_dpath(dataset):
+        split_dpath = join(dataset.dataset_dpath, 'data_splits')
+        return split_dpath
+
+    def load_splitsets(dataset):
+        import parse
+        fmtstr_ = '{key}_{type_}_{size:d}{ext}'
+        fpath_dict = {}
+        for fpath in ut.ls(dataset.split_dpath):
+            parsed = parse.parse(fmtstr_, basename(fpath))
+            key = parsed['key']
+            type_ = parsed['type_']
+            splitset = fpath_dict.get(key, {})
+            splitset[type_] = fpath
+            fpath_dict[key] = splitset
+        # check validity of loaded data
+        for key, val in fpath_dict.items():
+            assert 'data' in val, 'subset missing data'
+        dataset.fpath_dict.update(**fpath_dict)
+
+    def add_splitset(dataset, key, idxs):
+        print('[dataset] adding splitset %r' % (key,))
+        # Partition data into the subset
+        part_dict = {
+            'data': dataset.data.take(idxs, axis=0),
+            'labels': dataset.labels.take(idxs, axis=0),
+        }
+        if dataset.metadata is not None:
+            taker = ut.partial(ut.take, index_list=idxs)
+            part_dict['metadata'] = ut.map_dict_vals(taker, dataset.metadata)
+        # Build subset filenames
+        ut.ensuredir(dataset.split_dpath)
+        ext = '.pkl'
+        fmtstr_ = '{key}_{type_}_{size}{ext}'
+        fmtdict = dict(key=key, ext=ext, size=len(idxs))
+        splitset = {
+            type_: join(dataset.split_dpath, fmtstr_.format(type_=type_, **fmtdict))
+            for type_ in part_dict.keys()
+        }
+        # Write splitset data to files
+        for type_ in part_dict.keys():
+            ut.save_data(splitset[type_], part_dict[type_])
+        # Register filenames with dataset
+        dataset.fpath_dict[key] = splitset
+
+    def build_auxillary_data(dataset):
+        # Make test train validatation sets
+        data_fpath = dataset.data_fpath
+        labels_fpath = dataset.labels_fpath
+        metadata_fpath = dataset.metadata_fpath
+        data_per_label = dataset.data_per_label
+        split_names = ['train', 'test', 'valid']
+        fractions = [.7, .2, .1]
+        named_split_fpath_dict = ondisk_data_split(
+            data_fpath, labels_fpath, metadata_fpath,
+            data_per_label, split_names, fractions,
+        )
+        for key, val in named_split_fpath_dict.items():
+            splitset = dataset.fpath_dict.get(key, {})
+            splitset.update(**val)
+            dataset.fpath_dict[key] = splitset
 
 
 def get_alias_dict_fpath():
