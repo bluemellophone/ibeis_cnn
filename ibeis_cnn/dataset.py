@@ -128,8 +128,11 @@ class DataSet(object):
         """ loads a test/train/valid/all data subset """
         data = dataset.load_subset_data(key)
         labels = dataset.load_subset_labels(key)
-        dataset.print_dataset_info(data, labels, key)
         return data, labels
+
+    def print_subset_info(dataset, key):
+        data, labels = dataset.load_subset(key)
+        dataset.print_dataset_info(data, labels, key)
 
     @property
     def labels(dataset):

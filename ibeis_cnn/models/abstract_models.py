@@ -348,7 +348,7 @@ class _ModelFitting(object):
         history_text_fpath = prog_metric_path(
             str(model.arch_tag) + '_%02d_era_history.txt')
         if ut.get_argflag('--vd'):
-            ut.vd(progress_dir)
+            ut.vd(model.progress_dpath)
 
         # Write initial states of the weights
         fpath = model.imwrite_weights(dpath=weights_progress_dir,
