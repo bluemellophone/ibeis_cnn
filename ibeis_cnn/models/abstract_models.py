@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
 import functools
+import six
 import numpy as np
 import utool as ut
 from os.path import join, exists, dirname, basename
@@ -267,7 +268,6 @@ class _ModelVisualization(object):
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='log')
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
         model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
-
         model.show_weight_updates(fnum=fnum, pnum=next_pnum())
 
         pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
@@ -312,6 +312,7 @@ class _ModelVisualization(object):
         fnum = pt.ensure_fnum(fnum)
         fig = pt.figure(fnum=fnum, pnum=pnum)
         num_eras = len(model.era_history)
+        has_mag_updates = False
         for index, era in enumerate(model.era_history):
             epochs = era['epoch_list']
             if 'param_update_mags_list' not in era:
@@ -331,18 +332,21 @@ class _ModelVisualization(object):
                 update_mag_std = ut.get_list_column(val, 1)  # NOQA
                 #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
                 if index == len(model.era_history) - 1:
-                    pt.interval_line_plot(epochs, update_mag_mean,
-                                          update_mag_std, marker='x',
+                    # Dont show the first update
+                    pt.interval_line_plot(epochs[1:], update_mag_mean[1:],
+                                          update_mag_std[1:], marker='x',
                                           linestyle='-', color=color,
                                           label=key)
                 else:
-                    pt.interval_line_plot(epochs, update_mag_mean,
-                                          update_mag_std, marker='x',
+                    pt.interval_line_plot(epochs[1:], update_mag_mean[1:],
+                                          update_mag_std[1:], marker='x',
                                           linestyle='-', color=color)
                 #, label=valid_label, yscale=yscale)
+            has_mag_updates = True
             pass
-        if num_eras > 0:
-            pt.legend()
+        if has_mag_updates:
+            if num_eras > 0:
+                pt.legend()
 
         pt.dark_background()
         return fig
@@ -532,7 +536,7 @@ class _ModelStrings(object):
             >>> result = str(history_hashid)
             >>> print(result)
             hist_eras002_epochs0005_bdpueuzgkxvtwmpe
-
+nesterov_momentum
         """
         era_history_hash = [ut.hashstr27(repr(era))
                             for era in  model.era_history]
@@ -580,7 +584,7 @@ class _ModelIO(object):
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
         history_hashid = model.get_model_history_hashid()
-        diagnostic_dpath = ut.unixjoin(model.training_dpath, 'diagnostics')
+        diagnostic_dpath = ut.unixjoin(model.training_dpath, model.arch_tag + '/diagnostics')
         ut.ensuredir(diagnostic_dpath )
         epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
         ut.ensuredir(epoch_dpath)
@@ -592,7 +596,7 @@ class _ModelIO(object):
         return checkpoint_dirs
 
     def _get_model_dpath(model, dpath, checkpoint_tag):
-        dpath = model.training_dpath if dpath is None else dpath
+        dpath = model.training_dpath + '/' + model.arch_tag if dpath is None else dpath
         if checkpoint_tag is not None:
             # checkpoint dir requested
             dpath = join(dpath, 'checkpoints')
@@ -908,42 +912,6 @@ class _ModelBackend(object):
             model._theano_predict = theano_predict
         return model._theano_predict
 
-    def build_backprop_func(model):
-        if model._theano_backprop is None:
-            print('[model.build] request_backprop')
-            import ibeis_cnn.__THEANO__ as theano
-            from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-
-            X, X_batch = model._get_batch_input_exprs()
-            y, y_batch = model._get_batch_output_exprs()
-            labeled_outputs = model._get_labeled_outputs()
-
-            # Build backprop losses
-            loss_exprs = model._get_loss_exprs()
-            loss             = loss_exprs['loss']
-            loss_regularized = loss_exprs['loss_regularized']
-
-            backprop_losses = []
-            if loss_regularized is not None:
-                backprop_losses.append(loss_regularized)
-            backprop_losses.append(loss)
-
-            # Updates network parameters based on the training loss
-            parameters = model.get_all_params(trainable=True)
-            updates = model._make_updates(parameters)
-            monitor_outputs = model._make_monitor_outputs(parameters, updates)
-
-            theano_backprop = theano.function(
-                inputs=[theano.In(X_batch), theano.In(y_batch)],
-                outputs=(backprop_losses + labeled_outputs + monitor_outputs),
-                givens={X: X_batch, y: y_batch},
-                updates=updates,
-                mode=model.theano_mode,
-                name=':theano_backprop:explicit',
-            )
-            model._theano_backprop = theano_backprop
-        return model._theano_backprop
-
     def build_forward_func(model):
         if model._theano_forward is None:
             import ibeis_cnn.__THEANO__ as theano
@@ -968,6 +936,48 @@ class _ModelBackend(object):
             )
             model._theano_forward = theano_forward
         return model._theano_forward
+
+    def build_backprop_func(model):
+        if model._theano_backprop is None:
+            print('[model.build] request_backprop')
+            import ibeis_cnn.__THEANO__ as theano
+            from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+            X, X_batch = model._get_batch_input_exprs()
+            y, y_batch = model._get_batch_output_exprs()
+            labeled_outputs = model._get_labeled_outputs()
+
+            # Build backprop losses
+            loss_exprs = model._get_loss_exprs()
+            loss             = loss_exprs['loss']
+            loss_regularized = loss_exprs['loss_regularized']
+
+            if loss_regularized is not None:
+                backprop_loss_ = loss_regularized
+            else:
+                backprop_loss_ = loss
+
+            backprop_losses = []
+            if loss_regularized is not None:
+                backprop_losses.append(loss_regularized)
+            backprop_losses.append(loss)
+
+            # Updates network parameters based on the training loss
+            parameters = model.get_all_params(trainable=True)
+
+            updates = model._make_updates(parameters, backprop_loss_)
+            monitor_outputs = model._make_monitor_outputs(parameters, updates)
+
+            theano_backprop = theano.function(
+                inputs=[theano.In(X_batch), theano.In(y_batch)],
+                outputs=(backprop_losses + labeled_outputs + monitor_outputs),
+                givens={X: X_batch, y: y_batch},
+                updates=updates,
+                mode=model.theano_mode,
+                name=':theano_backprop:explicit',
+            )
+            model._theano_backprop = theano_backprop
+        return model._theano_backprop
 
     def _get_batch_input_exprs(model):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
@@ -996,19 +1006,19 @@ class _ModelBackend(object):
         if model._theano_exprs['loss'] is None:
             import ibeis_cnn.__LASAGNE__ as lasagne
             with warnings.catch_warnings():
-                warnings.filterwarnings('ignore', '.*topo.*')
-                warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
-                warnings.filterwarnings('ignore', '.*layer.get_output.*')
+                #warnings.filterwarnings('ignore', '.*topo.*')
+                #warnings.filterwarnings('ignore', '.*get_all_non_bias_params.*')
+                #warnings.filterwarnings('ignore', '.*layer.get_output.*')
 
                 X, X_batch = model._get_batch_input_exprs()
                 y, y_batch = model._get_batch_output_exprs()
 
                 netout_exprs = model._get_network_output()
-                network_output = netout_exprs['network_output']
+                network_output_learn = netout_exprs['network_output_learn']
                 network_output_determ = netout_exprs['network_output_determ']
 
                 print('Building symbolic loss function')
-                losses = model.loss_function(network_output, y_batch)
+                losses = model.loss_function(network_output_learn, y_batch)
                 loss = lasagne.objectives.aggregate(losses, mode='mean')
                 loss.name = 'loss'
 
@@ -1024,7 +1034,7 @@ class _ModelBackend(object):
                 L2 = lasagne.regularization.regularize_network_params(
                     model.output_layer, lasagne.regularization.l2)
                 weight_decay = model.learning_state['weight_decay']
-                if weight_decay is not None:
+                if weight_decay is not None or weight_decay == 0:
                     regularization_term = weight_decay * L2
                     regularization_term.name = 'regularization_term'
                     #L2 = lasagne.regularization.l2(model.output_layer)
@@ -1041,21 +1051,46 @@ class _ModelBackend(object):
             model._theano_exprs['loss'] = loss_exprs
         return model._theano_exprs['loss']
 
+    def _make_updates(model, parameters, backprop_loss_):
+        import ibeis_cnn.__LASAGNE__ as lasagne
+        import ibeis_cnn.__THEANO__ as theano
+        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
+
+        grads = theano.grad(backprop_loss_, parameters, add_names=True)
+
+        learning_rate_theano = model.shared_learning_rate
+        momentum = model.learning_state['momentum']
+
+        updates = lasagne.updates.nesterov_momentum(
+            loss_or_grads=grads,
+            params=parameters,
+            learning_rate=learning_rate_theano,
+            momentum=momentum
+            # add_names=True  # TODO; commit to lasange
+        )
+
+        # workaround for pylearn2 bug documented in
+        # https://github.com/Lasagne/Lasagne/issues/728
+        for param, update in updates.items():
+            if param.broadcastable != update.broadcastable:
+                updates[param] = T.patternbroadcast(update, param.broadcastable)
+        return updates
+
     def _get_network_output(model):
         if model._theano_exprs['netout'] is None:
             import ibeis_cnn.__LASAGNE__ as lasagne
             X, X_batch = model._get_batch_input_exprs()
-            y, y_batch = model._get_batch_output_exprs()
 
-            network_output = lasagne.layers.get_output(model.output_layer,
-                                                       X_batch)
-            network_output.name = 'network_output'
+            network_output_learn = lasagne.layers.get_output(
+                model.output_layer, X_batch)
+            network_output_learn.name = 'network_output_learn'
+
             network_output_determ = lasagne.layers.get_output(
                 model.output_layer, X_batch, deterministic=True)
             network_output_determ.name = 'network_output_determ'
 
             netout_exprs = {
-                'network_output': network_output,
+                'network_output_learn': network_output_learn,
                 'network_output_determ': network_output_determ,
             }
             model._theano_exprs['netout'] = netout_exprs
@@ -1085,6 +1120,8 @@ class _ModelBackend(object):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Build outputs to babysit training
         monitor_outputs = []
+        # HACK OFF
+        #return monitor_outputs
 
         for param in parameters:
             # The vector each param was udpated with
@@ -1098,36 +1135,6 @@ class _ModelBackend(object):
             param_update_mag.name = 'param_update_magnitude_' + param.name
             monitor_outputs.append(param_update_mag)
         return monitor_outputs
-
-    def _make_updates(model, parameters):
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        import ibeis_cnn.__THEANO__ as theano
-        from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
-
-        loss_exprs = model._get_loss_exprs()
-        loss             = loss_exprs['loss']
-        loss_regularized = loss_exprs['loss_regularized']
-
-        if loss_regularized is not None:
-            backprop_loss_ = loss_regularized
-        else:
-            backprop_loss_ = loss
-        loss_or_grads = theano.grad(backprop_loss_, parameters,
-                                    add_names=True)
-
-        learning_rate_theano = model.shared_learning_rate
-        momentum = model.learning_state['momentum']
-
-        updates = lasagne.updates.nesterov_momentum(
-            loss_or_grads, parameters, learning_rate_theano,
-            momentum)  # add_names=True)  # TODO; commit to lasange
-
-        # workaround for pylearn2 bug documented in
-        # https://github.com/Lasagne/Lasagne/issues/728
-        for param, update in updates.items():
-            if param.broadcastable != update.broadcastable:
-                updates[param] = T.patternbroadcast(update, param.broadcastable)
-        return updates
 
     def build_unlabeled_output_expressions(model, network_output):
         """
@@ -1147,7 +1154,11 @@ class _ModelBackend(object):
 
 
 class _ModelFitting(object):
-    def _init_fit_vars(model, momentum=.9, weight_decay=.0005, learning_rate=.005):
+    """
+    CommandLine:
+        python -m ibeis_cnn _ModelFitting.fit:0
+    """
+    def _init_fit_vars(model, momentum=.9, weight_decay=None, learning_rate=.005):
         # era=(group of epochs)
         model.current_era = None
         model.era_history = []
@@ -1165,10 +1176,10 @@ class _ModelFitting(object):
         }
         # Theano shared state
         model.train_config = {
-            'era_schedule': 15,
+            'era_schedule': 100,
             'max_epochs': None,
             'learning_rate_adjust': .8,
-            'checkpoint_freq': 10,
+            'checkpoint_freq': 200,
             'monitor': ut.get_argflag('--monitor'),
         }
         model.shared_state = {
@@ -1188,14 +1199,17 @@ class _ModelFitting(object):
             >>> from ibeis_cnn import ingest_data
             >>> from ibeis_cnn.models import MNISTModel
             >>> dataset = ingest_data.grab_mnist_category_dataset()
-            >>> model = MNISTModel(batch_size=16, data_shape=dataset.data_shape,
+            >>> model = MNISTModel(batch_size=512, data_shape=dataset.data_shape,
             >>>                    output_dims=dataset.output_dims,
             >>>                    training_dpath=dataset.training_dpath)
-            >>> model.learning_rate = .0001
             >>> model.arch_tag = 'mnist_test'
+            >>> model.learning_rate = .0001
+            >>> model.encoder = None
             >>> model.initialize_architecture()
+            >>> #model.reinit_weights()
             >>> model.train_config['monitor'] = True
-            >>> X_train, y_train = dataset.load_subset('train')
+            >>> model.learning_state['weight_decay'] = None
+            >>> X_train, y_train = dataset.load_subset('all')
             >>> valid_idx = None
             >>> model.fit(X_train, y_train)
         """
@@ -1220,7 +1234,8 @@ class _ModelFitting(object):
             print('Resuming training at epoch=%r' % (epoch,))
 
         # number of non-best iterations after, that triggers a best save
-        save_after_best_wait_epochs = 5
+        # This prevents strings of best-saves one after another
+        save_after_best_wait_epochs = 2
         save_after_best_countdown = None
 
         # Begin training the neural network
@@ -1431,7 +1446,7 @@ class _ModelFitting(object):
 
     def _init_monitor(model):
         # FIXME; put into better place
-        progress_dir = ut.unixjoin(model.training_dpath, 'progress')
+        progress_dir = ut.unixjoin(model.training_dpath, model.arch_tag, 'progress')
         ut.ensuredir(progress_dir)
         def prog_metric_path(x):
             path_fmt = ut.unixjoin(progress_dir, x)
@@ -1444,7 +1459,8 @@ class _ModelFitting(object):
             str(model.arch_tag) + '_%02d_weights')
         history_text_fpath = prog_metric_path(
             str(model.arch_tag) + '_%02d_era_history.txt')
-        ut.vd(progress_dir)
+        if ut.get_argflag('--vd'):
+            ut.vd(progress_dir)
 
         # Write initial states of the weights
         fpath = model.imwrite_weights(dpath=weights_progress_dir,
@@ -1483,13 +1499,15 @@ class _ModelFitting(object):
         # Split training set into a learning / validation set
         if valid_idx is None:
             from ibeis_cnn.dataset import stratified_shuffle_split
-            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.8, .2], rng=432321)
+            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.7, .3],
+                                                            rng=432321)
             #import sklearn.cross_validation
             #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
             #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
             #train_idx, valid_idx = list(skf)[0]
         else:
             train_idx = ut.index_complement(valid_idx, len(X_train))
+
         # Set to learn network weights
         X_learn = X_train.take(train_idx, axis=0)
         y_learn = y_train.take(train_idx, axis=0)
@@ -1498,6 +1516,9 @@ class _ModelFitting(object):
         y_valid = y_train.take(valid_idx, axis=0)
 
         model.ensure_training_state(X_learn, y_learn)
+
+        print('Learn y histogram: ' + ut.repr2(ut.dict_hist(y_learn)))
+        print('Valid y histogram: ' + ut.repr2(ut.dict_hist(y_valid)))
 
         print('\n[train] --- MODEL INFO ---')
         model.print_architecture_str()
@@ -1540,11 +1561,22 @@ class _ModelFitting(object):
             if key.startswith('param_update_magnitude_'):
                 key_ = key.replace('param_update_magnitude_', '')
                 param_update_mags[key_] = (val.mean(), val.std())
-        learn_info['param_update_mags'] = param_update_mags
+        if param_update_mags:
+            learn_info['param_update_mags'] = param_update_mags
 
         # If the training loss is nan, the training has diverged
         if np.isnan(learn_info['learn_loss']):
             print('\n[train] train loss is Nan. training diverged\n')
+            #import utool
+            #utool.embed()
+            print('learn_outputs = %r' % (learn_outputs,))
+            """
+            from ibeis_cnn import draw_net
+            draw_net.imwrite_theano_symbolic_graph(theano_backprop)
+            """
+            import utool
+            utool.embed()
+            # imwrite_theano_symbolic_graph(thean_expr):
             learn_info['diverged'] = True
         return learn_info
 
@@ -1659,7 +1691,10 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
         """
         import ibeis_cnn.__LASAGNE__ as lasagne
         if W is None:
-            W = lasagne.init.Orthogonal()
+            W = 'orthogonal'
+        if isinstance(W, six.string_types):
+            if W == 'orthogonal':
+                W = lasagne.init.Orthogonal()
         print('Reinitializing all weights to %r' % (W,))
         weights_list = model.get_all_params(regularizable=True, trainable=True)
         #print(weights_list)

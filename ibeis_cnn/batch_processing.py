@@ -106,10 +106,11 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
     showprog = True
 
     if showprog:
+        bs = VERBOSE_BATCH < 1
         num_batches = (X.shape[0] + model.batch_size - 1) // model.batch_size
         # progress iterator should be outside of this function
         batch_iter = ut.ProgressIter(batch_iter, nTotal=num_batches, lbl=theano_fn.name,
-                                     freq=10, bs=True, adjust=True)
+                                     freq=10, bs=bs, adjust=True)
     if y is None:
         # Labels are not known, only one argument
         for Xb, yb in batch_iter:
@@ -156,7 +157,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
         outputs_['auglbl_list'] = auglbl_list
 
     if fix_output:
-        # batch iteration may wrap-around returned data. slice of the padding
+        # batch iteration may wrap-around returned data. slice off the padding
         num_inputs = X.shape[0] / model.data_per_label_input
         num_outputs = num_inputs * model.data_per_label_output
         for key in six.iterkeys(outputs_):
@@ -298,6 +299,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     # messy messy messy
 
     needs_convert = ut.is_int(X)
+    if verbose:
+        print('[batchiter] needs_convert = %r' % (needs_convert,))
     if needs_convert:
         ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
         center_std01 = center_std / np.array(255.0, dtype=np.float32)

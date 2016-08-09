@@ -467,6 +467,10 @@ def get_patch_chunk(data_lists, label_list,
                              for color in pt.distinct_colors(len(unique_labels))]
             colorfn = dict(zip(unique_labels, unique_colors))
 
+        num_labels = len(np.unique(label_list))
+        if num_labels > 3:
+            colorfn = pt.distinct_colors(num_labels)
+
         patch_list_subsets = [
             [vt.draw_border(patch, color=colorfn[label], thickness=thickness, out=patch)
              for label, patch in zip(label_list_subset, patch_list)]

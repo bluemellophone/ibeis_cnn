@@ -52,12 +52,16 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         super(MNISTModel, self).__init__(**kwargs)
 
     def get_mnist_model_def1(model):
-        #from ibeis_cnn.__LASAGNE__ import init
+        """
+        Follows https://github.com/Lasagne/Lasagne/blob/master/examples/mnist.py
+        """
+        from ibeis_cnn.__LASAGNE__ import init
         from ibeis_cnn.__LASAGNE__ import layers
         from ibeis_cnn.__LASAGNE__ import nonlinearities
 
         _P = functools.partial
-        leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        #leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
+        leaky = dict(nonlinearity=nonlinearities.rectify)
         #orthog = dict(W=init.Orthogonal())
         #weight_initkw = dict(W=init.GlorotUniform())
         weight_initkw = dict()
@@ -71,21 +75,25 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
 
         network_layers_def = [
             _P(layers.InputLayer, shape=model.input_shape, name='I0'),
-            _P(layers.GaussianNoiseLayer, name='N0'),
+            #_P(layers.GaussianNoiseLayer, name='N0'),
 
+            # Convolutional layer with 32 kernels of size 5x5 and 2x2 pooling
             _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
-               name='C1', **hidden_initkw),
-            _P(layers.DropoutLayer, p=0.1, name='D1'),
+               name='C1', W=init.GlorotUniform(),
+               **hidden_initkw),
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
 
+            # Another convolution with 32 5x5 kernels, and 2x2 pooling
             _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
                name='C2', **hidden_initkw),
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
 
-            _P(layers.DenseLayer, num_units=256, name='F3',  **hidden_initkw),
-            _P(layers.FeaturePoolLayer, pool_size=2, name='P3'),  # maxout
+            # A fully-connected layer of 256 units with 50% dropout on its inputs
             _P(layers.DropoutLayer, p=0.5, name='D3'),
+            _P(layers.DenseLayer, num_units=256, name='F3',  **hidden_initkw),
 
+            # And, finally, the 10-unit output layer with 50% dropout on its inputs
+            _P(layers.DropoutLayer, p=0.5, name='D4'),
             _P(layers.DenseLayer, num_units=model.output_dims,
                nonlinearity=nonlinearities.softmax, name='O4', **output_initkw),
         ]
