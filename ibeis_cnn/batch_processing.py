@@ -180,17 +180,18 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     CommandLine:
         python -m ibeis_cnn --tf batch_iterator:0
         python -m ibeis_cnn --tf batch_iterator:1
+        python -m ibeis_cnn --tf batch_iterator:2
         python -m ibeis_cnn --tf batch_iterator:1 --DEBUG_AUGMENTATION
 
         python -m ibeis_cnn --tf batch_iterator:1 --noaugment
         # Threaded buffering seems to help a lot
         python -m ibeis_cnn --tf batch_iterator:1 --augment
 
-    Example:
+    Example0:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
-        >>> model = models.DummyModel(batch_size=16, strict_batch_size=False)
+        >>> model = models.DummyModel(batch_size=16)
         >>> X, y = model.make_random_testdata(num=99, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
         >>> y = None
@@ -202,13 +203,12 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> print(result)
         [[(16, 1, 4, 4), 16]] * 6 + [[(3, 1, 4, 4), 3]]
 
-    Example2:
+    Example1:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn import models
         >>> import time
-        >>> model = models.SiameseL2(batch_size=128, data_shape=(8, 8, 1),
-        ...                          strict_batch_size=True)
+        >>> model = models.SiameseL2(batch_size=128, data_shape=(8, 8, 1))
         >>> X, y = model.make_random_testdata(num=1000, seed=None, cv2_format=True)
         >>> model.ensure_training_state(X, y)
         >>> encoder = None
@@ -246,7 +246,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> assert result_list1 == result_list2
         >>> print(len(result_list2))
 
-    Example:
+    Example2:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.batch_processing import *  # NOQA
         >>> from ibeis_cnn.models.mnist import MNISTModel
@@ -276,18 +276,19 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> Xb2, yb2 = six.next(_iter2)
         >>> # ---
         >>> X, y, model = X1, y1, model1
-        >>> assert yb2 == yb2
+        >>> assert np.all(yb2 == yb2)
         >>> # The uint8 and float32 data should produce similar values
         >>> # For this mnist set it will be a bit more off because the
         >>> # original uint8 scaling value was 256 not 255.
         >>> assert (Xb1[0] - Xb2[0]).max() < .1
-
-        Xb1[0]
-        Xb2[0]
-
-        (model1.preproc_kw['center_mean']).max()
-        (model2.preproc_kw['center_mean'] / 255).max()
-
+        >>> assert np.isclose(Xb1.mean(), 0, atol=.01)
+        >>> assert np.isclose(Xb2.mean(), 0, atol=.01)
+        >>> assert Xb1.max() <  1.0 and Xb2.max() <  1.0, 'out of (-1, 1)'
+        >>> assert Xb1.min() > -1.0 and Xb1.min() > -1.0, 'out of (-1, 1)'
+        >>> assert Xb1.min() < 0, 'should have some negative values'
+        >>> assert Xb2.min() < 0, 'should have some negative values'
+        >>> assert Xb1.max() > 0, 'should have some positive values'
+        >>> assert Xb2.max() > 0, 'should have some positive values'
     """
     if verbose:
         verbose = VERBOSE_BATCH
@@ -297,10 +298,14 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         showprog = True
 
     # need to be careful with batchsizes if directly specified to theano
-    equal_batch_sizes = model.input_shape[0] is not None
+    wraparound = model.input_shape[0] is not None
     augment_on = augment_on and hasattr(model, 'augment')
     encoder = getattr(model, 'encoder', None)
     needs_convert = ut.is_int(X)
+    if y is not None:
+        assert X.shape[0] == (y.shape[0] * model.data_per_label_input), (
+            'bad data / label alignment')
+    num_batches = (X.shape[0] + model.batch_size - 1) // model.batch_size
 
     if randomize_batch_order:
         # Randomly shuffle data
@@ -313,13 +318,9 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             print('[batchiter] y.shape %r' % (y.shape, ))
         print('[batchiter] augment_on %r' % (augment_on, ))
         print('[batchiter] encoder %r' % (encoder, ))
-        print('[batchiter] equal_batch_sizes %r' % (equal_batch_sizes, ))
+        print('[batchiter] wraparound %r' % (wraparound, ))
         print('[batchiter] model.data_per_label_input %r' % (model.data_per_label_input, ))
         print('[batchiter] needs_convert = %r' % (needs_convert,))
-    if y is not None:
-        assert X.shape[0] == (y.shape[0] * model.data_per_label_input), (
-            'bad data / label alignment')
-    num_batches = (X.shape[0] + model.batch_size - 1) // model.batch_size
 
     # FIXME: put in a layer?
     center_mean = None
@@ -331,9 +332,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     do_whitening = (center_mean is not None and
                     center_std is not None and
                     center_std != 0.0)
-    #assert do_whitening, 'should be whitening'
 
-    # messy messy messy
     if needs_convert:
         ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
         center_std01 = center_std / np.array(255.0, dtype=np.float32)
@@ -344,10 +343,9 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     # Slice and preprocess data in batch
     for batch_index in range(num_batches):
         # Take a slice from the data
-        Xb_orig, yb_orig = utils.slice_data_labels(X, y, model.batch_size,
-                                                   batch_index,
-                                                   model.data_per_label_input,
-                                                   wraparound=equal_batch_sizes)
+        Xb_orig, yb_orig = utils.slice_data_labels(
+            X, y, model.batch_size, batch_index, model.data_per_label_input,
+            wraparound=wraparound)
         # Ensure correct format for the GPU
         Xb = Xb_orig.astype(np.float32)
         yb = None if Xb_orig is None else yb_orig.astype(np.int32)
@@ -356,9 +354,9 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             Xb = Xb / 255.0
         if augment_on:
             # Apply defined transformations
-            Xb, yb, = augment_batch(Xb, yb, batch_index)
+            Xb, yb, = augment_batch(model, Xb, yb, batch_index, verbose)
         if do_whitening:
-            # Center the batch data in the range (-.5, .5)
+            # Center the batch data in the range (-1.0, 1.0)
             Xb = (Xb - ceneter_mean01) / (center_std01)
         if X_is_cv2_native:
             # Convert from cv2 to lasange format
@@ -377,7 +375,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         print('[batch] END')
 
 
-def augment_batch(Xb, yb, batch_index):
+def augment_batch(model, Xb, yb, batch_index, verbose):
     """
     Make sure to augment data in 0-1 space.
     This means use a mean fill values not 0.

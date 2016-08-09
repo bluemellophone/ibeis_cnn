@@ -7,6 +7,7 @@ import utool as ut
 from os.path import join, exists, dirname, basename
 from six.moves import cPickle as pickle  # NOQA
 import warnings
+import sklearn
 import sklearn.preprocessing
 from ibeis_cnn import net_strs
 from ibeis_cnn import draw_net
@@ -47,7 +48,7 @@ class _ModelFitting(object):
     CommandLine:
         python -m ibeis_cnn _ModelFitting.fit:0
     """
-    def _init_fit_vars(model, momentum=.9, weight_decay=None, learning_rate=.005):
+    def _init_fit_vars(model, kwargs):
         # era=(group of epochs)
         model.current_era = None
         model.era_history = []
@@ -60,8 +61,8 @@ class _ModelFitting(object):
             'valid_loss':     np.inf,
         }
         model.learning_state = {
-            'momentum': momentum,
-            'weight_decay': weight_decay,
+            'momentum': kwargs.pop('momentum', .9),
+            'weight_decay': kwargs.pop('weight_decay', None),
         }
         # Theano shared state
         model.train_config = {
@@ -75,7 +76,7 @@ class _ModelFitting(object):
             'learning_rate': None,
         }
         # NOTE: Do not set learning rate until theano is initialized
-        model.learning_rate = learning_rate
+        model.learning_rate = kwargs.pop('learning_rate', .005)
 
     def fit(model, X_train, y_train, valid_idx=None):
         r"""
@@ -1203,15 +1204,16 @@ class _ModelBackend(object):
     Functions that build and compile theano exepressions
     """
 
-    def _init_compile_vars(model):
+    def _init_compile_vars(model, kwargs):
         model._theano_exprs = ut.ddict(lambda: None)
         model._theano_backprop = None
         model._theano_forward = None
         model._theano_predict = None
         model._mode = None
-        import logging
-        compile_logger = logging.getLogger('theano.compile')
-        compile_logger.setLevel(-10)
+        if kwargs.pop('debug_theano', False):
+            import logging
+            compile_logger = logging.getLogger('theano.compile')
+            compile_logger.setLevel(-10)
 
     @property
     def theano_mode(model):
@@ -1245,7 +1247,6 @@ class _ModelBackend(object):
         model.build_forward_func()
         model.build_predict_func()
         print('[model] --- FINISHED BUILD ---')
-        return model._theano_funcs
 
     def build_predict_func(model):
         if model._theano_predict is None:
@@ -1517,44 +1518,56 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
     """
     Abstract model providing functionality for all other models to derive from
     """
-    def __init__(model, output_dims=None, input_shape=None, batch_size=None,
-                 strict_batch_size=True, data_shape=None, training_dpath='.',
-                 momentum=.9, weight_decay=.0005, learning_rate=.001,
-                 arch_tag=None):
+    def __init__(model, **kwargs):
         """
         Guess on Shapes:
             input_shape (tuple): in Theano format (b, c, h, w)
             data_shape (tuple):  in  Numpy format (b, h, w, c)
         """
-        if input_shape is None and data_shape is not None:
-            if strict_batch_size is True:
-                strict_batch_size = batch_size
-            elif strict_batch_size is False:
-                strict_batch_size = None
-            else:
-                raise AssertionError('strict_batch_size must be a bool')
-            input_shape = (strict_batch_size,
-                           data_shape[2],
-                           data_shape[0],
-                           data_shape[1])
-        if data_shape is None and input_shape is not None:
-            data_shape = (input_shape[2], input_shape[3], input_shape[1])
-        model.data_shape = data_shape
-        #model.network_layers = None  # We don't need to save all of these
-        assert arch_tag is not None, 'please specify arch tag'
-        model.arch_tag = arch_tag
+        kwargs = kwargs.copy()
+        model._init_bookkeeping_vars(kwargs)
+        model._init_shape_vars(kwargs)
+        model._init_compile_vars(kwargs)
+        model._init_fit_vars(kwargs)
         model.output_layer = None
+        assert len(kwargs) == 0, (
+            'Model was given unused keywords=%r' % (list(kwargs.keys())))
+
+    def _init_bookkeeping_vars(model, kwargs):
+        # FIXME: figure out how arch tag fits in here
+        model.arch_tag = kwargs.pop('arch_tag', None)
+        model.training_dpath = kwargs.pop('training_dpath', '.')
+        assert model.arch_tag is not None, 'please specify arch tag'
+
+    def _init_shape_vars(model, kwargs):
+        input_shape = kwargs.pop('input_shape', None)
+        batch_size = kwargs.pop('batch_size', None)
+        data_shape = kwargs.pop('data_shape', None)
+        output_dims = kwargs.pop('output_dims', None)
+
+        if input_shape is None:
+            if data_shape is None:
+                raise ValueError(
+                    'Either input_shape or data_shape must be specified')
+            input_shape = (batch_size, data_shape[2], data_shape[0],
+                           data_shape[1])
+        else:
+            if data_shape is not None or batch_size is not None:
+                raise ValueError(
+                    'Dont specify batch_size or data_shape '
+                    'if input_shape is given')
+            data_shape = (input_shape[2], input_shape[3], input_shape[1])
+            batch_size = input_shape[0]
+
         model.output_dims = output_dims
         model.input_shape = input_shape
+        model.data_shape = data_shape
         model.batch_size = batch_size
         # bad name, says that this network will take
         # 2*N images in a batch and N labels that map to
         # two images a piece
         model.data_per_label_input  = 1  # state of network input
         model.data_per_label_output = 1  # state of network output
-        model.training_dpath = training_dpath  # TODO
-        model._init_compile_vars()
-        model._init_fit_vars(momentum, weight_decay)
 
     def __nice__(self):
         return '(' + self.get_model_history_hashid() + ')'
@@ -1649,7 +1662,6 @@ class AbstractCategoricalModel(BaseModel):
 
     def __init__(model, **kwargs):
         super(AbstractCategoricalModel, model).__init__(**kwargs)
-        model._theano_funcs = None
         model.encoder = None
         # categorical models have a concept of accuracy
         #model.requested_headers += ['valid_acc', 'test_acc']
