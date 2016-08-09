@@ -175,7 +175,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
                    X_is_cv2_native=True, verbose=None, showprog=None,
                    lbl='verbose batch iteration'):
     r"""
-    Breaks up data into to batches
+    Breaks up data into to batches defined by model batch size
 
     CommandLine:
         python -m ibeis_cnn --tf batch_iterator:0
@@ -252,6 +252,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> from ibeis_cnn.models.mnist import MNISTModel
         >>> from ibeis_cnn import ingest_data
         >>> # should yield float32 regardlesss of original format
+        >>> ut.exec_funckw(batch_iterator, globals())
+        >>> randomize_batch_order = False
         >>> # ---
         >>> dataset1 = ingest_data.grab_mnist_category_dataset()
         >>> model1 = MNISTModel(batch_size=8, data_shape=dataset1.data_shape,
@@ -260,7 +262,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>>                    training_dpath=dataset1.training_dpath)
         >>> X1, y1 = dataset1.load_subset('train')
         >>> model1.ensure_training_state(X1, y1)
-        >>> _iter1 = batch_iterator(model1, X1, y1, randomize_batch_order=False)
+        >>> _iter1 = batch_iterator(model1, X1, y1, randomize_batch_order)
         >>> Xb1, yb1 = six.next(_iter1)
         >>> # ---
         >>> dataset2 = ingest_data.grab_mnist_category_dataset_old()
@@ -270,10 +272,22 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>>                    training_dpath=dataset2.training_dpath)
         >>> X2, y2 = dataset2.load_subset('train')
         >>> model2.ensure_training_state(X2, y2)
-        >>> _iter2 = batch_iterator(model2, X2, y2, randomize_batch_order=False)
+        >>> _iter2 = batch_iterator(model2, X2, y2, randomize_batch_order)
         >>> Xb2, yb2 = six.next(_iter2)
         >>> # ---
+        >>> X, y, model = X1, y1, model1
         >>> assert yb2 == yb2
+        >>> # The uint8 and float32 data should produce similar values
+        >>> # For this mnist set it will be a bit more off because the
+        >>> # original uint8 scaling value was 256 not 255.
+        >>> assert (Xb1[0] - Xb2[0]).max() < .1
+
+        Xb1[0]
+        Xb2[0]
+
+        (model1.preproc_kw['center_mean']).max()
+        (model2.preproc_kw['center_mean'] / 255).max()
+
     """
     if verbose:
         verbose = VERBOSE_BATCH
@@ -286,8 +300,8 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     equal_batch_sizes = model.input_shape[0] is not None
     augment_on = augment_on and hasattr(model, 'augment')
     encoder = getattr(model, 'encoder', None)
+    needs_convert = ut.is_int(X)
 
-    # divides X and y into batches of size bs for sending to the GPU
     if randomize_batch_order:
         # Randomly shuffle data
         # 0.079 mnist time fraction
@@ -301,28 +315,25 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         print('[batchiter] encoder %r' % (encoder, ))
         print('[batchiter] equal_batch_sizes %r' % (equal_batch_sizes, ))
         print('[batchiter] model.data_per_label_input %r' % (model.data_per_label_input, ))
+        print('[batchiter] needs_convert = %r' % (needs_convert,))
     if y is not None:
         assert X.shape[0] == (y.shape[0] * model.data_per_label_input), (
             'bad data / label alignment')
     num_batches = (X.shape[0] + model.batch_size - 1) // model.batch_size
 
-    batch_index_iter = range(num_batches)
     # FIXME: put in a layer?
     center_mean = None
     center_std  = None
+    # Load precomputed whitening parameters
     if model.preproc_kw is not None:
-        center_std  = np.array(model.preproc_kw['center_std'], dtype=np.float32)
         center_mean = np.array(model.preproc_kw['center_mean'], dtype=np.float32)
+        center_std  = np.array(model.preproc_kw['center_std'], dtype=np.float32)
     do_whitening = (center_mean is not None and
                     center_std is not None and
                     center_std != 0.0)
     #assert do_whitening, 'should be whitening'
 
     # messy messy messy
-
-    needs_convert = ut.is_int(X)
-    if verbose:
-        print('[batchiter] needs_convert = %r' % (needs_convert,))
     if needs_convert:
         ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
         center_std01 = center_std / np.array(255.0, dtype=np.float32)
@@ -330,95 +341,83 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         ceneter_mean01 = center_mean
         center_std01 = center_std
 
-    for batch_index in batch_index_iter:
-        # Get batch slice
-        # .113 time fraction
+    # Slice and preprocess data in batch
+    for batch_index in range(num_batches):
+        # Take a slice from the data
         Xb_orig, yb_orig = utils.slice_data_labels(X, y, model.batch_size,
                                                    batch_index,
                                                    model.data_per_label_input,
                                                    wraparound=equal_batch_sizes)
-        Xb, yb = preprocess_batch(model, Xb_orig, yb_orig, needs_convert,
-                                  verbose, batch_index, augment_on,
-                                  do_whitening, encoder, X_is_cv2_native,
-                                  num_batches, center_std, center_mean,
-                                  ceneter_mean01, center_std01)
+        # Ensure correct format for the GPU
+        Xb = Xb_orig.astype(np.float32)
+        yb = None if Xb_orig is None else yb_orig.astype(np.int32)
+        if needs_convert:
+            # Rescale the batch data to the range 0 to 1
+            Xb = Xb / 255.0
+        if augment_on:
+            # Apply defined transformations
+            Xb, yb, = augment_batch(Xb, yb, batch_index)
+        if do_whitening:
+            # Center the batch data in the range (-.5, .5)
+            Xb = (Xb - ceneter_mean01) / (center_std01)
+        if X_is_cv2_native:
+            # Convert from cv2 to lasange format
+            Xb = Xb.transpose((0, 3, 1, 2))
+        if encoder is not None:
+            # Apply an encoding if applicable
+            yb = encoder.transform(yb).astype(np.int32)
+        if model.data_per_label_input > 1 and getattr(model, 'needs_padding', False):
+            # Pad data for siamese networks
+            yb = pad_labels(model, yb)
+        if verbose:
+            # Print info if requested
+            print_batch_info(Xb, yb, verbose)
         yield Xb, yb
     if verbose:
-        print('[batchiter] END')
+        print('[batch] END')
 
 
-def preprocess_batch(model, Xb_orig, yb_orig, needs_convert, verbose,
-                     batch_index, augment_on, do_whitening, encoder,
-                     X_is_cv2_native, num_batches, center_std, center_mean,
-                     ceneter_mean01, center_std01):
-    # FIRST CONVERT TO 0/1
-    Xb = Xb_orig.copy().astype(np.float32)
-    if needs_convert:
-        Xb /= 255.0
-    if yb_orig is not None:
-        yb = yb_orig.copy()
-    else:
-        yb = None
-    # Augment
-    # MAKE SURE DATA AUGMENTATION HAS MEAN FILL VALUES NOT 0
-    # AUGMENT DATA IN 0-1 SPACE
-    if augment_on:
-        if verbose:
-            if verbose > 1 or (batch_index + 1) % num_batches <= 1:
-                print('Augmenting Data')
-                # only copy if we have't yet
-        Xb, yb = model.augment(Xb, yb)
-        if DEBUG_AUGMENTATION:
-            #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
-            from ibeis_cnn import augment
-            import plottool as pt
-            '''
-            from ibeis_cnn import augment
-            import plottool as pt
-            pt.qt4ensure()
-            augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
-            '''
-            augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
-            pt.show_if_requested()
-            ut.embed()
-    # DO WHITENING AFTER DATA AUGMENTATION
-    # MOVE DATA INTO -1 to 1 space
-    # Whiten (applies centering), not really whitening
-    USE_YOLO = True
-    if do_whitening:
-        if USE_YOLO:
-            Xb = (Xb * center_std) - center_mean
-        else:
-            # .563 time fraction
-            Xb = (Xb - (ceneter_mean01)) / (center_std01,)
-    # Encode
-    if yb is not None:
-        if encoder is not None:
-            yb = encoder.transform(yb)  # .201 time fraction
-        # Get corret dtype for y (after encoding)
-        if model.data_per_label_input > 1:
-            # TODO: FIX data_per_label_input ISSUES
-            if getattr(model, 'needs_padding', False):
-                # most models will do the padding implicitly
-                # in the layer architecture
-                pad_size = len(yb) * (model.data_per_label_input - 1)
-                yb_buffer = -np.ones(pad_size, np.int32)
-                yb = np.hstack((yb, yb_buffer))
-        yb = yb.astype(np.int32)
-    # Convert cv2 format to Lasagne format for batching
-    if X_is_cv2_native:
-        Xb = Xb.transpose((0, 3, 1, 2))
+def augment_batch(Xb, yb, batch_index):
+    """
+    Make sure to augment data in 0-1 space.
+    This means use a mean fill values not 0.
+
+    >>> from ibeis_cnn import augment
+    >>> import plottool as pt
+    >>> pt.qt4ensure()
+    >>> augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+    """
     if verbose:
         if verbose > 1 or (batch_index + 1) % num_batches <= 1:
-            print('[batchiter] Yielding batch: batch_index = %r ' % (
-                batch_index,))
-            print('[batchiter]   * Xb.shape = %r, Xb.dtype=%r' % (
-                Xb.shape, Xb.dtype))
-            if yb_orig is not None:
-                print('[batchiter]   * yb.shape = %r, yb.dtype=%r' % (
-                    yb.shape, yb.dtype))
-                print('[batchiter]   * yb.sum = %r' % (yb.sum(),))
+            print('Augmenting Data')
+            # only copy if we have't yet
+    Xb, yb = model.augment(Xb, yb)
+    if DEBUG_AUGMENTATION:
+        #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+        from ibeis_cnn import augment
+        import plottool as pt
+        augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+        pt.show_if_requested()
+        ut.embed()
     return Xb, yb
+
+def pad_labels(model, yb):
+    # TODO: FIX data_per_label_input ISSUES
+    # most models will do the padding implicitly
+    # in the layer architecture
+    pad_size = len(yb) * (model.data_per_label_input - 1)
+    yb_buffer = -np.ones(pad_size, dtype=np.int32)
+    yb = np.hstack((yb, yb_buffer))
+    return yb
+
+
+def print_batch_info(Xb, yb, verbose):
+    if verbose > 1 or (batch_index + 1) % num_batches <= 1:
+        print('[batch] Yielding batch: batch_index = %r ' % (batch_index,))
+        print('[batch]   * Xb.shape = %r, Xb.dtype=%r' % (Xb.shape, Xb.dtype))
+        if yb is not None:
+            print('[batch]   * yb.shape = %r, yb.dtype=%r' % (yb.shape, yb.dtype))
+            print('[batch]   * yb.sum = %r' % (yb.sum(),))
 
 
 def concatenate_hack(sequence, axis=0):

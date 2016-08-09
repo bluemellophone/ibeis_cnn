@@ -1587,7 +1587,8 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
             # TODO: move this to data preprocessing, not model preprocessing
             model.preproc_kw = {}
             print('computing center mean.')
-            model.preproc_kw['center_mean'] = np.mean(X_learn, axis=0)
+            model.preproc_kw['center_mean'] = np.mean(
+                X_learn.astype(np.float32), axis=0)
             print('computing center std. (hacks to 255 or 1.0)')
             if ut.is_int(X_learn):
                 ut.assert_inbounds(X_learn, 0, 255, eq=True,
