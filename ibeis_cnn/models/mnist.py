@@ -41,7 +41,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>> model.learning_state['weight_decay'] = None
         >>> model.learning_rate = .01
         >>> output_layer = model.initialize_architecture()
-        >>> model.print_architecture_str()
+        >>> model.print_layer_info()
         >>> # parse training arguments
         >>> model.train_config.update(**ut.argparse_dict(dict(
         >>>     era_schedule=100,

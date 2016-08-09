@@ -95,9 +95,10 @@ class _ModelFitting(object):
             >>> model.learning_rate = .01
             >>> model.encoder = None
             >>> model.initialize_architecture()
-            >>> #model.reinit_weights()
             >>> model.train_config['monitor'] = True
             >>> model.learning_state['weight_decay'] = None
+            >>> model.print_layer_info()
+            >>> #model.reinit_weights()
             >>> X_train, y_train = dataset.load_subset('train')
             >>> valid_idx = None
             >>> model.fit(X_train, y_train)
@@ -409,8 +410,8 @@ class _ModelFitting(object):
         print('Valid y histogram: ' + ut.repr2(ut.dict_hist(y_valid)))
 
         print('\n[train] --- MODEL INFO ---')
-        model.print_architecture_str()
-        model.print_layer_info()
+        # model.print_architecture_str()
+        # model.print_layer_info()
 
         return X_learn, y_learn, X_valid, y_valid
 
