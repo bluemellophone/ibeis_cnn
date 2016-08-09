@@ -43,7 +43,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>     max_epochs=5,
         >>>     learning_rate_adjust=.8,
         >>> )))
-        >>> model.learning_rate = .001
+        >>> model.learning_rate = .01
         >>> X_train, y_train = dataset.load_subset('all')
         >>> model.fit(X_train, y_train)
 
