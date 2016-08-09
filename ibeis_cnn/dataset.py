@@ -318,6 +318,10 @@ def get_juction_dpath():
         >>> ut.vd(junction_dpath)
     """
     junction_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training_junction')
+    # Hacks to keep junction clean
+    home_dlink = ut.truepath('~/training_junction')
+    if not exists(home_dlink):
+        ut.symlink(junction_dpath, home_dlink)
     ut.remove_broken_links(junction_dpath)
     return junction_dpath
 
