@@ -90,8 +90,8 @@ class _ModelFitting(object):
             >>> dataset = ingest_data.grab_mnist_category_dataset()
             >>> model = MNISTModel(batch_size=500, data_shape=dataset.data_shape,
             >>>                    output_dims=dataset.output_dims,
+            >>>                    arch_tag='mnist_test2',
             >>>                    training_dpath=dataset.training_dpath)
-            >>> model.arch_tag = 'mnist_test'
             >>> model.learning_rate = .01
             >>> model.encoder = None
             >>> model.initialize_architecture()
@@ -335,10 +335,9 @@ class _ModelFitting(object):
 
     def _init_monitor(model):
         # FIXME; put into better place
-        progress_dir = ut.unixjoin(model.training_dpath, model.arch_tag, 'progress')
-        ut.ensuredir(progress_dir)
+        ut.ensuredir(model.progress_dpath)
         def prog_metric_path(x):
-            path_fmt = ut.unixjoin(progress_dir, x)
+            path_fmt = join(model.progress_dpath, x)
             return ut.get_nonconflicting_path(path_fmt)
         def prog_metric_dir(x):
             return ut.ensuredir(prog_metric_path(x))
@@ -1032,6 +1031,14 @@ class _ModelIO(object):
         ut.ensuredir(dirname(fpath))
         model.save_model_info(fpath=fpath)
 
+    @property
+    def arch_dpath(model):
+        return join(model.training_dpath, model.arch_tag)
+
+    @property
+    def progress_dpath(model):
+        return join(model.arch_dpath, 'progress')
+
     def save_model_state(model, **kwargs):
         """ saves current model state """
         current_weights = model.get_all_param_values()
@@ -1531,6 +1538,7 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
             data_shape = (input_shape[2], input_shape[3], input_shape[1])
         model.data_shape = data_shape
         #model.network_layers = None  # We don't need to save all of these
+        assert arch_tag is not None, 'please specify arch tag'
         model.arch_tag = arch_tag
         model.output_layer = None
         model.output_dims = output_dims
