@@ -217,8 +217,9 @@ def grab_mnist_category_dataset():
     """
     import numpy as np
     training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', 'mnist')
-    ut.ensuredir(training_dpath)
     dataset_dpath = join(training_dpath, 'dataset')
+    ut.ensuredir(training_dpath)
+    ut.ensuredir(dataset_dpath)
 
     data_fpath     = join(dataset_dpath, 'mnist_data.pkl')
     labels_fpath   = join(dataset_dpath, 'mnist_labels.pkl')
