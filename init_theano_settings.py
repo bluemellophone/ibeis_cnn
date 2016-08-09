@@ -125,7 +125,7 @@ Ensure CuDNN is installed
     ls -al $CUDADIR/include/cublas.h
     ls -al $CUDADIR/lib64/libcublas*
 
-    # REMOVE / UNINSTALL CUDNN
+    # REMOVE / UNINSTALL OLD CUDNN
     sudo rm -rf $CUDADIR/include/cudnn.h
     sudo rm -rf $CUDADIR/lib64/libcudnn*
 
