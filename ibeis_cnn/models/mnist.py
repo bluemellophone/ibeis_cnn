@@ -39,7 +39,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>> model.encoder = None
         >>> model.train_config['monitor'] = True
         >>> model.learning_state['weight_decay'] = None
-        >>> model.learning_rate = .01
+        >>> model.learning_state['learning_rate'] = .01
         >>> output_layer = model.initialize_architecture()
         >>> model.print_layer_info()
         >>> # parse training arguments
@@ -93,11 +93,11 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
             _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
 
             # A fully-connected layer of 256 units with 50% dropout on its inputs
-            _P(layers.DropoutLayer, p=0.5, name='D3'),
+            _P(layers.DropoutLayer, p=0.5, name='D2'),
             _P(layers.DenseLayer, num_units=256, name='F3',  **hidden_initkw),
 
             # And, finally, the 10-unit output layer with 50% dropout on its inputs
-            _P(layers.DropoutLayer, p=0.5, name='D4'),
+            _P(layers.DropoutLayer, p=0.5, name='D3'),
             _P(layers.DenseLayer, num_units=model.output_dims,
                nonlinearity=nonlinearities.softmax, name='O4', **output_initkw),
         ]
@@ -107,6 +107,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         """
 
         CommandLine:
+            python -m ibeis_cnn --tf  MNISTModel.initialize_architecture --verbcnn
             python -m ibeis_cnn --tf  MNISTModel.initialize_architecture --verbcnn --show
 
         Example:

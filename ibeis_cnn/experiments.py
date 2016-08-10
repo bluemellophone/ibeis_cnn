@@ -135,7 +135,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     epoch_dpath = model.get_epoch_diagnostic_dpath()
     ut.vd(epoch_dpath)
 
-    dataname += ' ' + model.get_model_history_hashid() + '\n'
+    dataname += ' ' + model.get_history_hashid() + '\n'
 
     history_text = ut.list_str(model.era_history, newlines=True)
 

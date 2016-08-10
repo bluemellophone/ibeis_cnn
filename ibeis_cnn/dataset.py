@@ -19,7 +19,7 @@ class DummyDataSet(object):
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
-class DataSet(object):
+class DataSet(ut.NiceRepr):
     """
     helper class for managing dataset paths and general metadata
 
@@ -27,47 +27,73 @@ class DataSet(object):
         python -m ibeis_cnn.ingest_data --test-get_ibeis_part_siam_dataset --show
 
     """
-    def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
-                 metadata_fpath, data_per_label, data_shape, output_dims,
-                 num_labels, dataset_dpath=None):
-        # Constructor args is primary data
-        key_list = ut.get_func_argspec(dataset.__init__).args[1:]
-        r"""
-        Gen Explicit:
-            import utool, ibeis_cnn.dataset
-            key_list = ut.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]
-            autogen_block = ut.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in key_list]), ' ' * 12)
-            ut.inject_python_code2(ibeis_cnn.dataset.__file__, autogen_block, 'AUTOGEN_INIT')
-            #ut.copy_text_to_clipboard('\n' + autogen_block)
+    #def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
+    #             metadata_fpath, data_per_label, data_shape, output_dims,
+    #             num_labels, dataset_dpath=None):
+    #    # Constructor args is primary data
+    #    key_list = ut.get_func_argspec(dataset.__init__).args[1:]
+    #    r"""
+    #    Gen Explicit:
+    #        import utool, ibeis_cnn.dataset
+    #        key_list = ut.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]
+    #        autogen_block = ut.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in key_list]), ' ' * 12)
+    #        ut.inject_python_code2(ibeis_cnn.dataset.__file__, autogen_block, 'AUTOGEN_INIT')
+    #        #ut.copy_text_to_clipboard('\n' + autogen_block)
 
-        Gen Explicit Commandline:
-            python -Bc "import utool, ibeis_cnn.dataset; utool.inject_python_code2(utool.get_modpath(ibeis_cnn.dataset.__name__), utool.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in utool.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]]), ' ' * 12), 'AUTOGEN_INIT')"
-        """
-        EXPLICIT = True
-        if EXPLICIT:
-            pass
-            # <AUTOGEN_INIT>
-            dataset.alias_key = alias_key
-            dataset.training_dpath = training_dpath
-            dataset.data_fpath = data_fpath
-            dataset.labels_fpath = labels_fpath
-            dataset.metadata_fpath = metadata_fpath
-            dataset.data_per_label = data_per_label
-            dataset.data_shape = data_shape
-            dataset.output_dims = output_dims
-            dataset.num_labels = num_labels
-            dataset.dataset_dpath = dataset_dpath
-            # </AUTOGEN_INIT>
-        else:
-            locals_ = locals()
-            for key in key_list:
-                setattr(dataset, key, locals_[key])
+    #    Gen Explicit Commandline:
+    #        python -Bc "import utool, ibeis_cnn.dataset; utool.inject_python_code2(utool.get_modpath(ibeis_cnn.dataset.__name__), utool.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in utool.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]]), ' ' * 12), 'AUTOGEN_INIT')"
+    #    """
+    #    EXPLICIT = True
+    #    if EXPLICIT:
+    #        pass
+    #        # <AUTOGEN_INIT>
+    #        dataset.alias_key = alias_key
+    #        dataset.training_dpath = training_dpath
+    #        dataset.data_fpath = data_fpath
+    #        dataset.labels_fpath = labels_fpath
+    #        dataset.metadata_fpath = metadata_fpath
+    #        dataset.data_per_label = data_per_label
+    #        dataset.data_shape = data_shape
+    #        dataset.output_dims = output_dims
+    #        dataset.num_labels = num_labels
+    #        dataset.dataset_dpath = dataset_dpath
+    #        # </AUTOGEN_INIT>
+    #    else:
+    #        locals_ = locals()
+    #        for key in key_list:
+    #            setattr(dataset, key, locals_[key])
+    #    # Dictionary for storing different data subsets
+    #    dataset.fpath_dict = {
+    #        'all' : {
+    #            'data': data_fpath,
+    #            'labels': labels_fpath,
+    #            'metadata': metadata_fpath,
+    #        }
+    #    }
+    #    # Hacky dictionary for custom things
+    #    # Probably should be refactored
+    #    dataset._lazy_cache = ut.LazyDict()
+
+    def __init__(dataset, cfgstr, training_dpath='.', name=None):
+        dataset.name = name
+        dataset.cfgstr = cfgstr
+        dataset.training_dpath = training_dpath
+        dataset.data_info = {
+            'data_shape': None,
+            'num_labels': None,
+            'output_dims': None,
+            'data_per_label': 1,
+        }
+        #dataset.data_per_label = data_per_label
+        #dataset.data_shape = data_shape
+        #dataset.output_dims = None
+        #dataset.num_labels = None
         # Dictionary for storing different data subsets
         dataset.fpath_dict = {
             'all' : {
-                'data': data_fpath,
-                'labels': labels_fpath,
-                'metadata': metadata_fpath,
+                'data': dataset.data_fpath,
+                'labels': dataset.labels_fpath,
+                'metadata': dataset.metadata_fpath,
             }
         }
         # Hacky dictionary for custom things
@@ -94,6 +120,57 @@ class DataSet(object):
             print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
             return dataset
         raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
+
+    def __nice__(dataset):
+        return '(' + dataset.dataset_id + ')'
+
+    def ensure_dirs(dataset):
+        ut.ensuredir(dataset.full_dpath)
+        ut.ensuredir(dataset.split_dpath)
+
+    @property
+    def hashid(dataset):
+        return ut.hashstr27(dataset.cfgstr, hashlen=8)
+
+    @property
+    def dataset_id(dataset):
+        if dataset.name is not None:
+            return dataset.name + '_' + dataset.hashid
+        else:
+            return dataset.hashid
+
+    @property
+    def datasets_dpath(dataset):
+        return join(dataset.training_dpath, 'datasets')
+
+    @property
+    def dataset_dpath(dataset):
+        return join(dataset.datasets_dpath, 'dataset_' + dataset.hashid)
+
+    @property
+    def split_dpath(dataset):
+        split_dpath = join(dataset.datasets_dpath, 'splitsets')
+        return split_dpath
+
+    @property
+    def full_dpath(dataset):
+        return join(dataset.dataset_dpath, 'all')
+
+    @property
+    def info_fpath(dataset):
+        return join(dataset.full_dpath, '%s_info.json' % (dataset.hashid))
+
+    @property
+    def data_fpath(dataset):
+        return join(dataset.full_dpath, '%s_labels.pkl' % (dataset.hashid))
+
+    @property
+    def labels_fpath(dataset):
+        return join(dataset.full_dpath, '%s_data.pkl' % (dataset.hashid))
+
+    @property
+    def metadata_fpath(dataset):
+        return join(dataset.full_dpath, '%s_metadata.pkl' % (dataset.hashid))
 
     @classmethod
     def new_training_set(cls, **kwargs):
@@ -151,19 +228,25 @@ class DataSet(object):
         data_dict = ut.dict_subset(dataset.__dict__, key_list)
         return data_dict
 
-    def register_self(dataset):
-        # creates a symlink in the junction dir
-        register_training_dpath(dataset.training_dpath, dataset.alias_key)
+    #def register_self(dataset):
+    #    # creates a symlink in the junction dir
+    #    register_training_dpath(dataset.training_dpath, dataset.alias_key)
 
-    def save_alias(dataset, alias_key):
-        # shortcut to the cached information so we dont need to
-        # compute hotspotter matching hashes. There is a change data
-        # can get out of date while this is enabled.
-        alias_fpath = get_alias_dict_fpath()
-        alias_dict = ut.text_dict_read(alias_fpath)
-        data_dict = dataset.asdict()
-        alias_dict[alias_key] = data_dict
-        ut.text_dict_write(alias_fpath, alias_dict)
+    def save_info(dataset):
+        ut.save_data(dataset.info_fpath, dataset.data_info)
+
+    def load_info(dataset):
+        dataset.data_info = ut.load_data(dataset.info_fpath)
+
+    #def save_alias(dataset, alias_key):
+    #    # shortcut to the cached information so we dont need to
+    #    # compute hotspotter matching hashes. There is a change data
+    #    # can get out of date while this is enabled.
+    #    alias_fpath = get_alias_dict_fpath()
+    #    alias_dict = ut.text_dict_read(alias_fpath)
+    #    data_dict = dataset.asdict()
+    #    alias_dict[alias_key] = data_dict
+    #    ut.text_dict_write(alias_fpath, alias_dict)
 
     @ut.memoize
     def load_subset_data(dataset, key='all'):
@@ -237,11 +320,6 @@ class DataSet(object):
 
     def has_splitset(dataset, key):
         return key in dataset.fpath_dict
-
-    @property
-    def split_dpath(dataset):
-        split_dpath = join(dataset.dataset_dpath, 'data_splits')
-        return split_dpath
 
     def load_splitsets(dataset):
         import parse
@@ -334,6 +412,9 @@ def get_juction_dpath():
 
 
 def register_training_dpath(training_dpath, alias_key=None):
+    """
+    Creates a symlink to the training path in the training junction
+    """
     junction_dpath = get_juction_dpath()
     training_dname = basename(training_dpath)
     if alias_key is not None:
@@ -394,7 +475,7 @@ def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath,
         print('Warning no metadata')
 
     training_dir = dirname(fpath_dict['data'])
-    splitdir = join(training_dir, 'data_splits')
+    splitdir = join(training_dir, 'splitsets')
     # base on the data fpath if that already has a uuid in it
     hashstr_ = ut.hashstr(basename(fpath_dict['data']), alphabet=ut.ALPHABET_16)
 

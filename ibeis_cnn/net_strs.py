@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 import warnings
+import six
 import functools
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.net_strs]')
@@ -74,36 +75,139 @@ def print_pretrained_weights(pretrained_weights, lbl=''):
         print(' layer {:2}: shape={:<18}, memory={}'.format(index, layer_.shape, ut.get_object_size_str(layer_)))
 
 
-def get_layer_size_info(layer):
+def count_bytes(output_layer):
+    import lasagne
+    layers = lasagne.layers.get_all_layers(output_layer)
+    info_list = [get_layer_info(layer) for layer in layers]
+    total_bytes = sum([info['total_bytes'] for info in info_list])
+    #print('total_bytes = %s' % (ut.byte_str2(total_bytes),))
+    #print(ut.repr2(info_list, nl=2, hack_liststr=True))
+    return total_bytes
+
+
+def surround(str_, b='{}'):
+    return b[0] + str_ + b[1]
+
+
+def tagstr(tags):
+    return surround(','.join([t[0] for t in tags]), '{}')
+
+
+def shapestr(shape):
+    return ','.join(map(str, shape))
+
+
+def paramstr(p, tags):
+    tag_str =  ', ' + tagstr(tags)
+    return p.name + surround(shapestr(p.get_value().shape) + tag_str , '()')
+    #return p.name + surround(shapestr(p.get_value().shape), '()')
+
+
+def get_layer_info(layer):
+    r"""
+    Args:
+        layer (?):
+
+    Returns:
+        ?: layer_info
+
+    CommandLine:
+        python -m net_strs get_layer_info --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.net_strs import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.mnist.MNISTModel(batch_size=8, data_shape=(24, 24, 1), output_dims=10)
+        >>> model.initialize_architecture()
+        >>> nn_layers = model.get_all_layers()
+        >>> for layer in nn_layers:
+        >>>     layer_info = get_layer_info(layer)
+        >>>     print(ut.repr3(layer_info, nl=1))
+    """
+    import operator
+    import ibeis_cnn.__LASAGNE__ as lasagne
     # Information that contributes to RAM usage
     import numpy as np
+    # Get basic layer infos
+    output_shape = lasagne.layers.get_output_shape(layer)
+    input_shape = getattr(layer, 'input_shape', [])
+    # Get number of outputs ignoring the batch size
+    num_outputs = functools.reduce(operator.mul, output_shape[1:])
+    if len(input_shape):
+        num_inputs = functools.reduce(operator.mul, input_shape[1:])
+    else:
+        num_inputs = 0
+    # TODO: if we can ever support non float32 calculations this must change
+    #layer_type = 'float32'
+    layer_dtype = np.dtype('float32')
+
+    # Get individual param infos
     param_infos = []
     for param in layer.params.keys():
         value = param.get_value()
-        info = ut.odict([
+        param_info = ut.odict([
             ('name', param.name),
             ('shape', value.shape),
             ('size', value.size),
             ('itemsize', value.dtype.itemsize),
             ('dtype', str(value.dtype)),
+            ('bytes', value.size * value.dtype.itemsize),
         ])
-        param_infos.append(info)
-    #layer_type = 'float32'
-    layer_dtype = np.dtype('float32')
+        param_infos.append(param_info)
+    # Combine param infos
+    param_str = surround(', '.join(
+        [paramstr(p, tags) for p, tags in layer.params.items()]), '[]')
+    param_type_str = surround(', '.join(
+        [repr(p.type) for p, tags in layer.params.items()]), '[]')
+    num_params = sum([info['size'] for info in param_infos])
+
+    classalias_map = {
+        'Conv2DCCLayer'    : 'Conv2D',
+        'Conv2DDNNLayer'   : 'Conv2D',
+        'MaxPool2DCCLayer' : 'MaxPool2D',
+        'MaxPool2DDNNLayer' : 'MaxPool2D',
+        'LeakyRectify'     : 'LRU',
+        'InputLayer'       : 'Input',
+        'DropoutLayer'     : 'Dropout',
+        'DenseLayer'       : 'Dense',
+        'FlattenLayer'     : 'Flatten',
+        'L2NormalizeLayer' : 'L2Norm'
+    }
+    layer_attrs_dict = {
+        #'Input'  : ['shape'],
+        'Dropout' : ['p'],
+        'Conv2D'  : ['num_filters', 'filter_size', 'stride'],
+        'MaxPool' : ['stride', 'pool_size'],
+        'Dense'   : ['num_units'],
+        'L2Norm'  : ['axis'],
+    }
+    classname = layer.__class__.__name__
+    classalias = classalias_map.get(classname, classname)
+    if classalias == 'FeaturePoolLayer' and ut.get_funcname(layer.pool_function) == 'max':
+        classalias = 'MaxOut'
+
+    layer_attrs = ut.odict([(key, getattr(layer, key))
+                            for key in layer_attrs_dict.get(classalias, [])])
+
     layer_info = ut.odict([
         ('name', layer.name),
-        ('shape', layer.output_shape),
-        ('size', np.prod(layer.output_shape)),
+        ('classname', classname),
+        ('classalias', classalias),
+        ('output_shape', output_shape),
+        ('input_shape', input_shape),
+        ('num_outputs', num_outputs),
+        ('num_inputs', num_inputs),
+        ('size', np.prod(output_shape)),
         ('itemsize', layer_dtype.itemsize),
         ('dtype', str(layer_dtype)),
+        ('num_params', num_params),
         ('param_infos', param_infos),
+        ('param_str', param_str),
+        ('param_type_str', param_type_str),
+        ('layer_attrs', layer_attrs),
     ])
-
-    param_infos = layer_info['param_infos']
-    param_bytes = 0
-    for info in param_infos:
-        info['bytes'] = info['size'] * info['itemsize']
-        param_bytes += info['bytes']
+    param_bytes = sum([info['bytes'] for info in param_infos])
     layer_bytes = layer_info['size'] * layer_info['itemsize']
     layer_info['bytes'] = layer_bytes
     layer_info['param_bytes'] = param_bytes
@@ -112,23 +216,13 @@ def get_layer_size_info(layer):
     return layer_info
 
 
-def count_bytes(output_layer):
-    import lasagne
-    layers = lasagne.layers.get_all_layers(output_layer)
-    info_list = [get_layer_size_info(layer) for layer in layers]
-    total_bytes = sum([info['total_bytes'] for info in info_list])
-    #print('total_bytes = %s' % (ut.byte_str2(total_bytes),))
-    #print(ut.repr2(info_list, nl=2, hack_liststr=True))
-    return total_bytes
-
-
-def print_layer_info(output_layer):
+def get_layer_info_str(output_layer):
     r"""
     Args:
         output_layer (lasange.layers.Layer):
 
     CommandLine:
-        python -m ibeis_cnn.net_strs --test-print_layer_info
+        python -m ibeis_cnn.net_strs --test-get_layer_info_str
 
     Example:
         >>> # DISABLE_DOCTEST
@@ -136,72 +230,56 @@ def print_layer_info(output_layer):
         >>> from ibeis_cnn import models
         >>> model = models.DummyModel(data_shape=(24, 24, 3), autoinit=True)
         >>> output_layer = model.output_layer
-        >>> result = print_layer_info(output_layer)
+        >>> result = get_layer_info_str(output_layer)
         >>> print(result)
+        Network Structure:
+         index  Layer    Outputs    Bytes OutShape         Params
+         0      Input      1,728   55,296 (8, 3, 24, 24)   []
+         1      Conv2D     7,744  249,600 (8, 16, 22, 22)  [W(16,3,3,3, {t,r}), b(16, {t})]
+         2      Conv2D     7,056  229,952 (8, 16, 21, 21)  [W(16,16,2,2, {t,r}), b(16, {t})]
+         3      Dense          8  226,080 (8, 8)           [W(7056,8, {t,r}), b(8, {t})]
+         4      Dense          5      340 (8, 5)           [W(8,5, {t,r}), b(5, {t})]
+        ...this model has 57,989 learnable parameters
+        ...this model will use 761,268 bytes = 743.43 KB
     """
-    import operator
-    import lasagne
+    import ibeis_cnn.__LASAGNE__ as lasagne
+    info_lines = []
+    _print = info_lines.append
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', '.*topo.*')
         nn_layers = lasagne.layers.get_all_layers(output_layer)
-        print('\n[info] Network Structure:')
+        _print('Network Structure:')
 
         columns_ = ut.ddict(list)
 
         for index, layer in enumerate(nn_layers):
-            #print()
-            #params = lasagne.layers.get_all_params(layer)
-            #layer.get_params()
 
-            def surround(str_, b='{}'):
-                return b[0] + str_ + b[1]
-
-            def tagstr(tags):
-                return surround(','.join([t[0] for t in tags]), '{}')
-
-            def shapestr(shape):
-                return ','.join(map(str, shape))
-
-            def paramstr(p, tags):
-                tag_str =  ', ' + tagstr(tags)
-                return p.name + surround(shapestr(p.get_value().shape) + tag_str , '()')
-                return p.name + surround(shapestr(p.get_value().shape), '()')
-
-            param_str = surround(', '.join([paramstr(p, tags)
-                                            for p, tags in layer.params.items()]), '[]')
-
-            param_type_str = surround(', '.join([repr(p.type)
-                                                 for p, tags in layer.params.items()]), '[]')
-
-            output_shape = lasagne.layers.get_output_shape(layer)  # .get_output_shape()
-
-            num_outputs = functools.reduce(operator.mul, output_shape[1:])
-
-            size_info = get_layer_size_info(layer)
+            layer_info = get_layer_info(layer)
 
             columns_['index'].append(index)
-            columns_['name'].append(layer.name)
+            columns_['name'].append(layer_info['name'])
             #columns_['type'].append(getattr(layer, 'type', None))
-            columns_['class'].append(layer.__class__.__name__)
-            columns_['num_outputs'].append('{:,}'.format(int(num_outputs)))
-            columns_['shape'].append(str(output_shape))
-            columns_['params'].append(param_str)
-            columns_['param_type'].append(param_type_str)
-            columns_['mem'].append(size_info['total_memory'])
-            columns_['bytes'].append('{:,}'.format(int(size_info['total_bytes'])))
+            #columns_['layer'].append(layer_info['classname'])
+            columns_['layer'].append(layer_info['classalias'])
+            columns_['num_outputs'].append('{:,}'.format(int(layer_info['num_outputs'])))
+            columns_['output_shape'].append(str(layer_info['output_shape'] ))
+            columns_['params'].append(layer_info['param_str'])
+            columns_['param_type'].append(layer_info['param_type_str'])
+            columns_['mem'].append(layer_info['total_memory'])
+            columns_['bytes'].append('{:,}'.format(int(layer_info['total_bytes'])))
             #ut.embed()
 
         header_nice = {
-            'index'       : 'index',
-            'name'        : 'Name',
-            'class'       : 'Layer',
-            'type'        : 'Type',
-            'num_outputs' : 'Outputs',
-            'shape'       : 'OutShape',
-            'params'      : 'Params',
-            'param_type'  : 'ParamType',
-            'mem'     : 'Mem',
-            'bytes'     : 'Bytes',
+            'index'        : 'index',
+            'name'         : 'Name',
+            'layer'        : 'Layer',
+            'type'         : 'Type',
+            'num_outputs'  : 'Outputs',
+            'output_shape' : 'OutShape',
+            'params'       : 'Params',
+            'param_type'   : 'ParamType',
+            'mem'          : 'Mem',
+            'bytes'        : 'Bytes',
         }
 
         header_align = {
@@ -216,41 +294,46 @@ def print_layer_info(output_layer):
             val_len = max(list(map(len, map(str, columns_[key]))))
             return max(val_len, header_len)
 
-        header_order = ['index', 'name', 'class', 'num_outputs']
+        header_order = ['index']
+        if len(ut.filter_Nones(columns_['name'])) > 0:
+            header_order += ['name']
+        header_order += ['layer', 'num_outputs']
         #header_order += ['mem']
         header_order += ['bytes']
-        header_order += ['shape', 'params' ]
+        header_order += ['output_shape', 'params' ]
         #'param_type']
 
-        import six
         max_len = {key: str(get_col_maxval(key) + 1) for key, col in six.iteritems(columns_)}
 
-        fmtstr = '[info]  ' + ' '.join(
+        fmtstr = ' ' + ' '.join(
             [
                 '{:' + align + len_ + '}'
                 for align, len_ in zip(ut.dict_take(header_align, header_order, '<'),
                                        ut.dict_take(max_len, header_order))
             ]
         )
-        print(fmtstr.format(*ut.dict_take(header_nice, header_order)))
+        _print(fmtstr.format(*ut.dict_take(header_nice, header_order)))
 
         row_list = zip(*ut.dict_take(columns_, header_order))
         for row in row_list:
             str_ = fmtstr.format(*row)
-            print(str_)
-
-        #import lasagne
-        #layers = lasagne.layers.get_all_layers(output_layer)
-        #info_list = [get_layer_size_info(layer) for layer in layers]
-        #print('Size Info: ' + ut.repr2(info_list, nl=3, hack_liststr=True))
+            _print(str_)
 
         total_bytes = count_bytes(output_layer)
         num_params = lasagne.layers.count_params(output_layer)
 
-        print('[info] ...this model has {:,} learnable parameters'.format(num_params))
-        print('[info] ...this model will use {:,} bytes = {}'.format(
+        _print('...this model has {:,} learnable parameters'.format(num_params))
+        _print('...this model will use {:,} bytes = {}'.format(
             total_bytes, ut.byte_str2(total_bytes)))
-        print('')
+        _print('')
+    info_str = '\n'.join(info_lines)
+    return info_str
+
+
+def print_layer_info(output_layer):
+    str_ = get_layer_info_str(output_layer)
+    str_ = ut.indent('[info] ' + str_)
+    print('\n' + str_)
 
 
 if __name__ == '__main__':

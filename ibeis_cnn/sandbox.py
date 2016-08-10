@@ -27,7 +27,7 @@ def check_external_training_paths():
         tmp_model = abstract_models.BaseModel()
         tmp_model.load_model_state(fpath=fpath)
         tmp_model_list.append(tmp_model)
-        #hashid = tmp_model.get_model_history_hashid()
+        #hashid = tmp_model.get_history_hashid()
         #dpath = dirname(fpath)
         #new_dpath = join(dirname(dpath), hashid)
         #ut.move(dpath, new_dpath)

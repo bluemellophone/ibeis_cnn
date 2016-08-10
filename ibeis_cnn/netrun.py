@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Defines the models and the data we will send to the harness
 
 FIXME:
     sometimes you have to chown -R user:user ~/.theano or run with sudo the
@@ -29,7 +28,6 @@ CommandLineHelp:
 from __future__ import absolute_import, division, print_function
 from ibeis_cnn import models
 from ibeis_cnn import ingest_data
-from ibeis_cnn import harness
 from ibeis_cnn import experiments
 import utool as ut
 import sys
@@ -219,9 +217,11 @@ def netrun():
             max_epochs=1200,
             learning_rate_adjust=.8,
         ))
+        model.train_config.update(**config)
         X_train, y_train = dataset.load_subset('train')
         X_valid, y_valid = dataset.load_subset('valid')
-        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+        model.fit(X_train, y_train, X_valid=X_valid, y_valid=y_valid)
+
     elif requests['test']:
         #assert model.best_results['epoch'] is not None
         ut.colorprint('[netrun] Test Requested', 'yellow')
@@ -408,18 +408,15 @@ def train_background():
     else:
         model.reinit_weights()
 
-    config = dict(
+    model.train_config.update(**dict(
         era_schedule=15,
         max_epochs=120,
         show_confusion=False,
-        run_test=None,
-        show_features=False,
-        print_timing=False,
-    )
+    ))
 
     X_train, y_train = dataset.load_subset('train')
     X_valid, y_valid = dataset.load_subset('valid')
-    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+    model.fit(X_train, y_train, X_valid=X_valid, y_valid=y_valid)
 
 
 if __name__ == '__main__':

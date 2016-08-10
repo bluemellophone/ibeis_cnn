@@ -1,4 +1,68 @@
 # -*- coding: utf-8 -*-
+"""
+
+Directory structure of training
+
+The network directory is the root of the structure and is typically in
+_ibeis_cache/nets for ibeis databases. Otherwise it it custom defined (like in
+.cache/ibeis_cnn/training for mnist tests)
+
+----------------
+|-- netdir <training_dpath>
+----------------
+
+Datasets contain ingested data packed into a single file for quick loading.
+Data can be presplit into testing /  learning / validation sets.  Metadata is
+always a dictionary where keys specify columns and each item corresponds a row
+of data. Non-corresponding metadata is currently not supported, but should
+probably be located in a manifest.json file.
+
+----------------
+|   |-- datasets
+|   |   |-- dataset_{dataset_id} *
+|   |   |   |-- full
+|   |   |   |   |-- {dataset_id}_data.pkl
+|   |   |   |   |-- {dataset_id}_labels.pkl
+|   |   |   |   |-- {dataset_id}_metadata.pkl
+|   |   |   |-- splits
+|   |   |   |   |-- {split_id}_{num} *
+|   |   |   |   |   |-- {dataset_id}_{split_id}_data.pkl
+|   |   |   |   |   |-- {dataset_id}_{split_id}_labels.pkl
+|   |   |   |   |   |-- {dataset_id}_{split_id}_metadata.pkl
+----------------
+
+The model directory must keep track of several things:
+    * The network architecture (which may depend on the dataset being used)
+        - input / output shape
+        - network layers
+    * The state of learning
+        - epoch/era number
+        - learning rate
+        - regularization rate
+    * diagnostic information
+        - graphs of loss / error rates
+        - images of convolutional weights
+        - other visualizations
+
+
+----------------
+|   |-- models
+|   |   |-- arch_{archid} *
+|   |   |   |-- best_results
+|   |   |   |   |-- model_state.pkl
+|   |   |   |-- checkpoints
+|   |   |   |   |-- {history_id} *
+|   |   |   |   |    |-- model_history.pkl
+|   |   |   |   |    |-- model_state.pkl
+|   |   |   |-- progress
+|   |   |   |   |-- <latest>
+|   |   |   |-- diagnostics
+|   |   |   |   |-- {history_id} *
+|   |   |   |   |   |-- <files>
+
+----------------
+
+"""
 from __future__ import absolute_import, division, print_function
 import functools
 import six
@@ -7,8 +71,6 @@ import utool as ut
 from os.path import join, exists, dirname, basename
 from six.moves import cPickle as pickle  # NOQA
 import warnings
-import sklearn
-import sklearn.preprocessing
 from ibeis_cnn import net_strs
 from ibeis_cnn import draw_net
 from ibeis_cnn import utils
@@ -20,6 +82,8 @@ def imwrite_wrapper(show_func):
     r"""
     helper to convert show funcs into imwrite funcs
     Automatically creates filenames if not specified
+
+    DEPRICATE
     """
     def imwrite_func(model, dpath=None, fname=None, dpi=180, asdiagnostic=True,
                      ascheckpoint=None, verbose=1, **kwargs):
@@ -27,12 +91,12 @@ def imwrite_wrapper(show_func):
         # Resolve path to save the image
         if dpath is None:
             if ascheckpoint is True:
-                history_hashid = model.get_model_history_hashid()
+                history_hashid = model.get_history_hashid()
                 dpath = model._get_model_dpath(checkpoint_tag=history_hashid)
             elif asdiagnostic is True:
                 dpath = model.get_epoch_diagnostic_dpath()
             else:
-                dpath = model.training_dpath
+                dpath = model.model_dpath
         # Make the image
         fig = show_func(model, **kwargs)
         # Save the image
@@ -43,6 +107,57 @@ def imwrite_wrapper(show_func):
     return imwrite_func
 
 
+class LearnPropertyInjector(type):
+    def __init__(cls, name, bases, dct):
+        super(LearnPropertyInjector, cls).__init__(name, bases, dct)
+        cls._keys = [
+            'momentum',
+            'weight_decay',
+            'learning_rate',
+        ]
+
+        def _make_prop(key):
+            def fget(self):
+                return self.getitem(key)
+            ut.set_funcname(fget, key)
+
+            def fset(self, value):
+                self.setitem(key, value)
+            ut.set_funcname(fset, key)
+            prop = property(fget=fget, fset=fset)
+            return prop
+        # Inject properties
+        for key in cls._keys:
+            prop = _make_prop(key)
+            setattr(cls, key, prop)
+
+
+@ut.reloadable_class
+@six.add_metaclass(LearnPropertyInjector)
+class LearningState(ut.DictLike):
+    def __init__(self, learning_rate, momentum, weight_decay):
+        import ibeis_cnn.__THEANO__ as theano
+        self._shared_state = {key: theano.shared(None, name=key)
+                              for key in self._keys}
+        self.learning_rate = learning_rate
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+
+    def keys(self):
+        return self._keys
+
+    def getitem(self, key):
+        _shared = self._shared_state[key]
+        return _shared.get_value()
+
+    def setitem(self, key, value):
+        _shared = self._shared_state[key]
+        print('[model] setting %s to %.9r' % (_shared.name, value))
+        cast_value = None if value is None else np.cast['float32'](value)
+        _shared.set_value(cast_value)
+
+
+@ut.reloadable_class
 class _ModelFitting(object):
     """
     CommandLine:
@@ -55,15 +170,18 @@ class _ModelFitting(object):
         # Training state
         model.requested_headers = ['learn_loss', 'valid_loss', 'learnval_rat']
         model.preproc_kw   = None
+        # Stores current result
         model.best_results = {
-            'epoch': None,
-            'learn_loss':     np.inf,
-            'valid_loss':     np.inf,
+            'epoch'      : None,
+            'learn_loss' : np.inf,
+            'valid_loss' : np.inf,
+            'weights'    : None
         }
-        model.learning_state = {
-            'momentum': kwargs.pop('momentum', .9),
-            'weight_decay': kwargs.pop('weight_decay', None),
-        }
+        model.learning_state = LearningState(
+            learning_rate=kwargs.pop('learning_rate', .005),
+            momentum=kwargs.pop('momentum', .9),
+            weight_decay=kwargs.pop('weight_decay', None),
+        )
         # Theano shared state
         model.train_config = {
             'era_schedule': 100,
@@ -72,15 +190,10 @@ class _ModelFitting(object):
             'checkpoint_freq': 200,
             'monitor': ut.get_argflag('--monitor'),
         }
-        model.shared_state = {
-            'learning_rate': None,
-        }
-        # NOTE: Do not set learning rate until theano is initialized
-        model.learning_rate = kwargs.pop('learning_rate', .005)
 
     def fit(model, X_train, y_train, X_valid=None, y_valid=None, valid_idx=None):
         r"""
-        REWORKING OF OLD TRAIN FUNC
+        Trains the network with backprop.
 
         CommandLine:
             python -m ibeis_cnn _ModelFitting.fit:0
@@ -91,11 +204,11 @@ class _ModelFitting(object):
             >>> from ibeis_cnn.models import MNISTModel
             >>> dataset = ingest_data.grab_mnist_category_dataset()
             >>> dataset = ingest_data.grab_mnist_category_dataset_old()
-            >>> model = MNISTModel(batch_size=500, data_shape=dataset.data_shape,
+            >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
             >>>                    output_dims=dataset.output_dims,
             >>>                    arch_tag=dataset.alias_key,
+            >>>                    learning_rate=.01,
             >>>                    training_dpath=dataset.training_dpath)
-            >>> model.learning_rate = .01
             >>> model.encoder = None
             >>> model.initialize_architecture()
             >>> model.train_config['monitor'] = True
@@ -133,9 +246,7 @@ class _ModelFitting(object):
         save_after_best_countdown = None
 
         # Begin training the neural network
-        print('\n[train] starting training at %s with learning rate %.9f' %
-              (utils.get_current_time(), model.learning_rate))
-        print('learning_state = %s' % ut.dict_str(model.learning_state))
+        print('learning_state = %s' % ut.repr3(model.learning_state.asdict(), precision=2))
         printcol_info = utils.get_printcolinfo(model.requested_headers)
 
         model.start_new_era(X_learn, y_learn, X_valid, y_valid)
@@ -207,7 +318,8 @@ class _ModelFitting(object):
                 if utils.checkfreq(model.train_config['era_schedule'], epoch):
                     #epoch_marker = epoch
                     frac = model.train_config['learning_rate_adjust']
-                    model.learning_rate = (model.learning_rate * frac)
+                    learn_state = model.learning_state
+                    learn_state.learning_rate = (learn_state.learning_rate * frac)
                     model.start_new_era(X_learn, y_learn, X_valid, y_valid)
                     utils.print_header_columns(printcol_info)
 
@@ -240,7 +352,8 @@ class _ModelFitting(object):
                 elif resolution == 1:
                     # Shock the weights of the network
                     utils.shock_network(model.output_layer)
-                    model.learning_rate = model.learning_rate * 2
+                    learn_state = model.learning_state
+                    learn_state.learning_rate = learn_state.learning_rate * 2
                     #epoch_marker = epoch
                     utils.print_header_columns(printcol_info)
                 elif resolution == 2:
@@ -250,7 +363,7 @@ class _ModelFitting(object):
                     model.checkpoint_save_model_state()
                     model.save_model_state()
                 elif resolution == 3:
-                    ut.view_directory(model.training_dpath)
+                    ut.view_directory(model.model_dpath)
                 elif resolution == 4:
                     ut.embed()
                 elif resolution == 5:
@@ -275,29 +388,6 @@ class _ModelFitting(object):
     #def best_weights(model, weights):
     #    model.best_results['weights'] = weights
 
-    @property
-    def learning_rate(model):
-        shared_learning_rate = model.shared_learning_rate
-        if shared_learning_rate is None:
-            return None
-        else:
-            return shared_learning_rate.get_value()
-
-    @learning_rate.setter
-    def learning_rate(model, rate):
-        import ibeis_cnn.__THEANO__ as theano
-        print('[model] setting learning rate to %.9f' % (rate))
-        shared_learning_rate = model.shared_state.get('learning_rate', None)
-        if shared_learning_rate is None:
-            shared_learning_rate = theano.shared(np.cast['float32'](rate))
-            model.shared_state['learning_rate'] = shared_learning_rate
-        else:
-            shared_learning_rate.set_value(np.cast['float32'](rate))
-
-    @property
-    def shared_learning_rate(model):
-        return model.shared_state.get('learning_rate', None)
-
     def start_new_era(model, X_learn, y_learn, X_valid, y_valid):
         """
         Used to denote a change in hyperparameters during training.
@@ -317,8 +407,7 @@ class _ModelFitting(object):
                 'valid_loss_list': [],
                 'learn_loss_list': [],
                 'epoch_list': [],
-                'learning_rate': [model.learning_rate],
-                'learning_state': [model.learning_state],
+                'learning_state': [model.learning_state.asdict()],
             }
             num_eras = len(model.era_history)
             print('starting new era %d' % (num_eras,))
@@ -357,7 +446,7 @@ class _ModelFitting(object):
 
         # Write initial states of the weights
         fpath = model.imwrite_weights(dpath=weights_progress_dir,
-                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fname='weights_' + model.get_history_hashid() + '.png',
                                       fnum=2, verbose=0)
         overwrite_latest_image(fpath, 'weights')
         model._fit_progress_info = {
@@ -373,12 +462,12 @@ class _ModelFitting(object):
 
         # Save loss graphs
         fpath = model.imwrite_era_history(dpath=history_dir,
-                                          fname='history_' + model.get_model_history_hashid() + '.png',
+                                          fname='history_' + model.get_history_hashid() + '.png',
                                           fnum=1, verbose=0)
         overwrite_latest_image(fpath, 'history')
         # Save weights images
         fpath = model.imwrite_weights(dpath=weights_dir,
-                                      fname='weights_' + model.get_model_history_hashid() + '.png',
+                                      fname='weights_' + model.get_history_hashid() + '.png',
                                       fnum=2, verbose=0)
         overwrite_latest_image(fpath, 'weights')
         # Save text info
@@ -578,25 +667,11 @@ class _ModelLegacy(object):
         # Set architecture weights
         model.set_all_param_values(model.best_results['weights'])
 
-    #def historyfoohack(model, X_train, y_train, dataset):
-    #    #x_hashid = ut.hashstr_arr(X_train, 'x', alphabet=ut.ALPHABET_27)
-    #    y_hashid = ut.hashstr_arr(y_train, 'y', alphabet=ut.ALPHABET_27)
-    #    #
-    #    train_hashid =  dataset.arch_tag + '_' + y_hashid
-    #    era_info = {
-    #        'train_hashid': train_hashid,
-    #        'valid_loss_list': [model.best_results['valid_loss']],
-    #        'train_loss_list': [model.best_results['train_loss']],
-    #        'epoch_list': [model.best_results['epoch']],
-    #        'learning_rate': [model.learning_rate],
-    #        'learning_state': [model.learning_state],
-    #    }
-    #    model.era_history = []
-    #    model.era_history.append(era_info)
-
 
 @ut.reloadable_class
 class _ModelVisualization(object):
+    """
+    """
 
     def show_architecture_image(model, **kwargs):
         layers = model.get_all_layers()
@@ -630,7 +705,7 @@ class _ModelVisualization(object):
         model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
         model.show_weight_updates(fnum=fnum, pnum=next_pnum())
 
-        pt.set_figtitle('Era History: ' + model.get_model_history_hashid())
+        pt.set_figtitle('Era History: ' + model.get_history_hashid())
         return fig
 
     def show_era_lossratio(model, fnum=None, pnum=(1, 1, 1)):
@@ -796,7 +871,7 @@ class _ModelVisualization(object):
         all_weights = layer.W.get_value()
         layername = net_strs.make_layer_str(layer)
         fig = draw_net.show_convolutional_weights(all_weights, **kwargs)
-        history_hashid = model.get_model_history_hashid()
+        history_hashid = model.get_history_hashid()
         figtitle = layername + '\n' + history_hashid
         pt.set_figtitle(figtitle, subtitle='shape=%r, sum=%.4f, l2=%.4f' %
                         (all_weights.shape, all_weights.sum(),
@@ -820,7 +895,8 @@ class _ModelVisualization(object):
 
 @ut.reloadable_class
 class _ModelStrings(object):
-    # --- STRINGS
+    """
+    """
 
     def get_state_str(model, other_override_reprs={}):
         era_history_str = ut.list_str(
@@ -833,7 +909,6 @@ class _ModelStrings(object):
             'preproc_kw': ('None' if model.preproc_kw is None else
                            ut.dict_str(model.preproc_kw, truncate=True)),
             'learning_state': ut.dict_str(model.learning_state),
-            'learning_rate': model.learning_rate,
             'era_history': era_history_str,
         }
         override_reprs.update(other_override_reprs)
@@ -847,62 +922,69 @@ class _ModelStrings(object):
         state_str = ut.dict_str(override_reprs, sorted_=True, strvals=True)
         return state_str
 
-    def get_architecture_str(model, sep='_', with_noise_layers=True):
-        """
-        with_noise_layers is a boolean that specifies if layers that doesnt
+    def get_architecture_str(model, sep='_', with_noise=True):
+        r"""
+        with_noise is a boolean that specifies if layers that doesnt
         affect the flow of information in the determenistic setting are to be
         included. IE get rid of dropout.
-        """
-        import ibeis_cnn.__LASAGNE__ as lasagne
-        if model.output_layer is None:
-            return ''
-        network_layers = model.get_all_layers()
-        if with_noise_layers:
-            #weighted_layers = [layer_ for layer_ in network_layers
-            #                   if hasattr(layer_, 'W')]
-            valid_layers = [layer_ for layer_ in network_layers]
-        else:
-            valid_layers = [
-                layer_ for layer_ in network_layers if
-                layer_.__class__.__name__ not in lasagne.layers.noise.__all__
-            ]
-        layer_str_list = [net_strs.make_layer_str(layer)
-                          for layer in valid_layers]
-        architecture_str = sep.join(layer_str_list)
-        return architecture_str
-
-    def get_architecture_hashid(model):
-        """
-        Returns a hash identifying the architecture of the determenistic net
-        """
-        architecture_str = model.get_architecture_str(with_noise_layers=False)
-        hashid = ut.hashstr27(architecture_str)
-        return hashid
-
-    def get_model_history_hashid(model):
-        r"""
-        Returns:
-            str: history_hashid
 
         CommandLine:
-            python -m ibeis_cnn.abstract_models --test-get_model_history_hashid
+            python -m ibeis_cnn.models.abstract_models --test-_ModelStrings.get_architecture_str:0
 
         Example:
             >>> # ENABLE_DOCTEST
-            >>> from ibeis_cnn.abstract_models import *  # NOQA
-            >>> # test the hashid
-            >>> model = testdata_model_with_history()
-            >>> history_hashid = model.get_model_history_hashid()
-            >>> result = str(history_hashid)
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, training_dpath='.')
+            >>> model.initialize_architecture()
+            >>> result = model.get_architecture_str(sep=ut.NEWLINE, with_noise=False)
             >>> print(result)
-            hist_eras002_epochs0005_bdpueuzgkxvtwmpe
+            InputLayer(name=I0,shape=(128, 1, 24, 24))
+            Conv2DDNNLayer(name=C1,num_filters=32,stride=(1, 1),nonlinearity=rectify)
+            MaxPool2DDNNLayer(name=P1,stride=(2, 2))
+            Conv2DDNNLayer(name=C2,num_filters=32,stride=(1, 1),nonlinearity=rectify)
+            MaxPool2DDNNLayer(name=P2,stride=(2, 2))
+            DenseLayer(name=F3,num_units=256,nonlinearity=rectify)
+            DenseLayer(name=O4,num_units=10,nonlinearity=softmax)
         """
-        era_history_hash = [ut.hashstr27(repr(era))
-                            for era in  model.era_history]
-        hashid = ut.hashstr27(str(era_history_hash))
-        history_hashid = 'eras%03d_epochs%04d_%s' % (
-            model.total_eras, model.total_epochs, hashid)
-        return history_hashid
+        if model.output_layer is None:
+            return ''
+        layer_list = model.get_all_layers(with_noise=with_noise)
+        layer_str_list = [net_strs.make_layer_str(layer)
+                          for layer in layer_list]
+        architecture_str = sep.join(layer_str_list)
+        return architecture_str
+
+    def get_layer_info_str(model):
+        """
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models --test-_ModelStrings.get_layer_info_str:0
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, training_dpath='.')
+            >>> model.initialize_architecture()
+            >>> result = model.get_layer_info_str()
+            >>> print(result)
+            Network Structure:
+             index  Name  Layer               Outputs      Bytes OutShape           Params
+             0      I0    InputLayer              576    294,912 (128, 1, 24, 24)   []
+             1      C1    Conv2DDNNLayer       12,800  6,556,928 (128, 32, 20, 20)  [C1.W(32,1,5,5, {t,r}), C1.b(32, {t})]
+             2      P1    MaxPool2DDNNLayer     3,200  1,638,400 (128, 32, 10, 10)  []
+             3      C2    Conv2DDNNLayer        1,152    692,352 (128, 32, 6, 6)    [C2.W(32,32,5,5, {t,r}), C2.b(32, {t})]
+             4      P2    MaxPool2DDNNLayer       288    147,456 (128, 32, 3, 3)    []
+             5      D2    DropoutLayer            288    147,456 (128, 32, 3, 3)    []
+             6      F3    DenseLayer              256    427,008 (128, 256)         [F3.W(288,256, {t,r}), F3.b(256, {t})]
+             7      D3    DropoutLayer            256    131,072 (128, 256)         []
+             8      O4    DenseLayer               10     15,400 (128, 10)          [O4.W(256,10, {t,r}), O4.b(10, {t})]
+            ...this model has 103,018 learnable parameters
+            ...this model will use 10,050,984 bytes = 9.59 MB
+        """
+        return net_strs.get_layer_info_str(model.get_all_layers())
 
     @property
     def total_epochs(model):
@@ -934,17 +1016,185 @@ class _ModelStrings(object):
         print('\n---- HashID')
         print('hashid=%r' % (model.get_architecture_hashid()),)
         print('----')
-        # verify results
+
+
+@ut.reloadable_class
+class _ModelIDs(object):
+
+    def _init_id_vars(model, kwargs):
+        pass
+        # FIXME: figure out how arch tag fits in here
+        #model.name = kwargs.pop('name', None)
+        model.arch_tag = kwargs.pop('arch_tag', None)
+        #if model.name is None:
+        #    model.name = ut.get_classname(model.__class__, local=True)
+
+    def __nice__(self):
+        return '(' + self.get_arch_nice() + ' ' + self.get_history_nice() + ')'
+
+    @property
+    def hash_id(model):
+        arch_hashid = model.get_architecture_hashid()
+        history_hashid = model.get_history_hashid()
+        hashid = ut.hashstr27(history_hashid + arch_hashid)
+        return hashid
+
+    @property
+    def arch_id(model):
+        """
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models --test-_ModelIDs.arch_id:0
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, training_dpath='.')
+            >>> model.initialize_architecture()
+            >>> result = str(model.arch_id)
+            >>> print(result)
+        """
+        arch_id = 'arch_' + model.get_arch_nice() + '_' + model.get_architecture_hashid()
+        return arch_id
+
+    @property
+    def hist_id(model):
+        r"""
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models --test-_ModelIDs.hist_id:0
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> model = testdata_model_with_history()
+            >>> result = str(history_hashid)
+            >>> print(result)
+            eras003_epochs0012_eeeejtddhhhkoaim
+        """
+        hashid = model.get_history_hashid()
+        nice = model.get_history_nice()
+        history_id = nice + hashid
+        return history_id
+
+    def get_architecture_hashid(model):
+        """
+        Returns a hash identifying the architecture of the determenistic net.
+        This does not involve any dropout or noise layers, nor does the
+        initialization of the weights matter.
+        """
+        arch_str = model.get_architecture_str(with_noise=False)
+        arch_hashid = ut.hashstr27(arch_str, hashlen=8)
+        return arch_hashid
+
+    def get_history_hashid(model):
+        r"""
+        Builds a hashid that uniquely identifies the architecture and the
+        training procedure this model has gone through to produce the current
+        architecture weights.
+        """
+        era_hash_list = [ut.hashstr27(ut.repr2(era))
+                         for era in model.era_history]
+        era_hash_str = ''.join(era_hash_list)
+        history_hashid = ut.hashstr27(era_hash_str, hashlen=8)
+        return history_hashid
+
+    def get_arch_nice(model):
+        """
+        Makes a string that shows the number of input units, output units,
+        hidden units, parameters, and model depth.
+
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, training_dpath='.')
+            >>> model.initialize_architecture()
+            >>> result = str(model.get_arch_nice())
+            >>> print(result)
+        """
+        if model.arch_tag is not None:
+            return model.arch_tag
+        elif model.output_layer is None:
+            return 'NOARCH'
+        else:
+            weighted_layers = model.get_all_layers(with_noise=False, with_weightless=False)
+            info_list = [net_strs.get_layer_info(layer) for layer in weighted_layers]
+            # The number of units depends if you look at things via input or output
+            # does a convolutional layer have its outputs or the outputs of the pooling layer?
+            #num_units1 = sum([info['num_outputs'] for info in info_list])
+            nhidden = sum([info['num_inputs'] for info in info_list[1:]])
+            #num_units2 += net_strs.get_layer_info(model.output_layer)['num_outputs']
+            depth = len(weighted_layers)
+            nparam = sum([info['num_params'] for info in info_list])
+            nin = np.prod(model.data_shape)
+            nout = model.output_dims
+            fmtdict = dict(
+                nin=nin,
+                nout=nout,
+                depth=depth,
+                nhidden=nhidden,
+                nparam=nparam,
+                #logmcomplex=int(np.round(np.log10(nhidden + nparam)))
+                mcomplex=int(np.round((nhidden + nparam) / 1000))
+            )
+            #nice = 'i{nin}_o{nout}_d{depth}_h{nhidden}_p{nparam}'.format(**fmtdict)
+            # Use a complexity measure
+            nice = 'i{nin}_o{nout}_d{depth}_c{mcomplex}'.format(**fmtdict)
+            # Use a logspace complexity measure
+            #nice = 'i{nin}_o{nout}_d{depth}_c{logmcomplex}'.format(**fmtdict)
+            return nice
+
+    def get_history_nice(model):
+        nice = 'era%03d_epoch%04d' % (model.total_eras, model.total_epochs)
+        return nice
 
 
 @ut.reloadable_class
 class _ModelIO(object):
 
+    def _init_io_vars(model, kwargs):
+        model.training_dpath = kwargs.pop('training_dpath', '.')
+        #assert model.arch_tag is not None, 'please specify arch tag'
+
+    def print_structure(model):
+        print(model.model_dpath)
+        print(model.arch_dpath)
+        print(model.best_dpath)
+        print(model.progress_dpath)
+        print(model.checkpoint_dpath)
+        print(model.diagnostic_dpath)
+
+    @property
+    def model_dpath(model):
+        return join(model.training_dpath, 'models')
+
+    @property
+    def arch_dpath(model):
+        return join(model.model_dpath, model.arch_id)
+
+    @property
+    def best_dpath(model):
+        return join(model.arch_dpath, 'best')
+
+    @property
+    def checkpoint_dpath(model):
+        return join(model.arch_dpath, 'checkpoints')
+
+    @property
+    def progress_dpath(model):
+        return join(model.arch_dpath, 'progress')
+
+    @property
+    def diagnostic_dpath(model):
+        return join(model.arch_dpath, 'diagnostics')
+
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
-        history_hashid = model.get_model_history_hashid()
-        diagnostic_dpath = ut.unixjoin(model.training_dpath, model.arch_tag + '/diagnostics')
-        ut.ensuredir(diagnostic_dpath )
+        history_hashid = model.get_history_hashid()
+        diagnostic_dpath = model.diagnostic_dpath
+        ut.ensuredir(diagnostic_dpath)
         epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
         ut.ensuredir(epoch_dpath)
         return epoch_dpath
@@ -955,7 +1205,7 @@ class _ModelIO(object):
         return checkpoint_dirs
 
     def _get_model_dpath(model, dpath, checkpoint_tag):
-        dpath = model.training_dpath + '/' + model.arch_tag if dpath is None else dpath
+        dpath = model.model_dpath + '/' + model.arch_tag if dpath is None else dpath
         if checkpoint_tag is not None:
             # checkpoint dir requested
             dpath = join(dpath, 'checkpoints')
@@ -1032,24 +1282,16 @@ class _ModelIO(object):
         return model_state_fpath
 
     def checkpoint_save_model_state(model):
-        history_hashid = model.get_model_history_hashid()
+        history_hashid = model.get_history_hashid()
         fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
         ut.ensuredir(dirname(fpath))
         model.save_model_state(fpath=fpath)
 
     def checkpoint_save_model_info(model):
-        history_hashid = model.get_model_history_hashid()
+        history_hashid = model.get_history_hashid()
         fpath = model.get_model_info_fpath(checkpoint_tag=history_hashid)
         ut.ensuredir(dirname(fpath))
         model.save_model_info(fpath=fpath)
-
-    @property
-    def arch_dpath(model):
-        return join(model.training_dpath, model.arch_tag)
-
-    @property
-    def progress_dpath(model):
-        return join(model.arch_dpath, 'progress')
 
     def save_model_state(model, **kwargs):
         """ saves current model state """
@@ -1058,12 +1300,14 @@ class _ModelIO(object):
             'best_results': model.best_results,
             'preproc_kw':   model.preproc_kw,
             'current_weights': current_weights,
+
             'input_shape':  model.input_shape,
-            'output_dims':  model.output_dims,
-            'era_history':  model.era_history,
-            'arch_tag': model.arch_tag,
             'data_shape': model.data_shape,
             'batch_size': model.data_shape,
+            'output_dims':  model.output_dims,
+
+            'era_history':  model.era_history,
+            'arch_tag': model.arch_tag,
         }
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model state to: %s' % (model_state_fpath,))
@@ -1159,14 +1403,24 @@ class _ModelUtility(object):
                 model.output_layer, **tags)
             return parameters
 
-    def get_all_layers(model):
+    def get_all_layers(model, with_noise=True, with_weightless=True):
         import ibeis_cnn.__LASAGNE__ as lasagne
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
             assert model.output_layer is not None, 'need to initialize'
-            network_layers = lasagne.layers.get_all_layers(model.output_layer)
-        return network_layers
+            layer_list_ = lasagne.layers.get_all_layers(model.output_layer)
+        layer_list = layer_list_
+        if not with_noise:
+            # Remove dropout / gaussian noise layers
+            layer_list = [
+                layer for layer in layer_list_
+                if layer.__class__.__name__ not in lasagne.layers.noise.__all__
+            ]
+        if not with_weightless:
+            # Remove layers without weights
+            layer_list = [layer for layer in layer_list if hasattr(layer, 'W')]
+        return layer_list
 
     def get_output_layer(model):
         if model.output_layer is not None:
@@ -1425,7 +1679,8 @@ class _ModelBackend(object):
 
         grads = theano.grad(backprop_loss_, parameters, add_names=True)
 
-        learning_rate_theano = model.shared_learning_rate
+        #learning_rate_theano = model.shared_learning_rate
+        learning_rate_theano = model.learning_state.shared.learning_rate
         momentum = model.learning_state['momentum']
 
         updates = lasagne.updates.nesterov_momentum(
@@ -1520,9 +1775,17 @@ class _ModelBackend(object):
         return []
 
 
+def report_error(msg):
+    if False:
+        raise ValueError(msg)
+    else:
+        print('WARNING:' + msg)
+
+
 @ut.reloadable_class
 class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
-                _ModelBackend, _ModelFitting, _ModelUtility, ut.NiceRepr):
+                _ModelIDs, _ModelBackend, _ModelFitting, _ModelUtility,
+                ut.NiceRepr):
     """
     Abstract model providing functionality for all other models to derive from
     """
@@ -1533,7 +1796,8 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
             data_shape (tuple):  in  Numpy format (b, h, w, c)
         """
         kwargs = kwargs.copy()
-        model._init_bookkeeping_vars(kwargs)
+        model._init_io_vars(kwargs)
+        model._init_id_vars(kwargs)
         model._init_shape_vars(kwargs)
         model._init_compile_vars(kwargs)
         model._init_fit_vars(kwargs)
@@ -1541,31 +1805,24 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
         assert len(kwargs) == 0, (
             'Model was given unused keywords=%r' % (list(kwargs.keys())))
 
-    def _init_bookkeeping_vars(model, kwargs):
-        # FIXME: figure out how arch tag fits in here
-        model.arch_tag = kwargs.pop('arch_tag', None)
-        model.training_dpath = kwargs.pop('training_dpath', '.')
-        assert model.arch_tag is not None, 'please specify arch tag'
-
     def _init_shape_vars(model, kwargs):
         input_shape = kwargs.pop('input_shape', None)
         batch_size = kwargs.pop('batch_size', None)
         data_shape = kwargs.pop('data_shape', None)
         output_dims = kwargs.pop('output_dims', None)
 
-        if input_shape is None:
-            if data_shape is None:
-                raise ValueError(
-                    'Either input_shape or data_shape must be specified')
+        if input_shape is None and data_shape is None:
+            report_error(
+                'Must specify either input_shape or data_shape')
+        elif input_shape is None:
             input_shape = (batch_size, data_shape[2], data_shape[0],
                            data_shape[1])
-        else:
-            if data_shape is not None or batch_size is not None:
-                raise ValueError(
-                    'Dont specify batch_size or data_shape '
-                    'if input_shape is given')
+        elif data_shape is None and batch_size is None:
             data_shape = (input_shape[2], input_shape[3], input_shape[1])
             batch_size = input_shape[0]
+        else:
+            report_error(
+                'Dont specify batch_size or data_shape with input_shape')
 
         model.output_dims = output_dims
         model.input_shape = input_shape
@@ -1576,9 +1833,6 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
         # two images a piece
         model.data_per_label_input  = 1  # state of network input
         model.data_per_label_output = 1  # state of network output
-
-    def __nice__(self):
-        return '(' + self.get_model_history_hashid() + ')'
 
     # --- OTHER
     @property
@@ -1677,7 +1931,8 @@ class AbstractCategoricalModel(BaseModel):
 
     def initialize_encoder(model, labels):
         print('[model] encoding labels')
-        model.encoder = sklearn.preprocessing.LabelEncoder()
+        from sklearn import preprocessing
+        model.encoder = preprocessing.LabelEncoder()
         model.encoder.fit(labels)
         model.output_dims = len(list(np.unique(labels)))
         print('[model] model.output_dims = %r' % (model.output_dims,))
