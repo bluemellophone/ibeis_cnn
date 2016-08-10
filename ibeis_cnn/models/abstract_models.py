@@ -1218,7 +1218,7 @@ class _ModelBackend(object):
         model._theano_forward = None
         model._theano_predict = None
         model._mode = None
-        if kwargs.pop('debug_theano', False):
+        if kwargs.pop('verbose_compile', True):
             import logging
             compile_logger = logging.getLogger('theano.compile')
             compile_logger.setLevel(-10)
