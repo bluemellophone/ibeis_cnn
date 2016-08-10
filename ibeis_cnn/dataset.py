@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-from ibeis_cnn import utils
 from os.path import join, basename, exists, dirname, splitext
 import six
 import numpy as np
@@ -190,6 +189,11 @@ class DataSet(object):
         else:
             flat_metadata = None
         return flat_metadata
+
+    def clear_cache(dataset):
+        dataset.load_subset_data.cache.clear()
+        dataset.load_subset_labels.cache.clear()
+        dataset.load_subset_metadata.cache.clear()
 
     @staticmethod
     def print_dataset_info(data, labels, key):
@@ -582,7 +586,7 @@ def stratified_label_shuffle_split(y, labels, fractions, rng=None):
     #class_weights = [ut.dict_hist(ys) for ys in grouped_ys]
 
     unique_idxs = stratified_shuffle_split(unique_ys, fractions, rng)
-    index_sets = [ut.flatten(ut.take(groupxs, idxs)) for idxs in unique_idxs]
+    index_sets = [np.array(ut.flatten(ut.take(groupxs, idxs))) for idxs in unique_idxs]
     return index_sets
 
 

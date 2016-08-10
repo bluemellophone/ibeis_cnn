@@ -78,7 +78,7 @@ class _ModelFitting(object):
         # NOTE: Do not set learning rate until theano is initialized
         model.learning_rate = kwargs.pop('learning_rate', .005)
 
-    def fit(model, X_train, y_train, valid_idx=None):
+    def fit(model, X_train, y_train, X_valid=None, y_valid=None, valid_idx=None):
         r"""
         REWORKING OF OLD TRAIN FUNC
 
@@ -109,7 +109,8 @@ class _ModelFitting(object):
         from ibeis_cnn import utils
         print('\n[train] --- TRAINING LOOP ---')
 
-        X_learn, y_learn, X_valid, y_valid = model._prefit(X_train, y_train, valid_idx)
+        X_learn, y_learn, X_valid, y_valid = model._prefit(
+            X_train, y_train, X_valid, y_valid, valid_idx)
 
         if model.train_config['monitor']:
             model._init_monitor()
@@ -384,35 +385,42 @@ class _ModelFitting(object):
         history_text = ut.list_str(model.era_history, newlines=True)
         ut.write_to(text_fpath, history_text, verbose=False)
 
-    def _prefit(model, X_train, y_train, valid_idx):
+    def _prefit(model, X_train, y_train, X_valid, y_valid, valid_idx):
         # Center the data by subtracting the mean
         model.check_data_shape(X_train)
 
-        # Split training set into a learning / validation set
-        if valid_idx is None:
-            from ibeis_cnn.dataset import stratified_shuffle_split
-            train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.7, .3],
-                                                            rng=432321)
-            #import sklearn.cross_validation
-            #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
-            #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
-            #train_idx, valid_idx = list(skf)[0]
+        if X_valid is not None:
+            assert valid_idx is None, 'Cant specify both valid_idx and X_valid'
+            # When X_valid is given assume X_train is actually X_learn
+            X_learn = X_train
+            y_learn = y_train
         else:
-            train_idx = ut.index_complement(valid_idx, len(X_train))
-
-        # Set to learn network weights
-        X_learn = X_train.take(train_idx, axis=0)
-        y_learn = y_train.take(train_idx, axis=0)
-        # Set to crossvalidate hyperparamters
-        X_valid = X_train.take(valid_idx, axis=0)
-        y_valid = y_train.take(valid_idx, axis=0)
+            if valid_idx is None:
+                # Split training set into a learning / validation set
+                from ibeis_cnn.dataset import stratified_shuffle_split
+                train_idx, valid_idx = stratified_shuffle_split(y_train, fractions=[.7, .3],
+                                                                rng=432321)
+                #import sklearn.cross_validation
+                #xvalkw = dict(n_folds=2, shuffle=True, random_state=43432)
+                #skf = sklearn.cross_validation.StratifiedKFold(y_train, **xvalkw)
+                #train_idx, valid_idx = list(skf)[0]
+            elif valid_idx is None and X_valid is None:
+                train_idx = ut.index_complement(valid_idx, len(X_train))
+            else:
+                assert False, 'impossible state'
+            # Set to learn network weights
+            X_learn = X_train.take(train_idx, axis=0)
+            y_learn = y_train.take(train_idx, axis=0)
+            # Set to crossvalidate hyperparamters
+            X_valid = X_train.take(valid_idx, axis=0)
+            y_valid = y_train.take(valid_idx, axis=0)
 
         model.ensure_training_state(X_learn, y_learn)
 
         print('Learn y histogram: ' + ut.repr2(ut.dict_hist(y_learn)))
         print('Valid y histogram: ' + ut.repr2(ut.dict_hist(y_valid)))
 
-        print('\n[train] --- MODEL INFO ---')
+        # print('\n[train] --- MODEL INFO ---')
         # model.print_architecture_str()
         # model.print_layer_info()
 
@@ -1156,7 +1164,7 @@ class _ModelUtility(object):
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', '.*topo.*')
             warnings.filterwarnings('ignore', '.*layer.get_all_layers.*')
-            assert model.output_layer is not None
+            assert model.output_layer is not None, 'need to initialize'
             network_layers = lasagne.layers.get_all_layers(model.output_layer)
         return network_layers
 
