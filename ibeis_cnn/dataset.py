@@ -305,7 +305,8 @@ class DataSet(ut.NiceRepr):
                 cached_func.cache.clear()
         else:
             for cached_func in cached_func_list:
-                del cached_func.cache[key]
+                if key in cached_func.cache:
+                    del cached_func.cache[key]
 
     @staticmethod
     def print_dataset_info(data, labels, key):
