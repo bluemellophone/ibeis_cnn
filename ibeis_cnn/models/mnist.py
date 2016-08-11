@@ -38,8 +38,8 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>                    training_dpath=dataset.training_dpath)
         >>> model.encoder = None
         >>> model.train_config['monitor'] = True
-        >>> model.learning_state['weight_decay'] = None
-        >>> model.learning_state['learning_rate'] = .01
+        >>> model.learn_state['weight_decay'] = None
+        >>> model.learn_state['learning_rate'] = .01
         >>> output_layer = model.initialize_architecture()
         >>> model.print_layer_info()
         >>> # parse training arguments

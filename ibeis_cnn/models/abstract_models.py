@@ -139,27 +139,40 @@ class LearnPropertyInjector(type):
 
 @ut.reloadable_class
 @six.add_metaclass(LearnPropertyInjector)
-class LearningState(ut.DictLike):
+class LearnState(ut.DictLike):
+    """ Keeps track of shared variables that can be changed during theano execution """
     def __init__(self, learning_rate, momentum, weight_decay):
-        import ibeis_cnn.__THEANO__ as theano
-        self._shared_state = {key: theano.shared(None, name=key)
-                              for key in self._keys}
+        # import ibeis_cnn.__THEANO__ as theano
+        self._shared_state = {key: None for key in self._keys}
         self.learning_rate = learning_rate
         self.momentum = momentum
         self.weight_decay = weight_decay
+
+    @property
+    def shared(self):
+        return self._shared_state
 
     def keys(self):
         return self._keys
 
     def getitem(self, key):
         _shared = self._shared_state[key]
-        return _shared.get_value()
+        value = _shared.get_value()
+        # if value is not None:
+        #     value = value.tolist()
+        return value
 
     def setitem(self, key, value):
+        import ibeis_cnn.__THEANO__ as theano
+        print('[model] setting %s to %.9r' % (key, value))
         _shared = self._shared_state[key]
-        print('[model] setting %s to %.9r' % (_shared.name, value))
-        cast_value = None if value is None else np.cast['float32'](value)
-        _shared.set_value(cast_value)
+        if value is None and _shared is not None:
+            raise ValueError('Cannot set an initialized shared variable to None.')
+        elif _shared is None and value is not None:
+            self._shared_state[key] = theano.shared(
+                np.cast['float32'](value), name=key)
+        elif _shared is not None:
+            _shared.set_value(np.cast['float32'](value))
 
 
 @ut.reloadable_class
@@ -182,7 +195,7 @@ class _ModelFitting(object):
             'valid_loss' : np.inf,
             'weights'    : None
         }
-        model.learning_state = LearningState(
+        model.learn_state = LearnState(
             learning_rate=kwargs.pop('learning_rate', .005),
             momentum=kwargs.pop('momentum', .9),
             weight_decay=kwargs.pop('weight_decay', None),
@@ -217,7 +230,7 @@ class _ModelFitting(object):
             >>> model.encoder = None
             >>> model.initialize_architecture()
             >>> model.train_config['monitor'] = True
-            >>> model.learning_state['weight_decay'] = None
+            >>> model.learn_state['weight_decay'] = None
             >>> model.print_layer_info()
             >>> #model.reinit_weights()
             >>> X_train, y_train = dataset.load_subset('train')
@@ -251,7 +264,7 @@ class _ModelFitting(object):
         save_after_best_countdown = None
 
         # Begin training the neural network
-        print('learning_state = %s' % ut.repr3(model.learning_state.asdict(), precision=2))
+        print('learn_state = %s' % ut.repr3(model.learn_state.asdict(), precision=2))
         printcol_info = utils.get_printcolinfo(model.requested_headers)
 
         model.start_new_era(X_learn, y_learn, X_valid, y_valid)
@@ -323,7 +336,7 @@ class _ModelFitting(object):
                 if utils.checkfreq(model.train_config['era_schedule'], epoch):
                     #epoch_marker = epoch
                     frac = model.train_config['learning_rate_adjust']
-                    learn_state = model.learning_state
+                    learn_state = model.learn_state
                     learn_state.learning_rate = (learn_state.learning_rate * frac)
                     model.start_new_era(X_learn, y_learn, X_valid, y_valid)
                     utils.print_header_columns(printcol_info)
@@ -357,7 +370,7 @@ class _ModelFitting(object):
                 elif resolution == 1:
                     # Shock the weights of the network
                     utils.shock_network(model.output_layer)
-                    learn_state = model.learning_state
+                    learn_state = model.learn_state
                     learn_state.learning_rate = learn_state.learning_rate * 2
                     #epoch_marker = epoch
                     utils.print_header_columns(printcol_info)
@@ -412,7 +425,7 @@ class _ModelFitting(object):
                 'valid_loss_list': [],
                 'learn_loss_list': [],
                 'epoch_list': [],
-                'learning_state': [model.learning_state.asdict()],
+                'learn_state': [model.learn_state.asdict()],
             }
             num_eras = len(model.era_history)
             print('starting new era %d' % (num_eras,))
@@ -913,7 +926,7 @@ class _ModelStrings(object):
             #'best_weights': ut.truncate_str(str(model.best_weights)),
             'preproc_kw': ('None' if model.preproc_kw is None else
                            ut.dict_str(model.preproc_kw, truncate=True)),
-            'learning_state': ut.dict_str(model.learning_state),
+            'learn_state': ut.dict_str(model.learn_state),
             'era_history': era_history_str,
         }
         override_reprs.update(other_override_reprs)
@@ -1659,7 +1672,7 @@ class _ModelBackend(object):
                 # regularization
                 L2 = lasagne.regularization.regularize_network_params(
                     model.output_layer, lasagne.regularization.l2)
-                weight_decay = model.learning_state['weight_decay']
+                weight_decay = model.learn_state['weight_decay']
                 if weight_decay is not None or weight_decay == 0:
                     regularization_term = weight_decay * L2
                     regularization_term.name = 'regularization_term'
@@ -1684,14 +1697,17 @@ class _ModelBackend(object):
 
         grads = theano.grad(backprop_loss_, parameters, add_names=True)
 
-        #learning_rate_theano = model.shared_learning_rate
-        learning_rate_theano = model.learning_state.shared.learning_rate
-        momentum = model.learning_state['momentum']
+        shared_learning_rate = model.learn_state.shared['learning_rate']
+        momentum = model.learn_state['momentum']
+        print('shared_learning_rate = %r' % (shared_learning_rate,))
+        print('momentum = %r' % (momentum,))
+        # import utool
+        # utool.embed()
 
         updates = lasagne.updates.nesterov_momentum(
             loss_or_grads=grads,
             params=parameters,
-            learning_rate=learning_rate_theano,
+            learning_rate=shared_learning_rate,
             momentum=momentum
             # add_names=True  # TODO; commit to lasange
         )
