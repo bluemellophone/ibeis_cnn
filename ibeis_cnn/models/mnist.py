@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-import functools
 from ibeis_cnn.models import abstract_models
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.models.dummy]')
@@ -14,16 +13,18 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         python -m ibeis_cnn.models.mnist MNISTModel:0
         python -m ibeis_cnn.models.mnist MNISTModel:1
 
+        python -m ibeis_cnn _ModelFitting.fit:0 --vd
+
     Example:
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.models.mnist import *  # NOQA
         >>> from ibeis_cnn import ingest_data
-        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> dataset = ingest_data.grab_mnist_category_dataset_float()
         >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
         >>>                    output_dims=dataset.output_dims,
         >>>                    training_dpath=dataset.training_dpath)
         >>> output_layer = model.initialize_architecture()
-        >>> model.print_dense_architecture_str()
+        >>> model.print_model_info_str()
         >>> model.mode = 'FAST_COMPILE'
         >>> model.build_backprop_func()
 
@@ -31,75 +32,59 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>> # ENABLE_DOCTEST
         >>> from ibeis_cnn.models.mnist import *  # NOQA
         >>> from ibeis_cnn import ingest_data
-        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> dataset = ingest_data.grab_mnist_category_dataset_float()
         >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
-        >>>                    output_dims=dataset.output_dims,
-        >>>                    arch_tag=dataset.alias_key,
+        >>>                    output_dims=len(dataset.unique_labels),
+        >>>                    learning_rate=.01,
         >>>                    training_dpath=dataset.training_dpath)
         >>> model.encoder = None
         >>> model.train_config['monitor'] = True
         >>> model.learn_state['weight_decay'] = None
-        >>> model.learn_state['learning_rate'] = .01
         >>> output_layer = model.initialize_architecture()
         >>> model.print_layer_info()
         >>> # parse training arguments
         >>> model.train_config.update(**ut.argparse_dict(dict(
-        >>>     era_schedule=100,
+        >>>     era_size=100,
         >>>     max_epochs=5,
-        >>>     learning_rate_adjust=.8,
+        >>>     rate_decay=.8,
         >>> )))
         >>> X_train, y_train = dataset.load_subset('train')
         >>> model.fit(X_train, y_train)
 
     """
-    def __init__(self, **kwargs):
-        super(MNISTModel, self).__init__(**kwargs)
+    def __init__(model, **kwargs):
+        model.batch_norm = kwargs.pop('batch_norm', True)
+        super(MNISTModel, model).__init__(**kwargs)
 
     def get_mnist_model_def1(model):
         """
         Follows https://github.com/Lasagne/Lasagne/blob/master/examples/mnist.py
         """
-        from ibeis_cnn.__LASAGNE__ import init
-        from ibeis_cnn.__LASAGNE__ import layers
-        from ibeis_cnn.__LASAGNE__ import nonlinearities
-
-        _P = functools.partial
-        #leaky = dict(nonlinearity=nonlinearities.LeakyRectify(leakiness=(1. / 10.)))
-        leaky = dict(nonlinearity=nonlinearities.rectify)
-        #orthog = dict(W=init.Orthogonal())
-        #weight_initkw = dict(W=init.GlorotUniform())
-        weight_initkw = dict()
-        output_initkw = weight_initkw
-        hidden_initkw = ut.merge_dicts(weight_initkw, leaky)
-
+        import ibeis_cnn.__LASAGNE__ as lasange
         from ibeis_cnn import custom_layers
+        batch_norm = model.batch_norm
+        dropout = 0 if batch_norm else .5
 
-        Conv2DLayer = custom_layers.Conv2DLayer
-        MaxPool2DLayer = custom_layers.MaxPool2DLayer
+        bundles = custom_layers.make_bundles(
+            nonlinearity=lasange.nonlinearities.rectify,
+            batch_norm=batch_norm,
+        )
+        InputBundle = bundles['InputBundle']
+        ConvPoolBundle = bundles['ConvPoolBundle']
+        FullyConnectedBundle = bundles['FullyConnectedBundle']
+        SoftmaxBundle = bundles['SoftmaxBundle']
 
         network_layers_def = [
-            _P(layers.InputLayer, shape=model.input_shape, name='I0'),
-            #_P(layers.GaussianNoiseLayer, name='N0'),
-
+            InputBundle(shape=model.input_shape, noise=False),
             # Convolutional layer with 32 kernels of size 5x5 and 2x2 pooling
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
-               name='C1', W=init.GlorotUniform(),
-               **hidden_initkw),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P1'),
-
+            ConvPoolBundle(num_filters=32, filter_size=(5, 5)),
             # Another convolution with 32 5x5 kernels, and 2x2 pooling
-            _P(Conv2DLayer, num_filters=32, filter_size=(5, 5), stride=(1, 1),
-               name='C2', **hidden_initkw),
-            _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P2'),
-
-            # A fully-connected layer of 256 units with 50% dropout on its inputs
-            _P(layers.DropoutLayer, p=0.5, name='D2'),
-            _P(layers.DenseLayer, num_units=256, name='F3',  **hidden_initkw),
-
+            # with 50% dropout on its outputs
+            ConvPoolBundle(num_filters=32, filter_size=(5, 5), dropout=dropout),
+            # A fully-connected layer of 256 units and 50% dropout of its outputs
+            FullyConnectedBundle(num_units=256, dropout=dropout),
             # And, finally, the 10-unit output layer with 50% dropout on its inputs
-            _P(layers.DropoutLayer, p=0.5, name='D3'),
-            _P(layers.DenseLayer, num_units=model.output_dims,
-               nonlinearity=nonlinearities.softmax, name='O4', **output_initkw),
+            SoftmaxBundle(num_units=model.output_dims),
         ]
         return network_layers_def
 
@@ -116,7 +101,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
             >>> verbose = True
             >>> model = MNISTModel(batch_size=128, data_shape=(28, 28, 1), output_dims=9)
             >>> model.initialize_architecture()
-            >>> model.print_dense_architecture_str()
+            >>> model.print_model_info_str()
             >>> print(model)
             >>> ut.quit_if_noshow()
             >>> model.show_architecture_image()

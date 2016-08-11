@@ -16,7 +16,8 @@ import cv2
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.utils]')
 
 
-VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn')) or ut.VERBOSE
+#VERBOSE_CNN = ut.get_argflag(('--verbose-cnn', '--verbcnn')) or ut.VERBOSE
+VERBOSE_CNN = ut.get_module_verbosity_flags('cnn')[0] or ut.VERBOSE
 
 RANDOM_SEED = None
 # RANDOM_SEED = 42

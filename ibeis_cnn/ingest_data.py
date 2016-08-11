@@ -202,16 +202,16 @@ def grab_siam_dataset(ds_tag=None):
     return dataset
 
 
-def grab_mnist_category_dataset():
+def grab_mnist_category_dataset_float():
     r"""
     CommandLine:
-        python -m ibeis_cnn grab_mnist_category_dataset
-        python -m ibeis_cnn grab_mnist_category_dataset --show
+        python -m ibeis_cnn grab_mnist_category_dataset_float
+        python -m ibeis_cnn grab_mnist_category_dataset_float --show
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
-        >>> dataset = grab_mnist_category_dataset()
+        >>> dataset = grab_mnist_category_dataset_float()
         >>> dataset.print_subset_info()
         >>> dataset.print_dir_tree()
         >>> ut.quit_if_noshow()
@@ -221,7 +221,7 @@ def grab_mnist_category_dataset():
     import numpy as np
     training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training')
     dataset = DataSet(
-        name='mnist',
+        name='mnist_float32',
         training_dpath=training_dpath,
         data_shape=(28, 28, 1)
     )
@@ -239,22 +239,21 @@ def grab_mnist_category_dataset():
         dataset.add_split('train', train_idxs)
         dataset.add_split('test', test_idxs)
         dataset.clear_cache()
-    else:
-        print('predefined splits cache hit')
+    dataset.ensure_symlinked()
     return dataset
 
 
-def grab_mnist_category_dataset_old():
+def grab_mnist_category_dataset():
     r"""
     CommandLine:
-        python -m ibeis_cnn grab_mnist_category_dataset_old
         python -m ibeis_cnn grab_mnist_category_dataset
-        python -m ibeis_cnn grab_mnist_category_dataset_old --show
+        python -m ibeis_cnn grab_mnist_category_dataset_float
+        python -m ibeis_cnn grab_mnist_category_dataset --show
 
     Example:
         >>> # DISABLE_DOCTEST
         >>> from ibeis_cnn.ingest_data import *  # NOQA
-        >>> dataset = grab_mnist_category_dataset_old()
+        >>> dataset = grab_mnist_category_dataset()
         >>> dataset.print_subset_info()
         >>> dataset.print_dir_tree()
         >>> ut.quit_if_noshow()
@@ -264,7 +263,7 @@ def grab_mnist_category_dataset_old():
     import numpy as np
     training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training')
     dataset = DataSet(
-        name='mnist_old',
+        name='mnist_uint8',
         training_dpath=training_dpath,
         data_shape=(28, 28, 1)
     )
@@ -281,6 +280,7 @@ def grab_mnist_category_dataset_old():
         dataset.add_split('train', train_idxs)
         dataset.add_split('test', test_idxs)
         dataset.clear_cache()
+    dataset.ensure_symlinked()
     return dataset
 
 

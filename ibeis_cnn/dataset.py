@@ -26,54 +26,19 @@ class DataSet(ut.NiceRepr):
     SeeAlso:
         python -m ibeis_cnn.ingest_data --test-get_ibeis_part_siam_dataset --show
 
+    CommandLine:
+        python -m ibeis_cnn.dataset DataSet
+
+    Example:
+        >>> from ibeis_cnn.ingest_data import *  # NOQA
+        >>> dataset = grab_mnist_category_dataset()
+        >>> dataset.print_dir_structure()
+        >>> # ----
+        >>> from ibeis_cnn.models import MNISTModel
+        >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+        >>>                    output_dims=10, dataset_dpath=dataset.dataset_dpath)
+        >>> model.print_structure()
     """
-    #def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
-    #             metadata_fpath, data_per_label, data_shape, output_dims,
-    #             num_labels, xdata_dpath=None):
-    #    # Constructor args is primary data
-    #    key_list = ut.get_func_argspec(dataset.__init__).args[1:]
-    #    r"""
-    #    Gen Explicit:
-    #        import utool, ibeis_cnn.dataset
-    #        key_list = ut.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]
-    #        autogen_block = ut.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in key_list]), ' ' * 12)
-    #        ut.inject_python_code2(ibeis_cnn.dataset.__file__, autogen_block, 'AUTOGEN_INIT')
-    #        #ut.copy_text_to_clipboard('\n' + autogen_block)
-
-    #    Gen Explicit Commandline:
-    #        python -Bc "import utool, ibeis_cnn.dataset; utool.inject_python_code2(utool.get_modpath(ibeis_cnn.dataset.__name__), utool.indent('\n'.join(['dataset.{key} = {key}'.format(key=key) for key in utool.get_func_argspec(ibeis_cnn.dataset.DataSet.__init__).args[1:]]), ' ' * 12), 'AUTOGEN_INIT')"
-    #    """
-    #    EXPLICIT = True
-    #    if EXPLICIT:
-    #        pass
-    #        # <AUTOGEN_INIT>
-    #        dataset.alias_key = alias_key
-    #        dataset.training_dpath = training_dpath
-    #        dataset.data_fpath = data_fpath
-    #        dataset.labels_fpath = labels_fpath
-    #        dataset.metadata_fpath = metadata_fpath
-    #        dataset.data_per_label = data_per_label
-    #        dataset.data_shape = data_shape
-    #        dataset.output_dims = output_dims
-    #        dataset.num_labels = num_labels
-    #        dataset.xdata_dpath = xdata_dpath
-    #        # </AUTOGEN_INIT>
-    #    else:
-    #        locals_ = locals()
-    #        for key in key_list:
-    #            setattr(dataset, key, locals_[key])
-    #    # Dictionary for storing different data subsets
-    #    dataset.fpath_dict = {
-    #        'full' : {
-    #            'data': data_fpath,
-    #            'labels': labels_fpath,
-    #            'metadata': metadata_fpath,
-    #        }
-    #    }
-    #    # Hacky dictionary for custom things
-    #    # Probably should be refactored
-    #    dataset._lazy_cache = ut.LazyDict()
-
     def __init__(dataset, cfgstr=None, training_dpath='.', data_shape=None,
                  num_data=None, name=None, ext='.pkl'):
         dataset.name = name
@@ -81,7 +46,7 @@ class DataSet(ut.NiceRepr):
         dataset.training_dpath = training_dpath
         assert data_shape is not None, 'must specify'
         dataset._ext = ext
-        dataset.data_info = {
+        dataset._info = {
             'num_data': num_data,
             'data_shape': data_shape,
             'num_labels': None,
@@ -130,8 +95,7 @@ class DataSet(ut.NiceRepr):
 
     def print_dir_structure(dataset):
         print(dataset.training_dpath)
-        print(dataset.datasets_dpath)  # this is MULTIPLE dataset dir
-        print(dataset.xdata_dpath)  # FIXME this is really dataset dir
+        print(dataset.dataset_dpath)  # FIXME this is really dataset dir
         print(dataset.data_fpath)
         print(dataset.labels_fpath)
         print(dataset.metadata_fpath)
@@ -140,7 +104,7 @@ class DataSet(ut.NiceRepr):
         print(dataset.split_dpath)
 
     def print_dir_tree(dataset):
-        fpaths = ut.glob(dataset.xdata_dpath, '*', recursive=True)
+        fpaths = ut.glob(dataset.dataset_dpath, '*', recursive=True)
         print('\n'.join(sorted(fpaths)))
 
     @property
@@ -152,8 +116,8 @@ class DataSet(ut.NiceRepr):
 
     @property
     def dataset_id(dataset):
-        shape_str = 'x'.join(ut.lmap(str, dataset.data_info['data_shape']))
-        num_data = dataset.data_info['num_data']
+        shape_str = 'x'.join(ut.lmap(str, dataset._info['data_shape']))
+        num_data = dataset._info['num_data']
         parts = []
         if dataset.name is not None:
             parts.append(dataset.name)
@@ -166,22 +130,17 @@ class DataSet(ut.NiceRepr):
         return dsid
 
     @property
-    def datasets_dpath(dataset):
-        # FIME confusion between dataset and datasets
-        return join(dataset.training_dpath, 'datasets')
-
-    @property
-    def xdata_dpath(dataset):
-        return join(dataset.datasets_dpath, dataset.dataset_id)
+    def dataset_dpath(dataset):
+        return join(dataset.training_dpath, dataset.dataset_id)
 
     @property
     def split_dpath(dataset):
-        split_dpath = join(dataset.xdata_dpath, 'splits')
+        split_dpath = join(dataset.dataset_dpath, 'splits')
         return split_dpath
 
     @property
     def full_dpath(dataset):
-        return join(dataset.xdata_dpath, 'full')
+        return join(dataset.dataset_dpath, 'full')
 
     @property
     def info_fpath(dataset):
@@ -205,7 +164,7 @@ class DataSet(ut.NiceRepr):
         # Define auxillary data
         try:
             # dataset.build_auxillary_data()
-            dataset.register_self()
+            dataset.ensure_symlinked()
             dataset.save_alias(dataset.alias_key)
         except Exception as ex:
             ut.printex(ex, 'WARNING was not able to generate splis or save alias')
@@ -238,6 +197,18 @@ class DataSet(ut.NiceRepr):
         dataset.print_dataset_info(data, labels, key)
 
     @property
+    def data_shape(dataset):
+        data_shape = dataset._info['data_shape']
+        assert data_shape is not None, 'data_shape is unknown'
+        return data_shape
+
+    @property
+    def unique_labels(dataset):
+        unique_labels = dataset._info['unique_labels']
+        assert unique_labels is not None, 'unique_labels is unknown'
+        return unique_labels
+
+    @property
     def labels(dataset):
         return dataset.load_subset_labels()
 
@@ -255,9 +226,9 @@ class DataSet(ut.NiceRepr):
         data_dict = ut.dict_subset(dataset.__dict__, key_list)
         return data_dict
 
-    #def register_self(dataset):
-    #    # creates a symlink in the junction dir
-    #    register_training_dpath(dataset.training_dpath, dataset.alias_key)
+    def ensure_symlinked(dataset):
+        # creates a symlink in the junction dir
+        register_training_dpath(dataset.dataset_dpath, dataset.dataset_id)
 
     #def save_alias(dataset, alias_key):
     #    # shortcut to the cached information so we dont need to
@@ -342,11 +313,11 @@ class DataSet(ut.NiceRepr):
         labels   = dataset.load_subset_labels(key)
         metadata = dataset.load_subset_metadata(key)
         return interact_func(
-            labels, data, metadata, dataset.data_info['data_per_label'],
+            labels, data, metadata, dataset._info['data_per_label'],
             **interact_kw)
 
     def view_directory(dataset):
-        ut.view_directory(dataset.xdata_dpath)
+        ut.view_directory(dataset.dataset_dpath)
 
     vd = view_directory
 
@@ -397,7 +368,7 @@ class DataSet(ut.NiceRepr):
         if not exists(dataset.info_fpath):
             raise IOError('dataset info manifest cache miss')
         else:
-            dataset.data_info = ut.load_data(dataset.info_fpath)
+            dataset._info = ut.load_data(dataset.info_fpath)
         if not exists(dataset.data_fpath):
             raise IOError('dataset data cache miss')
         dataset.load_splitsets()
@@ -418,10 +389,10 @@ class DataSet(ut.NiceRepr):
         dataset.load_subset_labels.cache['full'] = labels
         dataset.load_subset_metadata.cache['full'] = metadata
         # Infer the rest of the required data info
-        dataset.data_info['num_labels'] = len(labels)
-        dataset.data_info['unique_labels'] = np.unique(labels)
-        dataset.data_info['data_per_label'] = data_per_label
-        ut.save_data(dataset.info_fpath, dataset.data_info)
+        dataset._info['num_labels'] = len(labels)
+        dataset._info['unique_labels'] = np.unique(labels)
+        dataset._info['data_per_label'] = data_per_label
+        ut.save_data(dataset.info_fpath, dataset._info)
 
     def add_split(dataset, key, idxs):
         print('[dataset] adding split %r' % (key,))

@@ -255,7 +255,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> ut.exec_funckw(batch_iterator, globals())
         >>> randomize_batch_order = False
         >>> # ---
-        >>> dataset1 = ingest_data.grab_mnist_category_dataset()
+        >>> dataset1 = ingest_data.grab_mnist_category_dataset_float()
         >>> model1 = MNISTModel(batch_size=8, data_shape=dataset1.data_shape,
         >>>                    output_dims=dataset1.output_dims,
         >>>                    arch_tag=dataset1.alias_key,
@@ -265,7 +265,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>> _iter1 = batch_iterator(model1, X1, y1, randomize_batch_order)
         >>> Xb1, yb1 = six.next(_iter1)
         >>> # ---
-        >>> dataset2 = ingest_data.grab_mnist_category_dataset_old()
+        >>> dataset2 = ingest_data.grab_mnist_category_dataset()
         >>> model2 = MNISTModel(batch_size=8, data_shape=dataset2.data_shape,
         >>>                    output_dims=dataset2.output_dims,
         >>>                    arch_tag=dataset2.alias_key,

@@ -20,22 +20,6 @@ probably be located in a manifest.json file.
 # TODO: what is the same data has tasks that use different labels?
 # need to incorporate that structure.
 
-----------------
-|   |-- datasets
-|   |   |-- dataset_{dataset_id} *
-|   |   |   |-- full
-|   |   |   |   |-- {dataset_id}_data.pkl
-|   |   |   |   |-- {dataset_id}_labels.pkl
-|   |   |   |   |-- {dataset_id}_labels_{task1}.pkl?
-|   |   |   |   |-- {dataset_id}_labels_{task2}.pkl?
-|   |   |   |   |-- {dataset_id}_metadata.pkl
-|   |   |   |-- splits
-|   |   |   |   |-- {split_id}_{num} *
-|   |   |   |   |   |-- {dataset_id}_{split_id}_data.pkl
-|   |   |   |   |   |-- {dataset_id}_{split_id}_labels.pkl
-|   |   |   |   |   |-- {dataset_id}_{split_id}_metadata.pkl
-----------------
-
 The model directory must keep track of several things:
     * The network architecture (which may depend on the dataset being used)
         - input / output shape
@@ -49,22 +33,37 @@ The model directory must keep track of several things:
         - images of convolutional weights
         - other visualizations
 
+----------------
+|   |--  <training_dpath>
+|   |   |-- dataset_{dataset_id} *
+|   |   |   |-- full
+|   |   |   |   |-- {dataset_id}_data.pkl
+|   |   |   |   |-- {dataset_id}_labels.pkl
+|   |   |   |   |-- {dataset_id}_labels_{task1}.pkl?
+|   |   |   |   |-- {dataset_id}_labels_{task2}.pkl?
+|   |   |   |   |-- {dataset_id}_metadata.pkl
+|   |   |   |-- splits
+|   |   |   |   |-- {split_id}_{num} *
+|   |   |   |   |   |-- {dataset_id}_{split_id}_data.pkl
+|   |   |   |   |   |-- {dataset_id}_{split_id}_labels.pkl
+|   |   |   |   |   |-- {dataset_id}_{split_id}_metadata.pkl
+|   |   |   |-- models
+|   |   |   |   |-- arch_{archid} *
+|   |   |   |   |   |-- best_results
+|   |   |   |   |   |   |-- model_state.pkl
+|   |   |   |   |   |-- checkpoints
+|   |   |   |   |   |   |-- {history_id} *
+|   |   |   |   |   |   |    |-- model_history.pkl
+|   |   |   |   |   |   |    |-- model_state.pkl
+|   |   |   |   |   |-- progress
+|   |   |   |   |   |   |-- <latest>
+|   |   |   |   |   |-- diagnostics
+|   |   |   |   |   |   |-- {history_id} *
+|   |   |   |   |   |   |   |-- <files>
+----------------
+
 
 ----------------
-|   |-- models
-|   |   |-- arch_{archid} *
-|   |   |   |-- best_results
-|   |   |   |   |-- model_state.pkl
-|   |   |   |-- checkpoints
-|   |   |   |   |-- {history_id} *
-|   |   |   |   |    |-- model_history.pkl
-|   |   |   |   |    |-- model_state.pkl
-|   |   |   |-- progress
-|   |   |   |   |-- <latest>
-|   |   |   |-- diagnostics
-|   |   |   |   |-- {history_id} *
-|   |   |   |   |   |-- <files>
-
 ----------------
 
 """
@@ -96,8 +95,7 @@ def imwrite_wrapper(show_func):
         # Resolve path to save the image
         if dpath is None:
             if ascheckpoint is True:
-                history_hashid = model.get_history_hashid()
-                dpath = model._get_model_dpath(checkpoint_tag=history_hashid)
+                dpath = model._get_model_dpath(checkpoint_tag=model.hist_id)
             elif asdiagnostic is True:
                 dpath = model.get_epoch_diagnostic_dpath()
             else:
@@ -157,9 +155,7 @@ class LearnState(ut.DictLike):
 
     def getitem(self, key):
         _shared = self._shared_state[key]
-        value = _shared.get_value()
-        # if value is not None:
-        #     value = value.tolist()
+        value = None if _shared is None else _shared.get_value()
         return value
 
     def setitem(self, key, value):
@@ -200,14 +196,17 @@ class _ModelFitting(object):
             momentum=kwargs.pop('momentum', .9),
             weight_decay=kwargs.pop('weight_decay', None),
         )
-        # Theano shared state
+        # Static configuration indicating training preferences
         model.train_config = {
-            'era_schedule': 100,
+            'era_size': 100,  # epochs per era
             'max_epochs': None,
-            'learning_rate_adjust': .8,
+            'rate_decay': .8,
             'checkpoint_freq': 200,
             'monitor': ut.get_argflag('--monitor'),
         }
+        # This will by a dynamic dict that will span the life of a training
+        # session
+        model._fit_session = None
 
     def fit(model, X_train, y_train, X_valid=None, y_valid=None, valid_idx=None):
         r"""
@@ -215,26 +214,49 @@ class _ModelFitting(object):
 
         CommandLine:
             python -m ibeis_cnn _ModelFitting.fit:0
+            python -m ibeis_cnn _ModelFitting.fit:1
             python -m ibeis_cnn _ModelFitting.fit:0 --vd
 
         Example0:
             >>> from ibeis_cnn import ingest_data
             >>> from ibeis_cnn.models import MNISTModel
             >>> dataset = ingest_data.grab_mnist_category_dataset()
-            >>> dataset = ingest_data.grab_mnist_category_dataset_old()
             >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
-            >>>                    output_dims=dataset.output_dims,
-            >>>                    #arch_tag=dataset.alias_key,
+            >>>                    name='dropout',
+            >>>                    output_dims=len(dataset.unique_labels),
+            >>>                    batch_norm=False,
             >>>                    learning_rate=.01,
-            >>>                    training_dpath=dataset.training_dpath)
+            >>>                    dataset_dpath=dataset.dataset_dpath)
             >>> model.encoder = None
             >>> model.initialize_architecture()
             >>> model.train_config['monitor'] = True
-            >>> model.learn_state['weight_decay'] = None
+            >>> model.learn_state['weight_decay'] = .01
             >>> model.print_layer_info()
+            >>> model.print_model_info_str()
             >>> #model.reinit_weights()
             >>> X_train, y_train = dataset.load_subset('train')
-            >>> valid_idx = None
+            >>> model.fit(X_train, y_train)
+
+        Example1:
+            >>> from ibeis_cnn import ingest_data
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> dataset = ingest_data.grab_mnist_category_dataset()
+            >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+            >>>                    name='bnorm',
+            >>>                    output_dims=len(dataset.unique_labels),
+            >>>                    batch_norm=True,
+            >>>                    learning_rate=.1,
+            >>>                    dataset_dpath=dataset.dataset_dpath)
+            >>> model.encoder = None
+            >>> model.initialize_architecture()
+            >>> model.train_config['monitor'] = True
+            >>> model.train_config['rate_decay'] = .8
+            >>> model.train_config['era_size'] = 2
+            >>> model.learn_state['weight_decay'] = .01
+            >>> model.print_layer_info()
+            >>> model.print_model_info_str()
+            >>> #model.reinit_weights()
+            >>> X_train, y_train = dataset.load_subset('train')
             >>> model.fit(X_train, y_train)
         """
         from ibeis_cnn import utils
@@ -243,28 +265,27 @@ class _ModelFitting(object):
         X_learn, y_learn, X_valid, y_valid = model._prefit(
             X_train, y_train, X_valid, y_valid, valid_idx)
 
-        if model.train_config['monitor']:
-            model._init_monitor()
-
-        # create theano symbolic expressions that define the network
-        theano_backprop = model.build_backprop_func()
-        theano_forward = model.build_forward_func()
+        model.new_fit_session()
 
         epoch = model.best_results['epoch']
-
         if epoch is None:
             epoch = 0
             print('Initializng training at epoch=%r' % (epoch,))
         else:
             print('Resuming training at epoch=%r' % (epoch,))
+        # Begin training the neural network
+        print('model.batch_size = %r' % (model.batch_size,))
+        print('learn_state = %s' % ut.repr3(model.learn_state.asdict(), precision=2))
+
+        # create theano symbolic expressions that define the network
+        theano_backprop = model.build_backprop_func()
+        theano_forward = model.build_forward_func()
 
         # number of non-best iterations after, that triggers a best save
         # This prevents strings of best-saves one after another
         save_after_best_wait_epochs = 2
         save_after_best_countdown = None
 
-        # Begin training the neural network
-        print('learn_state = %s' % ut.repr3(model.learn_state.asdict(), precision=2))
         printcol_info = utils.get_printcolinfo(model.requested_headers)
 
         model.start_new_era(X_learn, y_learn, X_valid, y_valid)
@@ -333,9 +354,9 @@ class _ModelFitting(object):
                     model._dump_epoch_monitor()
 
                 # Update learning rate at the start of each new era
-                if utils.checkfreq(model.train_config['era_schedule'], epoch):
+                if utils.checkfreq(model.train_config['era_size'], epoch):
                     #epoch_marker = epoch
-                    frac = model.train_config['learning_rate_adjust']
+                    frac = model.train_config['rate_decay']
                     learn_state = model.learn_state
                     learn_state.learning_rate = (learn_state.learning_rate * frac)
                     model.start_new_era(X_learn, y_learn, X_valid, y_valid)
@@ -448,55 +469,79 @@ class _ModelFitting(object):
                 model.current_era[key_] = []
             model.current_era[key_].append(epoch_info[key])
 
-    def _init_monitor(model):
-        # FIXME; put into better place
-        ut.ensuredir(model.progress_dpath)
-        def prog_metric_path(x):
-            path_fmt = join(model.progress_dpath, x)
-            return ut.get_nonconflicting_path(path_fmt)
-        def prog_metric_dir(x):
-            return ut.ensuredir(prog_metric_path(x))
-        history_progress_dir = prog_metric_dir(
-            str(model.arch_id) + '_%02d_history')
-        weights_progress_dir = prog_metric_dir(
-            str(model.arch_id) + '_%02d_weights')
-        history_text_fpath = prog_metric_path(
-            str(model.arch_id) + '_%02d_era_history.txt')
-        # history_progress_dir = prog_metric_dir(
-        #     str(model.arch_tag) + '_%02d_history')
-        # weights_progress_dir = prog_metric_dir(
-        #     str(model.arch_tag) + '_%02d_weights')
-        # history_text_fpath = prog_metric_path(
-        #     str(model.arch_tag) + '_%02d_era_history.txt')
-        if ut.get_argflag('--vd'):
-            ut.vd(model.progress_dpath)
-
-        # Write initial states of the weights
-        fpath = model.imwrite_weights(dpath=weights_progress_dir,
-                                      fname='weights_' + model.get_history_hashid() + '.png',
-                                      fnum=2, verbose=0)
-        overwrite_latest_image(fpath, 'weights')
-        model._fit_progress_info = {
-            'history_progress_dir':  history_progress_dir,
-            'history_text_fpath': history_text_fpath,
-            'weights_progress_dir': weights_progress_dir,
+    def new_fit_session(model):
+        model._fit_session = {
+            'start_time': ut.get_timestamp()
         }
+        ut.ensuredir(model.arch_dpath)
+        ut.writeto(join(model.arch_dpath, 'arch_info.json'),
+                   model.make_arch_json(with_noise=False), verbose=True)
+
+        if model.train_config['monitor']:
+            session_dname = 'fit_session_' + model._fit_session['start_time']
+            session_dpath = join(model.progress_dpath, session_dname)
+            session_dpath = ut.get_nonconflicting_path(session_dpath, offset=1,
+                                                       suffix='_conflict%d')
+            ut.ensuredir(session_dpath)
+            model._fit_session['session_dpath'] = session_dpath
+
+            ut.writeto(join(model._fit_session['session_dpath'], 'fit_arch_info.json'),
+                       model.make_arch_json(with_noise=True), verbose=True)
+            def prog_metric_path(x):
+                path_fmt = join(model.progress_dpath, x)
+                return ut.get_nonconflicting_path(path_fmt)
+            def prog_metric_dir(x):
+                return ut.ensuredir(prog_metric_path(x))
+
+            history_progress_dir = join(session_dpath, 'history')
+            weights_progress_dir = join(session_dpath, 'weights')
+            history_text_fpath = join(session_dpath, 'era_history.txt')
+            ut.ensuredir(history_progress_dir)
+            ut.ensuredir(weights_progress_dir)
+
+            if ut.get_argflag('--vd'):
+                ut.vd(session_dpath)
+
+            # Write initial states of the weights
+            fpath = model.imwrite_weights(dpath=weights_progress_dir,
+                                          fname='weights_' + model.hist_id + '.png',
+                                          fnum=2, verbose=0)
+            model._overwrite_latest_image(fpath, 'weights')
+            model._fit_session.update(**{
+                'history_progress_dir':  history_progress_dir,
+                'history_text_fpath': history_text_fpath,
+                'weights_progress_dir': weights_progress_dir,
+            })
+
+    def _overwrite_latest_image(model, fpath, new_name):
+        """
+        copies the new image to a path to be overwritten so new updates are
+        shown
+        """
+        from os.path import split, join, splitext
+        import shutil
+        dpath, fname = split(fpath)
+        ext = splitext(fpath)[1]
+        session_dpath = model._fit_session['session_dpath']
+        # Copy latest image to the session dir and the main arch dir
+        shutil.copy(fpath, join(session_dpath, 'latest ' + new_name + ext))
+        shutil.copy(fpath, join(model.arch_dpath, 'latest ' + new_name + ext))
 
     def _dump_epoch_monitor(model):
-        history_dir = model._fit_progress_info['history_progress_dir']
-        weights_dir = model._fit_progress_info['weights_progress_dir']
-        text_fpath = model._fit_progress_info['history_text_fpath']
+        history_dir = model._fit_session['history_progress_dir']
+        weights_dir = model._fit_session['weights_progress_dir']
+        text_fpath = model._fit_session['history_text_fpath']
 
         # Save loss graphs
         fpath = model.imwrite_era_history(dpath=history_dir,
-                                          fname='history_' + model.get_history_hashid() + '.png',
+                                          fname='history_' + model.hist_id + '.png',
                                           fnum=1, verbose=0)
-        overwrite_latest_image(fpath, 'history')
+        model._overwrite_latest_image(fpath, 'history')
         # Save weights images
         fpath = model.imwrite_weights(dpath=weights_dir,
-                                      fname='weights_' + model.get_history_hashid() + '.png',
+                                      fname='weights_' + model.hist_id + '.png',
                                       fnum=2, verbose=0)
-        overwrite_latest_image(fpath, 'weights')
+        model._overwrite_latest_image(fpath, 'weights')
         # Save text info
         history_text = ut.list_str(model.era_history, newlines=True)
         ut.write_to(text_fpath, history_text, verbose=False)
@@ -582,16 +627,17 @@ class _ModelFitting(object):
 
         # If the training loss is nan, the training has diverged
         if np.isnan(learn_info['learn_loss']):
-            print('\n[train] train loss is Nan. training diverged\n')
             #import utool
             #utool.embed()
+            print('\n[train] train loss is Nan. training diverged\n')
             print('learn_outputs = %r' % (learn_outputs,))
+            print('\n[train] train loss is Nan. training diverged\n')
             """
             from ibeis_cnn import draw_net
             draw_net.imwrite_theano_symbolic_graph(theano_backprop)
             """
-            import utool
-            utool.embed()
+            #import utool
+            #utool.embed()
             # imwrite_theano_symbolic_graph(thean_expr):
             learn_info['diverged'] = True
         return learn_info
@@ -713,7 +759,7 @@ class _ModelVisualization(object):
             mpl.Figure: fig
 
         CommandLine:
-            python -m ibeis_cnn --tf BaseModel.show_era_history --show
+            python -m ibeis_cnn --tf _ModelVisualization.show_era_history --show
 
         Example:
             >>> # DISABLE_DOCTEST
@@ -730,9 +776,11 @@ class _ModelVisualization(object):
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='log')
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
         model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
-        model.show_weight_updates(fnum=fnum, pnum=next_pnum())
 
-        pt.set_figtitle('Era History: ' + model.get_history_hashid())
+        # TODO: dont do this if off
+        model.show_weight_updates(fnum=fnum, pnum=next_pnum())
+        # TODO: add accuracy and confusion
+        pt.set_figtitle('Era History: ' + model.hist_id + '\n' + model.arch_id)
         return fig
 
     def show_era_lossratio(model, fnum=None, pnum=(1, 1, 1)):
@@ -764,6 +812,86 @@ class _ModelVisualization(object):
         pt.set_xlabel('epoch')
         pt.set_ylabel('train/valid ratio')
 
+        if num_eras > 0:
+            pt.legend()
+        pt.dark_background()
+        return fig
+
+    def show_era_loss(model, fnum=None, pnum=(1, 1, 1), yscale='log'):
+        import plottool as pt
+
+        fnum = pt.ensure_fnum(fnum)
+
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        num_eras = len(model.era_history)
+        colors = pt.distinct_colors(num_eras)
+
+        styles = {
+            'learn_loss': '-x',
+            'valid_loss': '-o',
+        }
+
+        xdata = {}
+        ydata = {}
+        prev_xdata = {}
+        prev_ydata = {}
+
+        if len(model.era_history) > 0:
+            plot_labels = {
+                'learn_loss': str(model.era_history[0]['num_learn']),
+                'valid_loss': str(model.era_history[0]['num_valid']),
+            }
+
+        era_color = None
+        for index, era in enumerate(model.era_history):
+            xdata['epoch'] = era['epoch_list']
+            ydata['learn_loss'] = era['learn_loss_list']
+            ydata['valid_loss'] = era['valid_loss_list']
+
+            #epochs = era['epoch_list']
+            #learn_loss = era['learn_loss_list']
+            #valid_loss = era['valid_loss_list']
+
+            if len(prev_xdata) > 0:
+                for key in styles.keys():
+                    pt.plot(prev_xdata['epoch'] + xdata['epoch'][:1], prev_ydata[key] + ydata[key][:1],
+                            '-', color=era_color, yscale=yscale)
+
+                #pt.plot(prev_epoch + epochs[:1], prev_valid + valid_loss[:1],
+                #        '-x', color=era_color, yscale=yscale)
+                #pt.plot(prev_epoch + epochs[:1], prev_learn + learn_loss[:1],
+                #        '-o', color=era_color, yscale=yscale)
+
+            era_color = colors[index]
+            #learn_plotkw = {}
+            #valid_plotkw = {}
+            #if index == len(model.era_history) - 1:
+            #    if 'num_valid' in era:
+            #        valid_plotkw['label'] = 'valid_loss ' + str(era['num_valid'])
+            #    if 'num_learn' in era:
+            #        learn_plotkw['label']  = 'learn_loss ' + str(era['num_learn'])
+
+            for key in styles.keys():
+                kw = {}
+                if index == len(model.era_history) - 1:
+                    kw = {'label': plot_labels[key]}
+                pt.plot(xdata['epoch'], ydata[key], styles[key], color=era_color,
+                        yscale=yscale, **kw)
+                prev_xdata['epoch'] = xdata['epoch'][-1:]
+                prev_ydata[key] = ydata[key][-1:]
+
+            #pt.plot(epochs, valid_loss, '-x', color=era_color,
+            #        yscale=yscale, **learn_plotkw)
+            #pt.plot(epochs, learn_loss, '-o', color=era_color,
+            #        yscale=yscale, **valid_plotkw)
+
+            #prev_epoch = epochs[-1:]
+            #prev_learn = learn_loss[-1:]
+            #prev_valid = valid_loss[-1:]
+
+        # append_phantom_legend_label
+        pt.set_xlabel('epoch')
+        pt.set_ylabel('loss')
         if num_eras > 0:
             pt.legend()
         pt.dark_background()
@@ -852,43 +980,6 @@ class _ModelVisualization(object):
         pt.dark_background()
         return fig
 
-    def show_era_loss(model, fnum=None, pnum=(1, 1, 1), yscale='log'):
-        import plottool as pt
-
-        fnum = pt.ensure_fnum(fnum)
-
-        fig = pt.figure(fnum=fnum, pnum=pnum)
-        num_eras = len(model.era_history)
-        colors = pt.distinct_colors(num_eras)
-        for index, era in enumerate(model.era_history):
-            epochs = era['epoch_list']
-            learn_loss = era['learn_loss_list']
-            valid_loss = era['valid_loss_list']
-            if 'num_valid' in era:
-                valid_label = 'valid_loss ' + str(era['num_valid'])
-            if 'num_learn' in era:
-                learn_label = 'learn_loss ' + str(era['num_learn'])
-
-            era_color = colors[index]
-            if index == len(model.era_history) - 1:
-                pt.plot(epochs, valid_loss, '-x', color=era_color,
-                        label=valid_label, yscale=yscale)
-                pt.plot(epochs, learn_loss, '-o', color=era_color,
-                        label=learn_label, yscale=yscale)
-            else:
-                pt.plot(epochs, valid_loss, '-x', color=era_color,
-                        yscale=yscale)
-                pt.plot(epochs, learn_loss, '-o', color=era_color,
-                        yscale=yscale)
-
-        # append_phantom_legend_label
-        pt.set_xlabel('epoch')
-        pt.set_ylabel('loss')
-        if num_eras > 0:
-            pt.legend()
-        pt.dark_background()
-        return fig
-
     def show_weights_image(model, index=0, *args, **kwargs):
         import plottool as pt
         network_layers = model.get_all_layers()
@@ -898,8 +989,7 @@ class _ModelVisualization(object):
         all_weights = layer.W.get_value()
         layername = net_strs.make_layer_str(layer)
         fig = draw_net.show_convolutional_weights(all_weights, **kwargs)
-        history_hashid = model.get_history_hashid()
-        figtitle = layername + '\n' + history_hashid
+        figtitle = layername + '\n' + model.hist_id
         pt.set_figtitle(figtitle, subtitle='shape=%r, sum=%.4f, l2=%.4f' %
                         (all_weights.shape, all_weights.sum(),
                          (all_weights ** 2).sum()))
@@ -949,21 +1039,45 @@ class _ModelStrings(object):
         state_str = ut.dict_str(override_reprs, sorted_=True, strvals=True)
         return state_str
 
-    def get_architecture_str(model, sep='_', with_noise=True):
+    def make_arch_json(model, with_noise=False):
+        """
+        Example:
+            >>> # ENABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, batch_norm=False)
+            >>> model.initialize_architecture()
+            >>> json_str = model.make_arch_json()
+            >>> print(json_str)
+        """
+        layer_list = model.get_all_layers(with_noise=with_noise)
+        layer_json_list = [net_strs.make_layer_json_dict(layer)
+                           for layer in layer_list]
+        json_dict = ut.odict()
+        json_dict['arch_hashid'] = model.get_architecture_hashid()
+        json_dict['layers'] = layer_json_list
+        #json_str1 = ut.to_json(json_dict, pretty=False)
+        # prettier json
+        json_str = ut.repr2(json_dict, nl=2)
+        json_str = str(json_str.replace('\'', '"').replace('(', '[').replace(')', ']'))
+        return json_str
+
+    def get_architecture_str(model, sep='_', with_noise=False):
         r"""
         with_noise is a boolean that specifies if layers that doesnt
         affect the flow of information in the determenistic setting are to be
         included. IE get rid of dropout.
 
         CommandLine:
-            python -m ibeis_cnn.models.abstract_models --test-_ModelStrings.get_architecture_str:0
+            python -m ibeis_cnn.models.abstract_models _ModelStrings.get_architecture_str:0
 
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.abstract_models import *  # NOQA
             >>> from ibeis_cnn.models import MNISTModel
             >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
-            >>>                    output_dims=10, training_dpath='.')
+            >>>                    output_dims=10, batch_norm=False)
             >>> model.initialize_architecture()
             >>> result = model.get_architecture_str(sep=ut.NEWLINE, with_noise=False)
             >>> print(result)
@@ -986,14 +1100,14 @@ class _ModelStrings(object):
     def get_layer_info_str(model):
         """
         CommandLine:
-            python -m ibeis_cnn.models.abstract_models --test-_ModelStrings.get_layer_info_str:0
+            python -m ibeis_cnn.models.abstract_models _ModelStrings.get_layer_info_str:0
 
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.abstract_models import *  # NOQA
             >>> from ibeis_cnn.models import MNISTModel
             >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
-            >>>                    output_dims=10, training_dpath='.')
+            >>>                    output_dims=10)
             >>> model.initialize_architecture()
             >>> result = model.get_layer_info_str()
             >>> print(result)
@@ -1035,13 +1149,13 @@ class _ModelStrings(object):
             architecture_str = 'UNDEFINED'
         print('\nArchitecture:' + sep + architecture_str)
 
-    def print_dense_architecture_str(model):
+    def print_model_info_str(model):
         print('\n---- Arch Str')
         model.print_architecture_str(sep='\n')
         print('\n---- Layer Info')
         model.print_layer_info()
-        print('\n---- HashID')
-        print('hashid=%r' % (model.get_architecture_hashid()),)
+        print('\n---- Arch HashID')
+        print('arch_hashid=%r' % (model.get_architecture_hashid()),)
         print('----')
 
 
@@ -1052,7 +1166,7 @@ class _ModelIDs(object):
         pass
         # FIXME: figure out how arch tag fits in here
         #model.name = kwargs.pop('name', None)
-        model.arch_tag = kwargs.pop('arch_tag', None)
+        #model.arch_tag = kwargs.pop('arch_tag', None)
         model.name = kwargs.pop('name', None)
         #if model.name is None:
         #    model.name = ut.get_classname(model.__class__, local=True)
@@ -1078,12 +1192,15 @@ class _ModelIDs(object):
             >>> from ibeis_cnn.models.abstract_models import *  # NOQA
             >>> from ibeis_cnn.models import MNISTModel
             >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
-            >>>                    output_dims=10, training_dpath='.')
+            >>>                    output_dims=10)
             >>> model.initialize_architecture()
             >>> result = str(model.arch_id)
             >>> print(result)
         """
-        arch_id = 'arch_' + model.get_arch_nice() + '_' + model.get_architecture_hashid()
+        if model.name is not None:
+            arch_id = 'arch_' + model.name + '_' + model.get_arch_nice() + '_' + model.get_architecture_hashid()
+        else:
+            arch_id = 'arch_' + model.get_arch_nice() + '_' + model.get_architecture_hashid()
         return arch_id
 
     @property
@@ -1132,19 +1249,23 @@ class _ModelIDs(object):
         Makes a string that shows the number of input units, output units,
         hidden units, parameters, and model depth.
 
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models get_arch_nice --show
+
         Example:
             >>> # ENABLE_DOCTEST
             >>> from ibeis_cnn.models.abstract_models import *  # NOQA
             >>> from ibeis_cnn.models import MNISTModel
             >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
-            >>>                    output_dims=10, training_dpath='.')
+            >>>                    output_dims=10)
             >>> model.initialize_architecture()
             >>> result = str(model.get_arch_nice())
             >>> print(result)
+            o10_d4_c107
         """
-        if model.arch_tag is not None:
-            return model.arch_tag
-        elif model.output_layer is None:
+        #if model.arch_tag is not None:
+        #    return model.arch_tag
+        if model.output_layer is None:
             return 'NOARCH'
         else:
             weighted_layers = model.get_all_layers(with_noise=False, with_weightless=False)
@@ -1169,9 +1290,8 @@ class _ModelIDs(object):
             )
             #nice = 'i{nin}_o{nout}_d{depth}_h{nhidden}_p{nparam}'.format(**fmtdict)
             # Use a complexity measure
-            nice = 'i{nin}_o{nout}_d{depth}_c{mcomplex}'.format(**fmtdict)
-            # Use a logspace complexity measure
-            #nice = 'i{nin}_o{nout}_d{depth}_c{logmcomplex}'.format(**fmtdict)
+            #nice = 'i{nin}_o{nout}_d{depth}_c{mcomplex}'.format(**fmtdict)
+            nice = 'o{nout}_d{depth}_c{mcomplex}'.format(**fmtdict)
             return nice
 
     def get_history_nice(model):
@@ -1183,9 +1303,25 @@ class _ModelIDs(object):
 class _ModelIO(object):
 
     def _init_io_vars(model, kwargs):
-        model.training_dpath = kwargs.pop('training_dpath', '.')
+        model.dataset_dpath = kwargs.pop('dataset_dpath', '.')
 
     def print_structure(model):
+        """
+
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models print_structure --show
+
+        Example:
+            >>> from ibeis_cnn.ingest_data import *  # NOQA
+            >>> dataset = grab_mnist_category_dataset()
+            >>> dataset.print_dir_structure()
+            >>> # ----
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, dataset_dpath=dataset.dataset_dpath)
+            >>> model.print_structure()
+
+        """
         print(model.model_dpath)
         print(model.arch_dpath)
         print(model.best_dpath)
@@ -1195,7 +1331,7 @@ class _ModelIO(object):
 
     @property
     def model_dpath(model):
-        return join(model.training_dpath, 'models')
+        return join(model.dataset_dpath, 'models')
 
     @property
     def arch_dpath(model):
@@ -1219,10 +1355,9 @@ class _ModelIO(object):
 
     def get_epoch_diagnostic_dpath(model, epoch=None):
         import utool as ut
-        history_hashid = model.get_history_hashid()
         diagnostic_dpath = model.diagnostic_dpath
         ut.ensuredir(diagnostic_dpath)
-        epoch_dpath = ut.unixjoin(diagnostic_dpath, history_hashid)
+        epoch_dpath = ut.unixjoin(diagnostic_dpath, model.hist_id)
         ut.ensuredir(epoch_dpath)
         return epoch_dpath
 
@@ -1309,14 +1444,12 @@ class _ModelIO(object):
         return model_state_fpath
 
     def checkpoint_save_model_state(model):
-        history_hashid = model.get_history_hashid()
-        fpath = model.get_model_state_fpath(checkpoint_tag=history_hashid)
+        fpath = model.get_model_state_fpath(checkpoint_tag=model.hist_id)
         ut.ensuredir(dirname(fpath))
         model.save_model_state(fpath=fpath)
 
     def checkpoint_save_model_info(model):
-        history_hashid = model.get_history_hashid()
-        fpath = model.get_model_info_fpath(checkpoint_tag=history_hashid)
+        fpath = model.get_model_info_fpath(checkpoint_tag=model.hist_id)
         ut.ensuredir(dirname(fpath))
         model.save_model_info(fpath=fpath)
 
@@ -1551,7 +1684,7 @@ class _ModelBackend(object):
                 givens={X: X_batch},
                 updates=None,
                 mode=model.theano_mode,
-                name=':theano_predict:explicit'
+                name=':predict'
             )
             model._theano_predict = theano_predict
         return model._theano_predict
@@ -1576,7 +1709,7 @@ class _ModelBackend(object):
                 givens={X: X_batch, y: y_batch},
                 updates=None,
                 mode=model.theano_mode,
-                name=':theano_forward:explicit'
+                name=':feedforward'
             )
             model._theano_forward = theano_forward
         return model._theano_forward
@@ -1618,7 +1751,7 @@ class _ModelBackend(object):
                 givens={X: X_batch, y: y_batch},
                 updates=updates,
                 mode=model.theano_mode,
-                name=':theano_backprop:explicit',
+                name=':backprop',
             )
             model._theano_backprop = theano_backprop
         return model._theano_backprop
@@ -1764,7 +1897,7 @@ class _ModelBackend(object):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Build outputs to babysit training
         monitor_outputs = []
-        if model.train_config['monitor']:
+        if model.train_config['monitor'] and False:
             for param in parameters:
                 # The vector each param was udpated with
                 # (one vector per channel)
@@ -1922,9 +2055,9 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
 
     # ---- UTILITY
 
-    def fit_dataset(model, X_train, y_train, X_valid, y_valid, dataset, config):
-        from ibeis_cnn import harness
-        harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
+    #def fit_dataset(model, X_train, y_train, X_valid, y_valid, dataset, config):
+    #    from ibeis_cnn import harness
+    #    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
     def predict2(model, X_test):
         """ FIXME: turn into a real predict function """
@@ -2160,19 +2293,6 @@ def evaluate_layer_list(network_layers_def, verbose=None):
     return network_layers
 
 
-def overwrite_latest_image(fpath, new_name):
-    """
-    copies the new image to a path to be overwritten so new updates are
-    shown
-    """
-    from os.path import split, join, splitext, dirname
-    import shutil
-    dpath, fname = split(fpath)
-    ext = splitext(fpath)[1]
-    shutil.copy(fpath, join(dpath, 'latest ' + new_name + ext))
-    shutil.copy(fpath, join(dirname(dpath), 'latest ' + new_name + ext))
-
-
 def testdata_model_with_history():
     model = BaseModel()
     # make a dummy history
@@ -2193,11 +2313,12 @@ def testdata_model_with_history():
             }
         }
         return epoch_info
-    count = 0
+    epoch = 0
     for era_length in [4, 4, 4]:
         model.start_new_era(X_train, y_train, X_train, y_train)
-        for count in range(count, count + era_length):
-            model.record_epoch(dummy_epoch_dict(count))
+        for _ in range(era_length):
+            model.record_epoch(dummy_epoch_dict(epoch))
+            epoch += 1
     #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'learn_loss': .9})
     #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'learn_loss': .7})
     #model.record_epoch({'epoch': 3, 'valid_loss': .3, 'learn_loss': .6})

@@ -412,7 +412,7 @@ class SiameseL2(AbstractSiameseModel):
             >>> data_shape = tuple(ut.get_argval('--datashape', type_=list, default=(64, 64, 3)))
             >>> model = SiameseL2(batch_size=128, data_shape=data_shape, arch_tag=arch_tag)
             >>> output_layer = model.initialize_architecture()
-            >>> model.print_dense_architecture_str()
+            >>> model.print_model_info_str()
             >>> ut.quit_if_noshow()
             >>> model.show_architecture_image()
             >>> ut.show_if_requested()
@@ -743,7 +743,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             >>> model = SiameseCenterSurroundModel(batch_size=batch_size, input_shape=input_shape)
             >>> # execute function
             >>> output_layer = model.initialize_architecture()
-            >>> model.print_dense_architecture_str()
+            >>> model.print_model_info_str()
             >>> result = str(output_layer)
             >>> print(result)
             >>> ut.quit_if_noshow()

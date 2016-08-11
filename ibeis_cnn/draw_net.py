@@ -77,269 +77,10 @@ def draw_neural_net(ax, left, right, bottom, top, layer_sizes):
                 ax.add_artist(line)
 
 
-#def make_architecture_pydot_graph(layers, output_shape=True, fullinfo=True):
-#    """
-#    Creates a PyDot graph of the network defined by the given layers.
-
-#    Args:
-#        layers (list): List of the layers, as obtained from lasange.layers.get_all_layers
-#        output_shape (bool): If `True`, the output shape of each layer will be displayed.
-#            (default `True`)
-#        fullinfo (bool): If `True`, layer attributes like filter shape, stride, etc.  will
-#            be displayed.  (default `True`)
-
-#    Returns:
-#        PyDot : pydot_graph  object containing the graph
-
-#    CommandLine:
-#        python -m ibeis_cnn.draw_net --test-make_architecture_pydot_graph --show
-
-#    Example:
-#        >>> # ENABLE_DOCTEST
-#        >>> from ibeis_cnn.draw_net import *  # NOQA
-#        >>> from ibeis_cnn import models
-#        >>> # build test data
-#        >>> #model = models.DummyModel(input_shape=(128, 1, 4, 4), autoinit=True)
-#        >>> model = models.SiameseL2(input_shape=(128, 1, 64, 64), autoinit=True)
-#        >>> layers = model.get_all_layers()
-#        >>> output_shape = True
-#        >>> fullinfo = True
-#        >>> # execute function
-#        >>> pydot_graph = make_architecture_pydot_graph(layers, output_shape, fullinfo)
-#        >>> # verify results
-#        >>> result = str(pydot_graph)
-#        >>> print(result)
-#        >>> ut.quit_if_noshow()
-#        >>> import plottool as pt
-#        >>> img = pydot_to_image(pydot_graph)
-#        >>> pt.imshow(img)
-#        >>> ut.show_if_requested()
-#    """
-#    import pydot
-#    node_dict = {}
-#    edge_list = []
-
-#    REMOVE_BATCH_SIZE = True
-
-#    alias_map = {
-#        'Conv2DCCLayer': 'Conv',
-#        'MaxPool2DCCLayer': 'MaxPool',
-#        'LeakyRectify': 'LRU',
-#        'InputLayer': 'Input',
-#        'DropoutLayer': 'Dropout',
-#        'FlattenLayer': 'Flatten',
-#    }
-#    # TODO: use netstr get_layer_info for aliases
-
-#    def get_hex_color(layer_type):
-#        if 'Input' in layer_type:
-#            return '#A2CECE'
-#        if 'Conv' in layer_type:
-#            return '#7C9ABB'
-#        if 'Dense' in layer_type:
-#            return '#6CCF8D'
-#        if 'Pool' in layer_type:
-#            return '#9D9DD2'
-#        else:
-#            return '#{0:x}'.format(hash(layer_type + 'salt') % 2 ** 24)
-
-#    for i, layer in enumerate(layers):
-#        lines = []
-#        layer_type = '{0}'.format(layer.__class__.__name__)
-#        layer_type = alias_map.get(layer_type, layer_type)
-#        key = repr(layer)
-#        color = get_hex_color(layer_type)
-#        # Make label
-#        lines.append(layer_type)
-#        if fullinfo:
-#            attr = 'name'
-#            val = getattr(layer, attr, None)
-#            if val is not None:
-#                if len(val) < 3:
-#                    lines[-1] += ' ({0})'.format(val)
-#                else:
-#                    if val.lower() != layer_type.lower():
-#                        # add name if it is relevant
-#                        lines.append('{0}: {1}'.format(attr, val))
-
-#            for attr in ['num_filters', 'num_units', 'ds', 'axis'
-#                         'filter_shape', 'stride', 'strides', 'p']:
-#                val = getattr(layer, attr, None)
-#                if val is not None:
-#                    lines.append('{0}: {1}'.format(attr, val))
-
-#            attr = 'shape'
-#            if hasattr(layer, attr):
-#                val = getattr(layer, attr)
-#                shape = val[1:] if REMOVE_BATCH_SIZE else val
-#                lines.append('{0}: {1}'.format(attr, shape))
-
-#            if hasattr(layer, 'nonlinearity'):
-#                try:
-#                    val = layer.nonlinearity.__name__
-#                except AttributeError:
-#                    val = layer.nonlinearity.__class__.__name__
-#                val = alias_map.get(val, val)
-#                lines.append('nonlinearity:\n{0}'.format(val))
-
-#        if output_shape:
-#            outshape = layer.output_shape
-#            if REMOVE_BATCH_SIZE:
-#                outshape = outshape[1:]
-#            lines.append('Output shape:\n{0}'.format(outshape))
-
-#        label = '\n'.join(lines)
-#        # append node
-
-#        node_dict[key] = dict(name=key, label=label, shape='record',
-#                              fillcolor=color, style='filled',)
-
-#        if hasattr(layer, 'input_layers'):
-#            for input_layer in layer.input_layers:
-#                edge_list.append([repr(input_layer), key])
-
-#        if hasattr(layer, 'input_layer'):
-#            edge_list.append([repr(layer.input_layer), key])
-
-#    #ut.embed()
-#    if ut.get_argflag('--nx-cnn-hack'):
-#        import networkx as nx
-#        import plottool as pt
-#        from matplotlib import offsetbox
-#        #import TextArea, AnnotationBbox
-#        #import matplotlib.offsetbox  # NOQA
-#        import matplotlib as mpl
-
-#        #from pylab import rcParams
-#        #rcParams['figure.figsize'] = 20, 2
-
-#        #fig = pt.figure(figsize=(10, 2))
-#        #pt.plt.figure(figsize=(20, 2))
-
-#        mpl.offsetbox = offsetbox
-#        nx = nx
-#        G = netx_graph = nx.DiGraph()
-#        netx_nodes = [(key_, ut.delete_keys(node.copy(), ['name']))
-#                      for key_, node in node_dict.items()]
-
-#        netx_edges = [(key1, key2, {}) for key1, key2 in edge_list]
-#        netx_graph.add_nodes_from(netx_nodes)
-#        netx_graph.add_edges_from(netx_edges)
-
-#        #netx_graph.graph.setdefault('graph', {})['rankdir'] = 'LR'
-#        netx_graph.graph.setdefault('graph', {})['rankdir'] = 'TB'
-#        #netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
-#        netx_graph.graph.setdefault('graph', {})['prog'] = 'dot'
-
-#        pos_dict = nx.nx_pydot.pydot_layout(netx_graph, prog='dot')
-#        # hack to expand sizes
-#        #pos_dict = {key: (val[0] * 40, val[1] * 40) for key, val in pos_dict.items()}
-#        node_key_list = ut.get_list_column(netx_nodes, 0)
-#        pos_list = ut.dict_take(pos_dict, node_key_list)
-
-#        artist_list = []
-#        offset_box_list = []
-
-#        ax = pt.gca()
-#        ax.cla()
-#        nx.draw(netx_graph, pos=pos_dict, ax=ax)
-#        for pos_, node in zip(pos_list, netx_nodes):
-#            x, y = pos_
-#            node_attr = node[1]
-#            textprops = {
-#                'horizontalalignment': 'center',
-#            }
-#            offset_box = mpl.offsetbox.TextArea(node_attr['label'], textprops)
-#            artist = mpl.offsetbox.AnnotationBbox(
-#                offset_box, (x, y), xybox=(-0., 0.),
-#                xycoords='data', boxcoords="offset points",
-#                pad=0.25, framewidth=True, bboxprops=dict(fc=node_attr['fillcolor']),
-#                #pad=0.1,
-#                #framewidth=False,
-#            )
-#            offset_box_list.append(offset_box)
-#            artist_list.append(artist)
-
-#        for artist in artist_list:
-#            ax.add_artist(artist)
-
-#        xmin, ymin = np.array(pos_list).min(axis=0)
-#        xmax, ymax = np.array(pos_list).max(axis=0)
-#        ax.set_xlim((xmin, xmax))
-
-#        fig = pt.gcf()
-#        fig.canvas.draw()
-#        #fig.set_size_inches(10, 3)
-
-#        #pt.update()
-
-#        # Superhack for centered text
-#        # Fix bug in
-#        # /usr/local/lib/python2.7/dist-packages/matplotlib/offsetbox.py
-#        # /usr/local/lib/python2.7/dist-packages/matplotlib/text.py
-#        for offset_box in offset_box_list:
-#            offset_box.set_offset
-#            #offset_box.get_offset
-#            #self = offset_box
-#            z = offset_box._text.get_window_extent()
-#            (z.x1 - z.x0) / 2
-#            offset_box._text
-#            T = offset_box._text.get_transform()
-#            A = mpl.transforms.Affine2D()
-#            A.clear()
-#            A.translate((z.x1 - z.x0) / 2, 0)
-#            offset_box._text.set_transform(T + A)
-
-#        #pt.update()
-#        #pt.draw()
-
-#        # MEGA HACK
-#        ut.show_if_requested()
-
-#        #nx.draw(netx_graph, pos=pos_dict, ax=ax, with_labels=True)
-#        #nx.draw_networkx(netx_graph, pos=pos_dict, ax=ax, node_shape='box')
-#        #pos_dict = nx.nx_agraph.graphviz_layout(netx_graph)
-#        # http://stackoverflow.com/questions/20885986/how-to-add-dots-graph-attribute-into-final-dot-output
-#        #for key, node in netx_nodes:
-#        #    #node['labels'] = {'lbl': node['label']}
-#        #    node['color'] = node['fillcolor']
-
-#        #from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-#        if False:
-#            nx.get_node_attributes(netx_graph, key_)
-
-#            A = nx.to_pydot(G)
-#            #A.draw('color.png')
-#            print(A.to_string())
-#            #rankdir
-
-#            Z = nx.from_pydot(A)
-
-#            #nx.draw(Z)
-#            Zpos = nx.nx_pydot.pydot_layout(Z, prog='dot')
-#            nx.draw_networkx(Z, pos=Zpos)
-
-#    else:
-
-#        #pydot_graph = pydot.Dot('Network', graph_type='digraph')
-#        pydot_graph = pydot.Dot('Network', graph_type='digraph', rankdir='LR')
-
-#        pydot_node_dict = dict([
-#            (node['name'], pydot.Node(**node))
-#            for node in node_dict.values()
-#        ])
-#        for pydot_node in pydot_node_dict.values():
-#            pydot_graph.add_node(pydot_node)
-
-#        for edge in edge_list:
-#            pydot_graph.add_edge(
-#                pydot.Edge(pydot_node_dict[edge[0]], pydot_node_dict[edge[1]]))
-#    return pydot_graph
-
-
 def show_architecture_nx_graph(layers, fullinfo=True):
     import networkx as nx
     import plottool as pt
+    import ibeis_cnn.__LASAGNE__ as lasange
     #from matplotlib import offsetbox
     #import matplotlib as mpl
 
@@ -378,8 +119,9 @@ def show_architecture_nx_graph(layers, fullinfo=True):
             lines.append(layer_info['name'])
         lines.append(layer_info['classalias'])
         if fullinfo:
-            for attr in ['num_filters', 'num_units', 'ds', 'axis'
-                         'filter_shape', 'stride', 'strides', 'p', 'pool_size']:
+            for attr in ['num_filters', 'num_units', 'ds', 'axis',
+                         'filter_size', 'filter_shape', 'stride', 'strides',
+                         'p', 'pool_size']:
                 val = getattr(layer, attr, None)
                 if val is not None:
                     lines.append('{0}: {1}'.format(attr, val))
@@ -405,6 +147,11 @@ def show_architecture_nx_graph(layers, fullinfo=True):
 
         # append node
         is_main_layer = len(layer.params) > 0
+        #is_main_layer = len(lasange.layers.get_all_params(layer, trainable=True)) > 0
+        if layer_info['classname'] in lasange.layers.normalization.__all__:
+            is_main_layer = False
+        if layer_info['classname'] in lasange.layers.special.__all__:
+            is_main_layer = False
 
         if layer_type == 'Input':
             is_main_layer = True
@@ -421,6 +168,23 @@ def show_architecture_nx_graph(layers, fullinfo=True):
             node_attr['shape'] = 'ellipse'
             node_attr['width'] = sub_size[0]
             node_attr['height'] = sub_size[1]
+
+        if is_main_layer:
+            #if hasattr(layer, 'shape'):
+            #    if len(layer.shape) == 3:
+            #        node_attr['width'] = layer.shape[2]
+            #        node_attr['height'] = layer.shape[1]
+
+            if hasattr(layer, 'output_shape'):
+                if len(layer.output_shape) == 4:
+                    node_attr['width'] = layer.output_shape[3]
+                    node_attr['height'] = layer.output_shape[2]
+
+                if len(layer.output_shape) == 2:
+                    node_attr['width'] = 10
+                    node_attr['height'] = layer.output_shape[1]
+
+            pass
 
         node_dict[key] = node_attr
 
@@ -507,7 +271,13 @@ def show_architecture_nx_graph(layers, fullinfo=True):
     layoutkw = dict(prog='neato', splines='line')
     layoutkw = dict(prog='neato', splines='spline')
     G_ = G.copy()
+    # delete lables for positioning
+    _labels = nx.get_node_attributes(G_, 'label')
+    ut.nx_delete_node_attr(G_, 'label')
+    nx.set_node_attributes(G_, 'label', '')
     layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)
+    # reset labels
+    nx.set_node_attributes(G_, 'label', _labels)
     _ = pt.show_nx(G_, fontsize=10, arrow_width=1, layout='custom')
     _, layout_info
     pt.adjust_subplots2(top=1, bot=0, left=0, right=1)

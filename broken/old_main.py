@@ -138,7 +138,7 @@ r"""
 #            'weight_decay': 0.0005,
 #        }
 #    )
-#    dataset = ingest_data.grab_mnist_category_dataset()
+#    dataset = ingest_data.grab_mnist_category_dataset_float()
 #    data_shape = dataset.data_shape
 #    input_shape = (None, data_shape[2], data_shape[0], data_shape[1])
 

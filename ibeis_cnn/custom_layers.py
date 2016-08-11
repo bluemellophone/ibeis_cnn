@@ -698,6 +698,146 @@ class CyclicPoolLayer(lasagne.layers.Layer):
         return self.pool_function(unfolded_input, axis=0)
 
 
+# Bundle common layers together
+
+
+def make_bundles(nonlinearity='lru', batch_norm=True,
+                 filter_size=(3, 3),
+                 stride=(1, 1),
+                 pool_stride=(2, 2),
+                 pool_size=(2, 2),
+                 ):
+    import ibeis_cnn.__LASAGNE__ as lasange
+    import itertools
+    import six
+
+    # Rectify default inputs
+    if nonlinearity == 'lru':
+        nonlinearity = lasange.nonlinearities.LeakyRectify(leakiness=(1. / 10.))
+    nonlinearity = nonlinearity
+    namer = ut.partial(lambda x: str(six.next(x)), itertools.count(1))
+
+    def apply_batch_norm(self, layer, **kwargs):
+        # change name standard
+        nonlinearity = getattr(layer, 'nonlinearity', None)
+        if nonlinearity is not None:
+            layer.nonlinearity = lasange.nonlinearities.identity
+        if hasattr(layer, 'b') and layer.b is not None:
+            del layer.params[layer.b]
+            layer.b = None
+        bn_name = (kwargs.pop('name', None) or
+                   (getattr(layer, 'name', None) and 'bn' + self.name))
+        layer = lasange.layers.normalization.BatchNormLayer(
+            layer, name=bn_name, **kwargs)
+        if nonlinearity is not None:
+            nonlin_name = 'nl' + self.name
+            layer = lasange.layers.special.NonlinearityLayer(layer,
+                                                             nonlinearity,
+                                                             name=nonlin_name)
+        #outgoing = lasange.layers.normalization.batch_norm(layer, **kwargs)
+        #outgoing.input_layer.name = 'bn' + self.name
+        #outgoing.name = 'nl' + self.name
+        outgoing = layer
+        return outgoing
+
+    def apply_dropout(self, layer):
+        # change name standard
+        outgoing = lasange.layers.DropoutLayer(layer, p=self.dropout,
+                                               name='D' + self.name)
+        return outgoing
+
+    class InputBundle(object):
+        def __init__(self, shape, noise=False):
+            self.name = namer()
+            self.shape = shape
+            self.noise = noise
+
+        def __call__(self):
+            outgoing = lasange.layers.InputLayer(shape=self.shape,
+                                                 name='I' + self.name)
+            if self.noise:
+                outgoing = lasange.layers.GaussianNoiseLayer(
+                    outgoing, name='N' + self.name)
+            return outgoing
+
+    class ConvBundle(object):
+        def __init__(self, num_filters, filter_size=filter_size,
+                     stride=stride, nonlinearity=nonlinearity,
+                     batch_norm=batch_norm):
+            self.name = namer()
+            self.num_filters = num_filters
+            self.filter_size = filter_size
+            self.stride = stride
+            self.nonlinearity = nonlinearity
+            self.batch_norm = batch_norm
+
+        def __call__(self, incoming):
+            outgoing = Conv2DLayer(incoming, num_filters=self.num_filters,
+                                   filter_size=self.filter_size,
+                                   stride=self.stride, name='C' + self.name,
+                                   nonlinearity=self.nonlinearity)
+            if self.batch_norm:
+                outgoing = apply_batch_norm(self, outgoing)
+            return outgoing
+
+    class ConvPoolBundle(ConvBundle):
+        def __init__(self, pool_size=pool_size, pool_stride=pool_stride,
+                     dropout=None, **kwargs):
+            super(ConvPoolBundle, self).__init__(**kwargs)
+            self.pool_size = pool_size
+            self.pool_stride = pool_stride
+            self.dropout = dropout
+
+        def __call__(self, incoming):
+            conv = super(ConvPoolBundle, self).__call__(incoming)
+            outgoing = MaxPool2DLayer(conv, pool_size=self.pool_size,
+                                      name='P' + self.name,
+                                      stride=self.pool_stride)
+            if self.dropout is not None:
+                outgoing = apply_dropout(self, outgoing)
+            return outgoing
+
+    class FullyConnectedBundle(ConvBundle):
+        def __init__(self, num_units, batch_norm=batch_norm,
+                     nonlinearity=nonlinearity, dropout=None):
+            self.name = namer()
+            self.num_units = num_units
+            self.batch_norm = batch_norm
+            self.nonlinearity = nonlinearity
+            self.dropout = dropout
+
+        def __call__(self, incoming):
+            outgoing = lasange.layers.DenseLayer(
+                incoming, num_units=self.num_units, name='F' + self.name,
+                nonlinearity=self.nonlinearity)
+            if self.batch_norm:
+                outgoing = apply_batch_norm(self, outgoing)
+            if self.dropout is not None:
+                outgoing = apply_dropout(self, outgoing)
+            return outgoing
+
+    class SoftmaxBundle(ConvBundle):
+        def __init__(self, num_units):
+            self.name = namer()
+            self.num_units = num_units
+            self.batch_norm = batch_norm
+
+        def __call__(self, incoming):
+            dense_layer = lasange.layers.DenseLayer(
+                incoming, num_units=self.num_units, name='F' + self.name,
+                nonlinearity=lasange.nonlinearities.softmax)
+            return dense_layer
+
+    bundles = {
+        'SoftmaxBundle': SoftmaxBundle,
+        'FullyConnectedBundle': FullyConnectedBundle,
+        'ConvPoolBundle': ConvPoolBundle,
+        'ConvBundle': ConvBundle,
+        'InputBundle': InputBundle,
+    }
+    return bundles
+
+
 if __name__ == '__main__':
     """
     CommandLine:
