@@ -224,7 +224,7 @@ class _ModelFitting(object):
             >>> dataset = ingest_data.grab_mnist_category_dataset_old()
             >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
             >>>                    output_dims=dataset.output_dims,
-            >>>                    arch_tag=dataset.alias_key,
+            >>>                    #arch_tag=dataset.alias_key,
             >>>                    learning_rate=.01,
             >>>                    training_dpath=dataset.training_dpath)
             >>> model.encoder = None
@@ -412,14 +412,17 @@ class _ModelFitting(object):
         """
         # TODO: fix the training data hashid stuff
         y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
-        learn_hashid =  str(model.arch_tag) + '_' + y_hashid
+
+        learn_hashid =  str(model.arch_id) + '_' + y_hashid
+        # learn_hashid =  str(model.arch_tag) + '_' + y_hashid
         if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
             print('Not starting new era (old one hasnt begun yet')
         else:
             new_era = {
                 'learn_hashid': learn_hashid,
                 'arch_hashid': model.get_architecture_hashid(),
-                'arch_tag': model.arch_tag,
+                # 'arch_tag': model.arch_tag,
+                'arch_id': model.arch_id,
                 'num_learn': len(y_learn),
                 'num_valid': len(y_valid),
                 'valid_loss_list': [],
@@ -454,11 +457,17 @@ class _ModelFitting(object):
         def prog_metric_dir(x):
             return ut.ensuredir(prog_metric_path(x))
         history_progress_dir = prog_metric_dir(
-            str(model.arch_tag) + '_%02d_history')
+            str(model.arch_id) + '_%02d_history')
         weights_progress_dir = prog_metric_dir(
-            str(model.arch_tag) + '_%02d_weights')
+            str(model.arch_id) + '_%02d_weights')
         history_text_fpath = prog_metric_path(
-            str(model.arch_tag) + '_%02d_era_history.txt')
+            str(model.arch_id) + '_%02d_era_history.txt')
+        # history_progress_dir = prog_metric_dir(
+        #     str(model.arch_tag) + '_%02d_history')
+        # weights_progress_dir = prog_metric_dir(
+        #     str(model.arch_tag) + '_%02d_weights')
+        # history_text_fpath = prog_metric_path(
+        #     str(model.arch_tag) + '_%02d_era_history.txt')
         if ut.get_argflag('--vd'):
             ut.vd(model.progress_dpath)
 
@@ -1044,6 +1053,7 @@ class _ModelIDs(object):
         # FIXME: figure out how arch tag fits in here
         #model.name = kwargs.pop('name', None)
         model.arch_tag = kwargs.pop('arch_tag', None)
+        model.name = kwargs.pop('name', None)
         #if model.name is None:
         #    model.name = ut.get_classname(model.__class__, local=True)
 
@@ -1174,7 +1184,6 @@ class _ModelIO(object):
 
     def _init_io_vars(model, kwargs):
         model.training_dpath = kwargs.pop('training_dpath', '.')
-        #assert model.arch_tag is not None, 'please specify arch tag'
 
     def print_structure(model):
         print(model.model_dpath)
@@ -1223,7 +1232,7 @@ class _ModelIO(object):
         return checkpoint_dirs
 
     def _get_model_dpath(model, dpath, checkpoint_tag):
-        dpath = model.model_dpath + '/' + model.arch_tag if dpath is None else dpath
+        dpath = model.arch_dpath if dpath is None else dpath
         if checkpoint_tag is not None:
             # checkpoint dir requested
             dpath = join(dpath, 'checkpoints')
@@ -1325,7 +1334,7 @@ class _ModelIO(object):
             'output_dims':  model.output_dims,
 
             'era_history':  model.era_history,
-            'arch_tag': model.arch_tag,
+            # 'arch_tag': model.arch_tag,
         }
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('saving model state to: %s' % (model_state_fpath,))
