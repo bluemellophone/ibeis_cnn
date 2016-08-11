@@ -349,7 +349,7 @@ class DataSet(ut.NiceRepr):
 
     vd = view_directory
 
-    def has_splitset(dataset, key):
+    def has_split(dataset, key):
         return key in dataset.fpath_dict
 
     def get_split_fmtstr(dataset, forward=False):
