@@ -17,12 +17,17 @@ always a dictionary where keys specify columns and each item corresponds a row
 of data. Non-corresponding metadata is currently not supported, but should
 probably be located in a manifest.json file.
 
+# TODO: what is the same data has tasks that use different labels?
+# need to incorporate that structure.
+
 ----------------
 |   |-- datasets
 |   |   |-- dataset_{dataset_id} *
 |   |   |   |-- full
 |   |   |   |   |-- {dataset_id}_data.pkl
 |   |   |   |   |-- {dataset_id}_labels.pkl
+|   |   |   |   |-- {dataset_id}_labels_{task1}.pkl?
+|   |   |   |   |-- {dataset_id}_labels_{task2}.pkl?
 |   |   |   |   |-- {dataset_id}_metadata.pkl
 |   |   |   |-- splits
 |   |   |   |   |-- {split_id}_{num} *

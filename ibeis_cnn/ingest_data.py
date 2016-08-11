@@ -101,7 +101,7 @@ def merge_datasets(dataset_list):
 
     for dataset in dataset_list:
         print(ut.get_file_nBytes_str(dataset.data_fpath))
-        print(dataset.data_fpath_dict['all'])
+        print(dataset.data_fpath_dict['full'])
         print(dataset.num_labels)
         print(dataset.data_per_label)
         total_num_labels += dataset.num_labels
@@ -124,7 +124,7 @@ def merge_datasets(dataset_list):
     labels_left = 0
     labels_right = None
     for dataset in ut.ProgressIter(dataset_list, lbl='combining datasets', freq=1):
-        X_all, y_all = dataset.load_subset('all')
+        X_all, y_all = dataset.load_subset('full')
         labels_right = labels_left + y_all.shape[0]
         data_right = data_left + X_all.shape[0]
         data[data_left:data_right] = X_all
@@ -180,9 +180,9 @@ def grab_siam_dataset(ds_tag=None):
         >>> dataset = grab_siam_dataset(ds_tag=ds_tag)
         >>> ut.quit_if_noshow()
         >>> from ibeis_cnn import draw_results
-        >>> ut.quit_if_noshow()
         >>> dataset.interact(ibs=dataset.getprop('ibs', None), key='test', chunck_sizes=(8, 4))
         >>> ut.show_if_requested()
+
     """
     if ds_tag is not None:
         try:
@@ -213,52 +213,32 @@ def grab_mnist_category_dataset():
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> dataset = grab_mnist_category_dataset()
         >>> dataset.print_subset_info()
+        >>> dataset.print_dir_tree()
         >>> ut.quit_if_noshow()
         >>> inter = dataset.interact()
         >>> ut.show_if_requested()
     """
     import numpy as np
-    alias_key = 'mnist'
-    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
-    dataset_dpath = join(training_dpath, 'dataset')
-    ut.ensuredir(training_dpath)
-    ut.ensuredir(dataset_dpath)
-
-    data_fpath     = join(dataset_dpath, 'mnist_data.pkl')
-    labels_fpath   = join(dataset_dpath, 'mnist_labels.pkl')
-    metadata_fpath = join(dataset_dpath, 'mnist_metadata.pkl')
-    if not ut.checkpath(data_fpath):
-        data, labels, metadata = ingest_helpers.grab_mnist2()
-        ut.save_data(data_fpath, data)
-        ut.save_data(labels_fpath, labels)
-        ut.save_data(metadata_fpath, metadata)
-
-    # hack for caching num_labels
-    labels = ut.load_data(labels_fpath)
-    num_labels = len(labels)
-
-    dataset = DataSet.new_training_set(
-        alias_key=alias_key,
-        data_fpath=data_fpath,
-        labels_fpath=labels_fpath,
-        metadata_fpath=metadata_fpath,
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training')
+    dataset = DataSet(
+        name='mnist',
         training_dpath=training_dpath,
-        dataset_dpath=dataset_dpath,
-        data_per_label=1,
-        data_shape=(28, 28, 1),
-        output_dims=10,
-        num_labels=num_labels,
+        data_shape=(28, 28, 1)
     )
-
-    dataset.load_splitsets()
-
-    # Use the predefined train/test sets
-    if not dataset.has_splitset('train') or not dataset.has_splitset('test'):
-        splitset = np.array(dataset.metadata['splitset'])
+    try:
+        dataset.load()
+    except IOError:
+        data, labels, metadata = ingest_helpers.grab_mnist2()
+        # Get indicies of test / train split
+        splitset = np.array(metadata['splitset'])
         train_idxs = np.where(splitset == 'train')[0]
         test_idxs = np.where(splitset == 'test')[0]
-        dataset.add_splitset('train', train_idxs)
-        dataset.add_splitset('test', test_idxs)
+        # Give dataset the full data
+        dataset.save(data, labels, metadata, data_per_label=1)
+        # And the split sets
+        dataset.add_split('train', train_idxs)
+        dataset.add_split('test', test_idxs)
+        dataset.clear_cache()
     else:
         print('predefined splits cache hit')
     return dataset
@@ -276,52 +256,31 @@ def grab_mnist_category_dataset_old():
         >>> from ibeis_cnn.ingest_data import *  # NOQA
         >>> dataset = grab_mnist_category_dataset_old()
         >>> dataset.print_subset_info()
+        >>> dataset.print_dir_tree()
         >>> ut.quit_if_noshow()
         >>> inter = dataset.interact()
         >>> ut.show_if_requested()
     """
     import numpy as np
-    alias_key = 'mnist_old'
-    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
-    dataset_dpath = join(training_dpath, 'dataset')
-    ut.ensuredir(training_dpath)
-    ut.ensuredir(dataset_dpath)
-
-    data_fpath     = join(dataset_dpath, 'mnist_data.pkl')
-    labels_fpath   = join(dataset_dpath, 'mnist_labels.pkl')
-    if not ut.checkpath(data_fpath):
-        data, labels, metadata = ingest_helpers.grab_mnist1()
-        ut.save_data(data_fpath, data)
-        ut.save_data(labels_fpath, labels)
-        # ut.save_data(metadata_fpath, metadata)
-
-    # hack for caching num_labels
-    labels = ut.load_data(labels_fpath)
-    num_labels = len(labels)
-
-    dataset = DataSet.new_training_set(
-        alias_key=alias_key,
-        data_fpath=data_fpath,
-        labels_fpath=labels_fpath,
-        metadata_fpath=None,
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training')
+    dataset = DataSet(
+        name='mnist_old',
         training_dpath=training_dpath,
-        dataset_dpath=dataset_dpath,
-        data_per_label=1,
-        data_shape=(28, 28, 1),
-        output_dims=10,
-        num_labels=num_labels,
+        data_shape=(28, 28, 1)
     )
-
-    dataset.load_splitsets()
-
-    # Use the predefined train/test sets
-    if not dataset.has_splitset('train') or not dataset.has_splitset('test'):
+    try:
+        dataset.load()
+    except IOError:
+        data, labels, metadata = ingest_helpers.grab_mnist1()
+        # Get indicies of test / train split
         train_idxs = np.arange(6000)
         test_idxs = np.arange(1000) + 6000
-        dataset.add_splitset('train', train_idxs)
-        dataset.add_splitset('test', test_idxs)
-    else:
-        print('predefined splits cache hit')
+        # Give dataset the full data
+        dataset.save(data, labels, metadata, data_per_label=1)
+        # And the split sets
+        dataset.add_split('train', train_idxs)
+        dataset.add_split('test', test_idxs)
+        dataset.clear_cache()
     return dataset
 
 
@@ -339,43 +298,23 @@ def grab_mnist_siam_dataset():
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('all')
+        >>> data, labels = dataset.load_subset('full')
         >>> ut.quit_if_noshow()
-        >>> warped_patch1_list = data[::2]
-        >>> warped_patch2_list = data[1::2]
-        >>> dataset.interact(ibs=dataset.getprop('ibs'))
-        >>> print(result)
+        >>> dataset.interact()
         >>> ut.show_if_requested()
     """
-    import numpy as np
-    alias_key = 'mnist_pairs'
-
-    training_dpath = ut.get_app_resource_dir('ibeis_cnn', 'training', alias_key)
-    ut.ensuredir(training_dpath)
-
-    data_fpath = join(training_dpath, alias_key + '_data.pkl')
-    labels_fpath = join(training_dpath, alias_key + '_labels.pkl')
-    if not ut.checkpath(data_fpath):
+    training_dpath = ut.ensure_app_resource_dir('ibeis_cnn', 'training')
+    dataset = DataSet(
+        name='mnist_pairs',
+        training_dpath=training_dpath,
+        data_shape=(28, 28, 1),
+    )
+    try:
+        dataset.load()
+    except IOError:
         data_, labels_, metadata_ = ingest_helpers.grab_mnist2()
         data, labels = ingest_helpers.convert_category_to_siam_data(data_, labels_)
-        ut.save_data(data_fpath, data)
-        ut.save_data(labels_fpath, labels)
-
-    # hack for caching num_labels
-    labels = ut.load_data(labels_fpath)
-    num_labels = len(labels)
-
-    dataset = DataSet.new_training_set(
-        alias_key=alias_key,
-        data_fpath=data_fpath,
-        labels_fpath=labels_fpath,
-        metadata_fpath=None,
-        training_dpath=training_dpath,
-        data_per_label=2,
-        data_shape=(28, 28, 1),
-        output_dims=1,
-        num_labels=num_labels,
-    )
+        dataset.save(data, labels, data_per_label=2)
     return dataset
 
 
@@ -419,7 +358,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('all')
+        >>> data, labels = dataset.load_subset('full')
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]

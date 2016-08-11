@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
-from os.path import join, basename, exists, dirname, splitext
+from os.path import join, basename, exists
 import six
 import numpy as np
 import utool as ut
@@ -8,8 +8,8 @@ print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.datset]')
 
 
 #NOCACHE_ALIAS = True
-NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
-NOCACHE_DATA_SPLIT = ut.get_argflag('--nocache-datasplit')
+# NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
+# NOCACHE_DATA_SPLIT = ut.get_argflag('--nocache-datasplit')
 
 
 class DummyDataSet(object):
@@ -29,7 +29,7 @@ class DataSet(ut.NiceRepr):
     """
     #def __init__(dataset, alias_key, training_dpath, data_fpath, labels_fpath,
     #             metadata_fpath, data_per_label, data_shape, output_dims,
-    #             num_labels, dataset_dpath=None):
+    #             num_labels, xdata_dpath=None):
     #    # Constructor args is primary data
     #    key_list = ut.get_func_argspec(dataset.__init__).args[1:]
     #    r"""
@@ -56,7 +56,7 @@ class DataSet(ut.NiceRepr):
     #        dataset.data_shape = data_shape
     #        dataset.output_dims = output_dims
     #        dataset.num_labels = num_labels
-    #        dataset.dataset_dpath = dataset_dpath
+    #        dataset.xdata_dpath = xdata_dpath
     #        # </AUTOGEN_INIT>
     #    else:
     #        locals_ = locals()
@@ -64,7 +64,7 @@ class DataSet(ut.NiceRepr):
     #            setattr(dataset, key, locals_[key])
     #    # Dictionary for storing different data subsets
     #    dataset.fpath_dict = {
-    #        'all' : {
+    #        'full' : {
     #            'data': data_fpath,
     #            'labels': labels_fpath,
     #            'metadata': metadata_fpath,
@@ -74,23 +74,23 @@ class DataSet(ut.NiceRepr):
     #    # Probably should be refactored
     #    dataset._lazy_cache = ut.LazyDict()
 
-    def __init__(dataset, cfgstr, training_dpath='.', name=None):
+    def __init__(dataset, cfgstr=None, training_dpath='.', data_shape=None,
+                 num_data=None, name=None, ext='.pkl'):
         dataset.name = name
         dataset.cfgstr = cfgstr
         dataset.training_dpath = training_dpath
+        assert data_shape is not None, 'must specify'
+        dataset._ext = ext
         dataset.data_info = {
-            'data_shape': None,
+            'num_data': num_data,
+            'data_shape': data_shape,
             'num_labels': None,
-            'output_dims': None,
-            'data_per_label': 1,
+            'unique_labels': None,
+            'data_per_label': None,
         }
-        #dataset.data_per_label = data_per_label
-        #dataset.data_shape = data_shape
-        #dataset.output_dims = None
-        #dataset.num_labels = None
         # Dictionary for storing different data subsets
         dataset.fpath_dict = {
-            'all' : {
+            'full' : {
                 'data': dataset.data_fpath,
                 'labels': dataset.labels_fpath,
                 'metadata': dataset.metadata_fpath,
@@ -100,26 +100,26 @@ class DataSet(ut.NiceRepr):
         # Probably should be refactored
         dataset._lazy_cache = ut.LazyDict()
 
-    @classmethod
-    def from_alias_key(cls, alias_key):
-        if NOCACHE_ALIAS:
-            raise Exception('Aliasing Disabled')
-        # shortcut to the cached information so we dont need to
-        # compute hotspotter matching hashes. There is a change data
-        # can get out of date while this is enabled.
-        alias_fpath = get_alias_dict_fpath()
-        alias_dict = ut.text_dict_read(alias_fpath)
-        if alias_key in alias_dict:
-            data_dict = alias_dict[alias_key]
-            ut.assert_exists(data_dict['training_dpath'])
-            ut.assert_exists(data_dict['data_fpath'])
-            ut.assert_exists(data_dict['labels_fpath'])
-            ut.assert_exists(data_dict['metadata_fpath'])
-            dataset = cls(**data_dict)
-            # dataset.build_auxillary_data()
-            print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
-            return dataset
-        raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
+    # @classmethod
+    # def from_alias_key(cls, alias_key):
+    #     if NOCACHE_ALIAS:
+    #         raise Exception('Aliasing Disabled')
+    #     # shortcut to the cached information so we dont need to
+    #     # compute hotspotter matching hashes. There is a change data
+    #     # can get out of date while this is enabled.
+    #     alias_fpath = get_alias_dict_fpath()
+    #     alias_dict = ut.text_dict_read(alias_fpath)
+    #     if alias_key in alias_dict:
+    #         data_dict = alias_dict[alias_key]
+    #         ut.assert_exists(data_dict['training_dpath'])
+    #         ut.assert_exists(data_dict['data_fpath'])
+    #         ut.assert_exists(data_dict['labels_fpath'])
+    #         ut.assert_exists(data_dict['metadata_fpath'])
+    #         dataset = cls(**data_dict)
+    #         # dataset.build_auxillary_data()
+    #         print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
+    #         return dataset
+    #     raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
 
     def __nice__(dataset):
         return '(' + dataset.dataset_id + ')'
@@ -128,33 +128,60 @@ class DataSet(ut.NiceRepr):
         ut.ensuredir(dataset.full_dpath)
         ut.ensuredir(dataset.split_dpath)
 
+    def print_dir_structure(dataset):
+        print(dataset.training_dpath)
+        print(dataset.datasets_dpath)  # this is MULTIPLE dataset dir
+        print(dataset.xdata_dpath)  # FIXME this is really dataset dir
+        print(dataset.data_fpath)
+        print(dataset.labels_fpath)
+        print(dataset.metadata_fpath)
+        print(dataset.info_fpath)
+        print(dataset.full_dpath)
+        print(dataset.split_dpath)
+
+    def print_dir_tree(dataset):
+        fpaths = ut.glob(dataset.xdata_dpath, '*', recursive=True)
+        print('\n'.join(sorted(fpaths)))
+
     @property
     def hashid(dataset):
-        return ut.hashstr27(dataset.cfgstr, hashlen=8)
+        if dataset.cfgstr is None:
+            return ''
+        else:
+            return ut.hashstr27(dataset.cfgstr, hashlen=8)
 
     @property
     def dataset_id(dataset):
+        shape_str = 'x'.join(ut.lmap(str, dataset.data_info['data_shape']))
+        num_data = dataset.data_info['num_data']
+        parts = []
         if dataset.name is not None:
-            return dataset.name + '_' + dataset.hashid
-        else:
-            return dataset.hashid
+            parts.append(dataset.name)
+        if num_data is not None:
+            parts.append(str(num_data))
+        parts.append(shape_str)
+        if dataset.hashid:
+            parts.append(dataset.hashid)
+        dsid = '_'.join(parts)
+        return dsid
 
     @property
     def datasets_dpath(dataset):
+        # FIME confusion between dataset and datasets
         return join(dataset.training_dpath, 'datasets')
 
     @property
-    def dataset_dpath(dataset):
-        return join(dataset.datasets_dpath, 'dataset_' + dataset.hashid)
+    def xdata_dpath(dataset):
+        return join(dataset.datasets_dpath, dataset.dataset_id)
 
     @property
     def split_dpath(dataset):
-        split_dpath = join(dataset.datasets_dpath, 'splitsets')
+        split_dpath = join(dataset.xdata_dpath, 'splits')
         return split_dpath
 
     @property
     def full_dpath(dataset):
-        return join(dataset.dataset_dpath, 'all')
+        return join(dataset.xdata_dpath, 'full')
 
     @property
     def info_fpath(dataset):
@@ -162,15 +189,15 @@ class DataSet(ut.NiceRepr):
 
     @property
     def data_fpath(dataset):
-        return join(dataset.full_dpath, '%s_labels.pkl' % (dataset.hashid))
+        return join(dataset.full_dpath, '%s_data%s' % (dataset.hashid, dataset._ext))
 
     @property
     def labels_fpath(dataset):
-        return join(dataset.full_dpath, '%s_data.pkl' % (dataset.hashid))
+        return join(dataset.full_dpath, '%s_labels%s' % (dataset.hashid, dataset._ext))
 
     @property
     def metadata_fpath(dataset):
-        return join(dataset.full_dpath, '%s_metadata.pkl' % (dataset.hashid))
+        return join(dataset.full_dpath, '%s_metadata%s' % (dataset.hashid, dataset._ext))
 
     @classmethod
     def new_training_set(cls, **kwargs):
@@ -201,12 +228,12 @@ class DataSet(ut.NiceRepr):
         dataset._lazy_cache[key] = val
 
     def load_subset(dataset, key):
-        """ loads a test/train/valid/all data subset """
+        """ loads a test/train/valid/full data subset """
         data = dataset.load_subset_data(key)
         labels = dataset.load_subset_labels(key)
         return data, labels
 
-    def print_subset_info(dataset, key='all'):
+    def print_subset_info(dataset, key='full'):
         data, labels = dataset.load_subset(key)
         dataset.print_dataset_info(data, labels, key)
 
@@ -232,12 +259,6 @@ class DataSet(ut.NiceRepr):
     #    # creates a symlink in the junction dir
     #    register_training_dpath(dataset.training_dpath, dataset.alias_key)
 
-    def save_info(dataset):
-        ut.save_data(dataset.info_fpath, dataset.data_info)
-
-    def load_info(dataset):
-        dataset.data_info = ut.load_data(dataset.info_fpath)
-
     #def save_alias(dataset, alias_key):
     #    # shortcut to the cached information so we dont need to
     #    # compute hotspotter matching hashes. There is a change data
@@ -249,7 +270,7 @@ class DataSet(ut.NiceRepr):
     #    ut.text_dict_write(alias_fpath, alias_dict)
 
     @ut.memoize
-    def load_subset_data(dataset, key='all'):
+    def load_subset_data(dataset, key='full'):
         data_fpath = dataset.fpath_dict[key]['data']
         data = ut.load_data(data_fpath, verbose=True)
         if len(data.shape) == 3:
@@ -258,14 +279,14 @@ class DataSet(ut.NiceRepr):
         return data
 
     @ut.memoize
-    def load_subset_labels(dataset, key='all'):
+    def load_subset_labels(dataset, key='full'):
         labels_fpath = dataset.fpath_dict[key]['labels']
         labels = (None if labels_fpath is None
                   else ut.load_data(labels_fpath, verbose=True))
         return labels
 
     @ut.memoize
-    def load_subset_metadata(dataset, key='all'):
+    def load_subset_metadata(dataset, key='full'):
         metadata_fpath = dataset.fpath_dict[key].get('metadata', None)
         if metadata_fpath is not None:
             flat_metadata = ut.load_data(metadata_fpath, verbose=True)
@@ -273,10 +294,18 @@ class DataSet(ut.NiceRepr):
             flat_metadata = None
         return flat_metadata
 
-    def clear_cache(dataset):
-        dataset.load_subset_data.cache.clear()
-        dataset.load_subset_labels.cache.clear()
-        dataset.load_subset_metadata.cache.clear()
+    def clear_cache(dataset, key=None):
+        cached_func_list = [
+            dataset.load_subset_data,
+            dataset.load_subset_labels,
+            dataset.load_subset_metadata,
+        ]
+        if key is None:
+            for cached_func in cached_func_list:
+                cached_func.cache.clear()
+        else:
+            for cached_func in cached_func_list:
+                del cached_func.cache[key]
 
     @staticmethod
     def print_dataset_info(data, labels, key):
@@ -292,7 +321,7 @@ class DataSet(ut.NiceRepr):
         print('[dataset]     %s_labels(shape=%r, dtype=%r)' % (key, labels.shape, labels.dtype))
         print('[dataset]     %s_label histogram = %s' % (key, ut.repr2(labelhist)))
 
-    def interact(dataset, key='all', **kwargs):
+    def interact(dataset, key='full', **kwargs):
         """
         python -m ibeis_cnn --tf netrun --db mnist --ensuredata --show --datatype=category
         python -m ibeis_cnn --tf netrun --db PZ_MTEST --acfg ctrl --ensuredata --show
@@ -312,21 +341,46 @@ class DataSet(ut.NiceRepr):
         labels   = dataset.load_subset_labels(key)
         metadata = dataset.load_subset_metadata(key)
         return interact_func(
-            labels, data, metadata, dataset.data_per_label,
+            labels, data, metadata, dataset.data_info['data_per_label'],
             **interact_kw)
 
     def view_directory(dataset):
-        ut.view_directory(dirname(dataset.data_fpath))
+        ut.view_directory(dataset.xdata_dpath)
+
+    vd = view_directory
 
     def has_splitset(dataset, key):
         return key in dataset.fpath_dict
 
+    def get_split_fmtstr(dataset, forward=False):
+        # Parse direction
+        parse_fmtstr = '{key}_{size:d}_{type_:w}{ext}'
+        if forward:
+            # hack, need to do actual parsing of the parser here
+            def parse_inverse_format(parse_fmtstr):
+                # if True:
+                # hack impl
+                return parse_fmtstr.replace(':w}', '}')
+                # else:
+                #     # Try and make a better impl
+                #     nestings = ut.parse_nestings(parse_fmtstr, only_curl=True)
+                #     ut.recombine_nestings(nestings)
+
+            # Generate direction
+            fmtstr = parse_inverse_format(parse_fmtstr)
+        else:
+            fmtstr = parse_fmtstr
+        return fmtstr
+
     def load_splitsets(dataset):
         import parse
-        fmtstr_ = '{key}_{type_}_{size:d}{ext}'
         fpath_dict = {}
+        fmtstr = dataset.get_split_fmtstr(forward=False)
         for fpath in ut.ls(dataset.split_dpath):
-            parsed = parse.parse(fmtstr_, basename(fpath))
+            parsed = parse.parse(fmtstr, basename(fpath))
+            if parsed is None:
+                print('WARNING: invalid filename %r' % (fpath,))
+                continue
             key = parsed['key']
             type_ = parsed['type_']
             splitset = fpath_dict.get(key, {})
@@ -337,8 +391,48 @@ class DataSet(ut.NiceRepr):
             assert 'data' in val, 'subset missing data'
         dataset.fpath_dict.update(**fpath_dict)
 
-    def add_splitset(dataset, key, idxs):
-        print('[dataset] adding splitset %r' % (key,))
+    def load(dataset):
+        dataset.ensure_dirs()
+        if not exists(dataset.info_fpath):
+            raise IOError('dataset info manifest cache miss')
+        else:
+            dataset.data_info = ut.load_data(dataset.info_fpath)
+        if not exists(dataset.data_fpath):
+            raise IOError('dataset data cache miss')
+        dataset.load_splitsets()
+        # Hack
+        if not exists(dataset.fpath_dict['full']['metadata']):
+            dataset.fpath_dict['full']['metadata'] = None
+
+    def save(dataset, data, labels, metadata=None, data_per_label=1):
+        ut.save_data(dataset.data_fpath, data)
+        ut.save_data(dataset.labels_fpath, labels)
+        if metadata is not None:
+            ut.save_data(dataset.metadata_fpath, metadata)
+        else:
+            dataset.fpath_dict['full']['metadata'] = None
+        # cache the data because it is likely going to be used to define a
+        # splitset
+        dataset.load_subset_data.cache['full'] = data
+        dataset.load_subset_labels.cache['full'] = labels
+        dataset.load_subset_metadata.cache['full'] = metadata
+        # Infer the rest of the required data info
+        dataset.data_info['num_labels'] = len(labels)
+        dataset.data_info['unique_labels'] = np.unique(labels)
+        dataset.data_info['data_per_label'] = data_per_label
+        ut.save_data(dataset.info_fpath, dataset.data_info)
+
+    def add_split(dataset, key, idxs):
+        print('[dataset] adding split %r' % (key,))
+        # Build subset filenames
+        ut.ensuredir(dataset.split_dpath)
+        ext = dataset._ext
+        fmtdict = dict(key=key, ext=ext, size=len(idxs))
+        fmtstr = dataset.get_split_fmtstr(forward=True)
+        splitset = {
+            type_: join(dataset.split_dpath, fmtstr.format(type_=type_, **fmtdict))
+            for type_ in ['data', 'labels', 'metadata']
+        }
         # Partition data into the subset
         part_dict = {
             'data': dataset.data.take(idxs, axis=0),
@@ -347,37 +441,28 @@ class DataSet(ut.NiceRepr):
         if dataset.metadata is not None:
             taker = ut.partial(ut.take, index_list=idxs)
             part_dict['metadata'] = ut.map_dict_vals(taker, dataset.metadata)
-        # Build subset filenames
-        ut.ensuredir(dataset.split_dpath)
-        ext = '.pkl'
-        fmtstr_ = '{key}_{type_}_{size}{ext}'
-        fmtdict = dict(key=key, ext=ext, size=len(idxs))
-        splitset = {
-            type_: join(dataset.split_dpath, fmtstr_.format(type_=type_, **fmtdict))
-            for type_ in part_dict.keys()
-        }
         # Write splitset data to files
         for type_ in part_dict.keys():
             ut.save_data(splitset[type_], part_dict[type_])
         # Register filenames with dataset
         dataset.fpath_dict[key] = splitset
 
-    def build_auxillary_data(dataset):
-        # Make test train validatation sets
-        data_fpath = dataset.data_fpath
-        labels_fpath = dataset.labels_fpath
-        metadata_fpath = dataset.metadata_fpath
-        data_per_label = dataset.data_per_label
-        split_names = ['train', 'test', 'valid']
-        fractions = [.7, .2, .1]
-        named_split_fpath_dict = ondisk_data_split(
-            data_fpath, labels_fpath, metadata_fpath,
-            data_per_label, split_names, fractions,
-        )
-        for key, val in named_split_fpath_dict.items():
-            splitset = dataset.fpath_dict.get(key, {})
-            splitset.update(**val)
-            dataset.fpath_dict[key] = splitset
+    # def build_auxillary_data(dataset):
+    #     # Make test train validatation sets
+    #     data_fpath = dataset.data_fpath
+    #     labels_fpath = dataset.labels_fpath
+    #     metadata_fpath = dataset.metadata_fpath
+    #     data_per_label = dataset.data_per_label
+    #     split_names = ['train', 'test', 'valid']
+    #     fractions = [.7, .2, .1]
+    #     named_split_fpath_dict = ondisk_data_split(
+    #         data_fpath, labels_fpath, metadata_fpath,
+    #         data_per_label, split_names, fractions,
+    #     )
+    #     for key, val in named_split_fpath_dict.items():
+    #         splitset = dataset.fpath_dict.get(key, {})
+    #         splitset.update(**val)
+    #         dataset.fpath_dict[key] = splitset
 
 
 def get_alias_dict_fpath():
@@ -423,138 +508,6 @@ def register_training_dpath(training_dpath, alias_key=None):
         training_dname = prefix + '_' + training_dname
     training_dlink = join(junction_dpath, training_dname)
     ut.symlink(training_dpath, training_dlink)
-
-
-def ondisk_data_split(data_fpath, labels_fpath, metadata_fpath,
-                      data_per_label,
-                      split_names=['train', 'test', 'valid'],
-                      fractions=[.7, .2, .1], use_cache=None):
-    """
-    splits into train / test / validation datasets on disk
-
-    # TODO: ENSURE THAT VALIDATION / TEST SET CONTAINS DISJOINT IMAGES FROM
-    # TRAINING
-
-    CommandLine:
-        python -m ibeis_cnn.dataset --test-ondisk_data_split
-
-    Example:
-        >>> # DISABLE_DOCTEST
-        >>> from ibeis_cnn.dataset import *  # NOQA
-        >>> from ibeis_cnn import ingest_data
-        >>> dataset = ingest_data.testdata_dataset()
-        >>> data_fpath = dataset.data_fpath
-        >>> labels_fpath = dataset.labels_fpath
-        >>> metadata_fpath = dataset.metadata_fpath
-        >>> data_per_label = dataset.data_per_label
-        >>> split_names = ['train', 'valid', 'test']
-        >>> fractions = [.7, 0.1, 0.2]
-        >>> use_cache = False
-        >>> named_split_fpath_dict = ondisk_data_split(
-        >>>     data_fpath, labels_fpath, metadata_fpath, data_per_label,
-        >>>     split_names, fractions, use_cache)
-        >>> from os.path import basename
-        >>> data_bytes = ut.map_dict_vals(ut.get_file_nBytes_str, named_split_fpath_dict['data'])
-        >>> label_bytes = ut.map_dict_vals(ut.get_file_nBytes_str, named_split_fpath_dict['labels'])
-        >>> data_fpath_dict = ut.map_dict_vals(basename, named_split_fpath_dict['data'])
-        >>> label_fpath_dict = ut.map_dict_vals(basename, named_split_fpath_dict['labels'])
-        >>> print('(data_bytes, label_bytes) = %s' % (ut.list_str((data_bytes, label_bytes), nl=True),))
-        >>> result = ('(data_fpath_dict, label_fpath_dict) = %s' % (ut.list_str((data_fpath_dict, label_fpath_dict), nl=True),))
-        >>> print(result)
-    """
-    print('ondisk_data_split')
-    assert len(split_names) == len(fractions), ('names and fractions not aligned')
-    assert np.isclose(sum(fractions), 1), 'fractions must sum to 1'
-    _fpath_dict = {'data': data_fpath, 'labels': labels_fpath,
-                   'metadata': metadata_fpath}
-    # Remove non-existing fpaths
-    fpath_dict = {key: val for key, val in _fpath_dict.items() if val is not None}
-    assert 'data' in fpath_dict
-    assert 'labels' in fpath_dict
-    if 'metadata' not in fpath_dict:
-        print('Warning no metadata')
-
-    training_dir = dirname(fpath_dict['data'])
-    splitdir = join(training_dir, 'splitsets')
-    # base on the data fpath if that already has a uuid in it
-    hashstr_ = ut.hashstr(basename(fpath_dict['data']), alphabet=ut.ALPHABET_16)
-
-    def make_split_fpaths(type_, fpath, splitdir):
-        ext = splitext(fpath)[1]
-        return [
-            join(splitdir, '%s_%s_%.3f_%s%s' % (
-                name, type_, frac, hashstr_, ext))
-            for name, frac in zip(split_names, fractions)
-        ]
-
-    split_fpaths_dict = {type_: make_split_fpaths(type_, fpath, splitdir)
-                         for type_, fpath in fpath_dict.items()}
-    is_cache_hit = all([all(map(exists, fpaths))
-                        for fpaths in split_fpaths_dict.values()])
-
-    if use_cache is None:
-        use_cache = not NOCACHE_DATA_SPLIT
-
-    ut.ensuredir(splitdir)
-    if not is_cache_hit or not use_cache:
-        print('Writing data splits')
-
-        def take_items(items, idx_list):
-            if isinstance(items, dict):
-                return {key: val.take(idx_list, axis=0)
-                        for key, val in items.items()}
-            else:
-                return items.take(idx_list, axis=0)
-
-        labels = ut.load_data(fpath_dict['labels'], verbose=True)
-        # Generate the split indicies
-        rng = np.random.RandomState(0)
-        sample_idxs = stratified_shuffle_split(labels, fractions, rng=rng)
-
-        # Load and break the data
-        loaded_dict = {
-            key: ut.load_data(fpath, verbose=True)
-            for key, fpath in fpath_dict.items() if key != 'labels'
-        }
-        loaded_dict['labels'] = labels
-
-        for index in range(len(fractions)):
-            print('--------index = %r' % (index,))
-            part_dict = {}
-            part_fpath_dict = {key: val[index] for key, val in
-                               split_fpaths_dict.items()}
-            label_indices1 = sample_idxs[index]
-            data_indicies1 = expand_data_indicies(label_indices1, data_per_label)
-
-            part_dict['labels'] = take_items(loaded_dict['labels'], label_indices1)
-            part_dict['data']   = take_items(loaded_dict['data'], data_indicies1)
-            if 'metadata' in loaded_dict:
-                part_dict['metadata'] = take_items(loaded_dict['metadata'], label_indices1)
-            for key in part_dict.keys():
-                ut.save_data(part_fpath_dict[key], part_dict[key], verbose=2)
-
-    named_split_fpath_dict = {
-        type_: dict(zip(split_names, split_fpaths))
-        for type_, split_fpaths in split_fpaths_dict.items()
-    }
-
-    for type_, split_fpath_dict in named_split_fpath_dict.items():
-        split_fpath_dict['all'] = fpath_dict[type_]
-
-    return named_split_fpath_dict
-
-
-#def load(data_fpath, labels_fpath=None):
-#    # Load X matrix (data)
-#    data = ut.load_data(data_fpath)
-#    labels = ut.load_data(labels_fpath) if labels_fpath is not None else None
-#    ## TODO: This should be part of data preprocessing
-#    ## Ensure that data is 4-dimensional
-#    if len(data.shape) == 3:
-#        # add channel dimension for implicit grayscale
-#        data.shape = data.shape + (1,)
-#    # Return data
-#    return data, labels
 
 
 def stratified_shuffle_split(y, fractions, rng=None, class_weights=None):
