@@ -1699,10 +1699,6 @@ class _ModelBackend(object):
 
         shared_learning_rate = model.learn_state.shared['learning_rate']
         momentum = model.learn_state['momentum']
-        print('shared_learning_rate = %r' % (shared_learning_rate,))
-        print('momentum = %r' % (momentum,))
-        # import utool
-        # utool.embed()
 
         updates = lasagne.updates.nesterov_momentum(
             loss_or_grads=grads,
