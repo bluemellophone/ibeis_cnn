@@ -1759,20 +1759,18 @@ class _ModelBackend(object):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Build outputs to babysit training
         monitor_outputs = []
-        # HACK OFF
-        #return monitor_outputs
-
-        for param in parameters:
-            # The vector each param was udpated with
-            # (one vector per channel)
-            param_update_vec = updates[param] - param
-            param_update_vec.name = 'param_update_vector_' + param.name
-            flat_shape = (param_update_vec.shape[0],
-                          T.prod(param_update_vec.shape[1:]))
-            flat_param_update_vec = param_update_vec.reshape(flat_shape)
-            param_update_mag = (flat_param_update_vec ** 2).sum(-1)
-            param_update_mag.name = 'param_update_magnitude_' + param.name
-            monitor_outputs.append(param_update_mag)
+        if model.train_config['monitor']:
+            for param in parameters:
+                # The vector each param was udpated with
+                # (one vector per channel)
+                param_update_vec = updates[param] - param
+                param_update_vec.name = 'param_update_vector_' + param.name
+                flat_shape = (param_update_vec.shape[0],
+                              T.prod(param_update_vec.shape[1:]))
+                flat_param_update_vec = param_update_vec.reshape(flat_shape)
+                param_update_mag = (flat_param_update_vec ** 2).sum(-1)
+                param_update_mag.name = 'param_update_magnitude_' + param.name
+                monitor_outputs.append(param_update_mag)
         return monitor_outputs
 
     def build_unlabeled_output_expressions(model, network_output):
