@@ -583,7 +583,7 @@ def stratified_shuffle_split(y, fractions, rng=None, class_weights=None):
     return index_sets
 
 
-def stratified_label_shuffle_split(y, labels, fractions, rng=None):
+def stratified_label_shuffle_split(y, labels, fractions, idx=None, rng=None):
     """
     modified from sklearn to make n splits instaed of 2.
     Also enforces that labels are not broken into separate groups.
@@ -609,8 +609,7 @@ def stratified_label_shuffle_split(y, labels, fractions, rng=None):
         >>> rng = np.random.RandomState(0)
         >>> index_sets = stratified_label_shuffle_split(y, labels, fractions, rng)
     """
-    if rng is None:
-        rng = np.random
+    rng = ut.ensure_rng(rng)
     #orig_y = y
     unique_labels, groupxs = ut.group_indices(labels)
     grouped_ys = ut.apply_grouping(y, groupxs)
@@ -621,6 +620,9 @@ def stratified_label_shuffle_split(y, labels, fractions, rng=None):
 
     unique_idxs = stratified_shuffle_split(unique_ys, fractions, rng)
     index_sets = [np.array(ut.flatten(ut.take(groupxs, idxs))) for idxs in unique_idxs]
+    if idx is not None:
+        # These indicies subindex into parent set of indicies
+        index_sets = [np.take(idx, idxs, axis=0) for idxs in index_sets]
     return index_sets
 
 
