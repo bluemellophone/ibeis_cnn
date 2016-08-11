@@ -1490,10 +1490,6 @@ class _ModelBackend(object):
         model._theano_forward = None
         model._theano_predict = None
         model._mode = None
-        if kwargs.pop('verbose_compile', True):
-            import logging
-            compile_logger = logging.getLogger('theano.compile')
-            compile_logger.setLevel(-10)
 
     @property
     def theano_mode(model):
@@ -1811,6 +1807,10 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
             data_shape (tuple):  in  Numpy format (b, h, w, c)
         """
         kwargs = kwargs.copy()
+        if kwargs.pop('verbose_compile', True):
+            import logging
+            compile_logger = logging.getLogger('theano.compile')
+            compile_logger.setLevel(-10)
         model._init_io_vars(kwargs)
         model._init_id_vars(kwargs)
         model._init_shape_vars(kwargs)
