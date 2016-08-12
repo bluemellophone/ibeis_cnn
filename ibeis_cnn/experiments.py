@@ -155,7 +155,7 @@ def test_siamese_performance(model, data, labels, flat_metadata, dataname=''):
     fnum_gen = pt.make_fnum_nextgen()
 
     ut.colorprint('[siam_perf] Show era history', 'white')
-    fig = model.show_era_history(fnum=fnum_gen())
+    fig = model.show_era_loss(fnum=fnum_gen())
     pt.save_figure(fig=fig, dpath=epoch_dpath, dpi=180)
 
     # hack

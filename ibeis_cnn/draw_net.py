@@ -260,6 +260,8 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
                         v['height'] =  v['out_size'][1] * scale[1] * scale_dense_max
                     elif v['out_size'][1] < scale_dense_min:
                         v['height'] = scale_dense_min * v['out_size'][1]
+                    else:
+                        v['height'] = v['out_size'][1]
                 else:
                     v['shape'] = 'stack'
                     #v['shape'] = 'rect'
@@ -279,23 +281,14 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
     key_order = ut.take(layer_to_id, layers)
     node_dict = ut.dict_subset(node_dict, key_order)
 
-    print(ut.repr3(node_dict))
+    print('node_dict = ' + ut.repr3(node_dict))
 
+    # Create the networkx graph structure
     G = nx.DiGraph()
-    #G.add_nodes_from(list(node_dict.keys()))
     G.add_nodes_from(node_dict.items())
     G.add_edges_from(edge_list)
     for key, val in edge_attrs.items():
         nx.set_edge_attributes(G, key, val)
-
-    for n1, n2 in list(G.edges()):
-        #if node_dict[n1]['is_main_layer']:
-        #    G.edge[n1][n2]['constraint'] = 'true'
-        if node_dict[n2]['is_main_layer']:
-            G.edge[n1][n2]['constraint'] = 'true'
-            #G.edge[n1][n2]['constraint'] = 'false'
-        else:
-            G.edge[n1][n2]['constraint'] = 'false'
 
     # Add invisible structure
     main_nodes = [key for key, val in
@@ -303,34 +296,24 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
 
     main_children = {}
 
-    between_edges = []
     for n1 in main_nodes:
         main_children[n1] = []
-        #descendants = nx.descendants(G, n1)
-        # Main nodes only place constraints on
-        # nodes in the next main group. Not their own
-        between = []
+        # Main nodes only place constraints on nodes in the next main group.
+        # Not their own
         next_main = None
         G.node[n1]['group'] = n1
         for (_, n2) in nx.bfs_edges(G, n1):
             if next_main is None:
                 if n2 in main_nodes:
-                    between = []
                     next_main = n2
                 else:
                     G.node[n2]['group'] = n1
                     main_children[n1].append(n2)
-            elif next_main is not None and n2 in main_nodes:
-                #between.append(n2)
-                break
-            between.append(n2)
-        between_edges.append((n1, between))
 
-    # Custom position
+    # Custom positioning
     x = 0
     y = 1000
-    #x_step = main_size_[0] * 1.5
-    print('main_nodes = %s' % (ut.repr2(main_children),))
+    print('main_children = %s' % (ut.repr3(main_children),))
 
     main_nodes = ut.isect(list(nx.topological_sort(G)), main_nodes)
     xpad = main_size_[0] * .3
@@ -385,24 +368,8 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
     if 1:
         nx.set_node_attributes(G_, 'label', _labels)
     _ = pt.show_nx(G_, fontsize=10, arrow_width=.3, layout='custom', fnum=fnum)  # NOQA
-    pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
-
-    #for n1, n2s in between_edges:
-    #    for n2 in n2s:
-    #        style = 'invis'
-    #        #style = 'visible'
-    #        if not G.has_edge(n1, n2):
-    #            #G.add_edge(n1, n2, {'style': 'invis', 'constraint': 'true'})
-    #            G.add_edge(n1, n2, {'style': style, 'constraint': 'true',
-    #                                'color': '#00FF00'})
-    #        else:
-    #            G.edge[n1][n2]['constraint'] = 'true'
-
-    #layoutkw = dict(prog='dot', splines='spline', rankdir='LR', nodesep=1,
-    #                rank='same',
-    #                ranksep=1.5)
-    #pt.show_nx(G, fontsize=6, arrow_width=.5, layoutkw=layoutkw)
-    #pt.show_nx(G, layoutkw=dict(prog='neato'), fontsize=6)
+    #pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
+    #pt.plt.tight_layout()
 
 
 def pydot_to_image(pydot_graph):

@@ -166,10 +166,11 @@ def get_layer_info(layer):
 
     # Get individual param infos
     param_infos = []
-    for param in layer.params.keys():
+    for param, tags in layer.params.items():
         value = param.get_value()
         param_info = ut.odict([
             ('name', param.name),
+            ('tags', tags),
             ('shape', value.shape),
             ('size', value.size),
             ('itemsize', value.dtype.itemsize),

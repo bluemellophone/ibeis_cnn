@@ -48,7 +48,7 @@ def check_external_training_paths():
     for tmp_model in ut.InteractiveIter(tmp_model_list):
         print(fpath)
         print(sum([len(era['epoch_list']) for era in tmp_model.era_history]))
-        tmp_model.show_era_history(fnum=1)
+        tmp_model.show_era_loss(fnum=1)
 
 
 def load_tmp_model():
@@ -60,7 +60,7 @@ def load_tmp_model():
     tmp_model = abstract_models.BaseModel()
     tmp_model.load_model_state(fpath=fpath)
     tmp_model.rrr()
-    tmp_model.show_era_history(fnum=1)
+    tmp_model.show_era_loss(fnum=1)
     pt.iup()
 
 

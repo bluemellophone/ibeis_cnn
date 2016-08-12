@@ -17,7 +17,7 @@ DEBUG_AUGMENTATION = ut.get_argflag('--DEBUG_AUGMENTATION')
 
 @profile
 def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
-                  show=False, spatial=False, **kwargs):
+                  show=False, spatial=False, showprog=True, **kwargs):
     """
     Compute the loss over all training batches.
     Passes data to function that splits it into batches and appropriately
@@ -103,8 +103,6 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
     if buffered:
         batch_iter = ut.buffered_generator(batch_iter)
 
-    showprog = True
-
     if showprog:
         bs = VERBOSE_BATCH < 1
         num_batches = (X.shape[0] + model.batch_size - 1) // model.batch_size
@@ -172,7 +170,7 @@ def process_batch(model, X, y, theano_fn, fix_output=False, buffered=False,
 
 @profile
 def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
-                   X_is_cv2_native=True, verbose=None, showprog=None,
+                   X_is_cv2_native=True, verbose=None,
                    lbl='verbose batch iteration'):
     r"""
     Breaks up data into to batches defined by model batch size
@@ -293,10 +291,6 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
     if verbose:
         verbose = VERBOSE_BATCH
 
-    if showprog is None:
-        showprog = ut.VERBOSE
-        showprog = True
-
     # need to be careful with batchsizes if directly specified to theano
     wraparound = model.input_shape[0] is not None
     augment_on = augment_on and hasattr(model, 'augment')
@@ -354,7 +348,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             Xb = Xb / 255.0
         if augment_on:
             # Apply defined transformations
-            Xb, yb, = augment_batch(model, Xb, yb, batch_index, verbose)
+            Xb, yb, = augment_batch(model, Xb, yb, batch_index, verbose, num_batches)
         if do_whitening:
             # Center the batch data in the range (-1.0, 1.0)
             Xb = (Xb - ceneter_mean01) / (center_std01)
@@ -369,13 +363,13 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             yb = pad_labels(model, yb)
         if verbose:
             # Print info if requested
-            print_batch_info(Xb, yb, verbose)
+            print_batch_info(Xb, yb, verbose, batch_index, num_batches)
         yield Xb, yb
     if verbose:
         print('[batch] END')
 
 
-def augment_batch(model, Xb, yb, batch_index, verbose):
+def augment_batch(model, Xb, yb, batch_index, verbose, num_batches):
     """
     Make sure to augment data in 0-1 space.
     This means use a mean fill values not 0.
@@ -390,14 +384,15 @@ def augment_batch(model, Xb, yb, batch_index, verbose):
             print('Augmenting Data')
             # only copy if we have't yet
     Xb, yb = model.augment(Xb, yb)
-    if DEBUG_AUGMENTATION:
-        #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
-        from ibeis_cnn import augment
-        import plottool as pt
-        augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
-        pt.show_if_requested()
-        ut.embed()
+    #if DEBUG_AUGMENTATION:
+    #    #Xb, yb = augment.augment_siamese_patches2(Xb, yb)
+    #    from ibeis_cnn import augment
+    #    import plottool as pt
+    #    augment.show_augmented_patches(Xb_orig, Xb, yb_orig, yb)
+    #    pt.show_if_requested()
+    #    ut.embed()
     return Xb, yb
+
 
 def pad_labels(model, yb):
     # TODO: FIX data_per_label_input ISSUES
@@ -409,7 +404,7 @@ def pad_labels(model, yb):
     return yb
 
 
-def print_batch_info(Xb, yb, verbose):
+def print_batch_info(Xb, yb, verbose, batch_index, num_batches):
     if verbose > 1 or (batch_index + 1) % num_batches <= 1:
         print('[batch] Yielding batch: batch_index = %r ' % (batch_index,))
         print('[batch]   * Xb.shape = %r, Xb.dtype=%r' % (Xb.shape, Xb.dtype))
