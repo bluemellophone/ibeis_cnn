@@ -237,13 +237,16 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
             edge = (parent_key, key)
             edge_list.append(edge)
 
-    main_size_ = np.array((100, 100)) * 2
-    sub_size = np.array((75, 50)) * 2
+    main_size_ = np.array((100, 100)) * 4
+    sub_size = np.array((75, 50)) * 4
 
     # Setup scaled width and heights
     out_size_list = [v['out_size'] for v in node_dict.values() if 'out_size' in v]
+    out_size_list = np.array(out_size_list)
+    #out_size_list = out_size_list[out_size_list.T[0] > 1]
     area_arr = np.prod(out_size_list, axis=1)
     main_outsize = np.array(out_size_list[area_arr.argmax()])
+    #main_outsize = np.array(out_size_list[area_arr.argmin()])
     scale = main_size_ / main_outsize
 
     scale_dense_max = .25
@@ -369,7 +372,7 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
         nx.set_node_attributes(G_, 'label', _labels)
     _ = pt.show_nx(G_, fontsize=10, arrow_width=.3, layout='custom', fnum=fnum)  # NOQA
     #pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
-    #pt.plt.tight_layout()
+    pt.plt.tight_layout()
 
 
 def pydot_to_image(pydot_graph):
