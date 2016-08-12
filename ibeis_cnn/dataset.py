@@ -357,8 +357,13 @@ class DataSet(ut.NiceRepr):
         dataset.fpath_dict[key] = splitset
 
     def ensure_symlinked(dataset):
-        # creates a symlink in the junction dir
-        register_training_dpath(dataset.dataset_dpath, dataset.dataset_id)
+        """
+        Creates a symlink to the training path in the training junction
+        """
+        junction_dpath = get_juction_dpath()
+        dataset_dname = basename(dataset.dataset_dpath)
+        dataset_dlink = join(junction_dpath, dataset_dname)
+        ut.symlink(dataset.dataset_dpath, dataset_dlink)
 
     def ensure_dirs(dataset):
         ut.ensuredir(dataset.full_dpath)
@@ -425,16 +430,6 @@ def get_juction_dpath():
         ut.symlink(junction_dpath, home_dlink)
     ut.remove_broken_links(junction_dpath)
     return junction_dpath
-
-
-def register_training_dpath(training_dpath):
-    """
-    Creates a symlink to the training path in the training junction
-    """
-    junction_dpath = get_juction_dpath()
-    training_dname = basename(training_dpath)
-    training_dlink = join(junction_dpath, training_dname)
-    ut.symlink(training_dpath, training_dlink)
 
 
 def stratified_shuffle_split(y, fractions, rng=None, class_weights=None):
