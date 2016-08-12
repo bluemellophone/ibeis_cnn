@@ -727,11 +727,11 @@ def make_bundles(nonlinearity='lru', batch_norm=True,
             del layer.params[layer.b]
             layer.b = None
         bn_name = (kwargs.pop('name', None) or
-                   (getattr(layer, 'name', None) and 'bn' + self.name))
+                   (getattr(layer, 'name', None) and 'b' + self.name))
         layer = lasange.layers.normalization.BatchNormLayer(
             layer, name=bn_name, **kwargs)
         if nonlinearity is not None:
-            nonlin_name = 'nl' + self.name
+            nonlin_name = 'g' + self.name
             layer = lasange.layers.special.NonlinearityLayer(layer,
                                                              nonlinearity,
                                                              name=nonlin_name)
@@ -764,13 +764,18 @@ def make_bundles(nonlinearity='lru', batch_norm=True,
     class ConvBundle(object):
         def __init__(self, num_filters, filter_size=filter_size,
                      stride=stride, nonlinearity=nonlinearity,
-                     batch_norm=batch_norm):
+                     batch_norm=batch_norm, pool_size=pool_size,
+                     pool_stride=pool_stride, dropout=None, pool=False):
             self.name = namer()
             self.num_filters = num_filters
             self.filter_size = filter_size
             self.stride = stride
             self.nonlinearity = nonlinearity
             self.batch_norm = batch_norm
+            self.pool_size = pool_size
+            self.pool_stride = pool_stride
+            self.dropout = dropout
+            self.pool = pool
 
         def __call__(self, incoming):
             outgoing = Conv2DLayer(incoming, num_filters=self.num_filters,
@@ -779,6 +784,12 @@ def make_bundles(nonlinearity='lru', batch_norm=True,
                                    nonlinearity=self.nonlinearity)
             if self.batch_norm:
                 outgoing = apply_batch_norm(self, outgoing)
+            if self.pool:
+                outgoing = MaxPool2DLayer(outgoing, pool_size=self.pool_size,
+                                          name='P' + self.name,
+                                          stride=self.pool_stride)
+            if self.dropout is not None and self.dropout > 0:
+                outgoing = apply_dropout(self, outgoing)
             return outgoing
 
     class ConvPoolBundle(ConvBundle):

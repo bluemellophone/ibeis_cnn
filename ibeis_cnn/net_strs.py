@@ -192,7 +192,7 @@ def get_layer_info(layer):
         'MaxPool2DLayer': 'MaxPool2D',
         'MaxPool2DCCLayer' : 'MaxPool2D',
         'MaxPool2DDNNLayer' : 'MaxPool2D',
-        'LeakyRectify'     : 'LRU',
+        'LeakyRectify'     : 'LReLU',
         'InputLayer'       : 'Input',
         'GaussianNoiseLayer': 'Noise',
         'DropoutLayer'     : 'Dropout',
@@ -289,6 +289,8 @@ def get_layer_info(layer):
 
     param_bytes = sum([info['bytes'] for info in param_infos])
     layer_bytes = layer_info['size'] * layer_info['itemsize']
+    #if classname in ['BatchNormLayer', 'NonlinearityLayer']:
+    #    layer_bytes = 0
     layer_info['bytes'] = layer_bytes
     layer_info['param_bytes'] = param_bytes
     layer_info['total_bytes'] = layer_bytes + param_bytes

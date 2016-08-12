@@ -176,7 +176,7 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
             nonlinearity = layer_info.get('nonlinearity')
             if nonlinearity is not None:
                 alias_map = {
-                    'LeakyRectify': 'LRU',
+                    'LeakyRectify': 'LReLU',
                 }
                 val = layer_info['nonlinearity']['type']
                 val = alias_map.get(val, val)
@@ -284,7 +284,7 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
     key_order = ut.take(layer_to_id, layers)
     node_dict = ut.dict_subset(node_dict, key_order)
 
-    print('node_dict = ' + ut.repr3(node_dict))
+    #print('node_dict = ' + ut.repr3(node_dict))
 
     # Create the networkx graph structure
     G = nx.DiGraph()
@@ -316,7 +316,7 @@ def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
     # Custom positioning
     x = 0
     y = 1000
-    print('main_children = %s' % (ut.repr3(main_children),))
+    #print('main_children = %s' % (ut.repr3(main_children),))
 
     main_nodes = ut.isect(list(nx.topological_sort(G)), main_nodes)
     xpad = main_size_[0] * .3

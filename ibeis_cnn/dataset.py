@@ -548,6 +548,74 @@ def stratified_label_shuffle_split(y, labels, fractions, idx=None, rng=None):
     return index_sets
 
 
+def stratified_kfold_label_split(y, labels, n_folds=2, idx=None, rng=None):
+    """
+    modified from sklearn to make n splits instaed of 2.
+    Also enforces that labels are not broken into separate groups.
+
+    Args:
+        y (ndarray):  labels
+        labels (?):
+        fractions (?):
+        rng (RandomState):  random number generator(default = None)
+
+    Returns:
+        ?: index_sets
+
+    CommandLine:
+        python -m ibeis_cnn.dataset stratified_label_shuffle_split --show
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> from ibeis_cnn.dataset import *  # NOQA
+        >>> y      = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        >>> labels = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 5, 5, 6, 0, 7, 7, 7, 7]
+        >>> fractions = [.7, .3]
+        >>> rng = np.random.RandomState(0)
+        >>> index_sets = stratified_label_shuffle_split(y, labels, fractions, rng)
+    """
+
+    rng = ut.ensure_rng(rng)
+    #orig_y = y
+    unique_labels, groupxs = ut.group_indices(labels)
+    grouped_ys = ut.apply_grouping(y, groupxs)
+    # Assign each group a probabilistic class
+    unique_ys = [ys[rng.randint(0, len(ys))] for ys in grouped_ys]
+    # TODO: should weight the following selection based on size of group
+    #class_weights = [ut.dict_hist(ys) for ys in grouped_ys]
+
+    import sklearn.cross_validation
+    xvalkw = dict(n_folds=n_folds, shuffle=True, random_state=43432)
+    skf = sklearn.cross_validation.StratifiedKFold(unique_ys, **xvalkw)
+    _iter = skf
+
+    folded_index_sets = []
+
+    for label_idx_set in _iter:
+        index_sets = [np.array(ut.flatten(ut.take(groupxs, idxs)))
+                      for idxs in label_idx_set]
+        if idx is not None:
+            # These indicies subindex into parent set of indicies
+            index_sets = [np.take(idx, idxs, axis=0) for idxs in index_sets]
+        folded_index_sets.append(index_sets)
+
+    for train_idx, test_idx in folded_index_sets:
+        train_labels = set(ut.take(labels, train_idx))
+        test_labels = set(ut.take(labels, test_idx))
+        assert len(test_labels.intersection(train_labels)) == 0, 'same labels appeared in both train and test'
+        pass
+    #import sklearn.model_selection
+    #skf = sklearn.model_selection.StratifiedKFold(**xvalkw)
+    #_iter = skf.split(X=np.empty(len(target)), y=target)
+
+    #unique_idxs = stratified_shuffle_split(unique_ys, fractions, rng)
+    #index_sets = [np.array(ut.flatten(ut.take(groupxs, idxs))) for idxs in unique_idxs]
+    #if idx is not None:
+    #    # These indicies subindex into parent set of indicies
+    #    index_sets = [np.take(idx, idxs, axis=0) for idxs in index_sets]
+    return folded_index_sets
+
+
 def expand_data_indicies(label_indices, data_per_label=1):
     """
     when data_per_label > 1, gives the corresponding data indicies for the data
