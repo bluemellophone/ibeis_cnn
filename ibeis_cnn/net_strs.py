@@ -202,12 +202,13 @@ def get_layer_info(layer):
     layer_attrs_ignore_dict = {
         'MaxPool2D'  : ['mode', 'ignore_border'],
         'Dropout'  : ['rescale'],
+        'Conv2D'   : ['convolution'],
         'BatchNorm': ['epsilon', 'mean', 'inv_std', 'axes', 'beta', 'gamma']
     }
     layer_attrs_dict = {
         'Input'     : ['shape'],
         'Dropout'   : ['p'],
-        'Conv2D'    : ['num_filters', 'filter_size', 'stride', 'convolution'],
+        'Conv2D'    : ['num_filters', 'filter_size', 'stride'],
         'MaxPool2D' : ['stride', 'pool_size'],  # 'mode'],
         'Dense'     : ['num_units'],
         'SoftMax'   : ['num_units'],
