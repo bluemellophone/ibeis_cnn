@@ -603,14 +603,17 @@ def plot_saliency(net, Xb, figsize=(9, None)):
         import theano.tensor as T
         from lasagne.objectives import binary_crossentropy
         score = -binary_crossentropy(output[:, pred], np.array([1])).sum()
-        return np.abs(T.grad(score, input).eval({input: Xb}))
+        heat_map_ = np.abs(T.grad(score, input).eval({input: Xb}))
+        return heat_map_
 
     def saliency_map_net(net, Xb):
         from lasagne.layers import get_output
         input = net.layers_[0].input_var
         output = get_output(net.layers_[-1])
         pred = output.eval({input: Xb}).argmax(axis=1)
-        return saliency_map(input, output, pred, Xb)[0].transpose(1, 2, 0).squeeze()
+        heat_map_ = saliency_map(input, output, pred, Xb)
+        heat_img = heat_map_[0].transpose(1, 2, 0).squeeze()
+        return heat_img
 
     return _plot_heat_map(
         net, Xb, figsize, lambda net, Xb, n: -saliency_map_net(net, Xb))
@@ -640,15 +643,19 @@ def show_saliency_heatmap(model, dataset):
         >>> show_saliency_heatmap(model, dataset)
         >>> ut.show_if_requested()
     """
-    X_train, y_train = dataset.subset('train')
-    _, _, X_valid, y_valid = model._prefit(X_train, y_train)
+    if dataset.has_subset('valid'):
+        X_train, y_train = dataset.subset('train')
+        _, _, X_valid, y_valid = model._prefit(X_train, y_train)
+    else:
+        X_valid, y_valid = dataset.subset('valid')
     net = model
-    num = 10
-    X = X_valid[0:num]
-    y = y_valid[0:num]
+    num = 4
+    start = 0
+    X = X_valid[start:start + num]
+    y = y_valid[start:start + num]
     Xb = net.prepare_input(X)
-    plot_saliency(net, Xb)
     plot_occlusion(net, Xb, y)
+    #plot_saliency(net, Xb)
 
 
 def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None, pnum=(1, 1, 1)):
