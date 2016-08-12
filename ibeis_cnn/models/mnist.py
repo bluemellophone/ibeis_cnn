@@ -14,6 +14,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         python -m ibeis_cnn.models.mnist MNISTModel:1
 
         python -m ibeis_cnn _ModelFitting.fit:0 --vd
+        python -m ibeis_cnn _ModelFitting.fit:1 --vd
 
     Example:
         >>> # ENABLE_DOCTEST
@@ -104,7 +105,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
             >>> model.print_model_info_str()
             >>> print(model)
             >>> ut.quit_if_noshow()
-            >>> model.show_architecture_image()
+            >>> model.show_arch()
             >>> ut.show_if_requested()
         """
         print('[model] initialize_architecture')

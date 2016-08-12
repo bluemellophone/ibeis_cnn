@@ -414,7 +414,7 @@ class SiameseL2(AbstractSiameseModel):
             >>> output_layer = model.initialize_architecture()
             >>> model.print_model_info_str()
             >>> ut.quit_if_noshow()
-            >>> model.show_architecture_image()
+            >>> model.show_arch()
             >>> ut.show_if_requested()
         """
         # TODO: remove output dims
@@ -748,7 +748,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             >>> print(result)
             >>> ut.quit_if_noshow()
             >>> import plottool as pt
-            >>> model.show_architecture_image()
+            >>> model.show_arch()
             >>> ut.show_if_requested()
         """
         print('[model] initialize_architecture')
@@ -911,7 +911,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
             [
                 _P(layers.InputLayer, shape=model.input_shape),
                 # TODO: Stack Inputs by making a 2 Channel Layer
-                _P(custom_layers.CenterSurroundLayer),
+                _P(custom_layers.CenterSurroundLayer, name='CS'),
 
                 layers.GaussianNoiseLayer,
                 #caffenet.get_conv2d_layer(0, trainable=False, **leaky),
@@ -919,7 +919,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **hidden_initkw),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C4', **hidden_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 #_P(custom_layers.SiameseConcatLayer, data_per_label=2),
@@ -966,7 +966,7 @@ class SiameseCenterSurroundModel(AbstractSiameseModel):
                 _P(MaxPool2DLayer, pool_size=(2, 2), stride=(2, 2), name='P0'),
                 _P(Conv2DLayer, num_filters=192, filter_size=(3, 3), name='C2', **hidden_initkw),
                 _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
-                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C3', **hidden_initkw),
+                _P(Conv2DLayer, num_filters=256, filter_size=(3, 3), name='C4', **hidden_initkw),
                 #_P(custom_layers.L2NormalizeLayer, axis=2),
                 _P(custom_layers.SiameseConcatLayer, axis=1, data_per_label=4),  # 4 when CenterSurroundIsOn
                 # TODO: L2 distance layer

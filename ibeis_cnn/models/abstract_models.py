@@ -427,6 +427,7 @@ class _ModelFitting(object):
             'start_time': ut.get_timestamp()
         }
         ut.ensuredir(model.arch_dpath)
+        # Write feed-forward arch info to arch root
         ut.writeto(join(model.arch_dpath, 'arch_info.json'),
                    model.make_arch_json(with_noise=False), verbose=True)
 
@@ -438,13 +439,13 @@ class _ModelFitting(object):
             ut.ensuredir(session_dpath)
             model._fit_session['session_dpath'] = session_dpath
 
-            ut.writeto(join(model._fit_session['session_dpath'], 'fit_arch_info.json'),
-                       model.make_arch_json(with_noise=True), verbose=True)
-            def prog_metric_path(x):
-                path_fmt = join(model.progress_dpath, x)
-                return ut.get_nonconflicting_path(path_fmt)
-            def prog_metric_dir(x):
-                return ut.ensuredir(prog_metric_path(x))
+            # Write backprop arch info to arch root
+            back_archinfo_fpath = join(model._fit_session['session_dpath'], 'fit_arch_info.json')
+            back_archinfo_json = model.make_arch_json(with_noise=True)
+            ut.writeto(back_archinfo_fpath, back_archinfo_json, verbose=True)
+
+            back_archimg_fpath = join(model._fit_session['session_dpath'], 'fit_arch_graph.jpg')
+            model.imwrite_arch(fpath=back_archimg_fpath)
 
             history_progress_dir = join(session_dpath, 'history')
             weights_progress_dir = join(session_dpath, 'weights')
@@ -740,9 +741,11 @@ class _ModelVisualization(object):
     """
     """
 
-    def show_architecture_image(model, **kwargs):
-        layers = model.get_all_layers()
-        draw_net.show_architecture_nx_graph(layers, **kwargs)
+    def show_arch(model, fnum=None, fullinfo=True, **kwargs):
+        import plottool as pt
+        layers = model.get_all_layers(**kwargs)
+        draw_net.show_arch_nx_graph(layers, fnum=fnum, fullinfo=fullinfo)
+        pt.set_figtitle(model.arch_id)
 
     def show_era_history(model, fnum=None):
         r"""
@@ -1021,13 +1024,40 @@ class _ModelVisualization(object):
 
     imwrite_weights = imwrite_wrapper(show_weights_image)
 
-    #imwrite_architecture = imwrite_wrapper(show_architecture_image)
+    #imwrite_arch = imwrite_wrapper(show_arch)
 
-    def imwrite_architecture(model, fpath='arch_image.png'):
+    def render_arch(model):
+        import plottool as pt
+        with pt.RenderingContext() as render:
+            model.show_arch(fnum=render.fig.number)
+        return render.image
+
+    def imwrite_arch(model, fpath=None):
+        r"""
+        Args:
+            fpath (str):  file path string(default = None)
+
+        CommandLine:
+            python -m ibeis_cnn.models.abstract_models imwrite_arch --show
+
+        Example:
+            >>> # DISABLE_DOCTEST
+            >>> from ibeis_cnn.models.abstract_models import *  # NOQA
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
+            >>>                    output_dims=10, batch_norm=False, name='mnist')
+            >>> model.initialize_architecture()
+            >>> fapth = model.imwrite_arch()
+            >>> ut.quit_if_noshow()
+            >>> ut.startfile(fapth)
+        """
         # FIXME
-        layers = model.get_all_layers()
-        draw_net.imwrite_architecture(layers, fpath)
-        ut.startfile(fpath)
+        import vtool as vt
+        if fpath is None:
+            fpath = './' + model.arch_id + '.jpg'
+        image = model.render_arch()
+        vt.imwrite(fpath, image)
+        return fpath
 
 
 @ut.reloadable_class
@@ -1212,7 +1242,7 @@ class _ModelIDs(object):
             >>> from ibeis_cnn.models.abstract_models import *  # NOQA
             >>> from ibeis_cnn.models import MNISTModel
             >>> model = MNISTModel(batch_size=128, data_shape=(24, 24, 1),
-            >>>                    output_dims=10)
+            >>>                    output_dims=10, name='mnist')
             >>> model.initialize_architecture()
             >>> result = str(model.arch_id)
             >>> print(result)

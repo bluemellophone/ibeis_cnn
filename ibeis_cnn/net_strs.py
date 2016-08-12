@@ -193,8 +193,10 @@ def get_layer_info(layer):
         'MaxPool2DDNNLayer' : 'MaxPool2D',
         'LeakyRectify'     : 'LRU',
         'InputLayer'       : 'Input',
+        'GaussianNoiseLayer': 'Noise',
         'DropoutLayer'     : 'Dropout',
         'DenseLayer'       : 'Dense',
+        'NonlinearityLayer' : 'Nonlinearity',
         'FlattenLayer'     : 'Flatten',
         'L2NormalizeLayer' : 'L2Norm',
         'BatchNormLayer'   : 'BatchNorm',
@@ -206,6 +208,7 @@ def get_layer_info(layer):
         'BatchNorm': ['epsilon', 'mean', 'inv_std', 'axes', 'beta', 'gamma']
     }
     layer_attrs_dict = {
+        'Noise'     : ['sigma'],
         'Input'     : ['shape'],
         'Dropout'   : ['p'],
         'Conv2D'    : ['num_filters', 'filter_size', 'stride'],
@@ -215,6 +218,10 @@ def get_layer_info(layer):
         'L2Norm'    : ['axis'],
         'BatchNorm' : ['alpha']
     }
+    all_ignore_attrs = ['nonlinearity', 'b', 'W', 'get_output_kwargs', 'name',
+                        'input_shape', 'input_layer', 'input_var',
+                        'untie_biases', 'flip_filters', 'pad', 'params', 'n']
+
     classname = layer.__class__.__name__
     classalias = classalias_map.get(classname, classname)
     if classalias == 'FeaturePoolLayer' and ut.get_funcname(layer.pool_function) == 'max':
@@ -222,15 +229,21 @@ def get_layer_info(layer):
     if classalias == 'Dense' and ut.get_funcname(layer.nonlinearity) == 'softmax':
         classalias = 'SoftMax'
 
-    layer_attrs = ut.odict([(key, getattr(layer, key))
-                            for key in layer_attrs_dict.get(classalias, [])])
-    attr_key_list = layer_attrs
-    ignore_attrs = ['nonlinearity', 'b', 'W', 'get_output_kwargs', 'name',
-                    'input_shape', 'input_layer', 'input_var',
-                    'untie_biases', 'flip_filters', 'pad', 'params', 'n']
-    ignore_attrs += layer_attrs_ignore_dict.get(classalias, [])
-    missing_keys = ((set(layer.__dict__.keys()) - set(ignore_attrs)) - set(attr_key_list))
+    layer_attrs = ut.odict([
+        (key, getattr(layer, key))
+        for key in layer_attrs_dict.get(classalias, [])
+    ])
+    ignore_attrs = (all_ignore_attrs +
+                    layer_attrs_ignore_dict.get(classalias, []))
+
+    if classalias == classname and len(layer_attrs) == 0:
+        layer_attrs = layer.__dict__.copy()
+        ut.delete_dict_keys(layer_attrs, ignore_attrs)
+
+    attr_key_list = list(layer_attrs.keys())
+    missing_keys = (set(layer.__dict__.keys()) - set(ignore_attrs) - set(attr_key_list))
     missing_keys = [k for k in missing_keys if not k.startswith('_')]
+
     #if layer_type == 'Conv2DCCLayer':
     #    ut.embed()
     DEBUG = True
@@ -240,7 +253,9 @@ def get_layer_info(layer):
         print(' * missing keys: %r' % (missing_keys,))
         print(' * has keys: %r' % (attr_key_list,))
         if True:
-            raise AssertionError('MISSING KEYS')
+            import utool
+            with utool.embed_on_exception_context:
+                raise AssertionError('MISSING KEYS')
 
     layer_info = ut.odict([
         ('name', layer.name),

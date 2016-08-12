@@ -5,6 +5,9 @@ Functions to create network diagrams from a list of Layers.
 References:
     # Adapted from
     https://github.com/ebenolson/Lasagne/blob/master/examples/draw_net.py
+
+    # TODO:
+    https://github.com/dnouri/nolearn/blob/master/nolearn/lasagne/visualize.py
 """
 from __future__ import absolute_import, division, print_function
 from operator import itemgetter
@@ -37,7 +40,7 @@ def draw_neural_net(ax, left, right, bottom, top, layer_sizes):
 
     Draw a neural network cartoon using matplotilb.
 
-    :usage:
+    Example:
         >>> fig = plt.figure(figsize=(12, 12))
         >>> draw_neural_net(fig.gca(), .1, .9, .1, .9, [4, 7, 2])
 
@@ -77,7 +80,38 @@ def draw_neural_net(ax, left, right, bottom, top, layer_sizes):
                 ax.add_artist(line)
 
 
-def show_architecture_nx_graph(layers, fullinfo=True):
+def show_arch_nx_graph(layers, fnum=None, fullinfo=True):
+    r"""
+
+    CommandLine:
+        python -m ibeis_cnn.draw_net show_arch_nx_graph:0 --show
+        python -m ibeis_cnn.draw_net show_arch_nx_graph:1 --show
+
+    Example0:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.mnist.MNISTModel(batch_size=128, output_dims=10,
+        >>>                                 data_shape=(24, 24, 3))
+        >>> model.initialize_architecture()
+        >>> layers = model.get_all_layers()
+        >>> show_arch_nx_graph(layers)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> ut.show_if_requested()
+
+    Example1:
+        >>> # ENABLE_DOCTEST
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import models
+        >>> model = models.SiameseCenterSurroundModel(autoinit=True)
+        >>> layers = model.get_all_layers()
+        >>> show_arch_nx_graph(layers)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> ut.show_if_requested()
+
+    """
     import networkx as nx
     import plottool as pt
     import ibeis_cnn.__LASAGNE__ as lasange
@@ -96,21 +130,36 @@ def show_architecture_nx_graph(layers, fullinfo=True):
             return '#6CCF8D'
         if 'Pool' in layer_type:
             return '#9D9DD2'
+        if 'SoftMax' in layer_type:
+            return '#7E9FD9'
         else:
             return '#{0:x}'.format(hash(layer_type + 'salt') % 2 ** 24)
-
-    main_size = np.array((100, 100)) * 2
-    sub_size = np.array((75, 50)) * 2
 
     node_dict = {}
     edge_list = []
     edge_attrs = ut.ddict(dict)
+
+    # Make layer ids (ensure no duplicates)
+    layer_to_id = {
+        l: repr(l) if l.name is None else l.name
+        for l in set(layers)
+    }
+    keys_ = layer_to_id.keys()
+    dups = ut.find_duplicate_items(layer_to_id.values())
+    for dupval, dupidxs in dups.items():
+        newval_fmt = dupval + '_%d'
+        for layer in ut.take(keys_, dupidxs):
+            newid = ut.get_nonconflicting_string(newval_fmt, layer_to_id.values())
+            layer_to_id[layer] = newid
+
+    def layerid(layer):
+        return layer_to_id[layer]
+
     for i, layer in enumerate(layers):
         layer_info = net_strs.get_layer_info(layer)
         layer_type = layer_info['classalias']
 
-        #key = repr(layer)
-        key = repr(layer) if layer.name is None else layer.name
+        key = layerid(layer)
 
         color = get_hex_color(layer_info['classalias'])
         # Make label
@@ -119,27 +168,17 @@ def show_architecture_nx_graph(layers, fullinfo=True):
             lines.append(layer_info['name'])
         lines.append(layer_info['classalias'])
         if fullinfo:
-            for attr in ['num_filters', 'num_units', 'ds', 'axis',
-                         'filter_size', 'filter_shape', 'stride', 'strides',
-                         'p', 'pool_size']:
-                val = getattr(layer, attr, None)
-                if val is not None:
-                    lines.append('{0}: {1}'.format(attr, val))
+            for attr, val in layer_info['layer_attrs'].items():
+                if attr == 'shape' and REMOVE_BATCH_SIZE:
+                    val = val[1:]
+                lines.append('{0}: {1}'.format(attr, val))
 
-            attr = 'shape'
-            if hasattr(layer, attr):
-                val = getattr(layer, attr)
-                shape = val[1:] if REMOVE_BATCH_SIZE else val
-                lines.append('{0}: {1}'.format(attr, shape))
-
-            alias_map = {
-                'LeakyRectify': 'LRU',
-            }
-            if hasattr(layer, 'nonlinearity'):
-                try:
-                    val = layer.nonlinearity.__name__
-                except AttributeError:
-                    val = layer.nonlinearity.__class__.__name__
+            nonlinearity = layer_info.get('nonlinearity')
+            if nonlinearity is not None:
+                alias_map = {
+                    'LeakyRectify': 'LRU',
+                }
+                val = layer_info['nonlinearity']['type']
                 val = alias_map.get(val, val)
                 lines.append('nonlinearity:\n{0}'.format(val))
 
@@ -160,31 +199,30 @@ def show_architecture_nx_graph(layers, fullinfo=True):
                          fillcolor=color, style='filled',
                          is_main_layer=is_main_layer)
 
-        if is_main_layer:
-            node_attr['shape'] = 'rect'
-            node_attr['width'] = main_size[0]
-            node_attr['height'] = main_size[1]
-        else:
-            node_attr['shape'] = 'ellipse'
-            node_attr['width'] = sub_size[0]
-            node_attr['height'] = sub_size[1]
+        node_attr['is_main_layer'] = is_main_layer
+        node_attr['classalias'] = layer_info['classalias']
 
         if is_main_layer:
-            #if hasattr(layer, 'shape'):
-            #    if len(layer.shape) == 3:
-            #        node_attr['width'] = layer.shape[2]
-            #        node_attr['height'] = layer.shape[1]
-
+            if hasattr(layer, 'shape'):
+                if len(layer.shape) == 3:
+                    node_attr['out_size'] = (layer.shape[2],
+                                             layer.shape[1])
+                    node_attr['depth'] = layer.output_shape[0]
             if hasattr(layer, 'output_shape'):
                 if len(layer.output_shape) == 4:
-                    node_attr['width'] = layer.output_shape[3]
-                    node_attr['height'] = layer.output_shape[2]
+                    depth = layer.output_shape[1]
+                    width, height = (layer.output_shape[3],
+                                     layer.output_shape[2])
+                    xshift = -width * (.1 / (depth ** (1 / 3))) / 3
+                    yshift = height * (.1 / (depth ** (1 / 3))) / 2
+                    node_attr['depth'] = depth
+                    node_attr['xshift'] = xshift
+                    node_attr['yshift'] = yshift
+                    node_attr['out_size'] = (width, height)
 
                 if len(layer.output_shape) == 2:
-                    node_attr['width'] = 10
-                    node_attr['height'] = layer.output_shape[1]
-
-            pass
+                    node_attr['out_size'] = (1,
+                                             layer.output_shape[1])
 
         node_dict[key] = node_attr
 
@@ -195,9 +233,53 @@ def show_architecture_nx_graph(layers, fullinfo=True):
             _input_layers += [layer.input_layer]
 
         for input_layer in _input_layers:
-            parent_key = repr(input_layer) if input_layer.name is None else input_layer.name
+            parent_key = layerid(input_layer)
             edge = (parent_key, key)
             edge_list.append(edge)
+
+    main_size_ = np.array((100, 100)) * 2
+    sub_size = np.array((75, 50)) * 2
+
+    # Setup scaled width and heights
+    out_size_list = [v['out_size'] for v in node_dict.values() if 'out_size' in v]
+    area_arr = np.prod(out_size_list, axis=1)
+    main_outsize = np.array(out_size_list[area_arr.argmax()])
+    scale = main_size_ / main_outsize
+
+    scale_dense_max = .25
+    scale_dense_min = 8
+
+    for k, v in node_dict.items():
+        if v['is_main_layer']:
+            if 'out_size' in v:
+                # Make dense layers more visible
+                if v['classalias'] == 'Dense':
+                    v['shape'] = 'rect'
+                    v['width'] = scale_dense_min
+                    if v['out_size'][1] > main_outsize[1]:
+                        v['height'] =  v['out_size'][1] * scale[1] * scale_dense_max
+                    elif v['out_size'][1] < scale_dense_min:
+                        v['height'] = scale_dense_min * v['out_size'][1]
+                else:
+                    v['shape'] = 'stack'
+                    #v['shape'] = 'rect'
+                    v['width'] = v['out_size'][0] * scale[0]
+                    v['height'] =  v['out_size'][1] * scale[1]
+            else:
+                v['shape'] = 'rect'
+                v['width'] = main_size_[0]
+                v['height'] = main_size_[1]
+        else:
+            #v['shape'] = 'ellipse'
+            v['shape'] = 'rect'
+            v['style'] = 'rounded'
+            v['width'] = sub_size[0]
+            v['height'] = sub_size[1]
+
+    key_order = ut.take(layer_to_id, layers)
+    node_dict = ut.dict_subset(node_dict, key_order)
+
+    print(ut.repr3(node_dict))
 
     G = nx.DiGraph()
     #G.add_nodes_from(list(node_dict.keys()))
@@ -245,41 +327,64 @@ def show_architecture_nx_graph(layers, fullinfo=True):
         between_edges.append((n1, between))
 
     # Custom position
-    x = 10
+    x = 0
     y = 1000
-    x_step = main_size[0] * 1.5
-    y_step = sub_size[1] * 1.5
-    print('main_nodes = %r' % (main_children,))
+    #x_step = main_size_[0] * 1.5
+    print('main_nodes = %s' % (ut.repr2(main_children),))
 
     main_nodes = ut.isect(list(nx.topological_sort(G)), main_nodes)
+    xpad = main_size_[0] * .3
+    ypad = main_size_[1] * .3
 
-    for xx, n1 in enumerate(main_nodes):
-        yx = 0
-        xpos = x + xx * x_step
-        pos = np.array([xpos, y])
-        #G.node[n2]['pos'] = '%r,%r!' % pos
+    # Draw each main node, and then put its children under it
+    # Then move to the left and draw the next main node.
+    cumwidth = 0
+    for n1 in main_nodes:
+        cumheight = 0
+
+        maxwidth = G.node[n1]['width']
+        for n2 in main_children[n1]:
+            maxwidth = max(maxwidth, G.node[n2]['width'])
+
+        cumwidth += xpad
+        cumwidth += maxwidth / 2
+
+        pos = np.array([x + cumwidth, y - cumheight])
         G.node[n1]['pos'] = pos
         G.node[n1]['pin'] = 'true'
-        children = main_children[n1]
-        y_base = y - main_size[1] - sub_size[1] * .5
-        for yx, n2 in enumerate(children, start=0):
-            pos = np.array([xpos, y_base - yx * y_step])
+
+        height = G.node[n1]['height']
+        cumheight += height / 2
+
+        for n2 in main_children[n1]:
+            height = G.node[n2]['height']
+            cumheight += ypad
+            cumheight += height / 2
+            pos = np.array([x + cumwidth, y - cumheight])
             G.node[n2]['pos'] = pos
             G.node[n2]['pin'] = 'true'
-            #G.node[n2]['pos'] = '%r,%r!' % (x + xx * 10, y + yx * 10)
+            cumheight += height / 2
+
+        cumwidth += maxwidth / 2
+
+    # Pin everybody
     nx.set_node_attributes(G, 'pin', 'true')
     layoutkw = dict(prog='neato', splines='line')
-    layoutkw = dict(prog='neato', splines='spline')
+    #layoutkw = dict(prog='neato', splines='spline')
+    layoutkw = dict(prog='neato', splines='ortho')
     G_ = G.copy()
     # delete lables for positioning
     _labels = nx.get_node_attributes(G_, 'label')
     ut.nx_delete_node_attr(G_, 'label')
     nx.set_node_attributes(G_, 'label', '')
-    layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)
+    if 0:
+        G_.remove_edges_from(list(G_.edges()))
+    else:
+        layout_info = pt.nx_agraph_layout(G_, inplace=True, **layoutkw)  # NOQA
     # reset labels
-    nx.set_node_attributes(G_, 'label', _labels)
-    _ = pt.show_nx(G_, fontsize=10, arrow_width=1, layout='custom')
-    _, layout_info
+    if 1:
+        nx.set_node_attributes(G_, 'label', _labels)
+    _ = pt.show_nx(G_, fontsize=10, arrow_width=.3, layout='custom', fnum=fnum)  # NOQA
     pt.adjust_subplots2(top=1, bot=0, left=0, right=1)
 
     #for n1, n2s in between_edges:
@@ -356,7 +461,7 @@ def pydot_to_image(pydot_graph):
 #    return img
 
 
-#def imwrite_architecture(layers, fpath, **kwargs):
+#def imwrite_arch(layers, fpath, **kwargs):
 #    """
 #    Draws a network diagram to a file
 
@@ -368,7 +473,7 @@ def pydot_to_image(pydot_graph):
 #            see docstring of make_architecture_pydot_graph for other options
 
 #    CommandLine:
-#        python -m ibeis_cnn.draw_net --test-imwrite_architecture --show
+#        python -m ibeis_cnn.draw_net --test-imwrite_arch --show
 
 #    Example:
 #        >>> # ENABLE_DOCTEST
@@ -379,7 +484,7 @@ def pydot_to_image(pydot_graph):
 #        >>> layers = model.get_all_layers()
 #        >>> fpath = ut.unixjoin(ut.ensure_app_resource_dir('ibeis_cnn'), 'tmp.png')
 #        >>> # execute function
-#        >>> imwrite_architecture(layers, fpath)
+#        >>> imwrite_arch(layers, fpath)
 #        >>> ut.quit_if_noshow()
 #        >>> ut.startfile(fpath)
 #    """

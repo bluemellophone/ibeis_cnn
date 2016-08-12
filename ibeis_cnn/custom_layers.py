@@ -516,6 +516,7 @@ def testdata_centersurround(item_shape):
 
 class CenterSurroundLayer(lasagne.layers.Layer):
     def __init__(self, input_layer, *args, **kwargs):
+        #self.name = kwargs.pop('name', None)
         super(CenterSurroundLayer, self).__init__(input_layer, *args, **kwargs)
 
     def get_output_shape_for(self, input_shape):
@@ -793,7 +794,7 @@ def make_bundles(nonlinearity='lru', batch_norm=True,
             outgoing = MaxPool2DLayer(conv, pool_size=self.pool_size,
                                       name='P' + self.name,
                                       stride=self.pool_stride)
-            if self.dropout is not None:
+            if self.dropout is not None and self.dropout > 0:
                 outgoing = apply_dropout(self, outgoing)
             return outgoing
 
@@ -812,7 +813,7 @@ def make_bundles(nonlinearity='lru', batch_norm=True,
                 nonlinearity=self.nonlinearity)
             if self.batch_norm:
                 outgoing = apply_batch_norm(self, outgoing)
-            if self.dropout is not None:
+            if self.dropout is not None and self.dropout > 0:
                 outgoing = apply_dropout(self, outgoing)
             return outgoing
 
