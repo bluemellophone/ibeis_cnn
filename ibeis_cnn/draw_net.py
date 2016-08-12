@@ -464,6 +464,192 @@ def pydot_to_image(pydot_graph):
 #    with open(fpath, 'w') as fid:
 #        fid.write(pydot_graph.create(format=ext))
 
+def occlusion_heatmap(net, x, target, square_length=7):
+    """An occlusion test that checks an image for its critical parts.
+    In this function, a square part of the image is occluded (i.e. set
+    to 0) and then the net is tested for its propensity to predict the
+    correct label. One should expect that this propensity shrinks of
+    critical parts of the image are occluded. If not, this indicates
+    overfitting.
+    Depending on the depth of the net and the size of the image, this
+    function may take awhile to finish, since one prediction for each
+    pixel of the image is made.
+    Currently, all color channels are occluded at the same time. Also,
+    this does not really work if images are randomly distorted by the
+    batch iterator.
+    See paper: Zeiler, Fergus 2013
+    Parameters
+    ----------
+    net : NeuralNet instance
+      The neural net to test.
+    x : np.array
+      The input data, should be of shape (1, c, x, y). Only makes
+      sense with image data.
+    target : int
+      The true value of the image. If the net makes several
+      predictions, say 10 classes, this indicates which one to look
+      at.
+    square_length : int (default=7)
+      The length of the side of the square that occludes the image.
+      Must be an odd number.
+    Results
+    -------
+    heat_array : np.array (with same size as image)
+      An 2D np.array that at each point (i, j) contains the predicted
+      probability of the correct class if the image is occluded by a
+      square with center (i, j).
+    """
+    from lasagne.layers import get_output_shape
+
+    if (x.ndim != 4) or x.shape[0] != 1:
+        raise ValueError("This function requires the input data to be of "
+                         "shape (1, c, x, y), instead got {}".format(x.shape))
+    if square_length % 2 == 0:
+        raise ValueError("Square length has to be an odd number, instead "
+                         "got {}.".format(square_length))
+
+    num_classes = get_output_shape(net.layers_[-1])[1]
+    img = x[0].copy()
+    bs, col, s0, s1 = x.shape
+
+    heat_array = np.zeros((s0, s1))
+    pad = square_length // 2 + 1
+    x_occluded = np.zeros((s1, col, s0, s1), dtype=img.dtype)
+    probs = np.zeros((s0, s1, num_classes))
+
+    # generate occluded images
+    for i in range(s0):
+        # batch s1 occluded images for faster prediction
+        for j in range(s1):
+            x_pad = np.pad(img, ((0, 0), (pad, pad), (pad, pad)), 'constant')
+            x_pad[:, i:i + square_length, j:j + square_length] = 0.
+            x_occluded[j] = x_pad[:, pad:-pad, pad:-pad]
+        y_proba = net.predict_proba_Xb(x_occluded)
+        probs[i] = y_proba.reshape(s1, num_classes)
+
+    # from predicted probabilities, pick only those of target class
+    for i in range(s0):
+        for j in range(s1):
+            heat_array[i, j] = probs[i, j, target]
+    return heat_array
+
+
+def _plot_heat_map(net, Xb, figsize, get_heat_image):
+    import plottool as pt
+    if (Xb.ndim != 4):
+        raise ValueError("This function requires the input data to be of "
+                         "shape (b, c, x, y), instead got {}".format(Xb.shape))
+
+    num_images = Xb.shape[0]
+    if figsize[1] is None:
+        figsize = (figsize[0], num_images * figsize[0] / 3)
+    figs, axes = pt.plt.subplots(num_images, 3, figsize=figsize)
+
+    for ax in axes.flatten():
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('off')
+
+    for n in range(num_images):
+        heat_img = get_heat_image(net, Xb[n:n + 1, :, :, :], n)
+
+        ax = axes if num_images == 1 else axes[n]
+        img = Xb[n, :, :, :].mean(0)
+        ax[0].imshow(-img, interpolation='nearest', cmap='gray')
+        ax[0].set_title('image')
+        ax[1].imshow(-heat_img, interpolation='nearest', cmap='Reds')
+        ax[1].set_title('critical parts')
+        ax[2].imshow(-img, interpolation='nearest', cmap='gray')
+        ax[2].imshow(-heat_img, interpolation='nearest', cmap='Reds',
+                     alpha=0.6)
+        ax[2].set_title('super-imposed')
+    return pt.plt
+
+
+def plot_occlusion(net, Xb, target, square_length=7, figsize=(9, None)):
+    """Plot which parts of an image are particularly import for the
+    net to classify the image correctly.
+    See paper: Zeiler, Fergus 2013
+    Parameters
+    ----------
+    net : NeuralNet instance
+      The neural net to test.
+    Xb : numpy.array
+      The input data, should be of shape (b, c, 0, 1). Only makes
+      sense with image data.
+    target : list or numpy.array of ints
+      The true values of the image. If the net makes several
+      predictions, say 10 classes, this indicates which one to look
+      at. If more than one sample is passed to Xb, each of them needs
+      its own target.
+    square_length : int (default=7)
+      The length of the side of the square that occludes the image.
+      Must be an odd number.
+    figsize : tuple (int, int)
+      Size of the figure.
+    Plots
+    -----
+    Figure with 3 subplots: the original image, the occlusion heatmap,
+    and both images super-imposed.
+    """
+    return _plot_heat_map(
+        net, Xb, figsize, lambda net, Xb, n: occlusion_heatmap(
+            net, Xb, target[n], square_length))
+
+
+def plot_saliency(net, Xb, figsize=(9, None)):
+
+    def saliency_map(input, output, pred, Xb):
+        import theano.tensor as T
+        from lasagne.objectives import binary_crossentropy
+        score = -binary_crossentropy(output[:, pred], np.array([1])).sum()
+        return np.abs(T.grad(score, input).eval({input: Xb}))
+
+    def saliency_map_net(net, Xb):
+        from lasagne.layers import get_output
+        input = net.layers_[0].input_var
+        output = get_output(net.layers_[-1])
+        pred = output.eval({input: Xb}).argmax(axis=1)
+        return saliency_map(input, output, pred, Xb)[0].transpose(1, 2, 0).squeeze()
+
+    return _plot_heat_map(
+        net, Xb, figsize, lambda net, Xb, n: -saliency_map_net(net, Xb))
+
+
+def show_saliency_heatmap(model, dataset):
+    """
+    https://github.com/dnouri/nolearn/blob/master/nolearn/lasagne/visualize.py
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> # Assumes mnist is trained
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> from ibeis_cnn.models import MNISTModel
+        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+        >>>                    name='bnorm',
+        >>>                    output_dims=len(dataset.unique_labels),
+        >>>                    batch_norm=True,
+        >>>                    dataset_dpath=dataset.dataset_dpath)
+        >>> model.encoder = None
+        >>> model.initialize_architecture()
+        >>> model.load_model_state()
+        >>> import plottool as pt
+        >>> pt.qt4ensure()
+        >>> show_saliency_heatmap(model, dataset)
+        >>> ut.show_if_requested()
+    """
+    X_train, y_train = dataset.subset('train')
+    _, _, X_valid, y_valid = model._prefit(X_train, y_train)
+    net = model
+    num = 10
+    X = X_valid[0:num]
+    y = y_valid[0:num]
+    Xb = net.prepare_input(X)
+    plot_saliency(net, Xb)
+    plot_occlusion(net, Xb, y)
+
 
 def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None, pnum=(1, 1, 1)):
     r"""
@@ -475,6 +661,38 @@ def show_convolutional_weights(all_weights, use_color=None, limit=144, fnum=None
     CommandLine:
         python -m ibeis_cnn.draw_net --test-show_convolutional_weights --show
         python -m ibeis_cnn.draw_net --test-show_convolutional_weights --show --index=1
+
+        # Need to fit mnist first
+        python -m ibeis_cnn _ModelFitting.fit:1 --vd
+
+
+    Example:
+        >>> # DISABLE_DOCTEST
+        >>> # Assumes mnist is trained
+        >>> from ibeis_cnn.draw_net import *  # NOQA
+        >>> from ibeis_cnn import ingest_data
+        >>> from ibeis_cnn.models import MNISTModel
+        >>> dataset = ingest_data.grab_mnist_category_dataset()
+        >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+        >>>                    name='bnorm',
+        >>>                    output_dims=len(dataset.unique_labels),
+        >>>                    batch_norm=True,
+        >>>                    dataset_dpath=dataset.dataset_dpath)
+        >>> model.encoder = None
+        >>> model.initialize_architecture()
+        >>> model.load_model_state()
+        >>> nn_layers = model.get_all_layers()
+        >>> weighted_layers = [layer for layer in nn_layers if hasattr(layer, 'W')]
+        >>> all_weights = weighted_layers[0].W.get_value()
+        >>> print('all_weights.shape = %r' % (all_weights.shape,))
+        >>> use_color = None
+        >>> limit = 64
+        >>> fig = show_convolutional_weights(all_weights, use_color, limit)
+        >>> ut.quit_if_noshow()
+        >>> import plottool as pt
+        >>> pt.qt4ensure()
+        >>> fig = show_convolutional_weights(all_weights, use_color, limit)
+        >>> ut.show_if_requested()
 
     Example:
         >>> # ENABLE_DOCTEST

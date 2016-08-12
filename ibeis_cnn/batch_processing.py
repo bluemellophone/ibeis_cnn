@@ -342,7 +342,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
             wraparound=wraparound)
         # Ensure correct format for the GPU
         Xb = Xb_orig.astype(np.float32)
-        yb = None if Xb_orig is None else yb_orig.astype(np.int32)
+        yb = None if yb_orig is None else yb_orig.astype(np.int32)
         if needs_convert:
             # Rescale the batch data to the range 0 to 1
             Xb = Xb / 255.0
@@ -355,12 +355,13 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         if X_is_cv2_native:
             # Convert from cv2 to lasange format
             Xb = Xb.transpose((0, 3, 1, 2))
-        if encoder is not None:
-            # Apply an encoding if applicable
-            yb = encoder.transform(yb).astype(np.int32)
-        if model.data_per_label_input > 1 and getattr(model, 'needs_padding', False):
-            # Pad data for siamese networks
-            yb = pad_labels(model, yb)
+        if yb is not None:
+            if encoder is not None:
+                # Apply an encoding if applicable
+                yb = encoder.transform(yb).astype(np.int32)
+            if model.data_per_label_input > 1 and getattr(model, 'needs_padding', False):
+                # Pad data for siamese networks
+                yb = pad_labels(model, yb)
         if verbose:
             # Print info if requested
             print_batch_info(Xb, yb, verbose, batch_index, num_batches)
@@ -414,12 +415,13 @@ def print_batch_info(Xb, yb, verbose, batch_index, num_batches):
 
 
 def concatenate_hack(sequence, axis=0):
+    print(sequence)
     # Hack to fix numpy bug. concatenate should do hstacks on 0-dim arrays
-    if len(sequence) > 0 and len(sequence[1].shape) == 0:
-        res = np.hstack(sequence)
+    if len(sequence) > 1 and len(sequence[1].shape) == 0:
+        arr = np.hstack(sequence)
     else:
-        res = np.concatenate(sequence, axis=axis)
-    return res
+        arr = np.concatenate(sequence, axis=axis)
+    return arr
 
 
 if __name__ == '__main__':

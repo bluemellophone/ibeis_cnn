@@ -478,7 +478,7 @@ class _ModelFitting(object):
                 'weights_progress_dir': weights_progress_dir,
             })
 
-    def _prefit(model, X_train, y_train, X_valid, y_valid, valid_idx):
+    def _prefit(model, X_train, y_train, X_valid=None, y_valid=None, valid_idx=None):
         # Center the data by subtracting the mean
         model.check_data_shape(X_train)
 
@@ -1615,6 +1615,20 @@ class _ModelIO(object):
         TODO: resolve load_model_state and load_extern_weights into a single
             function that is less magic in what it does and more
             straightforward
+
+        Example:
+            >>> # Assumes mnist is trained
+            >>> from ibeis_cnn import ingest_data
+            >>> from ibeis_cnn.models import MNISTModel
+            >>> dataset = ingest_data.grab_mnist_category_dataset()
+            >>> model = MNISTModel(batch_size=128, data_shape=dataset.data_shape,
+            >>>                    name='bnorm',
+            >>>                    output_dims=len(dataset.unique_labels),
+            >>>                    batch_norm=True,
+            >>>                    dataset_dpath=dataset.dataset_dpath)
+            >>> model.encoder = None
+            >>> model.initialize_architecture()
+            >>> model.load_model_state()
         """
         model_state_fpath = model.get_model_state_fpath(**kwargs)
         print('[model] loading model state from: %s' % (model_state_fpath,))
@@ -2181,8 +2195,10 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
     #    from ibeis_cnn import harness
     #    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
 
-    def predict2(model, X_test):
-        """ FIXME: turn into a real predict function """
+    def _predict(model, X_test):
+        """
+        Returns all prediction outputs of the network in a dictionary.
+        """
         from ibeis_cnn import batch_processing as batch
         if ut.VERBOSE:
             print('\n[train] --- MODEL INFO ---')
@@ -2196,6 +2212,67 @@ class BaseModel(_ModelLegacy, _ModelVisualization, _ModelIO, _ModelStrings,
         test_outputs = batch.process_batch(model, X_test, None, theano_predict,
                                            fix_output=True)
         return test_outputs
+
+    def predict_proba(model, X_test):
+        test_outptuts = model._predict(X_test)
+        y_proba = test_outptuts['network_output_determ']
+        return y_proba
+
+    def predict_proba_Xb(model, Xb):
+        """ Accepts prepared inputs """
+        theano_predict = model.build_predict_func()
+        batch_output = theano_predict(Xb)
+        output_names = [
+            str(outexpr.variable)
+            if outexpr.variable.name is None else
+            outexpr.variable.name
+            for outexpr in theano_predict.outputs
+        ]
+        test_outputs = dict(zip(output_names, batch_output))
+        y_proba = test_outputs['network_output_determ']
+        return y_proba
+
+    def predict(model, X_test):
+        test_outptuts = model._predict(X_test)
+        y_predict = test_outptuts['predictions']
+        return y_predict
+
+    @property
+    def layers_(model):
+        """ for compatibility with nolearn visualizations """
+        return model.get_all_layers()
+
+    def prepare_input(model, X):
+        X_is_cv2_native = True
+        # duplicate of part of batch_processing
+        center_mean = None
+        center_std  = None
+        # Load precomputed whitening parameters
+        if model.preproc_kw is not None:
+            center_mean = np.array(model.preproc_kw['center_mean'], dtype=np.float32)
+            center_std  = np.array(model.preproc_kw['center_std'], dtype=np.float32)
+        do_whitening = (center_mean is not None and
+                        center_std is not None and
+                        center_std != 0.0)
+        needs_convert = ut.is_int(X)
+
+        if needs_convert:
+            ceneter_mean01 = center_mean / np.array(255.0, dtype=np.float32)
+            center_std01 = center_std / np.array(255.0, dtype=np.float32)
+        else:
+            ceneter_mean01 = center_mean
+            center_std01 = center_std
+        Xb = X.astype(np.float32)
+        if needs_convert:
+            # Rescale the batch data to the range 0 to 1
+            Xb = Xb / 255.0
+        if do_whitening:
+            # Center the batch data in the range (-1.0, 1.0)
+            Xb = (Xb - ceneter_mean01) / (center_std01)
+        if X_is_cv2_native:
+            # Convert from cv2 to lasange format
+            Xb = Xb.transpose((0, 3, 1, 2))
+        return Xb
 
 
 class AbstractCategoricalModel(BaseModel):
