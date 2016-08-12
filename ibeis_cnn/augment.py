@@ -317,7 +317,7 @@ def testdata_augment():
     from ibeis_cnn import ingest_data, utils
     import vtool as vt
     dataset = ingest_data.grab_siam_dataset()
-    cv2_data, labels = dataset.load_subset('valid')
+    cv2_data, labels = dataset.subset('valid')
     batch_size = 128
     Xb, yb = utils.random_xy_sample(cv2_data, labels, batch_size / 2, 2, seed=0)
     Xb = vt.rectify_to_float01(Xb)

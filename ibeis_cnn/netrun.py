@@ -205,7 +205,7 @@ def netrun():
     # ----------------------------
     if not model.is_train_state_initialized():
         ut.colorprint('[netrun] Need to initialize training state', 'yellow')
-        X_train, y_train = dataset.load_subset('train')
+        X_train, y_train = dataset.subset('train')
         model.ensure_training_state(X_train, y_train)
 
     # Run Actions
@@ -218,8 +218,8 @@ def netrun():
             rate_decay=.8,
         ))
         model.train_config.update(**config)
-        X_train, y_train = dataset.load_subset('train')
-        X_valid, y_valid = dataset.load_subset('valid')
+        X_train, y_train = dataset.subset('train')
+        X_valid, y_valid = dataset.subset('valid')
         model.fit(X_train, y_train, X_valid=X_valid, y_valid=y_valid)
 
     elif requests['test']:
@@ -227,12 +227,12 @@ def netrun():
         ut.colorprint('[netrun] Test Requested', 'yellow')
         if requests['testall']:
             ut.colorprint('[netrun]  * Testing on all data', 'lightgray')
-            X_test, y_test = dataset.load_subset('all')
-            flat_metadata = dataset.load_subset_metadata('all')
+            X_test, y_test = dataset.subset('all')
+            flat_metadata = dataset.subset_metadata('all')
         else:
             ut.colorprint('[netrun]  * Testing on test subset', 'lightgray')
-            X_test, y_test = dataset.load_subset('test')
-            flat_metadata = dataset.load_subset_metadata('test')
+            X_test, y_test = dataset.subset('test')
+            flat_metadata = dataset.subset_metadata('test')
         data, labels = X_test, y_test
         dataname = dataset.alias_key
         experiments.test_siamese_performance(model, data, labels,
@@ -414,8 +414,8 @@ def train_background():
         show_confusion=False,
     ))
 
-    X_train, y_train = dataset.load_subset('train')
-    X_valid, y_valid = dataset.load_subset('valid')
+    X_train, y_train = dataset.subset('train')
+    X_valid, y_valid = dataset.subset('valid')
     model.fit(X_train, y_train, X_valid=X_valid, y_valid=y_valid)
 
 

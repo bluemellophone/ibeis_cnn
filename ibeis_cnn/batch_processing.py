@@ -258,7 +258,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>>                    output_dims=dataset1.output_dims,
         >>>                    arch_tag=dataset1.alias_key,
         >>>                    training_dpath=dataset1.training_dpath)
-        >>> X1, y1 = dataset1.load_subset('train')
+        >>> X1, y1 = dataset1.subset('train')
         >>> model1.ensure_training_state(X1, y1)
         >>> _iter1 = batch_iterator(model1, X1, y1, randomize_batch_order)
         >>> Xb1, yb1 = six.next(_iter1)
@@ -268,7 +268,7 @@ def batch_iterator(model, X, y, randomize_batch_order=False, augment_on=False,
         >>>                    output_dims=dataset2.output_dims,
         >>>                    arch_tag=dataset2.alias_key,
         >>>                    training_dpath=dataset2.training_dpath)
-        >>> X2, y2 = dataset2.load_subset('train')
+        >>> X2, y2 = dataset2.subset('train')
         >>> model2.ensure_training_state(X2, y2)
         >>> _iter2 = batch_iterator(model2, X2, y2, randomize_batch_order)
         >>> Xb2, yb2 = six.next(_iter2)

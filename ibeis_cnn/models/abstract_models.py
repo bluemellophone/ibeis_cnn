@@ -237,7 +237,7 @@ class _ModelFitting(object):
             >>> model.print_layer_info()
             >>> model.print_model_info_str()
             >>> #model.reinit_weights()
-            >>> X_train, y_train = dataset.load_subset('train')
+            >>> X_train, y_train = dataset.subset('train')
             >>> model.fit(X_train, y_train)
 
         Example1:
@@ -260,7 +260,7 @@ class _ModelFitting(object):
             >>> model.print_layer_info()
             >>> model.print_model_info_str()
             >>> #model.reinit_weights()
-            >>> X_train, y_train = dataset.load_subset('train')
+            >>> X_train, y_train = dataset.subset('train')
             >>> model.fit(X_train, y_train)
         """
         from ibeis_cnn import utils

@@ -1,21 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 from os.path import join, basename, exists
 import six
 import numpy as np
 import utool as ut
 print, rrr, profile = ut.inject2(__name__, '[ibeis_cnn.datset]')
-
-
-#NOCACHE_ALIAS = True
-# NOCACHE_ALIAS = ut.get_argflag('--nocache-alias')
-# NOCACHE_DATA_SPLIT = ut.get_argflag('--nocache-datasplit')
-
-
-class DummyDataSet(object):
-    def __init__(dataset):
-        dataset.data_fpath_dict = None
-        dataset.label_fpath_dict = None
 
 
 @six.add_metaclass(ut.ReloadingMetaclass)
@@ -65,47 +54,8 @@ class DataSet(ut.NiceRepr):
         # Probably should be refactored
         dataset._lazy_cache = ut.LazyDict()
 
-    # @classmethod
-    # def from_alias_key(cls, alias_key):
-    #     if NOCACHE_ALIAS:
-    #         raise Exception('Aliasing Disabled')
-    #     # shortcut to the cached information so we dont need to
-    #     # compute hotspotter matching hashes. There is a change data
-    #     # can get out of date while this is enabled.
-    #     alias_fpath = get_alias_dict_fpath()
-    #     alias_dict = ut.text_dict_read(alias_fpath)
-    #     if alias_key in alias_dict:
-    #         data_dict = alias_dict[alias_key]
-    #         ut.assert_exists(data_dict['training_dpath'])
-    #         ut.assert_exists(data_dict['data_fpath'])
-    #         ut.assert_exists(data_dict['labels_fpath'])
-    #         ut.assert_exists(data_dict['metadata_fpath'])
-    #         dataset = cls(**data_dict)
-    #         # dataset.build_auxillary_data()
-    #         print('[dataset] Returning aliased data alias_key=%r' % (alias_key,))
-    #         return dataset
-    #     raise Exception('Alias cache miss:\n    alias_key=%r' % (alias_key,))
-
     def __nice__(dataset):
         return '(' + dataset.dataset_id + ')'
-
-    def ensure_dirs(dataset):
-        ut.ensuredir(dataset.full_dpath)
-        ut.ensuredir(dataset.split_dpath)
-
-    def print_dir_structure(dataset):
-        print(dataset.training_dpath)
-        print(dataset.dataset_dpath)  # FIXME this is really dataset dir
-        print(dataset.data_fpath)
-        print(dataset.labels_fpath)
-        print(dataset.metadata_fpath)
-        print(dataset.info_fpath)
-        print(dataset.full_dpath)
-        print(dataset.split_dpath)
-
-    def print_dir_tree(dataset):
-        fpaths = ut.glob(dataset.dataset_dpath, '*', recursive=True)
-        print('\n'.join(sorted(fpaths)))
 
     @property
     def hashid(dataset):
@@ -186,14 +136,14 @@ class DataSet(ut.NiceRepr):
     def setprop(dataset, key, val):
         dataset._lazy_cache[key] = val
 
-    def load_subset(dataset, key):
+    def subset(dataset, key):
         """ loads a test/train/valid/full data subset """
-        data = dataset.load_subset_data(key)
-        labels = dataset.load_subset_labels(key)
+        data = dataset.subset_data(key)
+        labels = dataset.subset_labels(key)
         return data, labels
 
     def print_subset_info(dataset, key='full'):
-        data, labels = dataset.load_subset(key)
+        data, labels = dataset.subset(key)
         dataset.print_dataset_info(data, labels, key)
 
     @property
@@ -210,15 +160,15 @@ class DataSet(ut.NiceRepr):
 
     @property
     def labels(dataset):
-        return dataset.load_subset_labels()
+        return dataset.subset_labels()
 
     @property
     def data(dataset):
-        return dataset.load_subset_data()
+        return dataset.subset_data()
 
     @property
     def metadata(dataset):
-        return dataset.load_subset_metadata()
+        return dataset.subset_metadata()
 
     def asdict(dataset):
         # save all args passed into constructor as a dict
@@ -226,22 +176,8 @@ class DataSet(ut.NiceRepr):
         data_dict = ut.dict_subset(dataset.__dict__, key_list)
         return data_dict
 
-    def ensure_symlinked(dataset):
-        # creates a symlink in the junction dir
-        register_training_dpath(dataset.dataset_dpath, dataset.dataset_id)
-
-    #def save_alias(dataset, alias_key):
-    #    # shortcut to the cached information so we dont need to
-    #    # compute hotspotter matching hashes. There is a change data
-    #    # can get out of date while this is enabled.
-    #    alias_fpath = get_alias_dict_fpath()
-    #    alias_dict = ut.text_dict_read(alias_fpath)
-    #    data_dict = dataset.asdict()
-    #    alias_dict[alias_key] = data_dict
-    #    ut.text_dict_write(alias_fpath, alias_dict)
-
     @ut.memoize
-    def load_subset_data(dataset, key='full'):
+    def subset_data(dataset, key='full'):
         data_fpath = dataset.fpath_dict[key]['data']
         data = ut.load_data(data_fpath, verbose=True)
         if len(data.shape) == 3:
@@ -250,14 +186,14 @@ class DataSet(ut.NiceRepr):
         return data
 
     @ut.memoize
-    def load_subset_labels(dataset, key='full'):
+    def subset_labels(dataset, key='full'):
         labels_fpath = dataset.fpath_dict[key]['labels']
         labels = (None if labels_fpath is None
                   else ut.load_data(labels_fpath, verbose=True))
         return labels
 
     @ut.memoize
-    def load_subset_metadata(dataset, key='full'):
+    def subset_metadata(dataset, key='full'):
         metadata_fpath = dataset.fpath_dict[key].get('metadata', None)
         if metadata_fpath is not None:
             flat_metadata = ut.load_data(metadata_fpath, verbose=True)
@@ -267,9 +203,9 @@ class DataSet(ut.NiceRepr):
 
     def clear_cache(dataset, key=None):
         cached_func_list = [
-            dataset.load_subset_data,
-            dataset.load_subset_labels,
-            dataset.load_subset_metadata,
+            dataset.subset_data,
+            dataset.subset_labels,
+            dataset.subset_metadata,
         ]
         if key is None:
             for cached_func in cached_func_list:
@@ -309,9 +245,9 @@ class DataSet(ut.NiceRepr):
                        for key_ in kwarg_keys if dataset.hasprop(key_)}
         interact_kw.update(**kwargs)
         # TODO : generalize
-        data     = dataset.load_subset_data(key)
-        labels   = dataset.load_subset_labels(key)
-        metadata = dataset.load_subset_metadata(key)
+        data     = dataset.subset_data(key)
+        labels   = dataset.subset_labels(key)
+        metadata = dataset.subset_metadata(key)
         return interact_func(
             labels, data, metadata, dataset._info['data_per_label'],
             **interact_kw)
@@ -365,6 +301,7 @@ class DataSet(ut.NiceRepr):
 
     def load(dataset):
         dataset.ensure_dirs()
+        dataset.ensure_symlinked()
         if not exists(dataset.info_fpath):
             raise IOError('dataset info manifest cache miss')
         else:
@@ -385,9 +322,9 @@ class DataSet(ut.NiceRepr):
             dataset.fpath_dict['full']['metadata'] = None
         # cache the data because it is likely going to be used to define a
         # splitset
-        dataset.load_subset_data.cache['full'] = data
-        dataset.load_subset_labels.cache['full'] = labels
-        dataset.load_subset_metadata.cache['full'] = metadata
+        dataset.subset_data.cache['full'] = data
+        dataset.subset_labels.cache['full'] = labels
+        dataset.subset_metadata.cache['full'] = metadata
         # Infer the rest of the required data info
         dataset._info['num_labels'] = len(labels)
         dataset._info['unique_labels'] = np.unique(labels)
@@ -418,6 +355,28 @@ class DataSet(ut.NiceRepr):
             ut.save_data(splitset[type_], part_dict[type_])
         # Register filenames with dataset
         dataset.fpath_dict[key] = splitset
+
+    def ensure_symlinked(dataset):
+        # creates a symlink in the junction dir
+        register_training_dpath(dataset.dataset_dpath, dataset.dataset_id)
+
+    def ensure_dirs(dataset):
+        ut.ensuredir(dataset.full_dpath)
+        ut.ensuredir(dataset.split_dpath)
+
+    def print_dir_structure(dataset):
+        print(dataset.training_dpath)
+        print(dataset.dataset_dpath)
+        print(dataset.data_fpath)
+        print(dataset.labels_fpath)
+        print(dataset.metadata_fpath)
+        print(dataset.info_fpath)
+        print(dataset.full_dpath)
+        print(dataset.split_dpath)
+
+    def print_dir_tree(dataset):
+        fpaths = ut.glob(dataset.dataset_dpath, '*', recursive=True)
+        print('\n'.join(sorted(fpaths)))
 
     # def build_auxillary_data(dataset):
     #     # Make test train validatation sets
@@ -468,16 +427,12 @@ def get_juction_dpath():
     return junction_dpath
 
 
-def register_training_dpath(training_dpath, alias_key=None):
+def register_training_dpath(training_dpath):
     """
     Creates a symlink to the training path in the training junction
     """
     junction_dpath = get_juction_dpath()
     training_dname = basename(training_dpath)
-    if alias_key is not None:
-        # hack for a bit more readable pathname
-        prefix = alias_key.split(';')[0].replace(' ', '')
-        training_dname = prefix + '_' + training_dname
     training_dlink = join(junction_dpath, training_dname)
     ut.symlink(training_dpath, training_dlink)
 

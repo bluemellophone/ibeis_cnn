@@ -165,7 +165,7 @@ r"""
 #        print_timing=False,
 #    )
 
-#    X_train, y_train = dataset.load_subset('train')
-#    X_valid, y_valid = dataset.load_subset('valid')
+#    X_train, y_train = dataset.subset('train')
+#    X_valid, y_valid = dataset.subset('valid')
 #    #X_test, y_test = utils.load_from_fpath_dicts(data_fpath_dict, label_fpath_dict, 'test')
 #    harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)

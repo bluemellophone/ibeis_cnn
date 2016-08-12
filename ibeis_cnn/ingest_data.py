@@ -124,7 +124,7 @@ def merge_datasets(dataset_list):
     labels_left = 0
     labels_right = None
     for dataset in ut.ProgressIter(dataset_list, lbl='combining datasets', freq=1):
-        X_all, y_all = dataset.load_subset('full')
+        X_all, y_all = dataset.subset('full')
         labels_right = labels_left + y_all.shape[0]
         data_right = data_left + X_all.shape[0]
         data[data_left:data_right] = X_all
@@ -298,7 +298,7 @@ def grab_mnist_siam_dataset():
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('full')
+        >>> data, labels = dataset.subset('full')
         >>> ut.quit_if_noshow()
         >>> dataset.interact()
         >>> ut.show_if_requested()
@@ -358,7 +358,7 @@ def grab_liberty_siam_dataset(pairs=250000):
         >>> from ibeis_cnn import draw_results
         >>> #ibsplugin.rrr()
         >>> flat_metadata = {}
-        >>> data, labels = dataset.load_subset('full')
+        >>> data, labels = dataset.subset('full')
         >>> ut.quit_if_noshow()
         >>> warped_patch1_list = data[::2]
         >>> warped_patch2_list = data[1::2]

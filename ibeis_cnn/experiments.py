@@ -29,7 +29,7 @@ def sift_dataset_separability(dataset):
     import vtool as vt
     @ut.cached_func('tempsiftscorecache', cache_dir='.')
     def cached_siftscores():
-        data, labels = dataset.load_subset('test')
+        data, labels = dataset.subset('test')
         sift_scores, sift_list = test_sift_patchmatch_scores(data, labels)
         sift_scores = sift_scores.astype(np.float64)
         return sift_scores, labels, sift_list

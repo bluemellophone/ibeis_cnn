@@ -49,7 +49,7 @@ class MNISTModel(abstract_models.AbstractCategoricalModel):
         >>>     max_epochs=5,
         >>>     rate_decay=.8,
         >>> )))
-        >>> X_train, y_train = dataset.load_subset('train')
+        >>> X_train, y_train = dataset.subset('train')
         >>> model.fit(X_train, y_train)
 
     """
