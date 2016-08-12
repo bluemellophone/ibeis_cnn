@@ -216,6 +216,7 @@ class _ModelFitting(object):
             python -m ibeis_cnn _ModelFitting.fit:0
             python -m ibeis_cnn _ModelFitting.fit:1
             python -m ibeis_cnn _ModelFitting.fit:0 --vd
+            python -m ibeis_cnn _ModelFitting.fit:1 --vd
 
         Example0:
             >>> from ibeis_cnn import ingest_data
@@ -288,7 +289,7 @@ class _ModelFitting(object):
 
         printcol_info = utils.get_printcolinfo(model.requested_headers)
 
-        model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+        model.new_era(X_learn, y_learn, X_valid, y_valid)
         utils.print_header_columns(printcol_info)
 
         tt = ut.Timer(verbose=False)
@@ -359,7 +360,7 @@ class _ModelFitting(object):
                     frac = model.train_config['rate_decay']
                     learn_state = model.learn_state
                     learn_state.learning_rate = (learn_state.learning_rate * frac)
-                    model.start_new_era(X_learn, y_learn, X_valid, y_valid)
+                    model.new_era(X_learn, y_learn, X_valid, y_valid)
                     utils.print_header_columns(printcol_info)
 
                 # Break on max epochs
@@ -417,59 +418,11 @@ class _ModelFitting(object):
         # Save the best network
         model.checkpoint_save_model_state()
         model.save_model_state()
-        #from ibeis_cnn import harness
-        #harness.train(model, X_train, y_train, X_valid, y_valid, dataset, config)
-
-    #@property
-    #def best_weights(model):
-    #    return model.best_results['weights']
-    #@best_weights.setter
-    #def best_weights(model, weights):
-    #    model.best_results['weights'] = weights
-
-    def start_new_era(model, X_learn, y_learn, X_valid, y_valid):
-        """
-        Used to denote a change in hyperparameters during training.
-        """
-        # TODO: fix the training data hashid stuff
-        y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
-
-        learn_hashid =  str(model.arch_id) + '_' + y_hashid
-        # learn_hashid =  str(model.arch_tag) + '_' + y_hashid
-        if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
-            print('Not starting new era (old one hasnt begun yet')
-        else:
-            new_era = {
-                'learn_hashid': learn_hashid,
-                'arch_hashid': model.get_architecture_hashid(),
-                # 'arch_tag': model.arch_tag,
-                'arch_id': model.arch_id,
-                'num_learn': len(y_learn),
-                'num_valid': len(y_valid),
-                'valid_loss_list': [],
-                'learn_loss_list': [],
-                'epoch_list': [],
-                'learn_state': [model.learn_state.asdict()],
-            }
-            num_eras = len(model.era_history)
-            print('starting new era %d' % (num_eras,))
-            #if model.current_era is not None:
-            model.current_era = new_era
-            model.era_history.append(model.current_era)
-
-    def record_epoch(model, epoch_info):
-        """
-        Records an epoch in an era.
-        """
-        # each key/val in an epoch_info dict corresponds to a key/val_list in
-        # an era dict.
-        for key in epoch_info:
-            key_ = key + '_list'
-            if key_ not in model.current_era:
-                model.current_era[key_] = []
-            model.current_era[key_].append(epoch_info[key])
 
     def new_fit_session(model):
+        """
+        Starts a model training session
+        """
         model._fit_session = {
             'start_time': ut.get_timestamp()
         }
@@ -513,39 +466,6 @@ class _ModelFitting(object):
                 'weights_progress_dir': weights_progress_dir,
             })
 
-    def _overwrite_latest_image(model, fpath, new_name):
-        """
-        copies the new image to a path to be overwritten so new updates are
-        shown
-        """
-        from os.path import split, join, splitext
-        import shutil
-        dpath, fname = split(fpath)
-        ext = splitext(fpath)[1]
-        session_dpath = model._fit_session['session_dpath']
-        # Copy latest image to the session dir and the main arch dir
-        shutil.copy(fpath, join(session_dpath, 'latest ' + new_name + ext))
-        shutil.copy(fpath, join(model.arch_dpath, 'latest ' + new_name + ext))
-
-    def _dump_epoch_monitor(model):
-        history_dir = model._fit_session['history_progress_dir']
-        weights_dir = model._fit_session['weights_progress_dir']
-        text_fpath = model._fit_session['history_text_fpath']
-
-        # Save loss graphs
-        fpath = model.imwrite_era_history(dpath=history_dir,
-                                          fname='history_' + model.hist_id + '.png',
-                                          fnum=1, verbose=0)
-        model._overwrite_latest_image(fpath, 'history')
-        # Save weights images
-        fpath = model.imwrite_weights(dpath=weights_dir,
-                                      fname='weights_' + model.hist_id + '.png',
-                                      fnum=2, verbose=0)
-        model._overwrite_latest_image(fpath, 'weights')
-        # Save text info
-        history_text = ut.list_str(model.era_history, newlines=True)
-        ut.write_to(text_fpath, history_text, verbose=False)
-
     def _prefit(model, X_train, y_train, X_valid, y_valid, valid_idx):
         # Center the data by subtracting the mean
         model.check_data_shape(X_train)
@@ -584,8 +504,82 @@ class _ModelFitting(object):
         # print('\n[train] --- MODEL INFO ---')
         # model.print_architecture_str()
         # model.print_layer_info()
-
         return X_learn, y_learn, X_valid, y_valid
+
+    def _overwrite_latest_image(model, fpath, new_name):
+        """
+        copies the new image to a path to be overwritten so new updates are
+        shown
+        """
+        from os.path import split, join, splitext
+        import shutil
+        dpath, fname = split(fpath)
+        ext = splitext(fpath)[1]
+        session_dpath = model._fit_session['session_dpath']
+        # Copy latest image to the session dir and the main arch dir
+        shutil.copy(fpath, join(session_dpath, 'latest ' + new_name + ext))
+        shutil.copy(fpath, join(model.arch_dpath, 'latest ' + new_name + ext))
+
+    def _dump_epoch_monitor(model):
+        history_dir = model._fit_session['history_progress_dir']
+        weights_dir = model._fit_session['weights_progress_dir']
+        text_fpath = model._fit_session['history_text_fpath']
+
+        # Save loss graphs
+        fpath = model.imwrite_era_history(dpath=history_dir,
+                                          fname='history_' + model.hist_id + '.png',
+                                          fnum=1, verbose=0)
+        model._overwrite_latest_image(fpath, 'history')
+        # Save weights images
+        fpath = model.imwrite_weights(dpath=weights_dir,
+                                      fname='weights_' + model.hist_id + '.png',
+                                      fnum=2, verbose=0)
+        model._overwrite_latest_image(fpath, 'weights')
+        # Save text info
+        history_text = ut.list_str(model.era_history, newlines=True)
+        ut.write_to(text_fpath, history_text, verbose=False)
+
+    def new_era(model, X_learn, y_learn, X_valid, y_valid):
+        """
+        Used to denote a change in hyperparameters during training.
+        """
+        # TODO: fix the training data hashid stuff
+        y_hashid = ut.hashstr_arr(y_learn, 'y', alphabet=ut.ALPHABET_27)
+
+        learn_hashid =  str(model.arch_id) + '_' + y_hashid
+        # learn_hashid =  str(model.arch_tag) + '_' + y_hashid
+        if model.current_era is not None and len(model.current_era['epoch_list']) == 0:
+            print('Not starting new era (old one hasnt begun yet')
+        else:
+            new_era = {
+                'learn_hashid': learn_hashid,
+                'arch_hashid': model.get_architecture_hashid(),
+                # 'arch_tag': model.arch_tag,
+                'arch_id': model.arch_id,
+                'num_learn': len(y_learn),
+                'num_valid': len(y_valid),
+                'valid_loss_list': [],
+                'learn_loss_list': [],
+                'epoch_list': [],
+                'learn_state': [model.learn_state.asdict()],
+            }
+            num_eras = len(model.era_history)
+            print('starting new era %d' % (num_eras,))
+            #if model.current_era is not None:
+            model.current_era = new_era
+            model.era_history.append(model.current_era)
+
+    def record_epoch(model, epoch_info):
+        """
+        Records an epoch in an era.
+        """
+        # each key/val in an epoch_info dict corresponds to a key/val_list in
+        # an era dict.
+        for key in epoch_info:
+            key_ = key + '_list'
+            if key_ not in model.current_era:
+                model.current_era[key_] = []
+            model.current_era[key_].append(epoch_info[key])
 
     def _epoch_learn_step(model, theano_backprop, X_learn, y_learn):
         """
@@ -774,7 +768,8 @@ class _ModelVisualization(object):
         fig = pt.figure(fnum=fnum, pnum=(1, 1, 1), doclf=True, docla=True)
         next_pnum = pt.make_pnum_nextgen(nRows=2, nCols=2)
         model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='log')
-        model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
+        # model.show_era_loss(fnum=fnum, pnum=next_pnum(), yscale='linear')
+        model.show_era_acc(fnum=fnum, pnum=next_pnum(), yscale='linear')
         model.show_era_lossratio(fnum=fnum, pnum=next_pnum())
 
         # TODO: dont do this if off
@@ -783,130 +778,81 @@ class _ModelVisualization(object):
         pt.set_figtitle('Era History: ' + model.hist_id + '\n' + model.arch_id)
         return fig
 
-    def show_era_lossratio(model, fnum=None, pnum=(1, 1, 1)):
+    def show_era_lossratio(model, **kwargs):
+        labels = None
+        if len(model.era_history) > 0:
+            labels = {
+                'ratio': 'learn/valid'
+            }
+        ydatas = [
+            {
+                'ratio': np.divide(era['learn_loss_list'],
+                                   era['valid_loss_list'])
+            }
+            for era in model.era_history
+        ]
+        return model._show_era_measure(ydatas, labels, ylabel='learn/valid', yscale='linear', **kwargs)
+
+    def show_era_acc(model, **kwargs):
+        styles = {'valid': '-o'}
+        labels = None
+        if len(model.era_history) > 0:
+            labels = {
+                'valid': 'valid acc ' + str(model.era_history[0]['num_valid']),
+            }
+        ydatas = [
+            {
+                'valid': era['valid_acc_list'],
+            }
+            for era in model.era_history
+        ]
+        return model._show_era_measure(ydatas, labels,  styles, ylabel='accuracy',
+                                       **kwargs)
+
+    def show_era_loss(model, **kwargs):
+        styles = {'learn': '-x', 'valid': '-o'}
+        labels = None
+        if len(model.era_history) > 0:
+            labels = {
+                'learn': 'learn ' + str(model.era_history[0]['num_learn']),
+                'valid': 'valid ' + str(model.era_history[0]['num_valid']),
+            }
+        ydatas = [
+            {
+                'learn': era['learn_loss_list'],
+                'valid': era['valid_loss_list'],
+            }
+            for era in model.era_history
+        ]
+        return model._show_era_measure(ydatas, labels,  styles, ylabel='loss',
+                                       **kwargs)
+
+    def show_weight_updates(model, **kwargs):
+        # has_mag_updates = False
         import plottool as pt
-
-        fnum = pt.ensure_fnum(fnum)
-
-        fig = pt.figure(fnum=fnum, pnum=pnum)
-        colors = pt.distinct_colors(len(model.era_history))
-        num_eras = len(model.era_history)
-        for index, era in enumerate(model.era_history):
-            epochs = era['epoch_list']
-            learn_loss = np.array(era['learn_loss_list'])
-            valid_loss = np.array(era['valid_loss_list'])
-            #print('era = %s' % (ut.dict_str(era),))
-            #valid_loss_std = np.array(era['valid_loss_std_list'])  # NOQA
-            learnval_ratio = learn_loss / valid_loss
-
-            era_color = colors[index]
-            #yscale = 'linear'
-            #yscale = 'log'
-            if index == len(model.era_history) - 1:
-                pt.plot(epochs, learnval_ratio, '-o', color=era_color,
-                        label='train/valid')
-            else:
-                pt.plot(epochs, learnval_ratio, '-o', color=era_color)
-
-        #append_phantom_legend_label
-        pt.set_xlabel('epoch')
-        pt.set_ylabel('train/valid ratio')
-
-        if num_eras > 0:
-            pt.legend()
-        pt.dark_background()
-        return fig
-
-    def show_era_loss(model, fnum=None, pnum=(1, 1, 1), yscale='log'):
-        import plottool as pt
-
-        fnum = pt.ensure_fnum(fnum)
-
-        fig = pt.figure(fnum=fnum, pnum=pnum)
-        num_eras = len(model.era_history)
-        colors = pt.distinct_colors(num_eras)
-
-        styles = {
-            'learn_loss': '-x',
-            'valid_loss': '-o',
-        }
-
-        xdata = {}
-        ydata = {}
-        prev_xdata = {}
-        prev_ydata = {}
+        xdatas = []
+        ydatas = []
+        yspreads = []
+        labels = None
+        colors = None
 
         if len(model.era_history) > 0:
-            plot_labels = {
-                'learn_loss': str(model.era_history[0]['num_learn']),
-                'valid_loss': str(model.era_history[0]['num_valid']),
-            }
+            era = model.era_history[-1]
+            if 'param_update_mags_list' in era:
+                keys = list(set(ut.flatten([
+                    dict_.keys() for dict_ in era['param_update_mags_list']
+                ])))
+                labels = dict(zip(keys, keys))
+                colors = dict(zip(keys, pt.distinct_colors(len(keys))))
 
-        era_color = None
+        # colors = {}
         for index, era in enumerate(model.era_history):
-            xdata['epoch'] = era['epoch_list']
-            ydata['learn_loss'] = era['learn_loss_list']
-            ydata['valid_loss'] = era['valid_loss_list']
-
-            #epochs = era['epoch_list']
-            #learn_loss = era['learn_loss_list']
-            #valid_loss = era['valid_loss_list']
-
-            if len(prev_xdata) > 0:
-                for key in styles.keys():
-                    pt.plot(prev_xdata['epoch'] + xdata['epoch'][:1], prev_ydata[key] + ydata[key][:1],
-                            '-', color=era_color, yscale=yscale)
-
-                #pt.plot(prev_epoch + epochs[:1], prev_valid + valid_loss[:1],
-                #        '-x', color=era_color, yscale=yscale)
-                #pt.plot(prev_epoch + epochs[:1], prev_learn + learn_loss[:1],
-                #        '-o', color=era_color, yscale=yscale)
-
-            era_color = colors[index]
-            #learn_plotkw = {}
-            #valid_plotkw = {}
-            #if index == len(model.era_history) - 1:
-            #    if 'num_valid' in era:
-            #        valid_plotkw['label'] = 'valid_loss ' + str(era['num_valid'])
-            #    if 'num_learn' in era:
-            #        learn_plotkw['label']  = 'learn_loss ' + str(era['num_learn'])
-
-            for key in styles.keys():
-                kw = {}
-                if index == len(model.era_history) - 1:
-                    kw = {'label': plot_labels[key]}
-                pt.plot(xdata['epoch'], ydata[key], styles[key], color=era_color,
-                        yscale=yscale, **kw)
-                prev_xdata['epoch'] = xdata['epoch'][-1:]
-                prev_ydata[key] = ydata[key][-1:]
-
-            #pt.plot(epochs, valid_loss, '-x', color=era_color,
-            #        yscale=yscale, **learn_plotkw)
-            #pt.plot(epochs, learn_loss, '-o', color=era_color,
-            #        yscale=yscale, **valid_plotkw)
-
-            #prev_epoch = epochs[-1:]
-            #prev_learn = learn_loss[-1:]
-            #prev_valid = valid_loss[-1:]
-
-        # append_phantom_legend_label
-        pt.set_xlabel('epoch')
-        pt.set_ylabel('loss')
-        if num_eras > 0:
-            pt.legend()
-        pt.dark_background()
-        return fig
-
-    def show_weight_updates(model, fnum=None, pnum=(1, 1, 1)):
-        import plottool as pt
-        fnum = pt.ensure_fnum(fnum)
-        fig = pt.figure(fnum=fnum, pnum=pnum)
-        num_eras = len(model.era_history)
-        has_mag_updates = False
-        for index, era in enumerate(model.era_history):
-            epochs = era['epoch_list']
             if 'param_update_mags_list' not in era:
                 continue
+            xdata = era['epoch_list']
+            if index == 0:
+                xdata = xdata[1:]
+            xdatas.append(xdata)
             update_mags_list = era['param_update_mags_list']
             # Transpose keys and positions
             param_keys = list(set(ut.flatten([
@@ -916,28 +862,102 @@ class _ModelVisualization(object):
                 [list_[param] for list_ in update_mags_list]
                 for param in param_keys
             ]
-            colors = pt.distinct_colors(len(param_val_list))
-            for key, val, color in zip(param_keys, param_val_list, colors):
-                update_mag_mean = ut.get_list_column(val, 0)
-                update_mag_std = ut.get_list_column(val, 1)  # NOQA
-                #pt.plot(epochs, update_mag_mean, marker='-x', color=color)
-                if index == len(model.era_history) - 1:
-                    # Dont show the first update
-                    pt.interval_line_plot(epochs[1:], update_mag_mean[1:],
-                                          update_mag_std[1:], marker='x',
-                                          linestyle='-', color=color,
-                                          label=key)
-                else:
-                    pt.interval_line_plot(epochs[1:], update_mag_mean[1:],
-                                          update_mag_std[1:], marker='x',
-                                          linestyle='-', color=color)
-                #, label=valid_label, yscale=yscale)
-            has_mag_updates = True
-            pass
-        if has_mag_updates:
-            if num_eras > 0:
-                pt.legend()
+            if index == 0:
+                param_val_list = [list_[1:] for list_ in param_val_list]
+            ydata = {}
+            yspread = {}
+            for key, val in zip(param_keys, param_val_list):
+                ydata[key] = ut.get_list_column(val, 0)
+                yspread[key] = ut.get_list_column(val, 1)
+            ydatas.append(ydata)
+            yspreads.append(yspread)
+        return model._show_era_measure(ydatas, labels=labels, colors=colors,
+                                       xdatas=xdatas,
+                                       ylabel='update magnitude',
+                                       yspreads=yspreads,
+                                       yscale='linear', **kwargs)
 
+    def _show_era_measure(model, ydatas, labels=None, styles=None, xdatas=None, xlabel='epoch',
+                          ylabel='', yspreads=None, colors=None, fnum=None, pnum=(1, 1, 1),
+                          yscale='log'):
+
+        # print('Show Era Measure ylabel = %r' % (ylabel,))
+        import plottool as pt
+        num_eras = len(model.era_history)
+
+        if labels is None:
+            pass
+
+        if styles is None:
+            styles = ut.ddict(lambda: '-o')
+
+        if xdatas is None:
+            xdatas = [era['epoch_list'] for era in model.era_history]
+
+        if colors is None:
+            colors = pt.distinct_colors(num_eras)
+
+        prev_xdata = []
+        prev_ydata = {}
+        prev_yspread = {}
+
+        fnum = pt.ensure_fnum(fnum)
+        fig = pt.figure(fnum=fnum, pnum=pnum)
+        ax = pt.gca()
+
+        can_plot = True
+
+        for index in range(num_eras):
+            if len(xdatas) <= index:
+                can_plot = False
+                break
+            xdata = xdatas[index]
+            ydata = ydatas[index]
+
+            if isinstance(colors, list):
+                color_ = colors[index]
+            else:
+                color_ = colors
+
+            # Draw lines between eras
+            if len(prev_xdata) > 0:
+                for key in ydata.keys():
+                    color = color_[key] if isinstance(color_, dict) else color_
+                    xdata_ = ut.flatten([prev_xdata, xdata[:1]])
+                    ydata_ = ut.flatten([prev_ydata[key], ydata[key][:1]])
+                    if yspreads is not None:
+                        std_ = ut.flatten([prev_yspread[key], yspreads[index][key][:1]])
+                        std_ = np.array(std_)
+                        ymax = np.array(ydata_) + std_
+                        ymin = np.array(ydata_) - std_
+                        ax.fill_between(xdata_, ymin, ymax, alpha=.12, color=color)
+                    pt.plot(xdata_, ydata_,
+                            '--', color=color, yscale=yscale)
+
+            # Draw lines inside era
+            for key in ydata.keys():
+                kw = {}
+                # The last epoch gets the label
+                if index == num_eras - 1:
+                    kw = {'label': labels[key]}
+                ydata_ = ydata[key]
+                color = color_[key] if isinstance(color_, dict) else color_
+                if yspreads is not None:
+                    std = np.array(yspreads[index][key])
+                    ymax = np.array(ydata_) + std
+                    ymin = np.array(ydata_) - std
+                    ax.fill_between(xdata, ymin, ymax, alpha=.2, color=color)
+                    prev_yspread[key] = std[-1:]
+                pt.plot(xdata, ydata_, styles[key], color=color,
+                        yscale=yscale, **kw)
+                prev_ydata[key] = ydata_[-1:]
+            prev_xdata = xdata[-1:]
+
+        # append_phantom_legend_label
+        pt.set_xlabel(xlabel)
+        pt.set_ylabel(ylabel)
+        if num_eras > 0 and can_plot:
+            pt.legend()
         pt.dark_background()
         return fig
 
@@ -1897,7 +1917,7 @@ class _ModelBackend(object):
         from ibeis_cnn.__THEANO__ import tensor as T  # NOQA
         # Build outputs to babysit training
         monitor_outputs = []
-        if model.train_config['monitor'] and False:
+        if model.train_config['monitor']:  # and False:
             for param in parameters:
                 # The vector each param was udpated with
                 # (one vector per channel)
@@ -2299,14 +2319,18 @@ def testdata_model_with_history():
     X_train, y_train = [1, 2, 3], [0, 0, 1]
     rng = np.random.RandomState(0)
     def dummy_epoch_dict(num):
+        from scipy.special import expit
+        mean_loss = 1 / np.exp(num / 10)
+        frac = (num / total_epochs)
+        def rand():
+            return rng.rand() / 10
         epoch_info = {
             'epoch': num,
-            'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'learn_loss': 1 / np.exp(num / 10) + rng.rand() / 100,
-            'learn_loss_regularized': (1 / np.exp(num / 10) +
-                                       np.exp(rng.rand() * num) +
-                                       rng.rand() / 100),
-            'valid_loss': 1 / np.exp(num / 10) - rng.rand() / 100,
+            # 'loss': 1 / np.exp(num / 10) + rng.rand() / 100,
+            'learn_loss': mean_loss + rand(),
+            'learn_loss_regularized': (mean_loss + np.exp(rand() * num + rand())),
+            'valid_loss': mean_loss - rand(),
+            'valid_acc': expit(-6 + 12 * np.clip(frac + rand(), 0, 1)),
             'param_update_mags': {
                 'C0': (rng.normal() ** 2, rng.rand()),
                 'F1': (rng.normal() ** 2, rng.rand()),
@@ -2314,10 +2338,12 @@ def testdata_model_with_history():
         }
         return epoch_info
     epoch = 0
-    for era_length in [4, 4, 4]:
-        model.start_new_era(X_train, y_train, X_train, y_train)
+    eralens = [4, 4, 4]
+    total_epochs = sum(eralens)
+    for era_length in eralens:
+        model.new_era(X_train, y_train, X_train, y_train)
         for _ in range(era_length):
-            model.record_epoch(dummy_epoch_dict(epoch))
+            model.record_epoch(dummy_epoch_dict(num=epoch))
             epoch += 1
     #model.record_epoch({'epoch': 1, 'valid_loss': .8, 'learn_loss': .9})
     #model.record_epoch({'epoch': 2, 'valid_loss': .5, 'learn_loss': .7})

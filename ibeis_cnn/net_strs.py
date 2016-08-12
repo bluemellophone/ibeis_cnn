@@ -187,6 +187,8 @@ def get_layer_info(layer):
     classalias_map = {
         'Conv2DCCLayer'    : 'Conv2D',
         'Conv2DDNNLayer'   : 'Conv2D',
+        'Conv2DLayer'   : 'Conv2D',
+        'MaxPool2DLayer': 'MaxPool2D',
         'MaxPool2DCCLayer' : 'MaxPool2D',
         'MaxPool2DDNNLayer' : 'MaxPool2D',
         'LeakyRectify'     : 'LRU',
@@ -198,14 +200,14 @@ def get_layer_info(layer):
         'BatchNormLayer'   : 'BatchNorm',
     }
     layer_attrs_ignore_dict = {
-        'MaxPool2D'  : ['mode'],
+        'MaxPool2D'  : ['mode', 'ignore_border'],
         'Dropout'  : ['rescale'],
         'BatchNorm': ['epsilon', 'mean', 'inv_std', 'axes', 'beta', 'gamma']
     }
     layer_attrs_dict = {
         'Input'     : ['shape'],
         'Dropout'   : ['p'],
-        'Conv2D'    : ['num_filters', 'filter_size', 'stride'],
+        'Conv2D'    : ['num_filters', 'filter_size', 'stride', 'convolution'],
         'MaxPool2D' : ['stride', 'pool_size'],  # 'mode'],
         'Dense'     : ['num_units'],
         'SoftMax'   : ['num_units'],
