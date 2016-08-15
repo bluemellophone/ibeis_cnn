@@ -209,6 +209,7 @@ def generate_species_background(ibs, chip_list, species=None, nInput=None):
         >>> chip_list = ibs.get_annot_chips(aid_list, verbose=True, config2_=config2_, eager=True)
         >>> stacked_list = [vt.stack_images(chip, mask)[0] for chip, mask in  zip(chip_list, mask_list)]
         >>> iteract_obj = pt.interact_multi_image.MultiImageInteraction(stacked_list, nPerPage=4)
+        >>> iteract_obj.start()
         >>> #hough_cpath = ibs.get_annot_probchip_fpath(aid_list, config2_=config2_)
         >>> #iteract_obj2 = pt.interact_multi_image.MultiImageInteraction(hough_cpath, nPerPage=4)
         >>> #pt.imshow(mask_list[0])

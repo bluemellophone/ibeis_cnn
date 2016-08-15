@@ -50,9 +50,9 @@ class NonlinearityLayerSpatial(lasagne.layers.NonlinearityLayer):
 
 @six.add_metaclass(ut.ReloadingMetaclass)
 class BackgroundModel(abstract_models.AbstractCategoricalModel):
-    def __init__(model, autoinit=False, batch_size=128, data_shape=(48, 48, 3), num_output=2, arch_tag='background', **kwargs):
+    def __init__(model, autoinit=False, batch_size=128, data_shape=(48, 48, 3), num_output=2, **kwargs):
         model.num_output = num_output
-        super(BackgroundModel, model).__init__(batch_size=batch_size, data_shape=data_shape, arch_tag=arch_tag, **kwargs)
+        super(BackgroundModel, model).__init__(batch_size=batch_size, data_shape=data_shape, name='background', **kwargs)
 
     def learning_rate_update(model, x):
         return x / 2.0

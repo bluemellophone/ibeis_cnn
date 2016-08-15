@@ -258,6 +258,12 @@ def get_layer_info(layer):
             with utool.embed_on_exception_context:
                 raise AssertionError('MISSING KEYS')
 
+    # handle None batch sizes
+    if output_shape[0] is None:
+        size = np.prod(output_shape[1:])
+    else:
+        size = np.prod(output_shape)
+
     layer_info = ut.odict([
         ('name', layer.name),
         ('classname', classname),
@@ -266,7 +272,7 @@ def get_layer_info(layer):
         ('input_shape', input_shape),
         ('num_outputs', num_outputs),
         ('num_inputs', num_inputs),
-        ('size', np.prod(output_shape)),
+        ('size', size),
         ('itemsize', layer_dtype.itemsize),
         ('dtype', str(layer_dtype)),
         ('num_params', num_params),

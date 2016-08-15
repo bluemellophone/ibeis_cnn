@@ -728,36 +728,43 @@ class _ModelLegacy(object):
 
     def load_old_weights_kw2(model, old_weights_fpath):
         print('[model] loading old model state from: %s' % (old_weights_fpath,))
-        with open(old_weights_fpath, 'rb') as file_:
-            oldkw = pickle.load(file_)
 
-        # Model architecture and weight params
-        output_dims = model.best_results['weights'][-1][0]
+        oldkw = ut.load_cPkl(old_weights_fpath, n=None)
+        #with open(old_weights_fpath, 'rb') as file_:
+        #    oldkw = pickle.load(file_)
 
-        if model.output_dims is None:
-            model.output_dims = output_dims
+        import utool
+        with utool.embed_on_exception_context:
 
-        # Set class attributes
-        model.preproc_kw = {
-            'center_mean' : oldkw['data_whiten_mean'],
-            'center_std'  : oldkw['data_whiten_std'],
-        }
-        model.best_results = {
-            'epoch'          : oldkw['best_epoch'],
-            'test_accuracy'  : oldkw['best_valid_accuracy'],
-            'learn_loss'     : oldkw['best_learn_loss'],
-            'valid_accuracy' : oldkw['best_valid_accuracy'],
-            'valid_loss'     : oldkw['best_valid_loss'],
-            'weights':  oldkw['best_fit_weights']
-        }
+            #output_dims = model.best_results['weights'][-1][0]
 
-        # Need to build architecture first
-        model.initialize_architecture()
-        model.encoder = oldkw.get('data_label_encoder', None)
-        model.batch_size = oldkw['train_batch_size']
+            # Model architecture and weight params
+            if model.output_dims is None:
+                #model.output_dims = output_dims
+                #ut.depth_profile(oldkw['best_weights'])
+                model.output_dims = oldkw['best_weights'][-1].shape[0]
 
-        # Set architecture weights
-        model.set_all_param_values(model.best_results['weights'])
+            # Set class attributes
+            model.preproc_kw = {
+                'center_mean' : oldkw['data_whiten_mean'],
+                'center_std'  : oldkw['data_whiten_std'],
+            }
+            model.best_results = {
+                'epoch'          : oldkw['best_epoch'],
+                'test_accuracy'  : oldkw['best_valid_accuracy'],
+                'learn_loss'     : oldkw['best_train_loss'],
+                'valid_accuracy' : oldkw['best_valid_accuracy'],
+                'valid_loss'     : oldkw['best_valid_loss'],
+                'weights':  oldkw['best_fit_weights']
+            }
+
+            # Need to build architecture first
+            model.initialize_architecture()
+            model.encoder = oldkw.get('data_label_encoder', None)
+            model.batch_size = oldkw['train_batch_size']
+
+            # Set architecture weights
+            model.set_all_param_values(model.best_results['weights'])
 
 
 @ut.reloadable_class
@@ -1290,8 +1297,11 @@ class _ModelIDs(object):
         #if model.name is None:
         #    model.name = ut.get_classname(model.__class__, local=True)
 
-    def __nice__(self):
-        return '(' + self.get_arch_nice() + ' ' + self.get_history_nice() + ')'
+    def __nice__(model):
+        if model.name is None:
+            return '(' + model.get_arch_nice() + ' ' + model.get_history_nice() + ')'
+        else:
+            return '(' + model.name + ' ' + model.get_arch_nice() + ' ' + model.get_history_nice() + ')'
 
     @property
     def hash_id(model):
